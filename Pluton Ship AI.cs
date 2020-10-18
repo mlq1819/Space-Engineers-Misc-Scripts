@@ -16,6 +16,8 @@ private const float GRAV_ADJUST_MULTX = 0.9f;
 private const float ROTATIONAL_DAMPENER_MULTX = 0.9f;
 //Affects how quickly the target pitch/roll/yaw adjust moves
 private const float TARGET_ADJUST_MULTX = 0.5f;
+//Time before imminent crash where dampeners are stuck on
+private const double CRASH_PREDICTION_TIMER = 10;
 //Time to wait between scans
 private const double SCAN_FREQUENCY = 2.5f;
 //Set this to the distance you want lights and sound blocks to update on an alert
@@ -1279,18 +1281,23 @@ private void SetThrusters(){
 		Vector3D Center = new Vector3D(0,0,0);
 		if(Controller.TryGetPlanetPosition(out Center)){
 			double height_dif = (Me.CubeGrid.GetPosition() - Center).Length() - elevation;
-			Vector3D p15 = Me.CubeGrid.GetPosition() + 15 * Controller.GetShipVelocities().LinearVelocity;
-			if((p15 - Center).Length() <= height_dif){
+			Vector3D prediction = Me.CubeGrid.GetPosition() + CRASH_PREDICTION_TIMER * Controller.GetShipVelocities().LinearVelocity;
+			if((prediction - Center).Length() <= height_dif){
 				Controller.DampenersOverride = true;
 				LastError = "CRASH IMMINENT --- ENABLING DAMPENERS";
 				Me.GetSurface(0).WriteText("CRASH IMMINENT --- ENABLING DAMPENERS" + '\n', true);
 			}
 			else {
-				double distance_closed_in_15 = elevation - ((p15 - Center).Length() - height_dif);
+				double distance_closed_in_15 = elevation - ((prediction - Center).Length() - height_dif);
 				if(distance_closed_in_15 > 0){
 					double time_to_crash = elevation / distance_closed_in_15 * 15;
-					Echo(Math.Round(time_to_crash, 1).ToString() + " seconds to crash");
-					Me.GetSurface(0).WriteText(Math.Round(time_to_crash, 1).ToString() + " seconds to crash" + '\n', true);
+					if(time_to_crash < 1800){
+						Echo(Math.Round(time_to_crash, 1).ToString() + " seconds to crash");
+						Me.GetSurface(0).WriteText(Math.Round(time_to_crash, 1).ToString() + " seconds to crash" + '\n', true);
+					}
+					else {
+						Echo("No crash likely at current velocity");
+					}
 				}
 				else {
 					Echo("No crash possible at current velocity");
@@ -1324,7 +1331,7 @@ private void SetThrusters(){
 		Vector3D velocity_direction = Controller.GetShipVelocities().LinearVelocity;
 		velocity_direction.Normalize();
 		double angle = Math.Min(GetAngle(Controller_Forward, velocity_direction), GetAngle(Controller_Backward, velocity_direction));
-		if(angle <= ACCEPTABLE_ANGLE){
+		if(angle <= ACCEPTABLE_ANGLE / 2){
 			input_right -= (float) (Relative_Velocity.X * Mass_Accomodation * damp_multx);
 			input_up -= (float) (Relative_Velocity.Y * Mass_Accomodation * damp_multx);
 			Me.GetSurface(0).WriteText("Stabilizers: On (" + Math.Round(angle, 1) + "° dev)" + '\n', true);
