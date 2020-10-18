@@ -1434,13 +1434,25 @@ public class Menu_Submenu : MenuOption{
 	
 	public void Next(){
 		if(Count > 0){
-			Selection = (Selection + 1) % Count;
+			if(Selected && Menu[Selection].TYPE() == MenuType.Menu){
+				Menu_Submenu submenu = Menu[Selection] as Menu_Submenu;
+				submenu.Next();
+			}
+			else {
+				Selection = (Selection + 1) % Count;
+			}
 		}
 	}
 	
 	public void Prev(){
 		if(Count > 0){
-			Selection = (Selection - 1 + Count) % Count;
+			if(Selected && Menu[Selection].TYPE() == MenuType.Menu){
+				Menu_Submenu submenu = Menu[Selection] as Menu_Submenu;
+				submenu.Prev();
+			}
+			else {
+				Selection = (Selection - 1 + Count) % Count;
+			}
 		}
 	}
 	
@@ -1473,12 +1485,23 @@ public class Menu_Display : MenuOption{
 	public MenuType TYPE(){
 		return MenuType.Display;
 	}
-	private EntityInfo Entity;
+	private EntityInfo Entity{
+		get{
+			foreach(EntityInfo entity in EntityList){
+				if(entity.ID == EntityID)
+					return entity;
+			}
+			return null;
+		}
+	}
+	private long EntityId;
+	private List<EntityInfo> EntityList;
 	
 	private bool Can_GoTo;
 	
-	public Menu_Display(EntityInfo entity, can_goto = true){
-		Entity = entity;
+	public Menu_Display(EntityInfo entity, ref List<EntityInfo> list, bool can_goto = true){
+		EntityId = entity.ID;
+		EntityList = list;
 		Can_GoTo = can_goto;
 	}
 	
@@ -1510,50 +1533,59 @@ private void CreateMenu(){
 	MainMenu.Add(new Menu_Command("Update Menu", CreateMenu));
 	Menu_Submenu ShipCommands = new Menu_Submenu("Commands");
 	ShipCommands.Add(new Menu_Command("Lockdown", Lockdown));
-	ShipCommands.Add(new Menu_Command("Force Glitch", ForceGlitch));
+	if(Glitch==0)
+		ShipCommands.Add(new Menu_Command("Infect AI", ForceGlitch));
 	ShipCommands.Add(new Menu_Command("Factory Reset", FactoryReset));
 	MainMenu.Add(AsteroidList);
 	if(AsteroidList.Count > 0){
-		Menu_Submenu AsteroidMenu = new Menu_Submenu("Asteroids")
+		Menu_Submenu AsteroidMenu = new Menu_Submenu("Asteroids");
 		foreach(EntityInfo Entity in AsteroidList){
-			AsteroidMenu.Add(new Menu_Display(Entity), true);
+			AsteroidMenu.Add(new Menu_Display(Entity), AsteroidList, true);
 		}
 		MainMenu.Add(AsteroidMenu);
 	}
 	if(PlanetList.Count > 0){
-		Menu_Submenu PlanetMenu = new Menu_Submenu("Planets")
+		Menu_Submenu PlanetMenu = new Menu_Submenu("Planets");
 		foreach(EntityInfo Entity in PlanetList){
-			PlanetMenu.Add(new Menu_Display(Entity), true);
+			PlanetMenu.Add(new Menu_Display(Entity), PlanetList, true);
 		}
 		MainMenu.Add(PlanetMenu);
 	}
 	if(SmallShipList.Count > 0){
-		Menu_Submenu SmallShipMenu = new Menu_Submenu("Small Ships")
+		Menu_Submenu SmallShipMenu = new Menu_Submenu("Small Ships");
 		foreach(EntityInfo Entity in PlanetList){
-			SmallShipMenu.Add(new Menu_Display(Entity), false);
+			SmallShipMenu.Add(new Menu_Display(Entity), SmallShipList, false);
 		}
 		MainMenu.Add(SmallShipMenu);
 	}
 	if(LargeShipList.Count > 0){
-		Menu_Submenu LargeShipMenu = new Menu_Submenu("Large Ships")
+		Menu_Submenu LargeShipMenu = new Menu_Submenu("Large Ships");
 		foreach(EntityInfo Entity in LargeShipList){
-			LargeShipMenu.Add(new Menu_Display(Entity), true);
+			LargeShipMenu.Add(new Menu_Display(Entity), LargeShipList, true);
 		}
 		MainMenu.Add(LargeShipMenu);
 	}
 	if(CharacterList.Count > 0){
-		Menu_Submenu CharacterMenu = new Menu_Submenu("Characters")
+		Menu_Submenu CharacterMenu = new Menu_Submenu("Characters");
 		foreach(EntityInfo Entity in CharacterList){
-			CharacterMenu.Add(new Menu_Display(Entity), true);
+			CharacterMenu.Add(new Menu_Display(Entity), CharacterList, true);
 		}
 		MainMenu.Add(CharacterMenu);
 	}
-	
+	DisplayMenu();
+}
+
+private void DisplayMenu(){
+	List<IMyTextPanel> Panels = (new GenericMethods<IMyTextPanel>(this)).GetAllContaining("Command Menu Display");
+	foreach(IMyTextPanel Panel in Panels){
+		Panel.WriteText(MainMenu.ToString(), false);
+	}
 }
 
 private bool ForceGlitch(object param){
 	Glitch = Rnd.Next(1, 100);
 	Target_Glitch = (cycle + ((long)Math.Pow(10, Rnd.Next(200, 3699))))%long.MaxValue;
+	CreateMenu();
 }
 
 private bool Lockdown(object param){
@@ -1656,6 +1688,18 @@ private void ArgumentProcessor(string argument, UpdateType updateSource){
 		else if(argument.ToLower().Equals("factory reset")){
 			if(FactoryReset(null))
 				return;
+		}
+		else if(argument.ToLower().Equals("select")){
+			MainMenu.Select();
+			DisplayMenu();
+		}
+		else if(argument.ToLower().Equals("next")){
+			MainMenu.Next();
+			DisplayMenu();
+		}
+		else if(argument.ToLower().Equals("prev")){
+			MainMenu.Prev();
+			DisplayMenu();
 		}
 	}
 	catch(Exception e){
