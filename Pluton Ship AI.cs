@@ -20,6 +20,18 @@ private const float TARGET_ADJUST_MULTX = 0.5f;
 private const double SCAN_FREQUENCY = 2.5f;
 //Set this to the distance you want lights and sound blocks to update on an alert
 private const double ALERT_DISTANCE = 25;
+//Set this to the relevant ship type
+private const ShipType SHIP_TYPE = ShipType.Misc;
+
+public enum ShipType {
+	//Misc includes cruisers, carriers, etc.
+	Misc = 0,
+	Welder = 1,
+	Grinder = 2,
+	Miner = 3,
+	Fighter = 4,
+	Missile = 5
+}
 
 public class GenericMethods<T> where T : class, IMyTerminalBlock{
 	private IMyGridTerminalSystem TerminalSystem;
@@ -1715,10 +1727,82 @@ private void SetGyroscopes(){
 		Me.GetSurface(0).WriteText("Roll: " + Math.Round(Gyroscope.Roll*100, 3).ToString() + " RPM" + '\n', true);
 }
 
+//{R:255 G:0 B:0 A:255}
+private Color ColorParse(string parse){
+	parse = parse.Substring(parse.IndexOf('{')+1);
+	parse = parse.Substring(0, parse.IndexOf('{') - 1);
+	string[] args = parse.Split(' ');
+	int r, g, b, a;
+	r = Int32.Parse(args[0].Substring(IndexOf("R:")+"R:".Length).Trim());
+	g = Int32.Parse(args[1].Substring(IndexOf("G:")+"G:".Length).Trim());
+	b = Int32.Parse(args[2].Substring(IndexOf("B:")+"B:".Length).Trim());
+	a = Int32.Parse(args[3].Substring(IndexOf("A:")+"A:".Length).Trim());
+	return new Color(r,g,b,a);
+}
+
 private Vector3D Gravity = new Vector3D(0,0,0);
 private Vector3D Adjusted_Gravity = new Vector3D(0,0,0);
 private float Mass_Accomodation = 0.0f;
 private Vector3D Relative_Velocity = new Vector3D(0,0,0);
+
+private void SetAlarms(){
+	List<IMyInteriorLight> AllLights = new List<IMyInteriorLight>();
+	GridTerminalSystem.GetBlocksOfType<IMyInteriorLight>(AllLights);
+	foreach(IMyInteriorLight Light in AllLights){
+		double distance = double.MaxValue;
+		foreach(EntityInfo Entity in CharacterList){
+			distance = Math.Min(distance, (Light.GetPosition() - Entity.Position).Length());
+		}
+		if(distance <= ALERT_DISTANCE){
+			if(!HasBlockData(Light, "DefaultColor")){
+				SetBlockData(Light, "DefaultColor", Light.Color.ToString());
+			}
+			if(!HasBlockData(Light, "DefaultBlinkLength")){
+				SetBlockData(Light, "DefaultBlinkLength", Light.BlinkLength.ToString());
+			}
+			if(!HasBlockData(Light, "DefaultBlinkInterval")){
+				SetBlockData(Light, "DefaultBlinkInterval", Light.BlinkIntervalSeconds.ToString());
+			}
+			SetBlockData(Light, "Job", "Alert");
+			Light.Color = new Color(255, 0, 0, 255);
+			Light.BlinkLength = 50.0f;
+			Light.BlinkIntervalSeconds = 1.0f + (((float)distance) / ALERT_DISTANCE);
+		}
+		else {
+			if(!HasBlockData(Light, "Job")){
+				if(GetBlockData(Light, "Job").Equals("Alert")){
+					if(HasBlockData(Light, "DefaultColor")){
+						try{
+							Light.Color = ColorParse(GetBlockData(Light, "DefaultColor"));
+						}
+						catch(Exception){
+							;
+						}
+					}
+					if(HasBlockData(Light, "DefaultBlinkLength")){
+						try{
+							Light.BlinkLength = float.Parse(GetBlockData(Light, "DefaultBlinkLength"));
+						}
+						catch(Exception){
+							;
+						}
+					}
+					if(HasBlockData(Light, "DefaultBlinkInterval")){
+						try{
+							Light.BlinkIntervalSeconds = float.Parse(GetBlockData(Light, "DefaultBlinkInterval"));
+						}
+						catch(Exception){
+							;
+						}
+					}
+					SetBlockData(Light, "Job", "None");
+				}
+			}
+		}
+	}
+	
+	
+}
 
 public void Main(string argument, UpdateType updateSource)
 {
@@ -2044,6 +2128,10 @@ public void Main(string argument, UpdateType updateSource)
 	}
 	
 	SetGyroscopes();
+	
+	if(CharacterDistance<0){
+		
+	}
 	
 	if(Controller.IsUnderControl || AngularVelocity.Length() > .1f){
 		Runtime.UpdateFrequency = UpdateFrequency.Update1;
