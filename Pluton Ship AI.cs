@@ -537,8 +537,15 @@ private Vector3D Controller_Left;
 private Vector3D Controller_Right;
 
 private List<IMyTextPanel> StatusLCDs = new List<IMyTextPanel>();
-
-private List<IMyDoor[2]> Airlocks = new List<IMyDoor[2]>();
+private struct Airlock{
+	public IMyDoor Door1;
+	public IMyDoor Door2;
+	public Airlock(IMyDoor d1, IMyDoor d2){
+		Door1 = d1;
+		Door2 = d2;
+	}
+}
+private List<Airlock> Airlocks = new List<Airlock>();
 
 private float Forward_Thrust = 0.0f;
 private float Backward_Thrust = 0.0f;
@@ -835,11 +842,34 @@ private string GetRemovedString(string big_string, string small_string){
 	return output;
 }
 
+private List<List<IMyDoor>> RemoveDoor(List<List<IMyDoor>> list, IMyDoor Door){
+	List<List<IMyDoor>> output = new List<List<IMyDoor>>();
+	bool is_leading_group = (list[0][0].CustomName.Contains("Door 1") && Door.CustomName.Contains("Door 1")) || (list[0][0].CustomName.Contains("Door 2") && Door.CustomName.Contains("Door 2"));
+	for(int i=0; i<list.Count; i++){
+		if(!is_leading_group || !list[i][0].Equals(Door)){
+			if(is_leading_group){
+				output.Add(list[i]);
+			}
+			else{
+				List<IMyDoor> pair = new List<IMyDoor>();
+				pair.Add(list[i][0]);
+				for(int j=1; j<list[i].Count; j++){
+					if(!list[i][j].Equals(Door))
+						pair.Add(list[i][j]);
+				}
+				if(pair.Count>1)
+					output.Add(pair);
+			}
+		}
+	}
+	return output;
+}
+
 private void Setup(){
 	Echo("Beginning initialization");
 	StatusLCDs = (new GenericMethods<IMyTextPanel>(this)).GetAllContaining("Ship Status");
 	
-	Airlocks = new List<IMyDoor[2]>();
+	Airlocks = new List<Airlock>();
 	List<IMyDoor> AllAirlockDoors = (new GenericMethods<IMyDoor>(this)).GetAllContaining("Airlock");
 	List<IMyDoor> AllAirlockDoor1s = new List<IMyDoor>();
 	List<IMyDoor> AllAirlockDoor2s = new List<IMyDoor>();
@@ -851,7 +881,7 @@ private void Setup(){
 			AllAirlockDoor2s.Add(Door);
 		}
 	}
-	List<List<IMyDoor>> PossibleAirlockDoor1Pairs = new List<IMyDoor>();
+	List<List<IMyDoor>> PossibleAirlockDoor1Pairs = new List<List<IMyDoor>>();
 	foreach(IMyDoor Door1 in AllAirlockDoor1s){
 		List<IMyDoor> pair = new List<IMyDoor>();
 		pair.Add(Door1);
@@ -867,7 +897,7 @@ private void Setup(){
 		if(pair.Count > 1)
 			PossibleAirlockDoor1Pairs.Add(pair);
 	}
-	List<List<IMyDoor>> PossibleAirlockDoor2Pairs = new List<IMyDoor>();
+	List<List<IMyDoor>> PossibleAirlockDoor2Pairs = new List<List<IMyDoor>>();
 	foreach(IMyDoor Door2 in AllAirlockDoor2s){
 		List<IMyDoor> pair = new List<IMyDoor>();
 		pair.Add(Door2);
@@ -886,49 +916,47 @@ private void Setup(){
 	}
 	int removed = 0;
 	do{
+		removed = 0;
 		foreach(List<IMyDoor> pair1 in PossibleAirlockDoor1Pairs){
 			if(pair1.Count <= 1){
-				PossibleAirlockDoor1Pairs.Remove(pair1);
+				IMyDoor Door = pair1[0];
+				PossibleAirlockDoor1Pairs = RemoveDoor(PossibleAirlockDoor1Pairs, Door);
+				PossibleAirlockDoor2Pairs = RemoveDoor(PossibleAirlockDoor2Pairs, Door);
 				continue;
 			}
-			bool found_pair = false;
 			foreach(List<IMyDoor> pair2 in PossibleAirlockDoor2Pairs){
 				if(pair2.Count <= 1){
-					PossibleAirlockDoor2Pairs.Remove(pair2);
+					IMyDoor Door = pair2[0];
+					PossibleAirlockDoor1Pairs = RemoveDoor(PossibleAirlockDoor1Pairs, Door);
+					PossibleAirlockDoor2Pairs = RemoveDoor(PossibleAirlockDoor2Pairs, Door);
 					continue;
 				}
 				if(pair2[0].Equals(pair1[1]) && pair1[0].Equals(pair2[1])){
-					found_pair = true;
 					removed++;
-					Airlocks.Add({pair1[0], pair2[0]});
-					for(int i=0; i<PossibleAirlockDoor1Pairs.Count; i++){
-						for(int j=1; j<PossibleAirlockDoor1Pairs[i].Count; j++){
-							if(PossibleAirlockDoor1Pairs[i][j].Equals(pair2[0])){
-								PossibleAirlockDoor1Pairs[i].RemoveAt(j);
-								break;
-							}
-						}
-					}
-					for(int i=0; i<PossibleAirlockDoor2Pairs.Count; i++){
-						for(int j=1; j<PossibleAirlockDoor2Pairs[i].Count; j++){
-							if(PossibleAirlockDoor2Pairs[i][j].Equals(pair1[0])){
-								PossibleAirlockDoor2Pairs[i].RemoveAt(j);
-								break;
-							}
-						}
-					}
-					PossibleAirlockDoor1Pairs.Remove(pair1);
-					PossibleAirlockDoor2Pairs.Remove(pair2);
+					IMyDoor Door1 = pair1[0];
+					IMyDoor Door2 = pair2[0];
+					Airlocks.Add(new Airlock(Door1, Door2));
+					PossibleAirlockDoor1Pairs = RemoveDoor(RemoveDoor(PossibleAirlockDoor1Pairs, Door1), Door2);
+					PossibleAirlockDoor2Pairs = RemoveDoor(RemoveDoor(PossibleAirlockDoor2Pairs, Door2), Door1);
 					break;
 				}
 			}
-			if(found_pair)
-				continue;
-			
 		}
 	} 
 	while(removed > 0 && PossibleAirlockDoor1Pairs.Count > 0 && PossibleAirlockDoor2Pairs.Count > 0);
-	
+	foreach(List<IMyDoor> pair1 in PossibleAirlockDoor1Pairs){
+		if(pair1.Count <= 1){
+			IMyDoor Door = pair1[0];
+			PossibleAirlockDoor1Pairs = RemoveDoor(PossibleAirlockDoor1Pairs, Door);
+			PossibleAirlockDoor2Pairs = RemoveDoor(PossibleAirlockDoor2Pairs, Door);
+			continue;
+		}
+		IMyDoor Door1 = pair1[0];
+		IMyDoor Door2 = pair1[1];
+		Airlocks.Add(new Airlock(Door1, Door2));
+		PossibleAirlockDoor1Pairs = RemoveDoor(RemoveDoor(PossibleAirlockDoor1Pairs, Door1), Door2);
+		PossibleAirlockDoor2Pairs = RemoveDoor(RemoveDoor(PossibleAirlockDoor2Pairs, Door2), Door1);
+	}
 	
 	List<IMyTerminalBlock> AllTerminalBlocks = new List<IMyTerminalBlock>();
 	GridTerminalSystem.GetBlocksOfType<IMyTerminalBlock>(AllTerminalBlocks);
@@ -1332,7 +1360,7 @@ private void ArgumentProcessor(string argument, UpdateType updateSource){
 			Me.CustomData = "";
 			this.Storage = "";
 			LastError = "";
-			SetUp();
+			Setup();
 		}
 	}
 	catch(Exception e){
@@ -1391,7 +1419,7 @@ private double ShipDistance = double.MaxValue;
 private double ClosestShipSize = 0;
 private double CharacterDistance = double.MaxValue;
 private double EnemyShipDistance = double.MaxValue;
-private double EnemyCharacterDistance = double.MaxValue
+private double EnemyCharacterDistance = double.MaxValue;
 
 private bool UpdatedClosestDistance = false;
 private void UpdateClosestDistance(){
@@ -1422,7 +1450,7 @@ private void UpdateClosestDistance(){
 			ShipDistance = adjusted_distance;
 			ClosestShipSize = Entity.Size;
 		}
-		if(Entity.Relationship = MyRelationsBetweenPlayerAndBlock.Enemies){
+		if(Entity.Relationship == MyRelationsBetweenPlayerAndBlock.Enemies){
 			EnemyShipDistance = Math.Min(EnemyShipDistance, adjusted_distance);
 		}
 	}
@@ -1430,7 +1458,7 @@ private void UpdateClosestDistance(){
 		double adjusted_distance = (Entity.Position - Me.CubeGrid.GetPosition()).Length() - Entity.Size - MySize;
 		adjusted_distance *= Math.Max(Math.Log10(Entity.Age.TotalSeconds), 1);
 		ShipDistance = Math.Min(ShipDistance, adjusted_distance);
-		if(Entity.Relationship = MyRelationsBetweenPlayerAndBlock.Enemies){
+		if(Entity.Relationship == MyRelationsBetweenPlayerAndBlock.Enemies){
 			EnemyShipDistance = Math.Min(EnemyShipDistance, adjusted_distance);
 		}
 	}
@@ -1438,7 +1466,7 @@ private void UpdateClosestDistance(){
 	foreach(EntityInfo Entity in CharacterList){
 		double distance = (Entity.Position - Me.CubeGrid.GetPosition()).Length() - MySize;
 		CharacterDistance = Math.Min(CharacterDistance, distance);
-		if(Entity.Relationship = MyRelationsBetweenPlayerAndBlock.Enemies){
+		if(Entity.Relationship == MyRelationsBetweenPlayerAndBlock.Enemies){
 			EnemyCharacterDistance = Math.Min(EnemyCharacterDistance, distance);
 		}
 	}
