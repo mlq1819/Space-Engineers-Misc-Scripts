@@ -1271,6 +1271,34 @@ private void SetThrusters(){
 	float input_right = 0.0f;
 	
 	
+	Vector3D Relative_Current_Velocity = Vector3D.Transform(Controller.GetShipVelocities().LinearVelocity, MatrixD.Invert(Controller.WorldMatrix));
+	Relative_Current_Velocity.Normalize();
+	Relative_Current_Velocity *= Controller.GetShipSpeed();
+	Echo("Relative_Current_Velocity: " + Relative_Current_Velocity.ToString());
+	if(Gravity.Length() > 0){
+		Vector3D Center = new Vector3D(0,0,0);
+		if(Controller.TryGetPlanetPosition(out Center)){
+			double height_dif = (Me.CubeGrid.GetPosition() - Center).Length() - elevation;
+			Vector3D p15 = Me.CubeGrid.GetPosition() + 15 * Controller.GetShipVelocities().LinearVelocity;
+			if((p15 - Center).Length() <= height_dif){
+				Controller.DampenersOverride = true;
+				LastError = "CRASH IMMINENT --- ENABLING DAMPENERS";
+				Me.GetSurface(0).WriteText("CRASH IMMINENT --- ENABLING DAMPENERS" + '\n', true);
+			}
+			else {
+				double distance_closed_in_15 = elevation - ((p15 - Center).Length() - height_dif);
+				if(distance_closed_in_15 > 0){
+					double time_to_crash = elevation / distance_closed_in_15 * 15;
+					Echo(Math.Round(time_to_crash, 1).ToString() + " seconds to crash");
+					Me.GetSurface(0).WriteText(Math.Round(time_to_crash, 1).ToString() + " seconds to crash" + '\n', true);
+				}
+				else {
+					Echo("No crash possible at current velocity");
+				}
+			}
+		}
+	}
+	
 	float damp_multx = 1.0f - GlitchFloat;
 	elevation = double.MaxValue;
 	double effective_speed_limit = Speed_Limit;
@@ -1366,21 +1394,6 @@ private void SetThrusters(){
 	if(match_position){
 		Echo("Relative_Target_Position: " + Relative_Target_Position.ToString());
 		Echo("Relative_Target_Velocity: " + Relative_Target_Velocity.ToString());
-	}
-	Vector3D Relative_Current_Velocity = Vector3D.Transform(Controller.GetShipVelocities().LinearVelocity, MatrixD.Invert(Controller.WorldMatrix));
-	Relative_Current_Velocity.Normalize();
-	Relative_Current_Velocity *= Controller.GetShipSpeed();
-	Echo("Relative_Current_Velocity: " + Relative_Current_Velocity.ToString());
-	if(Gravity.Length() > 0){
-		Vector3D Center = new Vector3D(0,0,0);
-		if(Controller.TryGetPlanetPosition(out Center)){
-			double height_dif = (Me.CubeGrid.GetPosition() - Center).Length() - elevation;
-			Vector3D p15 = Me.CubeGrid.GetPosition() + 15 * Controller.GetShipVelocities().LinearVelocity;
-			if((p15 - Center).Length() <= height_dif){
-				Controller.DampenersOverride = true;
-				LastError = "CRASH IMMINENT --- ENABLING DAMPENERS";
-			}
-		}
 	}
 	
 	bool matched_direction = !match_direction;
