@@ -19,7 +19,7 @@ private const float TARGET_ADJUST_MULTX = 0.5f;
 //Time to wait between scans
 private const double SCAN_FREQUENCY = 2.5f;
 //Set this to the distance you want lights and sound blocks to update on an alert
-private const double ALERT_DISTANCE = 25;
+private const double ALERT_DISTANCE = 15;
 //Set this to the relevant ship type
 private const ShipType SHIP_TYPE = ShipType.Misc;
 
@@ -1360,6 +1360,17 @@ private void SetThrusters(){
 	Relative_Current_Velocity.Normalize();
 	Relative_Current_Velocity *= Controller.GetShipSpeed();
 	Echo("Relative_Current_Velocity: " + Relative_Current_Velocity.ToString());
+	if(Gravity.Length() > 0){
+		Vector3D Center = new Vector3D(0,0,0);
+		if(Controller.TryGetPlanetPosition(out Center)){
+			double height_dif = (Me.CubeGrid.GetPosition() - Center).Length() - elevation;
+			Vector3D p15 = Me.CubeGrid.GetPosition() + 15 * Controller.GetShipVelocities().LinearVelocity;
+			if((p15 - Center).Length() <= height_dif){
+				Controller.DampenersOverride = true;
+				LastError = "CRASH IMMINENT --- ENABLING DAMPENERS";
+			}
+		}
+	}
 	
 	bool matched_direction = !match_direction;
 	if(match_direction){
@@ -1610,7 +1621,7 @@ private void SetGyroscopes(){
 	
 	bool launching = false;
 	if(Gravity.Length() > 0 && Forward_Thrust > 1.2 * Up_Thrust){
-		if(GetAngle(Controller_Backward, Gravity) < 90 && GetAngle(Controller_Down, Gravity) < GetAngle(Controller_Up, Gravity)){
+		if(GetAngle(Controller_Backward, Gravity) < 90 && GetAngle(Controller_Down, Gravity) < GetAngle(Controller_Up, Gravity) && Controller.DampenersOverride){
 			launching = true;
 		}
 	}
@@ -1734,13 +1745,13 @@ private void SetGyroscopes(){
 //{R:255 G:0 B:0 A:255}
 private Color ColorParse(string parse){
 	parse = parse.Substring(parse.IndexOf('{')+1);
-	parse = parse.Substring(0, parse.IndexOf('{') - 1);
+	parse = parse.Substring(0, parse.IndexOf('}') - 1);
 	string[] args = parse.Split(' ');
 	int r, g, b, a;
-	r = Int32.Parse(args[0].Substring(args[0].IndexOf("R:")+"R:".Length).Trim());
-	g = Int32.Parse(args[1].Substring(args[1].IndexOf("G:")+"G:".Length).Trim());
-	b = Int32.Parse(args[2].Substring(args[2].IndexOf("B:")+"B:".Length).Trim());
-	a = Int32.Parse(args[3].Substring(args[3].IndexOf("A:")+"A:".Length).Trim());
+	r = Int32.Parse(args[0].Substring(args[0].IndexOf("R:")+2).Trim());
+	g = Int32.Parse(args[1].Substring(args[1].IndexOf("G:")+2).Trim());
+	b = Int32.Parse(args[2].Substring(args[2].IndexOf("B:")+2).Trim());
+	a = Int32.Parse(args[3].Substring(args[3].IndexOf("A:")+2).Trim());
 	return new Color(r,g,b,a);
 }
 
@@ -1755,7 +1766,7 @@ private void SetAlarms(){
 	foreach(IMyInteriorLight Light in AllLights){
 		double distance = double.MaxValue;
 		foreach(EntityInfo Entity in CharacterList){
-			if(Entity.Relationship == MyRelationsBetweenPlayerAndBlock.Enemies && Entity.Age.TotalSeconds <= 60)
+			if((Entity.Relationship == MyRelationsBetweenPlayerAndBlock.Enemies || GlitchFloat > 0.8f) && Entity.Age.TotalSeconds <= 60)
 				distance = Math.Min(distance, (Light.GetPosition() - Entity.Position).Length());
 		}
 		if(distance <= ALERT_DISTANCE){
@@ -1770,8 +1781,8 @@ private void SetAlarms(){
 			}
 			SetBlockData(Light, "Job", "PlayerAlert");
 			Light.Color = new Color(255, 0, 0, 255);
-			Light.BlinkLength = 50.0f;
-			Light.BlinkIntervalSeconds = 1.0f + ((float) (distance / ALERT_DISTANCE));
+			Light.BlinkLength = 100.0f - (((float) (distance / ALERT_DISTANCE)) * 50.0f);
+			Light.BlinkIntervalSeconds = 1.0f;
 		}
 		else {
 			if(HasBlockData(Light, "Job") && GetBlockData(Light, "Job").Equals("PlayerAlert")){
@@ -1780,7 +1791,7 @@ private void SetAlarms(){
 						Light.Color = ColorParse(GetBlockData(Light, "DefaultColor"));
 					}
 					catch(Exception){
-						;
+						Echo("Failed to parse color");
 					}
 				}
 				if(HasBlockData(Light, "DefaultBlinkLength")){
@@ -1808,7 +1819,7 @@ private void SetAlarms(){
 	foreach(IMySoundBlock Sound in AllSounds){
 		double distance = double.MaxValue;
 		foreach(EntityInfo Entity in CharacterList){
-			if(Entity.Relationship == MyRelationsBetweenPlayerAndBlock.Enemies && Entity.Age.TotalSeconds <= 60)
+			if((Entity.Relationship == MyRelationsBetweenPlayerAndBlock.Enemies || GlitchFloat > 0.8f) && Entity.Age.TotalSeconds <= 60)
 				distance = Math.Min(distance, (Sound.GetPosition() - Entity.Position).Length());
 		}
 		if(distance <= ALERT_DISTANCE){
@@ -1845,8 +1856,53 @@ private void SetAlarms(){
 			}
 		}
 	}
-	
+	List<IMyDoor> AllDoors = new List<IMyDoor>();
+	GridTerminalSystem.GetBlocksOfType<IMyDoor>(AllDoors);
+	foreach(IMyDoor Door in AllDoors){
+		double distance = double.MaxValue;
+		foreach(EntityInfo Entity in CharacterList){
+			if((Entity.Relationship == MyRelationsBetweenPlayerAndBlock.Enemies || GlitchFloat > 0.2f) && Entity.Age.TotalSeconds <= 60)
+				distance = Math.Min(distance, (Door.GetPosition() - Entity.Position).Length());
+		}
+		if(distance <= ALERT_DISTANCE){
+			if(!HasBlockData(Door, "DefaultState")){
+				if(Door.Status.ToString().Contains("Open")){
+					SetBlockData(Door, "DefaultState", "Open");
+				}
+				else {
+					SetBlockData(Door, "DefaultState", "Closed");
+				}
+			}
+			if(!HasBlockData(Door, "DefaultPower")){
+				if(Door.Enabled){
+					SetBlockData(Door, "DefaultPower", "On");
+				}
+				else {
+					SetBlockData(Door, "DefaultPower", "Off");
+				}
+			}
+			SetBlockData(Door, "Job", "PlayerAlert");
+			Door.Enabled = (Door.Status != DoorStatus.Closed);
+			Door.CloseDoor();
+		}
+		else {
+			if(HasBlockData(Door, "Job") && GetBlockData(Door, "Job").Equals("PlayerAlert")){
+				if(HasBlockData(Door, "DefaultPower")){
+					Door.Enabled = GetBlockData(Door, "DefaultPower").Equals("On");
+				}
+				if(HasBlockData(Door, "DefaultState")){
+					if(GetBlockData(Door, "DefaultState").Equals("Open"))
+						Door.OpenDoor();
+					else
+						Door.CloseDoor();
+				}
+				SetBlockData(Door, "Job", "None");
+			}
+		}
+	}
 }
+
+bool last_detected_nearby_player = false;
 
 public void Main(string argument, UpdateType updateSource)
 {
@@ -1871,9 +1927,14 @@ public void Main(string argument, UpdateType updateSource)
 	}
 	Echo(Program_Name + " OS " + cycle_long.ToString() + '-' + cycle.ToString() + " (" + loading_char + ")\n");
 	seconds_since_last_update = Runtime.TimeSinceLastRun.TotalSeconds + (Runtime.LastRunTimeMs / 1000);
-	Me.GetSurface(0).WriteText(Program_Name + " OS " + cycle_long.ToString() + '-' + cycle.ToString() + " (" + loading_char + ")\n" + Controller.CustomName + "\n" + Gyroscope.CustomName + "\n\n", false);
+	Me.GetSurface(0).WriteText(Program_Name + " Program Details" + '\n', false);
+	for(int i=1; i<Me.SurfaceCount; i++)
+		Me.GetSurface(i).WriteText(Program_Name + " OS " + cycle_long.ToString() + '-' + cycle.ToString() + " (" + loading_char + ")\n", false);
+	Me.GetSurface(0).WriteText(Controller.CustomName + "\n" + Gyroscope.CustomName + "\n\n", true);
 	if(Glitch > 0){
-		Me.GetSurface(0).BackgroundColor = new Color((int)(150 * GlitchFloat), (int)(75 * GlitchFloat), 0, 255);
+		Color Background = new Color((int)(150 * GlitchFloat), (int)(75 * GlitchFloat), 0, 255);
+		for(int i=0; i<Me.SurfaceCount; i++)
+			Me.GetSurface(i).BackgroundColor = Background;
 		if(Glitch<10){
 			Echo("ERROR: Glitch code " + Glitch.ToString() + "00");
 			Me.GetSurface(0).WriteText("ERROR: Glitch code " + Glitch.ToString() + "00" + '\n', true);
@@ -1887,7 +1948,8 @@ public void Main(string argument, UpdateType updateSource)
 		Me.GetSurface(0).WriteText("Potential next glitch in " + (Target_Glitch - cycle + Rnd.Next(0,50) - 25).ToString() + " cycles" + '\n', true);
 	}
 	else {
-		Me.GetSurface(0).BackgroundColor = new Color(0, 88, 151, 255);
+		for(int i=0; i<Me.SurfaceCount; i++)
+			Me.GetSurface(i).BackgroundColor = new Color(0, 88, 151, 255);
 		Glitch = 0;
 	}
 	if(Glitch > 0 && cycle >= Target_Glitch){
@@ -2106,11 +2168,6 @@ public void Main(string argument, UpdateType updateSource)
 			}
 		}
 		
-		UpdateClosestDistance();
-		if(CharacterDistance<0){
-			SetAlarms();
-		}
-		
 		ScanString += "Completed updating data" + '\n';
 		Scan_Time = 0;
 	}
@@ -2118,7 +2175,6 @@ public void Main(string argument, UpdateType updateSource)
 		Echo("Last Scan:");
 	}
 	Echo(ScanString);
-	
 	
 	if(detected_target){
 		if(target_info != null){
@@ -2179,6 +2235,17 @@ public void Main(string argument, UpdateType updateSource)
 	
 	SetGyroscopes();
 	
+	
+	UpdateClosestDistance();
+	if(CharacterDistance<0 || last_detected_nearby_player==true){
+		SetAlarms();
+		if(CharacterDistance>=0){
+			last_detected_nearby_player=false;
+		}
+		else {
+			last_detected_nearby_player=true;
+		}
+	}
 	
 	if(Controller.IsUnderControl || AngularVelocity.Length() > .1f){
 		Runtime.UpdateFrequency = UpdateFrequency.Update1;
