@@ -458,42 +458,69 @@ private double MySize = 2.5;
 
 private bool Locked_Down = false;
 
+private string Submessage = "";
 private AlertStatus ShipStatus{
 	get{
 		UpdateClosestDistance();
 		AlertStatus status = AlertStatus.Green;
-		if(EnemyShipDistance < 10000){
-			status = (AlertStatus) Math.Max((int)status, (int)AlertStatus.Yellow);
-		}
-		if(EnemyShipDistance < 2500){
-			status = (AlertStatus) Math.Max((int)status, (int)AlertStatus.Orange);
-		}
+		Submessage = "";
+		
 		if(EnemyShipDistance < 800){
-			status = (AlertStatus) Math.Max((int)status, (int)AlertStatus.Red);
+			AlertStatus new_status = AlertStatus.Red;
+			status = (AlertStatus) Math.Max((int)status, (int)new_status);
+			Submessage += "\nEnemy Ship at " + Math.Round(EnemyShipDistance, 0) + " meters";
 		}
-		if(EnemyCharacterDistance < 2000){
-			status = (AlertStatus) Math.Max((int)status, (int)AlertStatus.Yellow);
+		else if(EnemyShipDistance < 2500){
+			AlertStatus new_status = AlertStatus.Orange;
+			status = (AlertStatus) Math.Max((int)status, (int)new_status);
+			Submessage += "\nEnemy Ship at " + Math.Round(EnemyShipDistance, 0) + " meters";
 		}
-		if(EnemyCharacterDistance < 800){
-			status = (AlertStatus) Math.Max((int)status, (int)AlertStatus.Orange);
+		else if(EnemyShipDistance < 10000){
+			AlertStatus new_status = AlertStatus.Yellow;
+			status = (AlertStatus) Math.Max((int)status, (int)new_status);
+			Submessage += "\nEnemy Ship at " + Math.Round(EnemyShipDistance, 0) + " meters";
 		}
+		
+		
 		if(EnemyCharacterDistance < 0){
-			status = (AlertStatus) Math.Max((int)status, (int)AlertStatus.Red);
+			AlertStatus new_status = AlertStatus.Red;
+			status = (AlertStatus) Math.Max((int)status, (int)new_status);
+			Submessage += "\nEnemy Creature at " + Math.Round(EnemyCharacterDistance, 0) + " meters";
 		}
+		else if(EnemyCharacterDistance < 800){
+			AlertStatus new_status = AlertStatus.Orange;
+			status = (AlertStatus) Math.Max((int)status, (int)new_status);
+			Submessage += "\nEnemy Creature at " + Math.Round(EnemyCharacterDistance, 0) + " meters";
+		}
+		else if(EnemyCharacterDistance < 2000){
+			AlertStatus new_status = AlertStatus.Yellow;
+			status = (AlertStatus) Math.Max((int)status, (int)new_status);
+			Submessage += "\nEnemy Creature at " + Math.Round(EnemyCharacterDistance, 0) + " meters";
+		}
+		
+		if(Glitch > 0){
+			AlertStatus new_status = AlertStatus.Yellow;
+			status = (AlertStatus) Math.Max((int)status, (int)new_status);
+			Submessage += "\nGlitched AI";
+		}
+		
 		if(ShipDistance < 500){
-			status = (AlertStatus) Math.Max((int)status, (int)AlertStatus.Blue);
+			AlertStatus new_status = AlertStatus.Blue;
+			status = (AlertStatus) Math.Max((int)status, (int)new_status);
+			Submessage += "\nNearby ship at " + Math.Round(ShipDistance, 0) + " meters";
 		}
 		if(AsteroidDistance < 500){
-			status = (AlertStatus) Math.Max((int)status, (int)AlertStatus.Blue);
-		}
-		if(PlanetDistance < 100){
-			status = (AlertStatus) Math.Max((int)status, (int)AlertStatus.Blue);
+			AlertStatus new_status = AlertStatus.Blue;
+			status = (AlertStatus) Math.Max((int)status, (int)new_status);
+			Submessage += "\nNearby asteroid at " + Math.Round(AsteroidDistance, 0) + " meters";
 		}
 		if(Controller.GetShipSpeed() > 20){
-			status = (AlertStatus) Math.Max((int)status, (int)AlertStatus.Blue);
+			AlertStatus new_status = AlertStatus.Blue;
+			status = (AlertStatus) Math.Max((int)status, (int)new_status);
+			Submessage += "\nHigh Ship Speed (" + Math.Round(Controller.GetShipSpeed(), 0) + " mps)";
 		}
-		if(Glitch > 0){
-			status = (AlertStatus) Math.Max((int)status, (int)AlertStatus.Yellow);
+		if(Submessage.Trim().Length == 0){
+			Submessage = "\nNo issues";
 		}
 		return status;
 	}
@@ -2207,21 +2234,23 @@ private void UpdateAirlock(Airlock airlock){
 	bool detected = false;
 	double min_distance_1 = double.MaxValue;
 	double min_distance_2 = double.MaxValue;
+	double min_distance_check = 3.75 * (1 + (Controller.GetShipSpeed() / 200));
 	foreach(EntityInfo Entity in CharacterList){
 		if(Entity.Relationship != MyRelationsBetweenPlayerAndBlock.Enemies && Entity.Relationship != MyRelationsBetweenPlayerAndBlock.Neutral){
+			Vector3D position = Entity.Position + Controller.GetShipVelocities().LinearVelocity / 100;
 			double distance = airlock.Distance(Entity.Position);
-			bool is_closest_to_this_airlock = distance <= 3.75;
+			bool is_closest_to_this_airlock = distance <= min_distance_check;
 			if(is_closest_to_this_airlock){
 				foreach(Airlock alock in Airlocks){
 					if(is_closest_to_this_airlock && !alock.Equals(airlock)){
-						is_closest_to_this_airlock = is_closest_to_this_airlock && distance < (alock.Distance(Entity.Position));
+						is_closest_to_this_airlock = is_closest_to_this_airlock && distance < (alock.Distance(position));
 					}
 				}
 			}
 			if(is_closest_to_this_airlock){
 				detected=true;
-				min_distance_1 = Math.Min(min_distance_1, (airlock.Door1.GetPosition() - Entity.Position).Length());
-				min_distance_2 = Math.Min(min_distance_2, (airlock.Door2.GetPosition() - Entity.Position).Length());
+				min_distance_1 = Math.Min(min_distance_1, (airlock.Door1.GetPosition() - position).Length());
+				min_distance_2 = Math.Min(min_distance_2, (airlock.Door2.GetPosition() - position).Length());
 			}
 		}
 	}
@@ -2240,13 +2269,13 @@ private void UpdateAirlock(Airlock airlock){
 				airlock.Door1.Enabled = (airlock.Door1.Status != DoorStatus.Closed);
 				if(airlock.Door1.Status != DoorStatus.Closing)
 					airlock.Door1.CloseDoor();
-				Echo('\t' + "Closing Door 2");
+				ScanString += '\t' + "Closing Door 2" + '\n';
 			}
 			else {
-				airlock.Door1.Enabled = (airlock.Door1.Status != DoorStatus.Open);
+				airlock.Door1.Enabled = true;
 				if(airlock.Door1.Status != DoorStatus.Opening)
 					airlock.Door1.OpenDoor();
-				Echo('\t' + "Opening Door 1");
+				ScanString += '\t' + "Opening Door 1" + '\n';
 			}
 		}
 		else {
@@ -2257,13 +2286,13 @@ private void UpdateAirlock(Airlock airlock){
 				airlock.Door2.Enabled = (airlock.Door2.Status != DoorStatus.Closed);
 				if(airlock.Door2.Status != DoorStatus.Closing)
 					airlock.Door2.CloseDoor();
-				Echo('\t' + "Closing Door 1");
+				ScanString += '\t' + "Closing Door 1" + '\n';
 			}
 			else {
-				airlock.Door2.Enabled = (airlock.Door2.Status != DoorStatus.Open);
+				airlock.Door2.Enabled = true;
 				if(airlock.Door2.Status != DoorStatus.Opening)
 					airlock.Door2.OpenDoor();
-				Echo('\t' + "Opening Door 2");
+				ScanString += '\t' + "Opening Door 2" + '\n';
 			}
 		}
 	}
@@ -2274,7 +2303,7 @@ private void UpdateAirlock(Airlock airlock){
 		airlock.Door2.Enabled = (airlock.Door2.Status != DoorStatus.Closed);
 		if(airlock.Door2.Status != DoorStatus.Closing)
 			airlock.Door2.CloseDoor();
-		Echo('\t' + "Closing both Doors");
+		ScanString += '\t' + "Closing both Doors" + '\n';
 	}
 }
 
@@ -2352,13 +2381,6 @@ public void Main(string argument, UpdateType updateSource)
 		Gyroscope = null;
 		Setup();
 	}
-	if(Airlocks.Count > 0){
-		Me.GetSurface(0).WriteText("Managing " + Airlocks.Count + " Airlocks" + '\n', true);
-		for(int i=0; i<Airlocks.Count; i++){
-			Echo("Airlock " + (i+1).ToString() + " Status:");
-			UpdateAirlock(Airlocks[i]);
-		}
-	}
 	if(Controller == null || Gyroscope == null || !Controller.IsFunctional || !Gyroscope.IsFunctional){
 		Runtime.UpdateFrequency = UpdateFrequency.None;
 		if(Gyroscope!=null){
@@ -2392,7 +2414,9 @@ public void Main(string argument, UpdateType updateSource)
 	
 	HasNearestPlanet = Controller.TryGetPlanetPosition(out NearestPlanet);
 	
-	if(Scan_Time >= SCAN_FREQUENCY || CharacterDistance<0){
+	if(Airlocks.Count > 0)
+		Me.GetSurface(0).WriteText("Managing " + Airlocks.Count + " Airlocks" + '\n', true);
+	if(Scan_Time >= SCAN_FREQUENCY || (CharacterDistance<0 && Scan_Time >= 0.25)){
 		Echo("Running scan...");
 		ScanString = "";
 		foreach(EntityInfo Entity in AsteroidList){
@@ -2548,7 +2572,10 @@ public void Main(string argument, UpdateType updateSource)
 					break;
 			}
 		}
-		
+		for(int i=0; i<Airlocks.Count; i++){
+			ScanString += "Airlock " + (i+1).ToString() + " Status:" + '\n';
+			UpdateAirlock(Airlocks[i]);
+		}
 		ScanString += "Completed updating data" + '\n';
 		Scan_Time = 0;
 	}
@@ -2584,7 +2611,7 @@ public void Main(string argument, UpdateType updateSource)
 		Me.GetSurface(0).WriteText("AutoTarget: On" + '\n', true);
 	}
 	
-	Me.GetSurface(0).WriteText("Speed Limit: " + Math.Round(Speed_Limit, 1).ToString() + '\n', true);
+	Me.GetSurface(0).WriteText("Speed Limit: " + Math.Round(Controller.GetShipSpeed(), 1).ToString() + " / " + Math.Round(Speed_Limit, 1).ToString() + '\n', true);
 	Echo("Speed Limit: " + Math.Round(Speed_Limit, 1).ToString());
 	
 	Gravity = Controller.GetNaturalGravity();
@@ -2632,19 +2659,19 @@ public void Main(string argument, UpdateType updateSource)
 	
 	switch(ShipStatus){
 		case AlertStatus.Green:
-			SetStatus("Condition " + ShipStatus.ToString(), new Color(137, 255, 137, 255), new Color(0, 151, 0, 255));
+			SetStatus("Condition " + ShipStatus.ToString() + Submessage, new Color(137, 255, 137, 255), new Color(0, 151, 0, 255));
 			break;
 		case AlertStatus.Blue:
-			SetStatus("Condition " + ShipStatus.ToString(), new Color(137, 239, 255, 255), new Color(0, 88, 151, 255));
+			SetStatus("Condition " + ShipStatus.ToString() + Submessage, new Color(137, 239, 255, 255), new Color(0, 88, 151, 255));
 			break;
 		case AlertStatus.Yellow:
-			SetStatus("Condition " + ShipStatus.ToString(), new Color(255, 239, 137, 255), new Color(151, 151, 0, 255));
+			SetStatus("Condition " + ShipStatus.ToString() + Submessage, new Color(255, 239, 137, 255), new Color(151, 151, 0, 255));
 			break;
 		case AlertStatus.Orange:
-			SetStatus("Condition " + ShipStatus.ToString(), new Color(255, 197, 0, 255), new Color(155, 88, 0, 255));
+			SetStatus("Condition " + ShipStatus.ToString() + Submessage, new Color(255, 197, 0, 255), new Color(155, 88, 0, 255));
 			break;
 		case AlertStatus.Red:
-			SetStatus("Condition " + ShipStatus.ToString(), new Color(255, 137, 137, 255), new Color(151, 0, 0, 255));
+			SetStatus("Condition " + ShipStatus.ToString() + Submessage, new Color(255, 137, 137, 255), new Color(151, 0, 0, 255));
 			break;
 	}
 	
