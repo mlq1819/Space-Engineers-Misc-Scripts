@@ -1295,13 +1295,14 @@ private void SetThrusters(){
 		Me.GetSurface(0).WriteText("Cruise Control: On\n", true);
 		Vector3D velocity_direction = Controller.GetShipVelocities().LinearVelocity;
 		velocity_direction.Normalize();
-		if(GetAngle(Controller_Forward, velocity_direction) <= ACCEPTABLE_ANGLE){
+		double angle = Math.Min(GetAngle(Controller_Forward, velocity_direction), GetAngle(Controller_Backward, velocity_direction));
+		if(angle <= ACCEPTABLE_ANGLE){
+			input_right -= (float) (Relative_Velocity.X * Mass_Accomodation * damp_multx);
 			input_up -= (float) (Relative_Velocity.Y * Mass_Accomodation * damp_multx);
-			input_forward += (float) (Relative_Velocity.Z * Mass_Accomodation * damp_multx);
-			Me.GetSurface(0).WriteText("Stabilizers: On", true);
+			Me.GetSurface(0).WriteText("Stabilizers: On (" + Math.Round(angle, 1) + "° dev)" + '\n', true);
 		}
 		else {
-			Me.GetSurface(0).WriteText("Stabilizers: Off", true);
+			Me.GetSurface(0).WriteText("Stabilizers: Off (" + Math.Round(angle, 1) + "° dev)" + '\n', true);
 		}
 	}
 	
