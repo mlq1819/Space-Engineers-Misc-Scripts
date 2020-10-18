@@ -1373,6 +1373,266 @@ private double Scan_Time = SCAN_FREQUENCY;
 
 private string LastError = "";
 
+public enum MenuType{
+	Menu = 0,
+	Command = 1,
+	Display = 2
+}
+	
+public interface MenuOption{
+	string Name();
+	MenuType TYPE();
+	bool Select();
+}
+
+public class Menu_Command : MenuOption{
+	public Func<bool> Command;
+	private string _Name;
+	public string Name(){
+		return _Name;
+	}
+	public MenuType TYPE(){
+		return MenuType.Command;
+	}
+	
+	public Menu_Command(string name, Func<bool> f){
+		_Name = name;
+		Command = f;
+	}
+	
+	public bool Select(){
+		return Command();
+	}
+	
+	public override string ToString(){
+		return Name();
+	}
+}
+
+public class Menu_Submenu : MenuOption{
+	public List<MenuOption> Menu;
+	private string _Name;
+	public string Name(){
+		return _Name;
+	}
+	public MenuType TYPE(){
+		return MenuType.Menu;
+	}
+	public int Count{
+		get{
+			return Menu.Count;
+		}
+	}
+	
+	private int Selection = 0;
+	private bool Selected = false;
+	
+	public Menu_Submenu(string name){
+		_Name = name;
+		Menu = new List<Menu_Option>();
+	}
+	
+	public bool Add(MenuOption Item){
+		foreach(MenuOption item in Menu){
+			if(item.Name().Equals(Item.Name()))
+				return false;
+		}
+		Menu.Add(Item);
+		return true;
+	}
+	
+	public bool Select(){
+		if(Selected || Menu[Selection].TYPE() == MenuType.Command){
+			return Menu[Selection].Select();
+		}
+		else {
+			Selected = true;
+			return true;
+		}
+	}
+
+	public void Back(){
+		if(!Selected)
+			return;
+		Selected = false;
+	}
+	
+	public void Next(){
+		if(Count > 0){
+			Selection = (Selection + 1) % Count;
+		}
+	}
+	
+	public void Prev(){
+		if(Count > 0){
+			Selection = (Selection - 1 + Count) % Count;
+		}
+	}
+	
+	public override string ToString(){
+		if(Selected){
+			return Menu[Selection].ToString();
+		}
+		else {
+			string output = "-- " + Name() + " --";
+			for(int i=0; i<Menu.Count; i++){
+				output += '\n';
+				if(Menu[i].TYPE() == MenuType.Command)
+					output += "> ";
+				else
+					output += " .";
+				if(i == Selection)
+					output += Menu[i].Name().ToUpper();
+				else 
+					output += Menu[i].Name().ToLower();
+			}
+			return output;
+		}
+	}
+}
+
+public class Menu_Display : MenuOption{
+	public string Name(){
+		return Entity.Name;
+	}
+	public MenuType TYPE(){
+		return MenuType.Display;
+	}
+	private EntityInfo Entity;
+	
+	private bool Can_GoTo;
+	
+	public Menu_Display(EntityInfo entity, can_goto = true){
+		Entity = entity;
+		Can_GoTo = can_goto;
+	}
+	
+	public override string ToString(){
+		return Entity.NiceString();
+	}
+	
+	public bool Select(){
+		if(Can_GoTo){
+			actual_target_direction = Entity.Position() - Me.CubeGrid.GetPosition();
+			actual_target_direction.Normalize();
+			actual_target_position = actual_target_direction * ((Entity.Position()-Me.CubeGrid.GetPosition()).Length()- Entity.Size - MySize) + Me.CubeGrid.GetPosition();
+			actual_target_velocity = Entity.Velocity;
+			match_position = true;
+			match_direction = true;
+			match_velocity = true;
+			return true;
+		}
+		else {
+			return false;
+		}
+	}
+}
+
+Menu_Submenu MainMenu;
+
+private void CreateMenu(){
+	MainMenu = new Menu_Submenu("Main Menu");
+	MainMenu.Add(new Menu_Command("Update Menu", CreateMenu));
+	Menu_Submenu ShipCommands = new Menu_Submenu("Commands");
+	ShipCommands.Add(new Menu_Command("Lockdown", Lockdown));
+	ShipCommands.Add(new Menu_Command("Force Glitch", ForceGlitch));
+	ShipCommands.Add(new Menu_Command("Factory Reset", FactoryReset));
+	MainMenu.Add(AsteroidList);
+	if(AsteroidList.Count > 0){
+		Menu_Submenu AsteroidMenu = new Menu_Submenu("Asteroids")
+		foreach(EntityInfo Entity in AsteroidList){
+			AsteroidMenu.Add(new Menu_Display(Entity), true);
+		}
+		MainMenu.Add(AsteroidMenu);
+	}
+	if(PlanetList.Count > 0){
+		Menu_Submenu PlanetMenu = new Menu_Submenu("Planets")
+		foreach(EntityInfo Entity in PlanetList){
+			PlanetMenu.Add(new Menu_Display(Entity), true);
+		}
+		MainMenu.Add(PlanetMenu);
+	}
+	if(SmallShipList.Count > 0){
+		Menu_Submenu SmallShipMenu = new Menu_Submenu("Small Ships")
+		foreach(EntityInfo Entity in PlanetList){
+			SmallShipMenu.Add(new Menu_Display(Entity), false);
+		}
+		MainMenu.Add(SmallShipMenu);
+	}
+	if(LargeShipList.Count > 0){
+		Menu_Submenu LargeShipMenu = new Menu_Submenu("Large Ships")
+		foreach(EntityInfo Entity in LargeShipList){
+			LargeShipMenu.Add(new Menu_Display(Entity), true);
+		}
+		MainMenu.Add(LargeShipMenu);
+	}
+	if(CharacterList.Count > 0){
+		Menu_Submenu CharacterMenu = new Menu_Submenu("Characters")
+		foreach(EntityInfo Entity in CharacterList){
+			CharacterMenu.Add(new Menu_Display(Entity), true);
+		}
+		MainMenu.Add(CharacterMenu);
+	}
+	
+}
+
+private bool ForceGlitch(object param){
+	Glitch = Rnd.Next(1, 100);
+	Target_Glitch = (cycle + ((long)Math.Pow(10, Rnd.Next(200, 3699))))%long.MaxValue;
+}
+
+private bool Lockdown(object param){
+	Locked_Down = !Locked_Down;
+	List<IMyAirtightHangarDoor> Seals = (new GenericMethods<IMyAirtightHangarDoor>(this)).GetAllContaining(LOCKDOWN_SEAL_NAME);
+	foreach(IMyAirtightHangarDoor Seal in Seals){
+		if(Locked_Down){
+			Seal.Enabled = (Seal.Status != DoorStatus.Closed);
+			Seal.CloseDoor();
+		}
+		else {
+			Seal.Enabled = (Seal.Status != DoorStatus.Open);
+			Seal.OpenDoor();
+		}
+	}
+}
+
+private bool FactoryReset(object param){
+	Me.CustomData = "";
+	this.Storage = "";
+	LastError = "";
+	foreach(IMyThrust Thruster in Forward_Thrusters){
+		Thruster.ThrustOverridePercentage = 0.0f;
+	}
+	foreach(IMyThrust Thruster in Backward_Thrusters){
+		Thruster.ThrustOverridePercentage = 0.0f;
+	}
+	foreach(IMyThrust Thruster in Up_Thrusters){
+		Thruster.ThrustOverridePercentage = 0.0f;
+	}
+	foreach(IMyThrust Thruster in Down_Thrusters){
+		Thruster.ThrustOverridePercentage = 0.0f;
+	}
+	foreach(IMyThrust Thruster in Left_Thrusters){
+		Thruster.ThrustOverridePercentage = 0.0f;
+	}
+	foreach(IMyThrust Thruster in Right_Thrusters){
+		Thruster.ThrustOverridePercentage = 0.0f;
+	}
+	Gyroscope.Pitch = 0.0f;
+	Gyroscope.Yaw = 0.0f;
+	Gyroscope.Roll = 0.0f;
+	Gyroscope.GyroOverride = false;
+	Controller.DampenersOverride = true;
+	AsteroidList.Clear();
+	PlanetList.Clear();
+	SmallShipList.Clear();
+	LargeShipList.Clear();
+	CharacterList.Clear();
+	Runtime.UpdateFrequency = UpdateFrequency.None;
+	Me.Enabled = false;
+	return true;
+}
+
 private void ArgumentProcessor(string argument, UpdateType updateSource){
 	try{
 		if(argument.IndexOf("GoTo") == 0){
@@ -1413,58 +1673,14 @@ private void ArgumentProcessor(string argument, UpdateType updateSource){
 			}
 		}
 		else if(argument.ToLower().Equals("glitch")){
-			Glitch = Rnd.Next(1, 100);
-			Target_Glitch = (cycle + ((long)Math.Pow(10, Rnd.Next(200, 3699))))%long.MaxValue;
+			ForceGlitch(null);
 		}
 		else if(argument.ToLower().Equals("lockdown")){
-			Locked_Down = !Locked_Down;
-			List<IMyAirtightHangarDoor> Seals = (new GenericMethods<IMyAirtightHangarDoor>(this)).GetAllContaining(LOCKDOWN_SEAL_NAME);
-			foreach(IMyAirtightHangarDoor Seal in Seals){
-				if(Locked_Down){
-					Seal.Enabled = (Seal.Status != DoorStatus.Closed);
-					Seal.CloseDoor();
-				}
-				else {
-					Seal.Enabled = (Seal.Status != DoorStatus.Open);
-					Seal.OpenDoor();
-				}
-			}
+			Lockdown(null);
 		}
 		else if(argument.ToLower().Equals("factory reset")){
-			Me.CustomData = "";
-			this.Storage = "";
-			LastError = "";
-			foreach(IMyThrust Thruster in Forward_Thrusters){
-				Thruster.ThrustOverridePercentage = 0.0f;
-			}
-			foreach(IMyThrust Thruster in Backward_Thrusters){
-				Thruster.ThrustOverridePercentage = 0.0f;
-			}
-			foreach(IMyThrust Thruster in Up_Thrusters){
-				Thruster.ThrustOverridePercentage = 0.0f;
-			}
-			foreach(IMyThrust Thruster in Down_Thrusters){
-				Thruster.ThrustOverridePercentage = 0.0f;
-			}
-			foreach(IMyThrust Thruster in Left_Thrusters){
-				Thruster.ThrustOverridePercentage = 0.0f;
-			}
-			foreach(IMyThrust Thruster in Right_Thrusters){
-				Thruster.ThrustOverridePercentage = 0.0f;
-			}
-			Gyroscope.Pitch = 0.0f;
-			Gyroscope.Yaw = 0.0f;
-			Gyroscope.Roll = 0.0f;
-			Gyroscope.GyroOverride = false;
-			Controller.DampenersOverride = true;
-			AsteroidList.Clear();
-			PlanetList.Clear();
-			SmallShipList.Clear();
-			LargeShipList.Clear();
-			CharacterList.Clear();
-			Runtime.UpdateFrequency = UpdateFrequency.None;
-			Me.Enabled = false;
-			return;
+			if(FactoryReset(null))
+				return;
 		}
 	}
 	catch(Exception e){
@@ -1577,6 +1793,10 @@ private void UpdateClosestDistance(){
 	
 }
 
+public void Write(string toWrite){
+	Me.GetSurface(0).WriteText(toWrite + '\n', true);
+}
+
 private string ScanString = "";
 
 private double elevation = double.MaxValue;
@@ -1633,7 +1853,7 @@ private void SetThrusters(){
 				Controller.DampenersOverride = true;
 				Imminent_Crash = true;
 				LastError = "CRASH IMMINENT --- ENABLING DAMPENERS";
-				Me.GetSurface(0).WriteText("CRASH IMMINENT --- ENABLING DAMPENERS" + '\n', true);
+				Write(LastError);
 			}
 			else {
 				double distance_closed_in_15 = elevation - ((prediction - Center).Length() - height_dif);
@@ -1641,7 +1861,7 @@ private void SetThrusters(){
 					double time_to_crash = elevation / distance_closed_in_15 * 15;
 					if(time_to_crash < 1800 && Controller.GetShipSpeed() > 1.0f){
 						Echo(Math.Round(time_to_crash, 1).ToString() + " seconds to crash");
-						Me.GetSurface(0).WriteText(Math.Round(time_to_crash, 1).ToString() + " seconds to crash" + '\n', true);
+						Write(Math.Round(time_to_crash, 1).ToString() + " seconds to crash");
 					}
 					else {
 						Echo("No crash likely at current velocity");
@@ -1669,23 +1889,23 @@ private void SetThrusters(){
 	}
 	UpdateClosestDistance();
 	if(Controller.DampenersOverride){
-		Me.GetSurface(0).WriteText("Cruise Control: Off\n", true);
+		Write("Cruise Control: Off");
 		input_right -= (float) (Relative_Velocity.X * Mass_Accomodation * damp_multx);
 		input_up -= (float) (Relative_Velocity.Y * Mass_Accomodation * damp_multx);
 		input_forward += (float) (Relative_Velocity.Z * Mass_Accomodation * damp_multx);
 	}
 	else {
-		Me.GetSurface(0).WriteText("Cruise Control: On\n", true);
+		Write("Cruise Control: On");
 		Vector3D velocity_direction = Controller.GetShipVelocities().LinearVelocity;
 		velocity_direction.Normalize();
 		double angle = Math.Min(GetAngle(Controller_Forward, velocity_direction), GetAngle(Controller_Backward, velocity_direction));
 		if(angle <= ACCEPTABLE_ANGLE / 2){
 			input_right -= (float) (Relative_Velocity.X * Mass_Accomodation * damp_multx);
 			input_up -= (float) (Relative_Velocity.Y * Mass_Accomodation * damp_multx);
-			Me.GetSurface(0).WriteText("Stabilizers: On (" + Math.Round(angle, 1) + "° dev)" + '\n', true);
+			Write("Stabilizers: On (" + Math.Round(angle, 1) + "° dev)");
 		}
 		else {
-			Me.GetSurface(0).WriteText("Stabilizers: Off (" + Math.Round(angle, 1) + "° dev)" + '\n', true);
+			Write("Stabilizers: Off (" + Math.Round(angle, 1) + "° dev)");
 		}
 	}
 	
@@ -1724,7 +1944,7 @@ private void SetThrusters(){
 	
 	Vector3D Relative_Target_Position = Vector3D.Transform(target_position, MatrixD.Invert(Controller.WorldMatrix));
 	if(match_position){
-		Me.GetSurface(0).WriteText("Relative Position:\n", true);
+		Write("Relative Position:");
 		if(Relative_Target_Position.X > 0){
 			Me.GetSurface(0).WriteText(" R:" + Math.Round(Math.Abs(Relative_Target_Position.X), 1).ToString(), true);
 		}
@@ -1743,7 +1963,7 @@ private void SetThrusters(){
 		else if(Relative_Target_Position.Z < 0){
 			Me.GetSurface(0).WriteText(" F:" + Math.Round(Math.Abs(Relative_Target_Position.Z), 1).ToString(), true);
 		}
-		Me.GetSurface(0).WriteText("\n", true);
+		Write("");
 	}
 	Vector3D Relative_Target_Velocity = Vector3D.Transform(target_velocity - Controller.GetShipVelocities().LinearVelocity + Controller.GetPosition(), MatrixD.Invert(Controller.WorldMatrix));
 	if(match_position){
@@ -1913,31 +2133,31 @@ private void SetThrusters(){
 	float output_backward = 0.0f;
 	if(input_forward / Forward_Thrust > 0.05f){
 		output_forward = Math.Min(Math.Abs(input_forward / Forward_Thrust), 1);
-		Me.GetSurface(0).WriteText("Forward: " + Math.Round(output_forward*100, 1).ToString() + '%' + '\n', true);
+		Write("Forward: " + Math.Round(output_forward*100, 1).ToString() + '%');
 	}
 	else if(input_forward / Backward_Thrust < -0.05f){
 		output_backward = Math.Min(Math.Abs(input_forward / Backward_Thrust), 1);
-		Me.GetSurface(0).WriteText("Backward: " + Math.Round(output_backward*100, 1).ToString() + '%' + '\n', true);
+		Write("Backward: " + Math.Round(output_backward*100, 1).ToString() + '%');
 	}
 	float output_up = 0.0f;
 	float output_down = 0.0f;
 	if(input_up / Up_Thrust > 0.05f){
 		output_up = Math.Min(Math.Abs(input_up / Up_Thrust), 1);
-		Me.GetSurface(0).WriteText("Up: " + Math.Round(output_up*100, 1).ToString() + '%' + '\n', true);
+		Write("Up: " + Math.Round(output_up*100, 1).ToString() + '%');
 	}
 	else if(input_up / Down_Thrust < -0.05f){
 		output_down = Math.Min(Math.Abs(input_up / Down_Thrust), 1);
-		Me.GetSurface(0).WriteText("Down: " + Math.Round(output_down*100, 1).ToString() + '%' + '\n', true);
+		Write("Down: " + Math.Round(output_down*100, 1).ToString() + '%');
 	}
 	float output_right = 0.0f;
 	float output_left = 0.0f;
 	if(input_right / Right_Thrust > 0.05f){
 		output_right = Math.Min(Math.Abs(input_right / Right_Thrust), 1);
-		Me.GetSurface(0).WriteText("Right: " + Math.Round(output_right*100, 1).ToString() + '%' + '\n', true);
+		Write("Right: " + Math.Round(output_right*100, 1).ToString() + '%');
 	}
 	else if(input_right / Left_Thrust < -0.05f){
 		output_left = Math.Min(Math.Abs(input_right / Left_Thrust), 1);
-		Me.GetSurface(0).WriteText("Left: " + Math.Round(output_left*100, 1).ToString() + '%' + '\n', true);
+		Write("Left: " + Math.Round(output_left*100, 1).ToString() + '%');
 	}
 	Echo("\nOutput:");
 	Echo("F: " + Math.Round(output_forward, 3).ToString());
@@ -2114,11 +2334,11 @@ private void SetGyroscopes(){
 	Gyroscope.Roll = output.Roll + GlitchFloat / 100;
 	
 	if(Math.Abs(Gyroscope.Pitch) > 0.1f)
-		Me.GetSurface(0).WriteText("Pitch: " + Math.Round(Gyroscope.Pitch*100, 3).ToString() + " RPM" + '\n', true);
+		Write("Pitch: " + Math.Round(Gyroscope.Pitch*100, 3).ToString() + " RPM");
 	if(Math.Abs(Gyroscope.Yaw) > 0.1f)
-		Me.GetSurface(0).WriteText("Yaw: " + Math.Round(Gyroscope.Yaw*100, 3).ToString() + " RPM" + '\n', true);
+		Write("Yaw: " + Math.Round(Gyroscope.Yaw*100, 3).ToString() + " RPM");
 	if(Math.Abs(Gyroscope.Roll) > 0.1f)
-		Me.GetSurface(0).WriteText("Roll: " + Math.Round(Gyroscope.Roll*100, 3).ToString() + " RPM" + '\n', true);
+		Write("Roll: " + Math.Round(Gyroscope.Roll*100, 3).ToString() + " RPM");
 }
 
 //{R:255 G:0 B:0 A:255}
@@ -2392,22 +2612,22 @@ public void Main(string argument, UpdateType updateSource)
 	Me.GetSurface(0).WriteText(Program_Name + " Program Details" + '\n', false);
 	for(int i=1; i<Me.SurfaceCount; i++)
 		Me.GetSurface(i).WriteText(Program_Name + " OS " + cycle_long.ToString() + '-' + cycle.ToString() + " (" + loading_char + ")\n", false);
-	Me.GetSurface(0).WriteText(Controller.CustomName + "\n" + Gyroscope.CustomName + "\n\n", true);
+	Write(Controller.CustomName + "\n" + Gyroscope.CustomName + "\n");
 	if(Glitch > 0){
 		Color Background = new Color((int)(150 * GlitchFloat), (int)(75 * GlitchFloat), 0, 255);
 		for(int i=0; i<Me.SurfaceCount; i++)
 			Me.GetSurface(i).BackgroundColor = Background;
 		if(Glitch<10){
 			Echo("ERROR: Glitch code " + Glitch.ToString() + "00");
-			Me.GetSurface(0).WriteText("ERROR: Glitch code " + Glitch.ToString() + "00" + '\n', true);
+			Write("ERROR: Glitch code " + Glitch.ToString() + "00");
 		}
 		else{
 			Echo("ERROR: Glitch code " + Glitch.ToString().Substring(0,1) + "0" + Glitch.ToString().Substring(1,1));
-			Me.GetSurface(0).WriteText("ERROR: Glitch code " + Glitch.ToString().Substring(0,1) + "0" + Glitch.ToString().Substring(1,1) + '\n', true);
+			Write("ERROR: Glitch code " + Glitch.ToString().Substring(0,1) + "0" + Glitch.ToString().Substring(1,1));
 		}
 		
 		Echo("Potential next glitch in " + (Target_Glitch - cycle + Rnd.Next(0,50) - 25).ToString() + " cycles");
-		Me.GetSurface(0).WriteText("Potential next glitch in " + (Target_Glitch - cycle + Rnd.Next(0,50) - 25).ToString() + " cycles" + '\n', true);
+		Write("Potential next glitch in " + (Target_Glitch - cycle + Rnd.Next(0,50) - 25).ToString() + " cycles");
 	}
 	else {
 		for(int i=0; i<Me.SurfaceCount; i++)
@@ -2474,7 +2694,7 @@ public void Main(string argument, UpdateType updateSource)
 	HasNearestPlanet = Controller.TryGetPlanetPosition(out NearestPlanet);
 	
 	if(Airlocks.Count > 0)
-		Me.GetSurface(0).WriteText("Managing " + Airlocks.Count + " Airlocks" + '\n', true);
+		Write("Managing " + Airlocks.Count + " Airlocks");
 	if(Scan_Time >= SCAN_FREQUENCY || (CharacterDistance<0 && Scan_Time >= 0.25)){
 		Echo("Running scan...");
 		ScanString = "";
@@ -2759,14 +2979,14 @@ public void Main(string argument, UpdateType updateSource)
 	
 	if(match_position){
 		Echo("AutoPilot: On");
-		Me.GetSurface(0).WriteText("AutoPilot: On" + '\n', true);
+		Write("AutoPilot: On");
 	}
 	else if(match_direction){
 		Echo("AutoTarget: On");
-		Me.GetSurface(0).WriteText("AutoTarget: On" + '\n', true);
+		Write("AutoTarget: On");
 	}
 	
-	Me.GetSurface(0).WriteText("Speed Limit: " + Math.Round(Controller.GetShipSpeed(), 1).ToString() + " / " + Math.Round(Speed_Limit, 1).ToString() + '\n', true);
+	Write("Speed Limit: " + Math.Round(Controller.GetShipSpeed(), 1).ToString() + " / " + Math.Round(Speed_Limit, 1).ToString());
 	Echo("Speed Limit: " + Math.Round(Speed_Limit, 1).ToString());
 	
 	Gravity = Controller.GetNaturalGravity();
@@ -2793,8 +3013,8 @@ public void Main(string argument, UpdateType updateSource)
 		SetThrusters();
 	
 	if(match_position){
-		Me.GetSurface(0).WriteText("Distance to Target: " + Math.Round((Me.CubeGrid.GetPosition() - actual_target_position).Length(), 0) + " meters" + '\n', true);
-		Me.GetSurface(0).WriteText("Partial Distance: " + Math.Round((Me.CubeGrid.GetPosition() - target_position).Length(), 0) + " meters" + '\n', true);
+		Write("Distance to Target: " + Math.Round((Me.CubeGrid.GetPosition() - actual_target_position).Length(), 0) + " meters");
+		Write("Partial Distance: " + Math.Round((Me.CubeGrid.GetPosition() - target_position).Length(), 0) + " meters");
 	}
 	
 	if(SHIP_TYPE!=ShipType.Station)
