@@ -1046,11 +1046,12 @@ private void SetTarget(){
 			double actual_target_distance = (actual_target_position - Me.CubeGrid.GetPosition()).Length();
 			double elevation_difference = (Me.CubeGrid.GetPosition() - center).Length() - elevation;
 			double difference = GetAngle(current_angle, target_angle);
-			double angle_difference = Math.Min(Math.Max(5, 2500 / (elevation_difference * 2 * Math.PI) * 360), 15);
+			double angle_difference = Math.Min(Math.Max(1, 2500 / (elevation_difference * 2 * Math.PI) * 360), 15);
+			Echo("angle_difference: " + Math.Round(angle_difference, 2) .ToString() + '°');
 			if(actual_target_distance > 2500 || difference > (angle_difference * 1.5)){
 				target_angle = ((angle_difference * target_angle) + (difference - angle_difference) * current_angle) / difference;
 				target_angle.Normalize();
-				double target_elevation = Math.Max(Math.Min(elevation + 10, 500), elevation-100);
+				double target_elevation = Math.Max(Math.Min(elevation + 10, 500) * (1-GlitchFloat), 100);
 				target_position = target_angle * (elevation_difference + target_elevation);
 				double target_speed = target_velocity.Length();
 				target_velocity = ((angle_difference * target_velocity) + (difference - angle_difference) * Speed_Limit) / difference;
@@ -1312,12 +1313,36 @@ private void SetThrusters(){
 		speed_multx = Math.Max(Math.Min(speed_multx * SPEED_CAP, 1), 0);
 	
 	Vector3D Relative_Target_Position = Vector3D.Transform(target_position, MatrixD.Invert(Controller.WorldMatrix));
+	if(match_position){
+		Me.GetSurface(0).WriteText("Relative Position:\n", true);
+		if(Relative_Target_Position.X > 0){
+			Me.GetSurface(0).WriteText(" R:" + Math.Round(Math.Abs(Relative_Target_Position.X), 1).ToString(), true);
+		}
+		else if(Relative_Target_Position.X < 0){
+			Me.GetSurface(0).WriteText(" L:" + Math.Round(Math.Abs(Relative_Target_Position.X), 1).ToString(), true);
+		}
+		if(Relative_Target_Position.Y > 0){
+			Me.GetSurface(0).WriteText(" U:" + Math.Round(Math.Abs(Relative_Target_Position.Y), 1).ToString(), true);
+		}
+		else if(Relative_Target_Position.Y < 0){
+			Me.GetSurface(0).WriteText(" D:" + Math.Round(Math.Abs(Relative_Target_Position.Y), 1).ToString(), true);
+		}
+		if(Relative_Target_Position.Z > 0){
+			Me.GetSurface(0).WriteText(" B:" + Math.Round(Math.Abs(Relative_Target_Position.Z), 1).ToString(), true);
+		}
+		else if(Relative_Target_Position.Z < 0){
+			Me.GetSurface(0).WriteText(" F:" + Math.Round(Math.Abs(Relative_Target_Position.Z), 1).ToString(), true);
+		}
+		Me.GetSurface(0).WriteText("\n", true);
+	}
 	Vector3D Relative_Target_Velocity = Vector3D.Transform(target_velocity - Controller.GetShipVelocities().LinearVelocity + Controller.GetPosition(), MatrixD.Invert(Controller.WorldMatrix));
 	if(match_position){
 		Echo("Relative_Target_Position: " + Relative_Target_Position.ToString());
 		Echo("Relative_Target_Velocity: " + Relative_Target_Velocity.ToString());
 	}
 	Vector3D Relative_Current_Velocity = Vector3D.Transform(Controller.GetShipVelocities().LinearVelocity, MatrixD.Invert(Controller.WorldMatrix));
+	Relative_Current_Velocity.Normalize();
+	Relative_Current_Velocity *= Controller.GetShipSpeed();
 	Echo("Relative_Current_Velocity: " + Relative_Current_Velocity.ToString());
 	
 	bool matched_direction = !match_direction;
@@ -1420,13 +1445,13 @@ private void SetThrusters(){
 			time = (Relative_Distance - (difference*time/2))/difference;
 			if(time > 0 && (!match_direction || matched_direction)){
 				if(difference > 0){
-					if((Controller.GetShipVelocities().LinearVelocity + Controller_Down).Length() <= Math.Min(elevation, Math.Min(effective_speed_limit, Math.Sqrt(Target_Distance*10))) && Math.Abs(Relative_Current_Velocity.Y) <= Math.Abs(Relative_Target_Position.Y) + 0.05)
+					if((Controller.GetShipVelocities().LinearVelocity + Controller_Down).Length() <= Math.Min(elevation, Math.Min(effective_speed_limit, Math.Sqrt(Target_Distance*10))) || Math.Abs(Relative_Current_Velocity.Y) < Math.Abs(Relative_Target_Position.Y))
 						input_up = -1 * speed_multx * Down_Thrust;
 					else
 						Echo("Ignoring Down Autopilot");
 				}
 				else {
-					if((Controller.GetShipVelocities().LinearVelocity + Controller_Up).Length() <= Math.Min(elevation, Math.Min(effective_speed_limit, Math.Sqrt(Target_Distance*10))) && Math.Abs(Relative_Current_Velocity.Y) <= Math.Abs(Relative_Target_Position.Y) + 0.05)
+					if((Controller.GetShipVelocities().LinearVelocity + Controller_Up).Length() <= Math.Min(elevation, Math.Min(effective_speed_limit, Math.Sqrt(Target_Distance*10))) || Math.Abs(Relative_Current_Velocity.Y) < Math.Abs(Relative_Target_Position.Y))
 						input_up = speed_multx * Up_Thrust;
 					else
 						Echo("Ignoring Up Autopilot");
@@ -1731,14 +1756,6 @@ public void Main(string argument, UpdateType updateSource)
 		
 		Echo("Potential next glitch in " + (Target_Glitch - cycle + Rnd.Next(0,50) - 25).ToString() + " cycles");
 		Me.GetSurface(0).WriteText("Potential next glitch in " + (Target_Glitch - cycle + Rnd.Next(0,50) - 25).ToString() + " cycles" + '\n', true);
-		List<IMyFunctionalBlock> AllFunctionalBlocks = new List<IMyFunctionalBlock>();
-		GridTerminalSystem.GetBlocksOfType<IMyFunctionalBlock>(AllFunctionalBlocks);
-		int index = (int)(AllFunctionalBlocks.Count * GlitchFloat);
-		AllFunctionalBlocks[index].Enabled = (GlitchFloat < 0.9f);
-		index = (int)(AllFunctionalBlocks.Count * GlitchFloat);
-		AllFunctionalBlocks[index].Enabled = (GlitchFloat < 0.9f);
-		index = (int)(AllFunctionalBlocks.Count * GlitchFloat);
-		AllFunctionalBlocks[index].Enabled = (GlitchFloat < 0.9f);
 	}
 	else {
 		Me.GetSurface(0).BackgroundColor = new Color(0, 88, 151, 255);
@@ -2020,6 +2037,11 @@ public void Main(string argument, UpdateType updateSource)
 	}
 	
 	SetThrusters();
+	
+	if(match_position){
+		Me.GetSurface(0).WriteText("Distance to Target: " + Math.Round((Me.CubeGrid.GetPosition() - actual_target_position).Length(), 0) + " meters" + '\n', true);
+		Me.GetSurface(0).WriteText("Partial Distance: " + Math.Round((Me.CubeGrid.GetPosition() - target_position).Length(), 0) + " meters" + '\n', true);
+	}
 	
 	SetGyroscopes();
 	
