@@ -468,7 +468,7 @@ private AlertStatus ShipStatus{
 		Submessage = "";
 		
 		if(Imminent_Crash){
-			AlertStatus new_status = AlertStatus.Red;
+			AlertStatus new_status = AlertStatus.Orange;
 			status = (AlertStatus) Math.Max((int)status, (int)new_status);
 			Submessage += "\nCRASH IMMINENT --- BRACE";
 		}
@@ -1085,6 +1085,7 @@ private void Setup(){
 
 public Program()
 {
+	Me.Enabled = true;
 	Rnd = new Random();
     Me.CustomName = (Program_Name + " Programmable block").Trim();
 	string[] args = this.Storage.Split('•');
@@ -1430,7 +1431,31 @@ private void ArgumentProcessor(string argument, UpdateType updateSource){
 			Me.CustomData = "";
 			this.Storage = "";
 			LastError = "";
-			Setup();
+			foreach(IMyThrust Thruster in Forward_Thrusters){
+				Thruster.ThrustOverridePercentage = 0.0f;
+			}
+			foreach(IMyThrust Thruster in Backward_Thrusters){
+				Thruster.ThrustOverridePercentage = 0.0f;
+			}
+			foreach(IMyThrust Thruster in Up_Thrusters){
+				Thruster.ThrustOverridePercentage = 0.0f;
+			}
+			foreach(IMyThrust Thruster in Down_Thrusters){
+				Thruster.ThrustOverridePercentage = 0.0f;
+			}
+			foreach(IMyThrust Thruster in Left_Thrusters){
+				Thruster.ThrustOverridePercentage = 0.0f;
+			}
+			foreach(IMyThrust Thruster in Right_Thrusters){
+				Thruster.ThrustOverridePercentage = 0.0f;
+			}
+			Gyroscope.Pitch = 0.0f;
+			Gyroscope.Yaw = 0.0f;
+			Gyroscope.Roll = 0.0f;
+			Gyroscope.GyroOverride = false;
+			Runetime.UpdateFrequency = UpdateFrequency.None;
+			Me.Enabled = false;
+			return;
 		}
 	}
 	catch(Exception e){
