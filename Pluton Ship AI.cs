@@ -467,6 +467,12 @@ private AlertStatus ShipStatus{
 		AlertStatus status = AlertStatus.Green;
 		Submessage = "";
 		
+		if(Imminent_Crash){
+			AlertStatus new_status = AlertStatus.Red;
+			status = (AlertStatus) Math.Max((int)status, (int)new_status);
+			Submessage += "\nCRASH IMMINENT --- BRACE";
+		}
+		
 		if(EnemyShipDistance < 800){
 			AlertStatus new_status = AlertStatus.Red;
 			status = (AlertStatus) Math.Max((int)status, (int)new_status);
@@ -1541,8 +1547,9 @@ private string ScanString = "";
 
 private double elevation = double.MaxValue;
 
+private bool Imminent_Crash = false;
 private void SetThrusters(){
-	
+	Imminent_Crash = false;
 	Forward_Thrust = 0.0f;
 	foreach(IMyThrust Thruster in Forward_Thrusters){
 		if(Thruster.IsWorking)
@@ -1590,6 +1597,7 @@ private void SetThrusters(){
 			Vector3D prediction = Me.CubeGrid.GetPosition() + CRASH_PREDICTION_TIMER * Controller.GetShipVelocities().LinearVelocity;
 			if((prediction - Center).Length() <= height_dif && Controller.GetShipSpeed() > 5){
 				Controller.DampenersOverride = true;
+				Imminent_Crash = true;
 				LastError = "CRASH IMMINENT --- ENABLING DAMPENERS";
 				Me.GetSurface(0).WriteText("CRASH IMMINENT --- ENABLING DAMPENERS" + '\n', true);
 			}
