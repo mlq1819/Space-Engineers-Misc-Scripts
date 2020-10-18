@@ -544,7 +544,7 @@ private struct Airlock{
 		Door1 = d1;
 		Door2 = d2;
 	}
-	public override bool Equals(Airlock o){
+	public bool Equals(Airlock o){
 		return Door1.Equals(o.Door1) && Door2.Equals(o.Door2);
 	}
 	public double Distance(Vector3D Reference){
@@ -1553,7 +1553,7 @@ private void SetThrusters(){
 				double distance_closed_in_15 = elevation - ((prediction - Center).Length() - height_dif);
 				if(distance_closed_in_15 > 0){
 					double time_to_crash = elevation / distance_closed_in_15 * 15;
-					if(time_to_crash < 1800){
+					if(time_to_crash < 1800 && Controller.GetShipSpeed() > 1.0f){
 						Echo(Math.Round(time_to_crash, 1).ToString() + " seconds to crash");
 						Me.GetSurface(0).WriteText(Math.Round(time_to_crash, 1).ToString() + " seconds to crash" + '\n', true);
 					}
@@ -2225,37 +2225,56 @@ private void UpdateAirlock(Airlock airlock){
 			}
 		}
 	}
+	float multx_1 = 1.0f + GlitchFloat;
+	float multx_2 = 1.0f + GlitchFloat;
+	if(min_distance_1 != double.MaxValue)
+		min_distance_1 *= multx_1;
+	if(min_distance_2 != double.MaxValue)
+		min_distance_2 *= multx_2;
 	if(detected){
 		if(min_distance_1 <= min_distance_2){
 			airlock.Door2.Enabled = (airlock.Door2.Status != DoorStatus.Closed);
-			airlock.Door2.CloseDoor();
+			if(airlock.Door2.Status != DoorStatus.Closing)
+				airlock.Door2.CloseDoor();
 			if(airlock.Door2.Enabled){
 				airlock.Door1.Enabled = (airlock.Door1.Status != DoorStatus.Closed);
-				airlock.Door1.CloseDoor();
+				if(airlock.Door1.Status != DoorStatus.Closing)
+					airlock.Door1.CloseDoor();
+				Echo('\t' + "Closing Door 2");
 			}
 			else {
 				airlock.Door1.Enabled = (airlock.Door1.Status != DoorStatus.Open);
-				airlock.Door1.OpenDoor();
+				if(airlock.Door1.Status != DoorStatus.Opening)
+					airlock.Door1.OpenDoor();
+				Echo('\t' + "Opening Door 1");
 			}
 		}
 		else {
 			airlock.Door1.Enabled = (airlock.Door1.Status != DoorStatus.Closed);
-			airlock.Door1.CloseDoor();
+			if(airlock.Door1.Status != DoorStatus.Closing)
+				airlock.Door1.CloseDoor();
 			if(airlock.Door1.Enabled){
 				airlock.Door2.Enabled = (airlock.Door2.Status != DoorStatus.Closed);
-				airlock.Door2.CloseDoor();
+				if(airlock.Door2.Status != DoorStatus.Closing)
+					airlock.Door2.CloseDoor();
+				Echo('\t' + "Closing Door 1");
 			}
 			else {
 				airlock.Door2.Enabled = (airlock.Door2.Status != DoorStatus.Open);
-				airlock.Door2.OpenDoor();
+				if(airlock.Door2.Status != DoorStatus.Opening)
+					airlock.Door2.OpenDoor();
+				Echo('\t' + "Opening Door 2");
 			}
 		}
 	}
 	else {
 		airlock.Door1.Enabled = (airlock.Door1.Status != DoorStatus.Closed);
-		airlock.Door1.CloseDoor();
+		if(airlock.Door1.Status != DoorStatus.Closing)
+			airlock.Door1.CloseDoor();
 		airlock.Door2.Enabled = (airlock.Door2.Status != DoorStatus.Closed);
-		airlock.Door2.CloseDoor();
+		if(airlock.Door2.Status != DoorStatus.Closing)
+			airlock.Door2.CloseDoor();
+		Echo('\t' + "Closing both Doors");
 	}
 }
 
@@ -2333,8 +2352,12 @@ public void Main(string argument, UpdateType updateSource)
 		Gyroscope = null;
 		Setup();
 	}
-	foreach(Airlock airlock in Airlocks){
-		UpdateAirlock(airlock);
+	if(Airlocks.Count > 0){
+		Me.GetSurface(0).WriteText("Managing " + Airlocks.Count + " Airlocks" + '\n', true);
+		for(int i=0; i<Airlocks.Count; i++){
+			Echo("Airlock " + (i+1).ToString() + " Status:");
+			UpdateAirlock(Airlocks[i]);
+		}
 	}
 	if(Controller == null || Gyroscope == null || !Controller.IsFunctional || !Gyroscope.IsFunctional){
 		Runtime.UpdateFrequency = UpdateFrequency.None;
