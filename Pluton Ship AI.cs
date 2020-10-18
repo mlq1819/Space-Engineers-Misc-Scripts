@@ -22,17 +22,20 @@ private const double CRASH_PREDICTION_TIMER = 10;
 private const double SCAN_FREQUENCY = 2.5f;
 //Set this to the distance you want lights and sound blocks to update on an alert
 private const double ALERT_DISTANCE = 15;
+//Set this to what you want the ship's lockdown seals to be named; they close when the ship locks down
+private const string LOCKDOWN_SEAL_NAME = "Air Seal";
 //Set this to the relevant ship type
 private const ShipType SHIP_TYPE = ShipType.Misc;
 
 public enum ShipType {
 	//Misc includes cruisers, carriers, etc.
 	Misc = 0,
-	Welder = 1,
-	Grinder = 2,
-	Miner = 3,
-	Fighter = 4,
-	Missile = 5
+	Station = 1,
+	Welder = 2,
+	Grinder = 3,
+	Miner = 4,
+	Fighter = 5,
+	Missile = 6
 }
 
 public class GenericMethods<T> where T : class, IMyTerminalBlock{
@@ -207,16 +210,16 @@ public class GenericMethods<T> where T : class, IMyTerminalBlock{
 		return GetClosestFunc(f, double.MaxValue);
 	}
 	
-	public List<T> SortByDistance(List<T> unsorted){
+	public static List<T> SortByDistance(List<T> unsorted, Vector3D Reference){
 		List<T> output = new List<T>();
 		while(unsorted.Count > 0){
 			double min_distance = double.MaxValue;
 			foreach(T Block in unsorted){
-				double distance = (Prog.GetPosition() - Block.GetPosition()).Length();
+				double distance = (Reference - Block.GetPosition()).Length();
 				min_distance = Math.Min(min_distance, distance);
 			}
 			for(int i=0; i<unsorted.Count; i++){
-				double distance = (Prog.GetPosition() - unsorted[i].GetPosition()).Length();
+				double distance = (Reference - unsorted[i].GetPosition()).Length();
 				if(distance <= min_distance + 0.1){
 					output.Add(unsorted[i]);
 					unsorted.RemoveAt(i);
@@ -225,6 +228,14 @@ public class GenericMethods<T> where T : class, IMyTerminalBlock{
 			}
 		}
 		return output;
+	}
+	
+	public static List<T> SortByDistance(List<T> unsorted, IMyTerminalBlock Reference){
+		return SortByDistance(unsorted, Reference.GetPosition());
+	}
+	
+	public List<T> SortByDistance(List<T> unsorted){
+		return SortByDistance(unsorted, Prog);
 	}
 	
 	public static double GetAngle(Vector3D v1, Vector3D v2){
@@ -410,6 +421,14 @@ private class EntityInfo{
 	
 }
 
+private enum AlertStatus{
+	Green = 0,
+	Blue = 1,
+	Yellow = 2,
+	Orange = 3,
+	Red = 4
+}
+
 private long cycle_long = 1;
 private long cycle = 0;
 private char loading_char = '|';
@@ -436,6 +455,49 @@ private bool HasNearestPlanet = false;
 private Vector3D NearestPlanet = new Vector3D(0,0,0);
 
 private double MySize = 2.5;
+
+private bool Locked_Down = false;
+
+private AlertStatus ShipStatus{
+	get{
+		UpdateClosestDistance();
+		AlertStatus status = AlertStatus.Green;
+		if(EnemyShipDistance < 10000){
+			status = (AlertStatus) Math.Max((int)status, (int)AlertStatus.Yellow);
+		}
+		if(EnemyShipDistance < 2500){
+			status = (AlertStatus) Math.Max((int)status, (int)AlertStatus.Orange);
+		}
+		if(EnemyShipDistance < 800){
+			status = (AlertStatus) Math.Max((int)status, (int)AlertStatus.Red);
+		}
+		if(EnemyCharacterDistance < 2000){
+			status = (AlertStatus) Math.Max((int)status, (int)AlertStatus.Yellow);
+		}
+		if(EnemyCharacterDistance < 800){
+			status = (AlertStatus) Math.Max((int)status, (int)AlertStatus.Orange);
+		}
+		if(EnemyCharacterDistance < 0){
+			status = (AlertStatus) Math.Max((int)status, (int)AlertStatus.Red);
+		}
+		if(ShipDistance < 500){
+			status = (AlertStatus) Math.Max((int)status, (int)AlertStatus.Blue);
+		}
+		if(AsteroidDistance < 500){
+			status = (AlertStatus) Math.Max((int)status, (int)AlertStatus.Blue);
+		}
+		if(PlanetDistance < 100){
+			status = (AlertStatus) Math.Max((int)status, (int)AlertStatus.Blue);
+		}
+		if(Controller.GetShipSpeed() > 20){
+			status = (AlertStatus) Math.Max((int)status, (int)AlertStatus.Blue);
+		}
+		if(Glitch > 0){
+			status = (AlertStatus) Math.Max((int)status, (int)AlertStatus.Yellow);
+		}
+		return status;
+	}
+}
 
 private List<EntityInfo> AsteroidList = new List<EntityInfo>();
 private List<EntityInfo> PlanetList = new List<EntityInfo>();
@@ -473,6 +535,10 @@ private Vector3D Controller_Up;
 private Vector3D Controller_Down;
 private Vector3D Controller_Left;
 private Vector3D Controller_Right;
+
+private List<IMyTextPanel> StatusLCDs = new List<IMyTextPanel>();
+
+private List<IMyDoor[2]> Airlocks = new List<IMyDoor[2]>();
 
 private float Forward_Thrust = 0.0f;
 private float Backward_Thrust = 0.0f;
@@ -747,8 +813,123 @@ private Gyro_Tuple Transform(Gyro_Tuple input){
 	return new Gyro_Tuple(pitch, yaw, roll);
 }
 
+private void SetStatus(string message, Color TextColor, Color BackgroundColor){
+	foreach(IMyTextPanel LCD in StatusLCDs){
+		LCD.WriteText(message, false);
+		if(LCD.CustomName.ToLower().Contains("transparent")){
+			LCD.FontColor = BackgroundColor;
+			LCD.BackgroundColor = new Color(0,0,0,255);
+		}
+		else {
+			LCD.FontColor = TextColor;
+			LCD.BackgroundColor = BackgroundColor;
+		}
+	}
+}
+
+private string GetRemovedString(string big_string, string small_string){
+	string output = big_string;
+	if(big_string.Contains(small_string)){
+		output = big_string.Substring(0, big_string.IndexOf(small_string)) + big_string.Substring(big_string.IndexOf(small_string) + small_string.Length);
+	}
+	return output;
+}
+
 private void Setup(){
 	Echo("Beginning initialization");
+	StatusLCDs = (new GenericMethods<IMyTextPanel>(this)).GetAllContaining("Ship Status");
+	
+	Airlocks = new List<IMyDoor[2]>();
+	List<IMyDoor> AllAirlockDoors = (new GenericMethods<IMyDoor>(this)).GetAllContaining("Airlock");
+	List<IMyDoor> AllAirlockDoor1s = new List<IMyDoor>();
+	List<IMyDoor> AllAirlockDoor2s = new List<IMyDoor>();
+	foreach(IMyDoor Door in AllAirlockDoors){
+		if(Door.CustomName.Contains("Door 1")){
+			AllAirlockDoor1s.Add(Door);
+		}
+		else if(Door.CustomName.Contains("Door 2")){
+			AllAirlockDoor2s.Add(Door);
+		}
+	}
+	List<List<IMyDoor>> PossibleAirlockDoor1Pairs = new List<IMyDoor>();
+	foreach(IMyDoor Door1 in AllAirlockDoor1s){
+		List<IMyDoor> pair = new List<IMyDoor>();
+		pair.Add(Door1);
+		List<IMyDoor> Copy = new List<IMyDoor>();
+		string name = GetRemovedString(Door1.CustomName, "Door 1");
+		foreach(IMyDoor Door2 in AllAirlockDoor2s){
+			Copy.Add(Door2);
+		}
+		foreach(IMyDoor Door2 in GenericMethods<IMyDoor>.SortByDistance(Copy, Door1)){
+			if(GetRemovedString(Door2.CustomName, "Door 2").Equals(name))
+				pair.Add(Door2);
+		}
+		if(pair.Count > 1)
+			PossibleAirlockDoor1Pairs.Add(pair);
+	}
+	List<List<IMyDoor>> PossibleAirlockDoor2Pairs = new List<IMyDoor>();
+	foreach(IMyDoor Door2 in AllAirlockDoor2s){
+		List<IMyDoor> pair = new List<IMyDoor>();
+		pair.Add(Door2);
+		List<IMyDoor> Copy = new List<IMyDoor>();
+		string name = GetRemovedString(Door2.CustomName, "Door 2");
+		foreach(IMyDoor Door1 in AllAirlockDoor1s){
+			Copy.Add(Door1);
+		}
+		foreach(IMyDoor Door1 in GenericMethods<IMyDoor>.SortByDistance(Copy, Door2)){
+			if(GetRemovedString(Door1.CustomName, "Door 1").Equals(name))
+				pair.Add(Door1);
+		}
+		if(pair.Count > 1){
+			PossibleAirlockDoor2Pairs.Add(pair);
+		}
+	}
+	int removed = 0;
+	do{
+		foreach(List<IMyDoor> pair1 in PossibleAirlockDoor1Pairs){
+			if(pair1.Count <= 1){
+				PossibleAirlockDoor1Pairs.Remove(pair1);
+				continue;
+			}
+			bool found_pair = false;
+			foreach(List<IMyDoor> pair2 in PossibleAirlockDoor2Pairs){
+				if(pair2.Count <= 1){
+					PossibleAirlockDoor2Pairs.Remove(pair2);
+					continue;
+				}
+				if(pair2[0].Equals(pair1[1]) && pair1[0].Equals(pair2[1])){
+					found_pair = true;
+					removed++;
+					Airlocks.Add({pair1[0], pair2[0]});
+					for(int i=0; i<PossibleAirlockDoor1Pairs.Count; i++){
+						for(int j=1; j<PossibleAirlockDoor1Pairs[i].Count; j++){
+							if(PossibleAirlockDoor1Pairs[i][j].Equals(pair2[0])){
+								PossibleAirlockDoor1Pairs[i].RemoveAt(j);
+								break;
+							}
+						}
+					}
+					for(int i=0; i<PossibleAirlockDoor2Pairs.Count; i++){
+						for(int j=1; j<PossibleAirlockDoor2Pairs[i].Count; j++){
+							if(PossibleAirlockDoor2Pairs[i][j].Equals(pair1[0])){
+								PossibleAirlockDoor2Pairs[i].RemoveAt(j);
+								break;
+							}
+						}
+					}
+					PossibleAirlockDoor1Pairs.Remove(pair1);
+					PossibleAirlockDoor2Pairs.Remove(pair2);
+					break;
+				}
+			}
+			if(found_pair)
+				continue;
+			
+		}
+	} 
+	while(removed > 0 && PossibleAirlockDoor1Pairs.Count > 0 && PossibleAirlockDoor2Pairs.Count > 0);
+	
+	
 	List<IMyTerminalBlock> AllTerminalBlocks = new List<IMyTerminalBlock>();
 	GridTerminalSystem.GetBlocksOfType<IMyTerminalBlock>(AllTerminalBlocks);
 	foreach(IMyTerminalBlock Block in AllTerminalBlocks){
@@ -1132,7 +1313,26 @@ private void ArgumentProcessor(string argument, UpdateType updateSource){
 		else if(argument.ToLower().Equals("glitch")){
 			Glitch = Rnd.Next(1, 100);
 			Target_Glitch = (cycle + ((long)Math.Pow(10, Rnd.Next(200, 3699))))%long.MaxValue;
-			Echo("Glitching");
+		}
+		else if(argument.ToLower().Equals("lockdown")){
+			Locked_Down = !Locked_Down;
+			List<IMyAirtightHangarDoor> Seals = (new GenericMethods<IMyAirtightHangarDoor>(this)).GetAllContaining(LOCKDOWN_SEAL_NAME);
+			foreach(IMyAirtightHangarDoor Seal in Seals){
+				if(Locked_Down){
+					Seal.Enabled = (Seal.Status != DoorStatus.Closed);
+					Seal.CloseDoor();
+				}
+				else {
+					Seal.Enabled = (Seal.Status != DoorStatus.Open);
+					Seal.OpenDoor();
+				}
+			}
+		}
+		else if(argument.ToLower().Equals("factory reset")){
+			Me.CustomData = "";
+			this.Storage = "";
+			LastError = "";
+			SetUp();
 		}
 	}
 	catch(Exception e){
@@ -1140,13 +1340,6 @@ private void ArgumentProcessor(string argument, UpdateType updateSource){
 		LastError = e.Message;
 	}
 }
-
-private double AsteroidDistance = double.MaxValue;
-private double ClosestAsteroidSize = 0;
-private double PlanetDistance = double.MaxValue;
-private double ShipDistance = double.MaxValue;
-private double ClosestShipSize = 0;
-private double CharacterDistance = double.MaxValue;
 
 private bool HasBlockData(IMyTerminalBlock Block, string Name){
 	if(Name.Contains(':'))
@@ -1191,6 +1384,15 @@ private bool SetBlockData(IMyTerminalBlock Block, string Name, string Data){
 	return true;
 }
 
+private double AsteroidDistance = double.MaxValue;
+private double ClosestAsteroidSize = 0;
+private double PlanetDistance = double.MaxValue;
+private double ShipDistance = double.MaxValue;
+private double ClosestShipSize = 0;
+private double CharacterDistance = double.MaxValue;
+private double EnemyShipDistance = double.MaxValue;
+private double EnemyCharacterDistance = double.MaxValue
+
 private bool UpdatedClosestDistance = false;
 private void UpdateClosestDistance(){
 	if(UpdatedClosestDistance)
@@ -1200,6 +1402,8 @@ private void UpdateClosestDistance(){
 	PlanetDistance = double.MaxValue;
 	ShipDistance = double.MaxValue;
 	CharacterDistance = double.MaxValue;
+	EnemyShipDistance = double.MaxValue;
+	EnemyCharacterDistance = double.MaxValue;
 	foreach(EntityInfo Entity in AsteroidList){
 		double distance = (Entity.Position - Me.CubeGrid.GetPosition()).Length() - Entity.Size - MySize;
 		if(distance < AsteroidDistance){
@@ -1218,15 +1422,25 @@ private void UpdateClosestDistance(){
 			ShipDistance = adjusted_distance;
 			ClosestShipSize = Entity.Size;
 		}
+		if(Entity.Relationship = MyRelationsBetweenPlayerAndBlock.Enemies){
+			EnemyShipDistance = Math.Min(EnemyShipDistance, adjusted_distance);
+		}
 	}
 	foreach(EntityInfo Entity in LargeShipList){
 		double adjusted_distance = (Entity.Position - Me.CubeGrid.GetPosition()).Length() - Entity.Size - MySize;
 		adjusted_distance *= Math.Max(Math.Log10(Entity.Age.TotalSeconds), 1);
 		ShipDistance = Math.Min(ShipDistance, adjusted_distance);
+		if(Entity.Relationship = MyRelationsBetweenPlayerAndBlock.Enemies){
+			EnemyShipDistance = Math.Min(EnemyShipDistance, adjusted_distance);
+		}
 	}
 	
 	foreach(EntityInfo Entity in CharacterList){
-		CharacterDistance = Math.Min(CharacterDistance, (Entity.Position - Me.CubeGrid.GetPosition()).Length() - MySize);
+		double distance = (Entity.Position - Me.CubeGrid.GetPosition()).Length() - MySize;
+		CharacterDistance = Math.Min(CharacterDistance, distance);
+		if(Entity.Relationship = MyRelationsBetweenPlayerAndBlock.Enemies){
+			EnemyCharacterDistance = Math.Min(EnemyCharacterDistance, distance);
+		}
 	}
 	
 }
@@ -2257,14 +2471,16 @@ public void Main(string argument, UpdateType updateSource)
 		Adjusted_Gravity *= Mass_Accomodation;
 	}
 	
-	SetThrusters();
+	if(SHIP_TYPE!=ShipType.Station)
+		SetThrusters();
 	
 	if(match_position){
 		Me.GetSurface(0).WriteText("Distance to Target: " + Math.Round((Me.CubeGrid.GetPosition() - actual_target_position).Length(), 0) + " meters" + '\n', true);
 		Me.GetSurface(0).WriteText("Partial Distance: " + Math.Round((Me.CubeGrid.GetPosition() - target_position).Length(), 0) + " meters" + '\n', true);
 	}
 	
-	SetGyroscopes();
+	if(SHIP_TYPE!=ShipType.Station)
+		SetGyroscopes();
 	
 	
 	UpdateClosestDistance();
@@ -2278,7 +2494,25 @@ public void Main(string argument, UpdateType updateSource)
 		}
 	}
 	
-	if(Controller.IsUnderControl || AngularVelocity.Length() > .1f){
+	switch(ShipStatus){
+		case AlertStatus.Green:
+			SetStatus("Condition " + ShipStatus.ToString(), new Color(137, 255, 137, 255), new Color(0, 151, 0, 255));
+			break;
+		case AlertStatus.Blue:
+			SetStatus("Condition " + ShipStatus.ToString(), new Color(137, 239, 255, 255), new Color(0, 88, 151, 255));
+			break;
+		case AlertStatus.Yellow:
+			SetStatus("Condition " + ShipStatus.ToString(), new Color(255, 239, 137, 255), new Color(151, 151, 0, 255));
+			break;
+		case AlertStatus.Orange:
+			SetStatus("Condition " + ShipStatus.ToString(), new Color(255, 197, 0, 255), new Color(155, 88, 0, 255));
+			break;
+		case AlertStatus.Red:
+			SetStatus("Condition " + ShipStatus.ToString(), new Color(255, 137, 137, 255), new Color(151, 0, 0, 255));
+			break;
+	}
+	
+	if(Controller.IsUnderControl || AngularVelocity.Length() > .1f || Controller.GetShipSpeed() > 0.5f){
 		Runtime.UpdateFrequency = UpdateFrequency.Update1;
 	}
 	else{
