@@ -1115,6 +1115,9 @@ public Program()
 		}
 	}
 	Setup();
+	IGC.RegisterBroadcastListener("Pluton AI");
+	IGC.RegisterBroadcastListener("Entity Report");
+	IGC.RegisterBroadcastListener(Me.CubeGrid.CustomName);
 }
 
 public void Save()
@@ -1453,7 +1456,7 @@ private void ArgumentProcessor(string argument, UpdateType updateSource){
 			Gyroscope.Yaw = 0.0f;
 			Gyroscope.Roll = 0.0f;
 			Gyroscope.GyroOverride = false;
-			Runetime.UpdateFrequency = UpdateFrequency.None;
+			Runtime.UpdateFrequency = UpdateFrequency.None;
 			Me.Enabled = false;
 			return;
 		}
@@ -2543,6 +2546,99 @@ public void Main(string argument, UpdateType updateSource)
 		}
 		
 		ScanString += "Retrieved updated data on " + Entities.Count + " relevant entities" + '\n';
+		List<IMyBroadcastListener> listeners = new List<IMyBroadcastListener>();
+		IGC.GetBroadcastListeners(listeners);
+		foreach(MyDetectedEntityInfo entity in Entities){
+			EntityInfo Entity = new EntityInfo(entity);
+			foreach(IMyBroadcastListener Listener in listeners){
+				IGC.SendBroadcastMessage(Listener.Tag, Entity.ToString(), TransmissionDistance.TransmissionDistanceMax);
+			}
+		}
+		foreach(IMyBroadcastListener Listener in listeners){
+			while(Listener.HasPendingMessage){
+				MyIGCMessage message = Listener.AcceptMessage();
+				ScanString += "Received message on " + Listener.Tag + '\n';
+				EntityInfo Entity;
+				if(EntityInfo.TryParse(message.Data.ToString(), out Entity)){
+					bool found = false;
+					switch(Entity.Type){
+						case MyDetectedEntityType.Asteroid:
+							for(int i=0; i<AsteroidList.Count; i++){
+								if(AsteroidList[i].ID == Entity.ID){
+									AsteroidList[i] = Entity;
+									found = true;
+									break;
+								}
+							}
+							if(!found){
+								AsteroidList.Add(Entity);
+							}
+							break;
+						case MyDetectedEntityType.Planet:
+							for(int i=0; i<PlanetList.Count; i++){
+								if(PlanetList[i].ID == Entity.ID){
+									PlanetList[i] = Entity;
+									found = true;
+									break;
+								}
+							}
+							if(!found){
+								PlanetList.Add(Entity);
+							}
+							break;
+						case MyDetectedEntityType.SmallGrid:
+							for(int i=0; i<SmallShipList.Count; i++){
+								if(SmallShipList[i].ID == Entity.ID){
+									SmallShipList[i] = Entity;
+									found = true;
+									break;
+								}
+							}
+							if(!found){
+								SmallShipList.Add(Entity);
+							}
+							break;
+						case MyDetectedEntityType.LargeGrid:
+							for(int i=0; i<LargeShipList.Count; i++){
+								if(LargeShipList[i].ID == Entity.ID){
+									LargeShipList[i] = Entity;
+									found = true;
+									break;
+								}
+							}
+							if(!found){
+								LargeShipList.Add(Entity);
+							}
+							break;
+						case MyDetectedEntityType.CharacterHuman:
+							for(int i=0; i<CharacterList.Count; i++){
+								if(CharacterList[i].ID == Entity.ID){
+									CharacterList[i] = Entity;
+									found = true;
+									break;
+								}
+							}
+							if(!found){
+								CharacterList.Add(Entity);
+							}
+							break;
+						case MyDetectedEntityType.CharacterOther:
+							for(int i=0; i<CharacterList.Count; i++){
+								if(CharacterList[i].ID == Entity.ID){
+									CharacterList[i] = Entity;
+									found = true;
+									break;
+								}
+							}
+							if(!found){
+								CharacterList.Add(Entity);
+							}
+							break;
+				}
+			}
+		}
+		
+		
 		
 		foreach(MyDetectedEntityInfo entity in Entities){
 			EntityInfo Entity = new EntityInfo(entity);
