@@ -24,6 +24,8 @@ private const double SCAN_FREQUENCY = 2.5f;
 private const double ALERT_DISTANCE = 15;
 //Set this to what you want the ship's lockdown seals to be named; they close when the ship locks down
 private const string LOCKDOWN_SEAL_NAME = "Air Seal";
+//Set this to what you want the ship AI to consider a "high speed" for the LCDs
+private const double HIGH_SPEED = 30;
 //Set this to the relevant ship type
 private const ShipType SHIP_TYPE = ShipType.Misc;
 
@@ -504,7 +506,7 @@ private AlertStatus ShipStatus{
 			Submessage += "\nGlitched AI";
 		}
 		
-		if(ShipDistance < 500){
+		if(ShipDistance < 500 && ShipDistance > 0){
 			AlertStatus new_status = AlertStatus.Blue;
 			status = (AlertStatus) Math.Max((int)status, (int)new_status);
 			Submessage += "\nNearby ship at " + Math.Round(ShipDistance, 0) + " meters";
@@ -514,14 +516,29 @@ private AlertStatus ShipStatus{
 			status = (AlertStatus) Math.Max((int)status, (int)new_status);
 			Submessage += "\nNearby asteroid at " + Math.Round(AsteroidDistance, 0) + " meters";
 		}
-		if(Controller.GetShipSpeed() > 20){
+		if(match_position && (Me.CubeGrid.GetPosition() - actual_target_position).Length() < 1000){
 			AlertStatus new_status = AlertStatus.Blue;
 			status = (AlertStatus) Math.Max((int)status, (int)new_status);
-			Submessage += "\nHigh Ship Speed (" + Math.Round(Controller.GetShipSpeed(), 0) + " mps)";
+			Submessage += "\nApproaching destination (" + Math.Round((Me.CubeGrid.GetPosition() - actual_target_position).Length(), 0) + " meters)";
 		}
-		if(Submessage.Trim().Length == 0){
+		if(Controller.GetShipSpeed() > HIGH_SPEED){
+			AlertStatus new_status = AlertStatus.Blue;
+			status = (AlertStatus) Math.Max((int)status, (int)new_status);
+			double Speed = Controller.GetShipSpeed();
+			Submessage += "\nHigh Ship Speed [";
+			const int SECTIONS = 20;
+			for(int i=0; i<SECTIONS; i++){
+				if(Speed >= ((100.0/SECTIONS) * i)){
+					Submessage += '|';
+				}
+				else {
+					Submessage += ' ';
+				}
+			}
+			Submessage += ']';
+		}
+		if(status == AlertStatus.Green)
 			Submessage = "\nNo issues";
-		}
 		return status;
 	}
 }
