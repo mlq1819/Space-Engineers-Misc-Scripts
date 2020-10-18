@@ -1189,7 +1189,11 @@ private bool SetBlockData(IMyTerminalBlock Block, string Name, string Data){
 	return true;
 }
 
+private bool UpdatedClosestDistance = false;
 private void UpdateClosestDistance(){
+	if(UpdatedClosestDistance)
+		return;
+	UpdatedClosestDistance = true;
 	AsteroidDistance = double.MaxValue;
 	PlanetDistance = double.MaxValue;
 	ShipDistance = double.MaxValue;
@@ -1733,10 +1737,10 @@ private Color ColorParse(string parse){
 	parse = parse.Substring(0, parse.IndexOf('{') - 1);
 	string[] args = parse.Split(' ');
 	int r, g, b, a;
-	r = Int32.Parse(args[0].Substring(IndexOf("R:")+"R:".Length).Trim());
-	g = Int32.Parse(args[1].Substring(IndexOf("G:")+"G:".Length).Trim());
-	b = Int32.Parse(args[2].Substring(IndexOf("B:")+"B:".Length).Trim());
-	a = Int32.Parse(args[3].Substring(IndexOf("A:")+"A:".Length).Trim());
+	r = Int32.Parse(args[0].Substring(args[0].IndexOf("R:")+"R:".Length).Trim());
+	g = Int32.Parse(args[1].Substring(args[1].IndexOf("G:")+"G:".Length).Trim());
+	b = Int32.Parse(args[2].Substring(args[2].IndexOf("B:")+"B:".Length).Trim());
+	a = Int32.Parse(args[3].Substring(args[3].IndexOf("A:")+"A:".Length).Trim());
 	return new Color(r,g,b,a);
 }
 
@@ -1751,7 +1755,8 @@ private void SetAlarms(){
 	foreach(IMyInteriorLight Light in AllLights){
 		double distance = double.MaxValue;
 		foreach(EntityInfo Entity in CharacterList){
-			distance = Math.Min(distance, (Light.GetPosition() - Entity.Position).Length());
+			if(Entity.Relationship == MyRelationsBetweenPlayerAndBlock.Enemies && Entity.Age.TotalSeconds <= 60)
+				distance = Math.Min(distance, (Light.GetPosition() - Entity.Position).Length());
 		}
 		if(distance <= ALERT_DISTANCE){
 			if(!HasBlockData(Light, "DefaultColor")){
@@ -1763,49 +1768,89 @@ private void SetAlarms(){
 			if(!HasBlockData(Light, "DefaultBlinkInterval")){
 				SetBlockData(Light, "DefaultBlinkInterval", Light.BlinkIntervalSeconds.ToString());
 			}
-			SetBlockData(Light, "Job", "Alert");
+			SetBlockData(Light, "Job", "PlayerAlert");
 			Light.Color = new Color(255, 0, 0, 255);
 			Light.BlinkLength = 50.0f;
-			Light.BlinkIntervalSeconds = 1.0f + (((float)distance) / ALERT_DISTANCE);
+			Light.BlinkIntervalSeconds = 1.0f + ((float) (distance / ALERT_DISTANCE));
 		}
 		else {
-			if(!HasBlockData(Light, "Job")){
-				if(GetBlockData(Light, "Job").Equals("Alert")){
-					if(HasBlockData(Light, "DefaultColor")){
-						try{
-							Light.Color = ColorParse(GetBlockData(Light, "DefaultColor"));
-						}
-						catch(Exception){
-							;
-						}
+			if(HasBlockData(Light, "Job") && GetBlockData(Light, "Job").Equals("PlayerAlert")){
+				if(HasBlockData(Light, "DefaultColor")){
+					try{
+						Light.Color = ColorParse(GetBlockData(Light, "DefaultColor"));
 					}
-					if(HasBlockData(Light, "DefaultBlinkLength")){
-						try{
-							Light.BlinkLength = float.Parse(GetBlockData(Light, "DefaultBlinkLength"));
-						}
-						catch(Exception){
-							;
-						}
+					catch(Exception){
+						;
 					}
-					if(HasBlockData(Light, "DefaultBlinkInterval")){
-						try{
-							Light.BlinkIntervalSeconds = float.Parse(GetBlockData(Light, "DefaultBlinkInterval"));
-						}
-						catch(Exception){
-							;
-						}
-					}
-					SetBlockData(Light, "Job", "None");
 				}
+				if(HasBlockData(Light, "DefaultBlinkLength")){
+					try{
+						Light.BlinkLength = float.Parse(GetBlockData(Light, "DefaultBlinkLength"));
+					}
+					catch(Exception){
+						;
+					}
+				}
+				if(HasBlockData(Light, "DefaultBlinkInterval")){
+					try{
+						Light.BlinkIntervalSeconds = float.Parse(GetBlockData(Light, "DefaultBlinkInterval"));
+					}
+					catch(Exception){
+						;
+					}
+				}
+				SetBlockData(Light, "Job", "None");
 			}
 		}
 	}
-	
+	List<IMySoundBlock> AllSounds = new List<IMySoundBlock>();
+	GridTerminalSystem.GetBlocksOfType<IMySoundBlock>(AllSounds);
+	foreach(IMySoundBlock Sound in AllSounds){
+		double distance = double.MaxValue;
+		foreach(EntityInfo Entity in CharacterList){
+			if(Entity.Relationship == MyRelationsBetweenPlayerAndBlock.Enemies && Entity.Age.TotalSeconds <= 60)
+				distance = Math.Min(distance, (Sound.GetPosition() - Entity.Position).Length());
+		}
+		if(distance <= ALERT_DISTANCE){
+			if(!HasBlockData(Sound, "DefaultSound")){
+				SetBlockData(Sound, "DefaultSound", Sound.SelectedSound);
+			}
+			if(!HasBlockData(Sound, "DefaultVolume")){
+				SetBlockData(Sound, "DefaultVolume", Sound.Volume.ToString());
+			}
+			SetBlockData(Sound, "Job", "PlayerAlert");
+			Sound.SelectedSound = "SoundBlockEnemyDetected";
+			Sound.Volume = 50.0f + ((float)((ALERT_DISTANCE - distance)/ALERT_DISTANCE));
+			if(!HasBlockData(Sound, "Playing") || !GetBlockData(Sound, "Playing").Equals("True")){
+				Sound.Play();
+				SetBlockData(Sound, "Playing", "True");
+			}
+		}
+		else {
+			if(HasBlockData(Sound, "Job") && GetBlockData(Sound, "Job").Equals("PlayerAlert")){
+				if(HasBlockData(Sound, "DefaultSound")){
+					Sound.SelectedSound = GetBlockData(Sound, "DefaultSound");
+				}
+				if(HasBlockData(Sound, "DefaultVolume")){
+					try{
+						Sound.Volume = float.Parse(GetBlockData(Sound, "DefaultVolume"));
+					}
+					catch(Exception){
+						;
+					}
+				}
+				Sound.Stop();
+				SetBlockData(Sound, "Playing", "False");
+				SetBlockData(Sound, "Job", "None");
+			}
+		}
+	}
 	
 }
 
 public void Main(string argument, UpdateType updateSource)
 {
+	UpdatedClosestDistance = false;
 	Glitch_Counter = 0;
 	long last_long = cycle_long;
 	cycle_long += ((++cycle)/long.MaxValue)%long.MaxValue;
@@ -2061,6 +2106,11 @@ public void Main(string argument, UpdateType updateSource)
 			}
 		}
 		
+		UpdateClosestDistance();
+		if(CharacterDistance<0){
+			SetAlarms();
+		}
+		
 		ScanString += "Completed updating data" + '\n';
 		Scan_Time = 0;
 	}
@@ -2129,9 +2179,6 @@ public void Main(string argument, UpdateType updateSource)
 	
 	SetGyroscopes();
 	
-	if(CharacterDistance<0){
-		
-	}
 	
 	if(Controller.IsUnderControl || AngularVelocity.Length() > .1f){
 		Runtime.UpdateFrequency = UpdateFrequency.Update1;
