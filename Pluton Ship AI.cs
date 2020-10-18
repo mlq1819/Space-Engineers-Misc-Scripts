@@ -1456,6 +1456,12 @@ private void ArgumentProcessor(string argument, UpdateType updateSource){
 			Gyroscope.Yaw = 0.0f;
 			Gyroscope.Roll = 0.0f;
 			Gyroscope.GyroOverride = false;
+			Controller.DampenersOverride = true;
+			AsteroidList.Clear();
+			PlanetList.Clear();
+			SmallShipList.Clear();
+			LargeShipList.Clear();
+			CharacterList.Clear();
 			Runtime.UpdateFrequency = UpdateFrequency.None;
 			Me.Enabled = false;
 			return;
@@ -2634,6 +2640,7 @@ public void Main(string argument, UpdateType updateSource)
 								CharacterList.Add(Entity);
 							}
 							break;
+					}
 				}
 			}
 		}
@@ -2641,6 +2648,8 @@ public void Main(string argument, UpdateType updateSource)
 		
 		
 		foreach(MyDetectedEntityInfo entity in Entities){
+			if(entity.EntityId == Me.CubeGrid.EntityId)
+				continue;
 			EntityInfo Entity = new EntityInfo(entity);
 			bool found = false;
 			switch(Entity.Type){
