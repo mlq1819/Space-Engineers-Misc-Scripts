@@ -1286,13 +1286,23 @@ private void SetThrusters(){
 	}
 	UpdateClosestDistance();
 	if(Controller.DampenersOverride){
-		Me.GetSurface(0).WriteText("Dampeners: On\n", true);
+		Me.GetSurface(0).WriteText("Cruise Control: Off\n", true);
 		input_right -= (float) (Relative_Velocity.X * Mass_Accomodation * damp_multx);
 		input_up -= (float) (Relative_Velocity.Y * Mass_Accomodation * damp_multx);
 		input_forward += (float) (Relative_Velocity.Z * Mass_Accomodation * damp_multx);
 	}
 	else {
-		Me.GetSurface(0).WriteText("Dampeners: Off\n", true);
+		Me.GetSurface(0).WriteText("Cruise Control: On\n", true);
+		Vector3D velocity_direction = Controller.GetShipVelocities().LinearVelocity;
+		velocity_direction.Normalize();
+		if(GetAngle(Controller_Forward, velocity_direction) <= ACCEPTABLE_ANGLE){
+			input_up -= (float) (Relative_Velocity.Y * Mass_Accomodation * damp_multx);
+			input_forward += (float) (Relative_Velocity.Z * Mass_Accomodation * damp_multx);
+			Me.GetSurface(0).WriteText("Stabilizers: On", true);
+		}
+		else {
+			Me.GetSurface(0).WriteText("Stabilizers: Off", true);
+		}
 	}
 	
 	double Target_Distance = (actual_target_position - Controller.GetPosition()).Length();
