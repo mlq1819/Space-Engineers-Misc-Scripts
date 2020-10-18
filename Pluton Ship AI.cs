@@ -544,6 +544,14 @@ private struct Airlock{
 		Door1 = d1;
 		Door2 = d2;
 	}
+	public override bool Equals(Airlock o){
+		return Door1.Equals(o.Door1) && Door2.Equals(o.Door2);
+	}
+	public double Distance(Vector3D Reference){
+		double distance_1 = (Reference - Door1.GetPosition()).Length();
+		double distance_2 = (Reference - Door2.GetPosition()).Length();
+		return Math.Min(distance_1, distance_2);
+	}
 }
 private List<Airlock> Airlocks = new List<Airlock>();
 
@@ -844,9 +852,21 @@ private string GetRemovedString(string big_string, string small_string){
 
 private List<List<IMyDoor>> RemoveDoor(List<List<IMyDoor>> list, IMyDoor Door){
 	List<List<IMyDoor>> output = new List<List<IMyDoor>>();
-	bool is_leading_group = (list[0][0].CustomName.Contains("Door 1") && Door.CustomName.Contains("Door 1")) || (list[0][0].CustomName.Contains("Door 2") && Door.CustomName.Contains("Door 2"));
+	Echo("\tRemoving Door \"" + Door.CustomName + "\" from list[" + list.Count + "]");
+	if(list.Count == 0){
+		return output;
+	}
+	string ExampleDoorName = "";
+	foreach(List<IMyDoor> sublist in list){
+		if(sublist.Count > 0){
+			ExampleDoorName = sublist[0].CustomName;
+			break;
+		}
+	}
+	
+	bool is_leading_group = (ExampleDoorName.Contains("Door 1") && Door.CustomName.Contains("Door 1")) || (ExampleDoorName.Contains("Door 2") && Door.CustomName.Contains("Door 2"));
 	for(int i=0; i<list.Count; i++){
-		if(!is_leading_group || !list[i][0].Equals(Door)){
+		if(list[i].Count > 1 && (!is_leading_group || !list[i][0].Equals(Door))){
 			if(is_leading_group){
 				output.Add(list[i]);
 			}
@@ -2177,6 +2197,68 @@ private void SetAlarms(){
 
 bool last_detected_nearby_player = false;
 
+private void UpdateAirlock(Airlock airlock){
+	if(airlock.Door1.Status != DoorStatus.Closed && airlock.Door2.Status != DoorStatus.Closed){
+		airlock.Door1.Enabled = true;
+		airlock.Door1.CloseDoor();
+		airlock.Door2.Enabled = true;
+		airlock.Door2.CloseDoor();
+	}
+	bool detected = false;
+	double min_distance_1 = double.MaxValue;
+	double min_distance_2 = double.MaxValue;
+	foreach(EntityInfo Entity in CharacterList){
+		if(Entity.Relationship != MyRelationsBetweenPlayerAndBlock.Enemies && Entity.Relationship != MyRelationsBetweenPlayerAndBlock.Neutral){
+			double distance = airlock.Distance(Entity.Position);
+			bool is_closest_to_this_airlock = distance <= 3.75;
+			if(is_closest_to_this_airlock){
+				foreach(Airlock alock in Airlocks){
+					if(is_closest_to_this_airlock && !alock.Equals(airlock)){
+						is_closest_to_this_airlock = is_closest_to_this_airlock && distance < (alock.Distance(Entity.Position));
+					}
+				}
+			}
+			if(is_closest_to_this_airlock){
+				detected=true;
+				min_distance_1 = Math.Min(min_distance_1, (airlock.Door1.GetPosition() - Entity.Position).Length());
+				min_distance_2 = Math.Min(min_distance_2, (airlock.Door2.GetPosition() - Entity.Position).Length());
+			}
+		}
+	}
+	if(detected){
+		if(min_distance_1 <= min_distance_2){
+			airlock.Door2.Enabled = (airlock.Door2.Status != DoorStatus.Closed);
+			airlock.Door2.CloseDoor();
+			if(airlock.Door2.Enabled){
+				airlock.Door1.Enabled = (airlock.Door1.Status != DoorStatus.Closed);
+				airlock.Door1.CloseDoor();
+			}
+			else {
+				airlock.Door1.Enabled = (airlock.Door1.Status != DoorStatus.Open);
+				airlock.Door1.OpenDoor();
+			}
+		}
+		else {
+			airlock.Door1.Enabled = (airlock.Door1.Status != DoorStatus.Closed);
+			airlock.Door1.CloseDoor();
+			if(airlock.Door1.Enabled){
+				airlock.Door2.Enabled = (airlock.Door2.Status != DoorStatus.Closed);
+				airlock.Door2.CloseDoor();
+			}
+			else {
+				airlock.Door2.Enabled = (airlock.Door2.Status != DoorStatus.Open);
+				airlock.Door2.OpenDoor();
+			}
+		}
+	}
+	else {
+		airlock.Door1.Enabled = (airlock.Door1.Status != DoorStatus.Closed);
+		airlock.Door1.CloseDoor();
+		airlock.Door2.Enabled = (airlock.Door2.Status != DoorStatus.Closed);
+		airlock.Door2.CloseDoor();
+	}
+}
+
 public void Main(string argument, UpdateType updateSource)
 {
 	UpdatedClosestDistance = false;
@@ -2251,6 +2333,9 @@ public void Main(string argument, UpdateType updateSource)
 		Gyroscope = null;
 		Setup();
 	}
+	foreach(Airlock airlock in Airlocks){
+		UpdateAirlock(airlock);
+	}
 	if(Controller == null || Gyroscope == null || !Controller.IsFunctional || !Gyroscope.IsFunctional){
 		Runtime.UpdateFrequency = UpdateFrequency.None;
 		if(Gyroscope!=null){
@@ -2284,7 +2369,7 @@ public void Main(string argument, UpdateType updateSource)
 	
 	HasNearestPlanet = Controller.TryGetPlanetPosition(out NearestPlanet);
 	
-	if(Scan_Time >= SCAN_FREQUENCY){
+	if(Scan_Time >= SCAN_FREQUENCY || CharacterDistance<0){
 		Echo("Running scan...");
 		ScanString = "";
 		foreach(EntityInfo Entity in AsteroidList){
