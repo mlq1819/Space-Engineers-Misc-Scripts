@@ -1282,7 +1282,7 @@ private void SetThrusters(){
 		if(Controller.TryGetPlanetPosition(out Center)){
 			double height_dif = (Me.CubeGrid.GetPosition() - Center).Length() - elevation;
 			Vector3D prediction = Me.CubeGrid.GetPosition() + CRASH_PREDICTION_TIMER * Controller.GetShipVelocities().LinearVelocity;
-			if((prediction - Center).Length() <= height_dif){
+			if((prediction - Center).Length() <= height_dif && Controller.GetShipSpeed() > 5){
 				Controller.DampenersOverride = true;
 				LastError = "CRASH IMMINENT --- ENABLING DAMPENERS";
 				Me.GetSurface(0).WriteText("CRASH IMMINENT --- ENABLING DAMPENERS" + '\n', true);
