@@ -1332,31 +1332,6 @@ private void SetTarget(){
 	target_direction = actual_target_direction;
 	target_position = actual_target_position;
 	target_velocity = actual_target_velocity;
-	if(Controller.TryGetPlanetElevation(MyPlanetElevation.Sealevel, out elevation)){
-		Controller.TryGetPlanetElevation(MyPlanetElevation.Surface, out elevation);
-		Vector3D center = new Vector3D(0,0,0);
-		if(Controller.TryGetPlanetPosition(out center)){
-			Vector3D target_angle = actual_target_position - center;
-			Vector3D current_angle = Me.CubeGrid.GetPosition() - center;
-			target_angle.Normalize();
-			current_angle.Normalize();
-			double actual_target_distance = (actual_target_position - Me.CubeGrid.GetPosition()).Length();
-			double elevation_difference = (Me.CubeGrid.GetPosition() - center).Length() - elevation;
-			double difference = GetAngle(current_angle, target_angle);
-			double angle_difference = Math.Min(Math.Max(1, 2500 / (elevation_difference * 2 * Math.PI) * 360), 15);
-			Echo("angle_difference: " + Math.Round(angle_difference, 2) .ToString() + '°');
-			if(actual_target_distance > 2500 || difference > (angle_difference * 1.5)){
-				target_angle = ((angle_difference * target_angle) + (difference - angle_difference) * current_angle) / difference;
-				target_angle.Normalize();
-				double target_elevation = Math.Max(Math.Min(elevation + 10, 500) * (1-GlitchFloat), 100);
-				target_position = target_angle * (elevation_difference + target_elevation);
-				double target_speed = target_velocity.Length();
-				target_velocity = ((angle_difference * target_velocity) + (difference - angle_difference) * Speed_Limit) / difference;
-				target_direction = target_position - Me.CubeGrid.GetPosition();
-				target_direction.Normalize();
-			}
-		}
-	}
 }
 
 public double GetAngle(Vector3D v1, Vector3D v2){
