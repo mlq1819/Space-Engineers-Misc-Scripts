@@ -1465,9 +1465,9 @@ public class Menu_Submenu : MenuOption{
 			for(int i=0; i<Menu.Count; i++){
 				output += '\n';
 				if(Menu[i].TYPE() == MenuType.Command)
-					output += "> ";
+					output += "<> ";
 				else
-					output += " .";
+					output += "() ";
 				if(i == Selection)
 					output += Menu[i].Name().ToUpper();
 				else 
@@ -1706,6 +1706,10 @@ private void ArgumentProcessor(string argument, UpdateType updateSource){
 		}
 		else if(argument.ToLower().Equals("prev")){
 			MainMenu.Prev();
+			DisplayMenu();
+		}
+		else if(argument.ToLower().Equals("back")){
+			MainMenu.Back();
 			DisplayMenu();
 		}
 	}
