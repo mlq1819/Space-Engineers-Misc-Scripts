@@ -30,14 +30,9 @@ private const double HIGH_SPEED = 30;
 private const ShipType SHIP_TYPE = ShipType.Misc;
 
 public enum ShipType {
-	//Misc includes cruisers, carriers, etc.
 	Misc = 0,
 	Station = 1,
-	Welder = 2,
-	Grinder = 3,
-	Miner = 4,
-	Fighter = 5,
-	Missile = 6
+	Missile = 2
 }
 
 public class GenericMethods<T> where T : class, IMyTerminalBlock{
@@ -1346,9 +1341,7 @@ public double GetAngle(Vector3D v1, Vector3D v2){
 private double Pitch_Time = WAIT_DURATION;
 private double Yaw_Time = WAIT_DURATION;
 private double Roll_Time = WAIT_DURATION;
-
 private double Scan_Time = SCAN_FREQUENCY;
-
 private string LastError = "";
 
 public enum MenuType{
@@ -1401,7 +1394,11 @@ public class Menu_Submenu : MenuOption{
 			return Menu.Count;
 		}
 	}
-	
+	public int CurSelection{
+		get{
+			return Selection;
+		}
+	}
 	private int Selection = 0;
 	public bool IsSelected{
 		get{
@@ -1443,6 +1440,9 @@ public class Menu_Submenu : MenuOption{
 				submenu.Back();
 			else
 				Selected = false;
+		}
+		else {
+			Selected = false;
 		}
 	}
 	
@@ -1611,7 +1611,6 @@ private bool Stop(){
 }
 
 private Menu_Submenu MainMenu;
-
 private bool CreateMenu(){
 	MainMenu = new Menu_Submenu("Main Menu");
 	MainMenu.Add(new Menu_Command("Update Menu", CreateMenu));
@@ -2395,7 +2394,6 @@ private void SetGyroscopes(){
 		Write("Roll: " + Math.Round(Gyroscope.Roll*100, 3).ToString() + " RPM");
 }
 
-//{R:255 G:0 B:0 A:255}
 private Color ColorParse(string parse){
 	parse = parse.Substring(parse.IndexOf('{')+1);
 	parse = parse.Substring(0, parse.IndexOf('}') - 1);
@@ -2999,8 +2997,7 @@ public void Main(string argument, UpdateType updateSource)
 					break;
 			}
 		}
-		
-		if(!MainMenu.IsSelected && Entities.Count > 0){
+		if(!MainMenu.IsSelected && MainMenu.CurSelection==0 && Entities.Count > 0){
 			CreateMenu();
 		}
 		
@@ -3097,10 +3094,10 @@ public void Main(string argument, UpdateType updateSource)
 			SetStatus("Condition " + ShipStatus.ToString() + Submessage, new Color(137, 239, 255, 255), new Color(0, 88, 151, 255));
 			break;
 		case AlertStatus.Yellow:
-			SetStatus("Condition " + ShipStatus.ToString() + Submessage, new Color(255, 239, 137, 255), new Color(151, 151, 0, 255));
+			SetStatus("Condition " + ShipStatus.ToString() + Submessage, new Color(255, 239, 137, 255), new Color(66, 66, 0, 255));
 			break;
 		case AlertStatus.Orange:
-			SetStatus("Condition " + ShipStatus.ToString() + Submessage, new Color(255, 197, 0, 255), new Color(155, 88, 0, 255));
+			SetStatus("Condition " + ShipStatus.ToString() + Submessage, new Color(255, 197, 0, 255), new Color(88, 44, 0, 255));
 			break;
 		case AlertStatus.Red:
 			SetStatus("Condition " + ShipStatus.ToString() + Submessage, new Color(255, 137, 137, 255), new Color(151, 0, 0, 255));
