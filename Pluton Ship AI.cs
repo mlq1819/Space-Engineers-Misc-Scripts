@@ -936,58 +936,86 @@ private List<List<IMyDoor>> RemoveDoor(List<List<IMyDoor>> list, IMyDoor Door){
 }
 
 private void Setup(){
-	Echo("Beginning initialization");
-	CreateMenu();
-	StatusLCDs = (new GenericMethods<IMyTextPanel>(this)).GetAllContaining("Ship Status");
-	
-	Airlocks = new List<Airlock>();
-	List<IMyDoor> AllAirlockDoors = (new GenericMethods<IMyDoor>(this)).GetAllContaining("Airlock");
-	List<IMyDoor> AllAirlockDoor1s = new List<IMyDoor>();
-	List<IMyDoor> AllAirlockDoor2s = new List<IMyDoor>();
-	foreach(IMyDoor Door in AllAirlockDoors){
-		if(Door.CustomName.Contains("Door 1")){
-			AllAirlockDoor1s.Add(Door);
+	try{
+		Echo("Beginning initialization");
+		CreateMenu();
+		StatusLCDs = (new GenericMethods<IMyTextPanel>(this)).GetAllContaining("Ship Status");
+		
+		Airlocks = new List<Airlock>();
+		List<IMyDoor> AllAirlockDoors = (new GenericMethods<IMyDoor>(this)).GetAllContaining("Airlock");
+		List<IMyDoor> AllAirlockDoor1s = new List<IMyDoor>();
+		List<IMyDoor> AllAirlockDoor2s = new List<IMyDoor>();
+		foreach(IMyDoor Door in AllAirlockDoors){
+			if(Door.CustomName.Contains("Door 1")){
+				AllAirlockDoor1s.Add(Door);
+			}
+			else if(Door.CustomName.Contains("Door 2")){
+				AllAirlockDoor2s.Add(Door);
+			}
 		}
-		else if(Door.CustomName.Contains("Door 2")){
-			AllAirlockDoor2s.Add(Door);
-		}
-	}
-	List<List<IMyDoor>> PossibleAirlockDoor1Pairs = new List<List<IMyDoor>>();
-	foreach(IMyDoor Door1 in AllAirlockDoor1s){
-		List<IMyDoor> pair = new List<IMyDoor>();
-		pair.Add(Door1);
-		List<IMyDoor> Copy = new List<IMyDoor>();
-		string name = GetRemovedString(Door1.CustomName, "Door 1");
-		foreach(IMyDoor Door2 in AllAirlockDoor2s){
-			Copy.Add(Door2);
-		}
-		foreach(IMyDoor Door2 in GenericMethods<IMyDoor>.SortByDistance(Copy, Door1)){
-			if(GetRemovedString(Door2.CustomName, "Door 2").Equals(name))
-				pair.Add(Door2);
-		}
-		if(pair.Count > 1)
-			PossibleAirlockDoor1Pairs.Add(pair);
-	}
-	List<List<IMyDoor>> PossibleAirlockDoor2Pairs = new List<List<IMyDoor>>();
-	foreach(IMyDoor Door2 in AllAirlockDoor2s){
-		List<IMyDoor> pair = new List<IMyDoor>();
-		pair.Add(Door2);
-		List<IMyDoor> Copy = new List<IMyDoor>();
-		string name = GetRemovedString(Door2.CustomName, "Door 2");
+		List<List<IMyDoor>> PossibleAirlockDoor1Pairs = new List<List<IMyDoor>>();
 		foreach(IMyDoor Door1 in AllAirlockDoor1s){
-			Copy.Add(Door1);
+			List<IMyDoor> pair = new List<IMyDoor>();
+			pair.Add(Door1);
+			List<IMyDoor> Copy = new List<IMyDoor>();
+			string name = GetRemovedString(Door1.CustomName, "Door 1");
+			foreach(IMyDoor Door2 in AllAirlockDoor2s){
+				Copy.Add(Door2);
+			}
+			foreach(IMyDoor Door2 in GenericMethods<IMyDoor>.SortByDistance(Copy, Door1)){
+				if(GetRemovedString(Door2.CustomName, "Door 2").Equals(name))
+					pair.Add(Door2);
+			}
+			if(pair.Count > 1)
+				PossibleAirlockDoor1Pairs.Add(pair);
 		}
-		foreach(IMyDoor Door1 in GenericMethods<IMyDoor>.SortByDistance(Copy, Door2)){
-			if(GetRemovedString(Door1.CustomName, "Door 1").Equals(name))
-				pair.Add(Door1);
+		List<List<IMyDoor>> PossibleAirlockDoor2Pairs = new List<List<IMyDoor>>();
+		foreach(IMyDoor Door2 in AllAirlockDoor2s){
+			List<IMyDoor> pair = new List<IMyDoor>();
+			pair.Add(Door2);
+			List<IMyDoor> Copy = new List<IMyDoor>();
+			string name = GetRemovedString(Door2.CustomName, "Door 2");
+			foreach(IMyDoor Door1 in AllAirlockDoor1s){
+				Copy.Add(Door1);
+			}
+			foreach(IMyDoor Door1 in GenericMethods<IMyDoor>.SortByDistance(Copy, Door2)){
+				if(GetRemovedString(Door1.CustomName, "Door 1").Equals(name))
+					pair.Add(Door1);
+			}
+			if(pair.Count > 1){
+				PossibleAirlockDoor2Pairs.Add(pair);
+			}
 		}
-		if(pair.Count > 1){
-			PossibleAirlockDoor2Pairs.Add(pair);
-		}
-	}
-	int removed = 0;
-	do{
-		removed = 0;
+		int removed = 0;
+		do{
+			removed = 0;
+			foreach(List<IMyDoor> pair1 in PossibleAirlockDoor1Pairs){
+				if(pair1.Count <= 1){
+					IMyDoor Door = pair1[0];
+					PossibleAirlockDoor1Pairs = RemoveDoor(PossibleAirlockDoor1Pairs, Door);
+					PossibleAirlockDoor2Pairs = RemoveDoor(PossibleAirlockDoor2Pairs, Door);
+					continue;
+				}
+				foreach(List<IMyDoor> pair2 in PossibleAirlockDoor2Pairs){
+					if(pair2.Count <= 1){
+						IMyDoor Door = pair2[0];
+						PossibleAirlockDoor1Pairs = RemoveDoor(PossibleAirlockDoor1Pairs, Door);
+						PossibleAirlockDoor2Pairs = RemoveDoor(PossibleAirlockDoor2Pairs, Door);
+						continue;
+					}
+					if(pair2[0].Equals(pair1[1]) && pair1[0].Equals(pair2[1])){
+						removed++;
+						IMyDoor Door1 = pair1[0];
+						IMyDoor Door2 = pair2[0];
+						Airlocks.Add(new Airlock(Door1, Door2));
+						PossibleAirlockDoor1Pairs = RemoveDoor(RemoveDoor(PossibleAirlockDoor1Pairs, Door1), Door2);
+						PossibleAirlockDoor2Pairs = RemoveDoor(RemoveDoor(PossibleAirlockDoor2Pairs, Door2), Door1);
+						break;
+					}
+				}
+			}
+		} 
+		while(removed > 0 && PossibleAirlockDoor1Pairs.Count > 0 && PossibleAirlockDoor2Pairs.Count > 0);
 		foreach(List<IMyDoor> pair1 in PossibleAirlockDoor1Pairs){
 			if(pair1.Count <= 1){
 				IMyDoor Door = pair1[0];
@@ -995,93 +1023,68 @@ private void Setup(){
 				PossibleAirlockDoor2Pairs = RemoveDoor(PossibleAirlockDoor2Pairs, Door);
 				continue;
 			}
-			foreach(List<IMyDoor> pair2 in PossibleAirlockDoor2Pairs){
-				if(pair2.Count <= 1){
-					IMyDoor Door = pair2[0];
-					PossibleAirlockDoor1Pairs = RemoveDoor(PossibleAirlockDoor1Pairs, Door);
-					PossibleAirlockDoor2Pairs = RemoveDoor(PossibleAirlockDoor2Pairs, Door);
-					continue;
-				}
-				if(pair2[0].Equals(pair1[1]) && pair1[0].Equals(pair2[1])){
-					removed++;
-					IMyDoor Door1 = pair1[0];
-					IMyDoor Door2 = pair2[0];
-					Airlocks.Add(new Airlock(Door1, Door2));
-					PossibleAirlockDoor1Pairs = RemoveDoor(RemoveDoor(PossibleAirlockDoor1Pairs, Door1), Door2);
-					PossibleAirlockDoor2Pairs = RemoveDoor(RemoveDoor(PossibleAirlockDoor2Pairs, Door2), Door1);
-					break;
-				}
+			IMyDoor Door1 = pair1[0];
+			IMyDoor Door2 = pair1[1];
+			Airlocks.Add(new Airlock(Door1, Door2));
+			PossibleAirlockDoor1Pairs = RemoveDoor(RemoveDoor(PossibleAirlockDoor1Pairs, Door1), Door2);
+			PossibleAirlockDoor2Pairs = RemoveDoor(RemoveDoor(PossibleAirlockDoor2Pairs, Door2), Door1);
+		}
+		
+		List<IMyTerminalBlock> AllTerminalBlocks = new List<IMyTerminalBlock>();
+		GridTerminalSystem.GetBlocksOfType<IMyTerminalBlock>(AllTerminalBlocks);
+		foreach(IMyTerminalBlock Block in AllTerminalBlocks){
+			MySize = Math.Max(MySize, (Me.CubeGrid.GetPosition() - Block.GetPosition()).Length());
+		}
+		Controller = (new GenericMethods<IMyShipController>(this)).GetClosestFunc(ControllerFunction);
+		if(Controller!=null){
+			Echo("Found Controller: " + Controller.CustomName);
+			SetControllerDirections();
+			SetDirections();
+		}
+		else {
+			Echo("Failed to initialize Controller");
+			return;
+		}
+		Gyroscope = (new GenericMethods<IMyGyro>(this)).GetContaining("Control Gyroscope");
+		if(Gyroscope!=null){
+			Echo("Found Gyroscope: " + Gyroscope.CustomName);
+			Gyroscope.GyroOverride = Controller.IsUnderControl;
+		}
+		else {
+			Echo("Failed to initialize Gyroscope");
+			return;
+		}
+		List<IMyThrust> MyThrusters = (new GenericMethods<IMyThrust>(this)).GetAllContaining("");
+		foreach(IMyThrust Thruster in MyThrusters){
+			Base6Directions.Direction ThrustDirection = Thruster.Orientation.Forward;
+			
+			if(ThrustDirection == Backward){
+				Forward_Thrusters.Add(Thruster);
+			}
+			else if(ThrustDirection == Forward){
+				Backward_Thrusters.Add(Thruster);
+			}
+			else if(ThrustDirection == Down){
+				Up_Thrusters.Add(Thruster);
+			}
+			else if(ThrustDirection == Up){
+				Down_Thrusters.Add(Thruster);
+			}
+			else if(ThrustDirection == Right){
+				Left_Thrusters.Add(Thruster);
+			}
+			else if(ThrustDirection == Left){
+				Right_Thrusters.Add(Thruster);
+			}
+			else{
+				Unknown_Thrusters.Add(Thruster);
 			}
 		}
-	} 
-	while(removed > 0 && PossibleAirlockDoor1Pairs.Count > 0 && PossibleAirlockDoor2Pairs.Count > 0);
-	foreach(List<IMyDoor> pair1 in PossibleAirlockDoor1Pairs){
-		if(pair1.Count <= 1){
-			IMyDoor Door = pair1[0];
-			PossibleAirlockDoor1Pairs = RemoveDoor(PossibleAirlockDoor1Pairs, Door);
-			PossibleAirlockDoor2Pairs = RemoveDoor(PossibleAirlockDoor2Pairs, Door);
-			continue;
-		}
-		IMyDoor Door1 = pair1[0];
-		IMyDoor Door2 = pair1[1];
-		Airlocks.Add(new Airlock(Door1, Door2));
-		PossibleAirlockDoor1Pairs = RemoveDoor(RemoveDoor(PossibleAirlockDoor1Pairs, Door1), Door2);
-		PossibleAirlockDoor2Pairs = RemoveDoor(RemoveDoor(PossibleAirlockDoor2Pairs, Door2), Door1);
+		Runtime.UpdateFrequency = UpdateFrequency.Update1;
 	}
-	
-	List<IMyTerminalBlock> AllTerminalBlocks = new List<IMyTerminalBlock>();
-	GridTerminalSystem.GetBlocksOfType<IMyTerminalBlock>(AllTerminalBlocks);
-	foreach(IMyTerminalBlock Block in AllTerminalBlocks){
-		MySize = Math.Max(MySize, (Me.CubeGrid.GetPosition() - Block.GetPosition()).Length());
+	catch(Exception){
+		FactoryReset();
 	}
-	Controller = (new GenericMethods<IMyShipController>(this)).GetClosestFunc(ControllerFunction);
-	if(Controller!=null){
-		Echo("Found Controller: " + Controller.CustomName);
-		SetControllerDirections();
-		SetDirections();
-	}
-	else {
-		Echo("Failed to initialize Controller");
-		return;
-	}
-	Gyroscope = (new GenericMethods<IMyGyro>(this)).GetContaining("Control Gyroscope");
-	if(Gyroscope!=null){
-		Echo("Found Gyroscope: " + Gyroscope.CustomName);
-		Gyroscope.GyroOverride = Controller.IsUnderControl;
-	}
-	else {
-		Echo("Failed to initialize Gyroscope");
-		return;
-	}
-	List<IMyThrust> MyThrusters = (new GenericMethods<IMyThrust>(this)).GetAllContaining("");
-	foreach(IMyThrust Thruster in MyThrusters){
-		Base6Directions.Direction ThrustDirection = Thruster.Orientation.Forward;
-		
-		if(ThrustDirection == Backward){
-			Forward_Thrusters.Add(Thruster);
-		}
-		else if(ThrustDirection == Forward){
-			Backward_Thrusters.Add(Thruster);
-		}
-		else if(ThrustDirection == Down){
-			Up_Thrusters.Add(Thruster);
-		}
-		else if(ThrustDirection == Up){
-			Down_Thrusters.Add(Thruster);
-		}
-		else if(ThrustDirection == Right){
-			Left_Thrusters.Add(Thruster);
-		}
-		else if(ThrustDirection == Left){
-			Right_Thrusters.Add(Thruster);
-		}
-		else{
-			Unknown_Thrusters.Add(Thruster);
-		}
-	}
-	
-	
-	Runtime.UpdateFrequency = UpdateFrequency.Update1;
 }
 
 public Program()
@@ -1400,6 +1403,11 @@ public class Menu_Submenu : MenuOption{
 	}
 	
 	private int Selection = 0;
+	public bool IsSelected{
+		get{
+			return Selected;
+		}
+	}
 	private bool Selected = false;
 	
 	public Menu_Submenu(string name){
@@ -1429,7 +1437,13 @@ public class Menu_Submenu : MenuOption{
 	public void Back(){
 		if(!Selected)
 			return;
-		Selected = false;
+		if(Menu[Selection].TYPE() == MenuType.Menu){
+			Menu_Submenu submenu = Menu[Selection] as Menu_Submenu;
+			if(submenu.Selected)
+				submenu.Back();
+			else
+				Selected = false;
+		}
 	}
 	
 	public void Next(){
@@ -1485,30 +1499,27 @@ public class Menu_Display : MenuOption{
 	public MenuType TYPE(){
 		return MenuType.Display;
 	}
-	private EntityInfo Entity{
-		get{
-			foreach(EntityInfo entity in EntityList){
-				if(entity.ID == EntityId)
-					return entity;
-			}
-			return null;
-		}
-	}
-	private long EntityId  = 0;
-	private List<EntityInfo> EntityList;
+	private EntityInfo Entity;
 	private IMyProgrammableBlock Prog;
 	
 	private bool Can_GoTo;
 	
-	public Menu_Display(EntityInfo entity, ref List<EntityInfo> list, IMyProgrammableBlock prog, bool can_goto = true){
+	public Menu_Display(EntityInfo entity, IMyProgrammableBlock prog, bool can_goto = true){
 		Prog = prog;
-		EntityId = entity.ID;
-		EntityList = list;
+		Entity = entity;
 		Can_GoTo = can_goto;
 	}
 	
 	public override string ToString(){
-		return Entity.NiceString();
+		try{
+			if(Entity!=null)
+				return Entity.NiceString();
+			else
+				return "null";
+		}
+		catch(Exception){
+			return "badData";
+		}
 	}
 	
 	public bool Select(){
@@ -1575,11 +1586,14 @@ private bool FactoryReset(){
 	foreach(IMyThrust Thruster in Right_Thrusters){
 		Thruster.ThrustOverridePercentage = 0.0f;
 	}
-	Gyroscope.Pitch = 0.0f;
-	Gyroscope.Yaw = 0.0f;
-	Gyroscope.Roll = 0.0f;
-	Gyroscope.GyroOverride = false;
-	Controller.DampenersOverride = true;
+	if(Gyroscope!=null){
+		Gyroscope.Pitch = 0.0f;
+		Gyroscope.Yaw = 0.0f;
+		Gyroscope.Roll = 0.0f;
+		Gyroscope.GyroOverride = false;
+	}
+	if(Controller!=null)
+		Controller.DampenersOverride = true;
 	AsteroidList.Clear();
 	PlanetList.Clear();
 	SmallShipList.Clear();
@@ -1590,12 +1604,19 @@ private bool FactoryReset(){
 	return true;
 }
 
+private bool Stop(){
+	match_position = false;
+	match_direction = false;
+	return true;
+}
+
 private Menu_Submenu MainMenu;
 
 private bool CreateMenu(){
 	MainMenu = new Menu_Submenu("Main Menu");
 	MainMenu.Add(new Menu_Command("Update Menu", CreateMenu));
 	Menu_Submenu ShipCommands = new Menu_Submenu("Commands");
+	ShipCommands.Add(new Menu_Command("Stop", Stop));
 	ShipCommands.Add(new Menu_Command("Lockdown", Lockdown));
 	if(Glitch==0)
 		ShipCommands.Add(new Menu_Command("Infect AI", ForceGlitch));
@@ -1603,36 +1624,36 @@ private bool CreateMenu(){
 	MainMenu.Add(ShipCommands);
 	if(AsteroidList.Count > 0){
 		Menu_Submenu AsteroidMenu = new Menu_Submenu("Asteroids");
-		foreach(EntityInfo Entity in AsteroidList){
-			AsteroidMenu.Add(new Menu_Display(Entity, ref AsteroidList, Me, true));
+		for(int i=0; i<AsteroidList.Count; i++){
+			AsteroidMenu.Add(new Menu_Display(AsteroidList[i], Me, true));
 		}
 		MainMenu.Add(AsteroidMenu);
 	}
 	if(PlanetList.Count > 0){
 		Menu_Submenu PlanetMenu = new Menu_Submenu("Planets");
-		foreach(EntityInfo Entity in PlanetList){
-			PlanetMenu.Add(new Menu_Display(Entity, ref PlanetList, Me, true));
+		for(int i=0; i<PlanetList.Count; i++){
+			PlanetMenu.Add(new Menu_Display(PlanetList[i], Me, true));
 		}
 		MainMenu.Add(PlanetMenu);
 	}
 	if(SmallShipList.Count > 0){
 		Menu_Submenu SmallShipMenu = new Menu_Submenu("Small Ships");
-		foreach(EntityInfo Entity in PlanetList){
-			SmallShipMenu.Add(new Menu_Display(Entity, ref SmallShipList, Me, false));
+		for(int i=0; i<SmallShipList.Count; i++){
+			SmallShipMenu.Add(new Menu_Display(SmallShipList[i], Me, true));
 		}
 		MainMenu.Add(SmallShipMenu);
 	}
 	if(LargeShipList.Count > 0){
 		Menu_Submenu LargeShipMenu = new Menu_Submenu("Large Ships");
-		foreach(EntityInfo Entity in LargeShipList){
-			LargeShipMenu.Add(new Menu_Display(Entity, ref LargeShipList, Me, true));
+		for(int i=0; i<LargeShipList.Count; i++){
+			LargeShipMenu.Add(new Menu_Display(LargeShipList[i], Me, true));
 		}
 		MainMenu.Add(LargeShipMenu);
 	}
 	if(CharacterList.Count > 0){
 		Menu_Submenu CharacterMenu = new Menu_Submenu("Characters");
-		foreach(EntityInfo Entity in CharacterList){
-			CharacterMenu.Add(new Menu_Display(Entity, ref CharacterList, Me, true));
+		for(int i=0; i<CharacterList.Count; i++){
+			CharacterMenu.Add(new Menu_Display(CharacterList[i], Me, true));
 		}
 		MainMenu.Add(CharacterMenu);
 	}
@@ -1711,6 +1732,9 @@ private void ArgumentProcessor(string argument, UpdateType updateSource){
 		else if(argument.ToLower().Equals("back")){
 			MainMenu.Back();
 			DisplayMenu();
+		}
+		else if(argument.ToLower().Equals("stop")){
+			Stop();
 		}
 	}
 	catch(Exception e){
@@ -2895,8 +2919,6 @@ public void Main(string argument, UpdateType updateSource)
 			}
 		}
 		
-		
-		
 		foreach(MyDetectedEntityInfo entity in Entities){
 			if(entity.EntityId == Me.CubeGrid.EntityId)
 				continue;
@@ -2977,6 +2999,11 @@ public void Main(string argument, UpdateType updateSource)
 					break;
 			}
 		}
+		
+		if(!MainMenu.IsSelected && Entities.Count > 0){
+			CreateMenu();
+		}
+		
 		for(int i=0; i<Airlocks.Count; i++){
 			ScanString += "Airlock " + (i+1).ToString() + " Status:" + '\n';
 			UpdateAirlock(Airlocks[i]);
