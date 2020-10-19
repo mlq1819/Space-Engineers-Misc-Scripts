@@ -247,7 +247,7 @@ public class GenericMethods<T> where T : class, IMyTerminalBlock{
 	}
 }
 
-private class EntityInfo{
+public class EntityInfo{
 	public long ID;
 	public string Name;
 	public MyDetectedEntityType Type;
@@ -438,15 +438,15 @@ double seconds_since_last_update = 0;
 
 private Random Rnd;
 
-private bool match_direction = false;
+private static bool match_direction = false;
 private Vector3D target_direction = new Vector3D(0,0,0);
-private Vector3D actual_target_direction = new Vector3D(0,0,0);
-private bool match_position = false;
+private static Vector3D actual_target_direction = new Vector3D(0,0,0);
+private static bool match_position = false;
 private Vector3D target_position = new Vector3D(0,0,0);
-private Vector3D actual_target_position = new Vector3D(0,0,0);
+private static Vector3D actual_target_position = new Vector3D(0,0,0);
 private bool update_position = false;
 private Vector3D target_velocity = new Vector3D(0,0,0);
-private Vector3D actual_target_velocity = new Vector3D(0,0,0);
+private static Vector3D actual_target_velocity = new Vector3D(0,0,0);
 private bool detected_target = false;
 private EntityInfo target_info = null;
 private Vector3D position_offset = new Vector3D(0,0,0);
@@ -456,7 +456,7 @@ private double Speed_Limit = 100.0;
 private bool HasNearestPlanet = false;
 private Vector3D NearestPlanet = new Vector3D(0,0,0);
 
-private double MySize = 2.5;
+private static double MySize = 2.5;
 
 private bool Locked_Down = false;
 
@@ -937,6 +937,7 @@ private List<List<IMyDoor>> RemoveDoor(List<List<IMyDoor>> list, IMyDoor Door){
 
 private void Setup(){
 	Echo("Beginning initialization");
+	CreateMenu();
 	StatusLCDs = (new GenericMethods<IMyTextPanel>(this)).GetAllContaining("Ship Status");
 	
 	Airlocks = new List<Airlock>();
@@ -1327,7 +1328,6 @@ private float GlitchFloat{
 	}
 }
 
-
 private void SetTarget(){
 	target_direction = actual_target_direction;
 	target_position = actual_target_position;
@@ -1404,7 +1404,7 @@ public class Menu_Submenu : MenuOption{
 	
 	public Menu_Submenu(string name){
 		_Name = name;
-		Menu = new List<Menu_Option>();
+		Menu = new List<MenuOption>();
 	}
 	
 	public bool Add(MenuOption Item){
@@ -1488,18 +1488,20 @@ public class Menu_Display : MenuOption{
 	private EntityInfo Entity{
 		get{
 			foreach(EntityInfo entity in EntityList){
-				if(entity.ID == EntityID)
+				if(entity.ID == EntityId)
 					return entity;
 			}
 			return null;
 		}
 	}
-	private long EntityId;
+	private long EntityId  = 0;
 	private List<EntityInfo> EntityList;
+	private IMyProgrammableBlock Prog;
 	
 	private bool Can_GoTo;
 	
-	public Menu_Display(EntityInfo entity, ref List<EntityInfo> list, bool can_goto = true){
+	public Menu_Display(EntityInfo entity, ref List<EntityInfo> list, IMyProgrammableBlock prog, bool can_goto = true){
+		Prog = prog;
 		EntityId = entity.ID;
 		EntityList = list;
 		Can_GoTo = can_goto;
@@ -1511,13 +1513,15 @@ public class Menu_Display : MenuOption{
 	
 	public bool Select(){
 		if(Can_GoTo){
-			actual_target_direction = Entity.Position() - Me.CubeGrid.GetPosition();
+			actual_target_direction = Entity.Position - Prog.CubeGrid.GetPosition();
 			actual_target_direction.Normalize();
-			actual_target_position = actual_target_direction * ((Entity.Position()-Me.CubeGrid.GetPosition()).Length()- Entity.Size - MySize) + Me.CubeGrid.GetPosition();
+			if(SHIP_TYPE == ShipType.Missile)
+				actual_target_position = Entity.Position;
+			else
+				actual_target_position = actual_target_direction * ((Entity.Position-Prog.CubeGrid.GetPosition()).Length()- Entity.Size - MySize) + Prog.CubeGrid.GetPosition();
 			actual_target_velocity = Entity.Velocity;
 			match_position = true;
 			match_direction = true;
-			match_velocity = true;
 			return true;
 		}
 		else {
@@ -1526,69 +1530,14 @@ public class Menu_Display : MenuOption{
 	}
 }
 
-Menu_Submenu MainMenu;
-
-private void CreateMenu(){
-	MainMenu = new Menu_Submenu("Main Menu");
-	MainMenu.Add(new Menu_Command("Update Menu", CreateMenu));
-	Menu_Submenu ShipCommands = new Menu_Submenu("Commands");
-	ShipCommands.Add(new Menu_Command("Lockdown", Lockdown));
-	if(Glitch==0)
-		ShipCommands.Add(new Menu_Command("Infect AI", ForceGlitch));
-	ShipCommands.Add(new Menu_Command("Factory Reset", FactoryReset));
-	MainMenu.Add(AsteroidList);
-	if(AsteroidList.Count > 0){
-		Menu_Submenu AsteroidMenu = new Menu_Submenu("Asteroids");
-		foreach(EntityInfo Entity in AsteroidList){
-			AsteroidMenu.Add(new Menu_Display(Entity), AsteroidList, true);
-		}
-		MainMenu.Add(AsteroidMenu);
-	}
-	if(PlanetList.Count > 0){
-		Menu_Submenu PlanetMenu = new Menu_Submenu("Planets");
-		foreach(EntityInfo Entity in PlanetList){
-			PlanetMenu.Add(new Menu_Display(Entity), PlanetList, true);
-		}
-		MainMenu.Add(PlanetMenu);
-	}
-	if(SmallShipList.Count > 0){
-		Menu_Submenu SmallShipMenu = new Menu_Submenu("Small Ships");
-		foreach(EntityInfo Entity in PlanetList){
-			SmallShipMenu.Add(new Menu_Display(Entity), SmallShipList, false);
-		}
-		MainMenu.Add(SmallShipMenu);
-	}
-	if(LargeShipList.Count > 0){
-		Menu_Submenu LargeShipMenu = new Menu_Submenu("Large Ships");
-		foreach(EntityInfo Entity in LargeShipList){
-			LargeShipMenu.Add(new Menu_Display(Entity), LargeShipList, true);
-		}
-		MainMenu.Add(LargeShipMenu);
-	}
-	if(CharacterList.Count > 0){
-		Menu_Submenu CharacterMenu = new Menu_Submenu("Characters");
-		foreach(EntityInfo Entity in CharacterList){
-			CharacterMenu.Add(new Menu_Display(Entity), CharacterList, true);
-		}
-		MainMenu.Add(CharacterMenu);
-	}
-	DisplayMenu();
-}
-
-private void DisplayMenu(){
-	List<IMyTextPanel> Panels = (new GenericMethods<IMyTextPanel>(this)).GetAllContaining("Command Menu Display");
-	foreach(IMyTextPanel Panel in Panels){
-		Panel.WriteText(MainMenu.ToString(), false);
-	}
-}
-
-private bool ForceGlitch(object param){
+private bool ForceGlitch(){
 	Glitch = Rnd.Next(1, 100);
 	Target_Glitch = (cycle + ((long)Math.Pow(10, Rnd.Next(200, 3699))))%long.MaxValue;
 	CreateMenu();
+	return true;
 }
 
-private bool Lockdown(object param){
+private bool Lockdown(){
 	Locked_Down = !Locked_Down;
 	List<IMyAirtightHangarDoor> Seals = (new GenericMethods<IMyAirtightHangarDoor>(this)).GetAllContaining(LOCKDOWN_SEAL_NAME);
 	foreach(IMyAirtightHangarDoor Seal in Seals){
@@ -1601,9 +1550,10 @@ private bool Lockdown(object param){
 			Seal.OpenDoor();
 		}
 	}
+	return true;
 }
 
-private bool FactoryReset(object param){
+private bool FactoryReset(){
 	Me.CustomData = "";
 	this.Storage = "";
 	LastError = "";
@@ -1638,6 +1588,63 @@ private bool FactoryReset(object param){
 	Runtime.UpdateFrequency = UpdateFrequency.None;
 	Me.Enabled = false;
 	return true;
+}
+
+private Menu_Submenu MainMenu;
+
+private bool CreateMenu(){
+	MainMenu = new Menu_Submenu("Main Menu");
+	MainMenu.Add(new Menu_Command("Update Menu", CreateMenu));
+	Menu_Submenu ShipCommands = new Menu_Submenu("Commands");
+	ShipCommands.Add(new Menu_Command("Lockdown", Lockdown));
+	if(Glitch==0)
+		ShipCommands.Add(new Menu_Command("Infect AI", ForceGlitch));
+	ShipCommands.Add(new Menu_Command("Factory Reset", FactoryReset));
+	MainMenu.Add(ShipCommands);
+	if(AsteroidList.Count > 0){
+		Menu_Submenu AsteroidMenu = new Menu_Submenu("Asteroids");
+		foreach(EntityInfo Entity in AsteroidList){
+			AsteroidMenu.Add(new Menu_Display(Entity, ref AsteroidList, Me, true));
+		}
+		MainMenu.Add(AsteroidMenu);
+	}
+	if(PlanetList.Count > 0){
+		Menu_Submenu PlanetMenu = new Menu_Submenu("Planets");
+		foreach(EntityInfo Entity in PlanetList){
+			PlanetMenu.Add(new Menu_Display(Entity, ref PlanetList, Me, true));
+		}
+		MainMenu.Add(PlanetMenu);
+	}
+	if(SmallShipList.Count > 0){
+		Menu_Submenu SmallShipMenu = new Menu_Submenu("Small Ships");
+		foreach(EntityInfo Entity in PlanetList){
+			SmallShipMenu.Add(new Menu_Display(Entity, ref SmallShipList, Me, false));
+		}
+		MainMenu.Add(SmallShipMenu);
+	}
+	if(LargeShipList.Count > 0){
+		Menu_Submenu LargeShipMenu = new Menu_Submenu("Large Ships");
+		foreach(EntityInfo Entity in LargeShipList){
+			LargeShipMenu.Add(new Menu_Display(Entity, ref LargeShipList, Me, true));
+		}
+		MainMenu.Add(LargeShipMenu);
+	}
+	if(CharacterList.Count > 0){
+		Menu_Submenu CharacterMenu = new Menu_Submenu("Characters");
+		foreach(EntityInfo Entity in CharacterList){
+			CharacterMenu.Add(new Menu_Display(Entity, ref CharacterList, Me, true));
+		}
+		MainMenu.Add(CharacterMenu);
+	}
+	DisplayMenu();
+	return true;
+}
+
+private void DisplayMenu(){
+	List<IMyTextPanel> Panels = (new GenericMethods<IMyTextPanel>(this)).GetAllContaining("Command Menu Display");
+	foreach(IMyTextPanel Panel in Panels){
+		Panel.WriteText(MainMenu.ToString(), false);
+	}
 }
 
 private void ArgumentProcessor(string argument, UpdateType updateSource){
@@ -1680,13 +1687,13 @@ private void ArgumentProcessor(string argument, UpdateType updateSource){
 			}
 		}
 		else if(argument.ToLower().Equals("glitch")){
-			ForceGlitch(null);
+			ForceGlitch();
 		}
 		else if(argument.ToLower().Equals("lockdown")){
-			Lockdown(null);
+			Lockdown();
 		}
 		else if(argument.ToLower().Equals("factory reset")){
-			if(FactoryReset(null))
+			if(FactoryReset())
 				return;
 		}
 		else if(argument.ToLower().Equals("select")){
