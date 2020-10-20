@@ -833,7 +833,35 @@ private Vector3D Controller_Down;
 private Vector3D Controller_Left;
 private Vector3D Controller_Right;
 
+private bool Match_Direction = false;
+private Vector3D Target_Direction;
+private bool Match_Position = false;
+private Vector3D Target_Position;
+
+
 private Vector3D RestingVelocity;
+private Vector3D Relative_RestingVelocity{
+	get{
+		return GlobalToLocal(RestingVelocity);
+	}
+}
+private Vector3D CurrentVelocity;
+private Vector3D Relative_CurrentVelocity{
+	get{
+		return GlobalToLocal(CurrentVelocity);
+	}
+}
+private Vector3D Gravity;
+private Vector3D Relative_Gravity{
+	get{
+		return GlobalToLocal(Gravity);
+	}
+}
+
+private double Elevation;
+private double Sealevel;
+private Vector3D PlanetCenter;
+
 
 private bool HasBlockData(IMyTerminalBlock Block, string Name){
 	if(Name.Contains(':'))
@@ -1330,6 +1358,20 @@ public void Save()
 	Runtime.UpdateFrequency = UpdateFrequency.None;
 }
 
+public Vector3D GlobalToLocal(Vector3D Global){
+	double Length = Global.Length();
+	Vector3D Local = Vector3D.Transform(Global, MatrixD.Invert(Controller.WorldMatrix));
+	Local.Normalize();
+	return Local * Length;
+}
+
+public Vector3D LocalToGlobal(Vector3D Local){
+	double Length = Local.Length();
+	Vector3D Global = Vector3D.Transform(Local, Controller.WorldMatrix);
+	Global.Normalize();
+	return Global * Length;
+}
+
 //Sets directional vectors, elevation, etc
 private void GetPositionData(){
 	Vector3D base_vector = new Vector3D(0,0,10);
@@ -1346,7 +1388,6 @@ private void GetPositionData(){
 	Left_Vector = Vector3D.Transform(base_vector, Controller.WorldMatrix) - Controller.GetPosition();
 	Left_Vector.Normalize();
 	Right_Vector = -1 * Left_Vector;
-	
 	
 	switch(Forward){
 		case Base6Directions.Direction.Forward:
@@ -1426,38 +1467,83 @@ private void GetPositionData(){
 			Controller_Right = Left_Vector;
 			break;
 	}
-	Forward_Thrust = 0.0f;
+	Forward_Thrust=0.0f;
 	foreach(IMyThrust Thruster in Forward_Thrusters){
 		if(Thruster.IsWorking)
 			Forward_Thrust+=Thruster.MaxEffectiveThrust;
 	}
-	Backward_Thrust = 0.0f;
+	Backward_Thrust=0.0f;
 	foreach(IMyThrust Thruster in Backward_Thrusters){
 		if(Thruster.IsWorking)
 			Backward_Thrust+=Thruster.MaxEffectiveThrust;
 	}
-	Up_Thrust = 0.0f;
+	Up_Thrust=0.0f;
 	foreach(IMyThrust Thruster in Up_Thrusters){
 		if(Thruster.IsWorking)
 			Up_Thrust+=Thruster.MaxEffectiveThrust;
 	}
-	Down_Thrust = 0.0f;
+	Down_Thrust=0.0f;
 	foreach(IMyThrust Thruster in Down_Thrusters){
 		if(Thruster.IsWorking)
 			Down_Thrust+=Thruster.MaxEffectiveThrust;
 	}
-	Left_Thrust = 0.0f;
+	Left_Thrust=0.0f;
 	foreach(IMyThrust Thruster in Left_Thrusters){
 		if(Thruster.IsWorking)
 			Left_Thrust+=Thruster.MaxEffectiveThrust;
 	}
-	Right_Thrust = 0.0f;
+	Right_Thrust=0.0f;
 	foreach(IMyThrust Thruster in Right_Thrusters){
 		if(Thruster.IsWorking)
 			Right_Thrust+=Thruster.MaxEffectiveThrust;
 	}
 	
+	if(Controller.TryGetPlanetElevation(MyPlanetElevation.SeaLevel, out Sealevel)){
+		if(Controller.TryGetPlanetPosition(out PlanetCenter)){
+			if(Sealevel < 6000 && Controller.TryGetPlanetPosition(MyPlanetElevation.Surface, out Elevation)){
+				if(Sealevel > 5000){
+					double difference = Sealevel - 5000;
+					Elevation =  ((Elevation * (1000-difference)) + (Sealevel * difference)) / 1000;
+				}
+				else if(Elevation < 50){
+					double terrain_height = (Controller.GetPosition() - PlanetCenter).Length() - Elevation;
+					List<IMyTerminalBlock> AllBlocks = new List<IMyTerminalBlock>();
+					GridTerminalSystem.GetBlocksOfType<IMyTerminalBlock>(AllBlocks);
+					foreach(IMyTerminalBlock Block in AllBlocks){
+						Elevation = Math.Min(Elevation, (Block.GetPosition() - PlanetCenter)/Length() - terrain_height);
+					}
+				}
+			}
+			else {
+				Elevation = Sealevel;
+			}
+		}
+		else {
+			PlanetCenter = new Vector3D(0,0,0);
+		}
+	}
+	else{
+		Sealevel = double.MaxValue;
+	}
 	
+	Gravity = Controller.GetNaturalGravity();
+	CurrentVelocity=Controller.GetShipVelocities().LinearVelocity;
+}
+
+
+public void PerformScan(){
+	PerformDisarm();
+	
+}
+
+public void PerformDisarm(){
+	List<IMyWarhead> Warheads = new List<IMyWarhead>();
+	GridTerminalSystem.GetBlocksOfType<IMyWarhead>(Warheads);
+	foreach(IMyWarhead Warhead in Warheads){
+		Warhead.DetonationTime = Math.Max(10 * SCAN_TIME, Warhead.DetonationTime);
+		Warhead.IsArmed = false;
+		Warhead.StopCountdown();
+	}
 }
 
 private void UpdateProgramInfo(){
