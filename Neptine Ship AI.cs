@@ -3,7 +3,8 @@
 * Built by mlq1616
 * https://github.com/mlq1819
 */
-
+//Name me!
+private const string Program_Name = "Neptine Ship AI"; 
 //The angle of what the ship will accept as "correct"
 private const double ACCEPTABLE_ANGLE=20; //Suggested between 5° and 20°
 //The distance accepted for raycasts
@@ -782,9 +783,8 @@ private struct Airlock{
 private long cycle_long=1;
 private long cycle=0;
 private char loading_char='|';
-private const string Program_Name="Ship AI 2.0"; //Name me!
 double seconds_since_last_update=0;
-
+private Random Rnd;
 
 private IMyShipController Controller;
 private IMyGyro Gyro;
@@ -805,6 +805,12 @@ private List<IMyThrust> Up_Thrusters;
 private List<IMyThrust> Down_Thrusters;
 private List<IMyThrust> Left_Thrusters;
 private List<IMyThrust> Right_Thrusters;
+private float Forward_Thrust;
+private float Backward_Thrust;
+private float Up_Thrust;
+private float Down_Thrust;
+private float Left_Thrust;
+private float Right_Thrust;
 
 private Base6Directions.Direction Forward;
 private Base6Directions.Direction Backward;
@@ -812,6 +818,20 @@ private Base6Directions.Direction Up;
 private Base6Directions.Direction Down;
 private Base6Directions.Direction Left;
 private Base6Directions.Direction Right;
+
+private Vector3D Forward_Vector;
+private Vector3D Backward_Vector;
+private Vector3D Up_Vector;
+private Vector3D Down_Vector;
+private Vector3D Left_Vector;
+private Vector3D Right_Vector;
+
+private Vector3D Controller_Forward;
+private Vector3D Controller_Backward;
+private Vector3D Controller_Up;
+private Vector3D Controller_Down;
+private Vector3D Controller_Left;
+private Vector3D Controller_Right;
 
 private Vector3D RestingVelocity;
 
@@ -1065,7 +1085,7 @@ private UpdateFrequency GetUpdateFrequency(){
 	return UpdateFrequency.Update10;
 }
 
-public bool SetUp(){
+public bool Setup(){
 	Reset();
 	
 	StatusLCDs=(new GenericMethods<IMyTextPanel>(this)).GetAllContaining("Ship Status");
@@ -1091,6 +1111,11 @@ public bool SetUp(){
 	
 	List<IMyThrust> MyThrusters=(new GenericMethods<IMyThrust>(this)).GetAllContaining("");
 	foreach(IMyThrust Thruster in MyThrusters){
+		if(HasBlockData(Thruster, "Owner")){
+			long ID = 0;
+			if(!Int64.TryParse(GetBlockData(Thruster, "Owner"), out ID) || (ID != 0 && ID!=Me.EntityId))
+				continue;
+		}
 		Base6Directions.Direction ThrustDirection=Thruster.Orientation.Forward;
 		if(ThrustDirection==Backward){
 			Forward_Thrusters.Add(Thruster);
@@ -1110,12 +1135,15 @@ public bool SetUp(){
 		else if(ThrustDirection==Left){
 			Right_Thrusters.Add(Thruster);
 		}
-		else{
-			Unknown_Thrusters.Add(Thruster);
-		}
 	}
+	SetThrusters(Forward_Thrusters, "Forward");
+	SetThrusters(Backward_Thrusters, "Backward");
+	SetThrusters(Up_Thrusters, "Up");
+	SetThrusters(Down_Thrusters, "Down");
+	SetThrusters(Left_Thrusters, "Left");
+	SetThrusters(Right_Thrusters, "Right");
 	
-	Operational=true;
+	Operational=Me.IsWorking;
 	Runtime.UpdateFrequency = GetUpdateFrequency();
 	return true;
 }
@@ -1126,27 +1154,310 @@ public Program()
 {
     Me.CustomName=(Program_Name+" Programmable block").Trim();
 	Echo("Beginning initialization");
-	SetUp();
-	// The constructor, called only once every session and
-    // always before any other method is called. Use it to
-    // initialize your script. 
-    //     
-    // The constructor is optional and can be removed if not
-    // needed.
-    // 
-    // It's recommended to set RuntimeInfo.UpdateFrequency 
-    // here, which will allow your script to run itself without a 
-    // timer block.
+	Me.Enabled = true;
+	Rnd = new Random();
+	Setup();
+	string[] args = this.Storage.Split('•');
+	foreach(string arg in args){
+		EntityInfo Entity = null;
+		if(EntityInfo.TryParse(arg, out Entity)){
+			switch(Entity.Type){
+				case MyDetectedEntityType.Asteroid:
+					AsteroidList.Add(Entity);
+					break;
+				case MyDetectedEntityType.Planet:
+					PlanetList.Add(Entity);
+					break;
+				case MyDetectedEntityType.SmallGrid:
+					SmallShipList.Add(Entity);
+					break;
+				case MyDetectedEntityType.LargeGrid:
+					LargeShipList.Add(Entity);
+					break;
+				case MyDetectedEntityType.CharacterHuman:
+					CharacterList.Add(Entity);
+					break;
+				case MyDetectedEntityType.CharacterOther:
+					CharacterList.Add(Entity);
+					break;
+			}
+		}
+	}
+	IGC.RegisterBroadcastListener("Neptine AI");
+	IGC.RegisterBroadcastListener("Entity Report");
+	IGC.RegisterBroadcastListener(Me.CubeGrid.CustomName);
+}
+
+private void SetThrusters(List<IMyThrust> Thrusters, string Direction){
+	int small_misc=0;
+	int large_misc=0;
+	int small_hydrogen=0;
+	int large_hydrogen=0;
+	int small_atmospheric=0;
+	int large_atmospheric=0;
+	int small_ion=0;
+	int large_ion=0;
+	
+	foreach(IMyThrust Thruster in Thrusters){
+		if(!HasBlockData(Thruster, "DefaultOverride")){
+			SetBlockData(Thruster, "DefaultOverride", Thruster.ThrustOverridePercentage.ToString());
+		}
+		SetBlockData(Thruster, "Owner", Me.EntityId.ToString());
+		SetBlockData(Thruster, "DefaultName", Thruster.CustomName);
+		if(Thruster.CustomName.ToLower().Contains("hydrogen")){
+			if(Thruster.CustomName.ToLower().Contains("large"))
+				large_hydrogen++;
+			else
+				small_hydrogen++;
+		}
+		else if(Thruster.CustomName.ToLower().Contains("atmospheric")){
+			if(Thruster.CustomName.ToLower().Contains("large"))
+				large_atmospheric++;
+			else
+				small_atmospheric++;
+		}
+		else if(Thruster.CustomName.ToLower().Contains("ion")){
+			if(Thruster.CustomName.ToLower().Contains("large"))
+				large_ion++;
+			else
+				small_ion++;
+		}
+		else{
+			if(Thruster.CustomName.ToLower().Contains("large"))
+				large_misc++;
+			else
+				small_misc++;
+		}
+	}
+	foreach(IMyThrust Thruster in Thrusters){
+		string tag;
+		int number;
+		if(Thruster.CustomName.ToLower().Contains("hydrogen")){
+			if(Thruster.CustomName.ToLower().Contains("large")){
+				tag="Large Hydrogen"
+				number=large_hydrogen--;
+			}
+			else {
+				tag="Small Hydrogen"
+				number=small_hydrogen--;
+			}
+		}
+		else if(Thruster.CustomName.ToLower().Contains("atmospheric")){
+			if(Thruster.CustomName.ToLower().Contains("large")){
+				tag="Large Atmospheric"
+				number=large_atmospheric--;
+			}
+			else {
+				tag="Small Atmospheric"
+				number=small_atmospheric--;
+			}
+		}
+		else if(Thruster.CustomName.ToLower().Contains("ion")){
+			if(Thruster.CustomName.ToLower().Contains("large")){
+				tag="Large Ion"
+				number=large_ion--;
+			}
+			else {
+				tag="Small Ion"
+				number=small_ion--;
+			}
+		}
+		else{
+			if(Thruster.CustomName.ToLower().Contains("large")){
+				tag="Large Misc"
+				number=large_misc--;
+			}
+			else {
+				tag="Small Misc"
+				number=small_misc--;
+			}
+		}
+		Thruster.CustomName = Direction + tag + " Thruster " + number.ToString();
+	}
+}
+
+private void ResetThruster(IMyThrust Thruster){
+	if(HasBlockData(Thruster, "DefaultOverride")){
+		if(!float.TryParse(GetBlockData(Thruster, "DefaultOverride"), out Thruster.ThrustOverridePercentage))
+			Thruster.ThrustOverridePercentage = 0.0f;
+	}
+	if(HasBlockData(Thruster, "DefaultName")){
+		Thruster.CustomName = GetBlockData(Thruster, "DefaultName");
+	}
+	SetBlockData(Thruster, "Owner", "0");
 }
 
 public void Save()
 {
-    // Called when the program needs to save its state. Use
-    // this method to save your state to the Storage field
-    // or some other means. 
-    // 
-    // This method is optional and can be removed if not
-    // needed.
+    this.Storage = "";
+	foreach(EntityInfo Entity in AsteroidList){
+		this.Storage += '•' + Entity.ToString();
+	}
+	foreach(EntityInfo Entity in PlanetList){
+		this.Storage += '•' + Entity.ToString();
+	}
+	foreach(EntityInfo Entity in SmallShipList){
+		this.Storage += '•' + Entity.ToString();
+	}
+	foreach(EntityInfo Entity in LargeShipList){
+		this.Storage += '•' + Entity.ToString();
+	}
+	foreach(EntityInfo Entity in CharacterList){
+		this.Storage += '•' + Entity.ToString();
+	}
+	Me.CustomData = this.Storage;
+	
+	Gyroscope.GyroOverride = false;
+	foreach(IMyThrust Thruster in Forward_Thrusters){
+		ResetThruster(Thruster);
+	}
+	foreach(IMyThrust Thruster in Backward_Thrusters){
+		ResetThruster(Thruster);
+	}
+	foreach(IMyThrust Thruster in Up_Thrusters){
+		ResetThruster(Thruster);
+	}
+	foreach(IMyThrust Thruster in Down_Thrusters){
+		ResetThruster(Thruster);
+	}
+	foreach(IMyThrust Thruster in Left_Thrusters){
+		ResetThruster(Thruster);
+	}
+	foreach(IMyThrust Thruster in Right_Thrusters){
+		ResetThruster(Thruster);
+	}
+	Write("Powering Off...", false, false);
+	Runtime.UpdateFrequency = UpdateFrequency.None;
+}
+
+//Sets directional vectors, elevation, etc
+private void GetPositionData(){
+	Vector3D base_vector = new Vector3D(0,0,10);
+	Forward_Vector = Vector3D.Transform(base_vector, Controller.WorldMatrix) - Controller.GetPosition();
+	Forward_Vector.Normalize();
+	Backward_Vector = -1 * Forward_Vector;
+	
+	base_vector = new Vector3D(0,10,0);
+	Up_Vector = Vector3D.Transform(base_vector, Controller.WorldMatrix) - Controller.GetPosition();
+	Up_Vector.Normalize();
+	Down_Vector = -1 * Up_Vector;
+	
+	base_vector = new Vector3D(10,0,0);
+	Left_Vector = Vector3D.Transform(base_vector, Controller.WorldMatrix) - Controller.GetPosition();
+	Left_Vector.Normalize();
+	Right_Vector = -1 * Left_Vector;
+	
+	
+	switch(Forward){
+		case Base6Directions.Direction.Forward:
+			Controller_Forward = Forward_Vector;
+			Controller_Backward = Backward_Vector;
+			break;
+		case Base6Directions.Direction.Backward:
+			Controller_Forward = Backward_Vector;
+			Controller_Backward = Forward_Vector;
+			break;
+		case Base6Directions.Direction.Up:
+			Controller_Forward = Up_Vector;
+			Controller_Backward = Down_Vector;
+			break;
+		case Base6Directions.Direction.Down:
+			Controller_Forward = Down_Vector;
+			Controller_Backward = Up_Vector;
+			break;
+		case Base6Directions.Direction.Left:
+			Controller_Forward = Left_Vector;
+			Controller_Backward = Right_Vector;
+			break;
+		case Base6Directions.Direction.Right:
+			Controller_Forward = Right_Vector;
+			Controller_Backward = Left_Vector;
+			break;
+	}
+	switch(Up){
+		case Base6Directions.Direction.Forward:
+			Controller_Up = Forward_Vector;
+			Controller_Down = Backward_Vector;
+			break;
+		case Base6Directions.Direction.Backward:
+			Controller_Up = Backward_Vector;
+			Controller_Down = Forward_Vector;
+			break;
+		case Base6Directions.Direction.Up:
+			Controller_Up = Up_Vector;
+			Controller_Down = Down_Vector;
+			break;
+		case Base6Directions.Direction.Down:
+			Controller_Up = Down_Vector;
+			Controller_Down = Up_Vector;
+			break;
+		case Base6Directions.Direction.Left:
+			Controller_Up = Left_Vector;
+			Controller_Down = Right_Vector;
+			break;
+		case Base6Directions.Direction.Right:
+			Controller_Up = Right_Vector;
+			Controller_Down = Left_Vector;
+			break;
+	}
+	switch(Left){
+		case Base6Directions.Direction.Forward:
+			Controller_Left = Forward_Vector;
+			Controller_Right = Backward_Vector;
+			break;
+		case Base6Directions.Direction.Backward:
+			Controller_Left = Backward_Vector;
+			Controller_Right = Forward_Vector;
+			break;
+		case Base6Directions.Direction.Up:
+			Controller_Left = Up_Vector;
+			Controller_Right = Down_Vector;
+			break;
+		case Base6Directions.Direction.Down:
+			Controller_Left = Down_Vector;
+			Controller_Right = Up_Vector;
+			break;
+		case Base6Directions.Direction.Left:
+			Controller_Left = Left_Vector;
+			Controller_Right = Right_Vector;
+			break;
+		case Base6Directions.Direction.Right:
+			Controller_Left = Right_Vector;
+			Controller_Right = Left_Vector;
+			break;
+	}
+	Forward_Thrust = 0.0f;
+	foreach(IMyThrust Thruster in Forward_Thrusters){
+		if(Thruster.IsWorking)
+			Forward_Thrust+=Thruster.MaxEffectiveThrust;
+	}
+	Backward_Thrust = 0.0f;
+	foreach(IMyThrust Thruster in Backward_Thrusters){
+		if(Thruster.IsWorking)
+			Backward_Thrust+=Thruster.MaxEffectiveThrust;
+	}
+	Up_Thrust = 0.0f;
+	foreach(IMyThrust Thruster in Up_Thrusters){
+		if(Thruster.IsWorking)
+			Up_Thrust+=Thruster.MaxEffectiveThrust;
+	}
+	Down_Thrust = 0.0f;
+	foreach(IMyThrust Thruster in Down_Thrusters){
+		if(Thruster.IsWorking)
+			Down_Thrust+=Thruster.MaxEffectiveThrust;
+	}
+	Left_Thrust = 0.0f;
+	foreach(IMyThrust Thruster in Left_Thrusters){
+		if(Thruster.IsWorking)
+			Left_Thrust+=Thruster.MaxEffectiveThrust;
+	}
+	Right_Thrust = 0.0f;
+	foreach(IMyThrust Thruster in Right_Thrusters){
+		if(Thruster.IsWorking)
+			Right_Thrust+=Thruster.MaxEffectiveThrust;
+	}
+	
+	
 }
 
 private void UpdateProgramInfo(){
