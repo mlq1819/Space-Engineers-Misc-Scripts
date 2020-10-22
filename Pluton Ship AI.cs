@@ -608,11 +608,7 @@ private float Left_Thrust = 0.0f;
 private float Right_Thrust = 0.0f;
 
 private bool ControllerFunction(IMyShipController ctrlr){
-	IMyRemoteControl Remote = ctrlr as IMyRemoteControl;
-	if(Remote!=null)
-		return ctrlr.ControlThrusters;
-	else
-		return (ctrlr.ControlThrusters && ctrlr.IsMainCockpit);
+	return (ctrlr.ControlThrusters && ctrlr.IsMainCockpit);
 }
 
 private void SetControllerDirections(){
@@ -1084,31 +1080,35 @@ private void Setup(){
 
 public Program()
 {
+	List<IMyProjector> P = new List<IMyProjector>();
+	GridTerminalSystem.GetBlocksOfType<IMyProjector>(P);
+	foreach(IMyProjector p in P)
+		p.Enabled = true;
 	Me.Enabled = true;
 	Rnd = new Random();
     Me.CustomName = (Program_Name + " Programmable block").Trim();
 	string[] args = this.Storage.Split('•');
 	foreach(string arg in args){
-		EntityInfo Entity = null;
-		if(EntityInfo.TryParse(arg, out Entity)){
-			switch(Entity.Type){
+		EntityInfo E = null;
+		if(EntityInfo.TryParse(arg, out E)){
+			switch(E.Type){
 				case MyDetectedEntityType.Asteroid:
-					AsteroidList.Add(Entity);
+					AsteroidList.Add(E);
 					break;
 				case MyDetectedEntityType.Planet:
-					PlanetList.Add(Entity);
+					PlanetList.Add(E);
 					break;
 				case MyDetectedEntityType.SmallGrid:
-					SmallShipList.Add(Entity);
+					SmallShipList.Add(E);
 					break;
 				case MyDetectedEntityType.LargeGrid:
-					LargeShipList.Add(Entity);
+					LargeShipList.Add(E);
 					break;
 				case MyDetectedEntityType.CharacterHuman:
-					CharacterList.Add(Entity);
+					CharacterList.Add(E);
 					break;
 				case MyDetectedEntityType.CharacterOther:
-					CharacterList.Add(Entity);
+					CharacterList.Add(E);
 					break;
 			}
 		}
@@ -1927,7 +1927,7 @@ private void SetThrusters(){
 		}
 	}
 	
-	float damp_multx = 1.0f - GlitchFloat;
+	float damp_multx = 0.99f - GlitchFloat;
 	elevation = double.MaxValue;
 	double effective_speed_limit = Speed_Limit;
 	if(Controller.TryGetPlanetElevation(MyPlanetElevation.Sealevel, out elevation)){
@@ -2683,7 +2683,7 @@ public void Main(string argument, UpdateType updateSource)
 	}
 	else {
 		for(int i=0; i<Me.SurfaceCount; i++)
-			Me.GetSurface(i).BackgroundColor = new Color(0, 88, 151, 255);
+			Me.GetSurface(i).BackgroundColor = new Color(44, 0, 88, 255);
 		Glitch = 0;
 	}
 	if(Glitch > 0 && cycle >= Target_Glitch){
@@ -3045,7 +3045,7 @@ public void Main(string argument, UpdateType updateSource)
 	
 	Gravity = Controller.GetNaturalGravity();
 	Adjusted_Gravity = Gravity;
-	Mass_Accomodation = (float) (Controller.CalculateShipMass().PhysicalMass * 9.81f) * (1 + GlitchFloat);
+	Mass_Accomodation = (float) (Controller.CalculateShipMass().PhysicalMass * Gravity.Length()) * (1 + GlitchFloat);
 	
 	Relative_Velocity = Vector3D.Transform(Controller.GetShipVelocities().LinearVelocity+Controller.GetPosition(), MatrixD.Invert(Controller.WorldMatrix));
 	Relative_Velocity.Normalize();
