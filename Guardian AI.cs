@@ -276,32 +276,59 @@ public class Leg{
 	private LegStatus TargetLeg = LegStatus.Lowered;
 	private StrideStatus TargetStride = StrideStatus.Forward;
 	
-	private Base6Direction.Direction Direction = Base6Direction.Direction.Forward;
+	public float LiftPercent{
+		get{
+			float total_range = 0;
+			float sum_range = 0;
+			total_range += Hinge1.UpperLimitRad - Hinge1.LowerLimitRad;
+			sum_range += Hinge1.Angle;
+			total_range += Hinge2.UpperLimitRad - Hinge2.LowerLimitRad;
+			sum_range += Hinge2.Angle;
+			total_range += Hinge3.UpperLimitRad - Hinge3.LowerLimitRad;
+			sum_range += Hinge3.Angle;
+			total_range += Hinge4.UpperLimitRad - Hinge4.LowerLimitRad;
+			sum_range += Hinge4.Angle;
+			return (1-(sum_range / total_range)) * 100.0f;
+		}
+	}
+	
+	public float StridePercent{
+		get{
+			if(Side == Base6Directions.Direction.Right){
+				return Rotor1.Angle / ((Rotor1.UpperLimitRad - Rotor1.LowerLimitRad)) * 100.0f;
+			}
+			else {
+				return (1-(Rotor1.Angle / ((Rotor1.UpperLimitRad - Rotor1.LowerLimitRad)))) * 100.0f;
+			}
+		}
+	}
+	
+	private Base6Directions.Direction Direction = Base6Directions.Direction.Forward;
 	
 	private bool Stopped = true;
 	
 	public LegStatus Status{
 		get{
 			if(TargetLeg == LegStatus.Lowered){
-				if(Foot.LockMode == LandingGearMode.Locked)
+				if(LandingGear.LockMode == LandingGearMode.Locked)
 					return LegStatus.Lowered;
 				bool lowered = true;
-				lowered = lowered && Hinge1.Angle <= Hinge1.LowerLimitRad + .02f;
-				lowered = lowered && Hinge2.Angle <= Hinge2.LowerLimitRad + .02f;
-				lowered = lowered && Hinge3.Angle <= Hinge3.LowerLimitRad + .02f;
-				lowered = lowered && Hinge4.Angle <= Hinge4.LowerLimitRad + .02f;
-				if(Lowered)
+				lowered = lowered && Hinge1.Angle >= Hinge1.UpperLimitRad - .02f;
+				lowered = lowered && Hinge2.Angle >= Hinge2.UpperLimitRad - .02f;
+				lowered = lowered && Hinge3.Angle >= Hinge3.UpperLimitRad - .02f;
+				lowered = lowered && Hinge4.Angle >= Hinge4.UpperLimitRad - .02f;
+				if(lowered)
 					return LegStatus.Lowered;
 				else
 					return LegStatus.Lowering;
 			}
 			else {
 				bool raised = true;
-				raised = raised && Hinge1.Angle >= Hinge1.LowerLimitRad - .02f;
-				raised = raised && Hinge2.Angle >= Hinge2.LowerLimitRad - .02f;
-				raised = raised && Hinge3.Angle >= Hinge3.LowerLimitRad - .02f;
-				raised = raised && Hinge4.Angle >= Hinge4.LowerLimitRad - .02f;
-				if(Raised)
+				raised = raised && Hinge1.Angle <= Hinge1.LowerLimitRad + .02f;
+				raised = raised && Hinge2.Angle <= Hinge2.LowerLimitRad + .02f;
+				raised = raised && Hinge3.Angle <= Hinge3.LowerLimitRad + .02f;
+				raised = raised && Hinge4.Angle <= Hinge4.LowerLimitRad + .02f;
+				if(raised)
 					return LegStatus.Raised;
 				else
 					return LegStatus.Raising;
@@ -314,16 +341,15 @@ public class Leg{
 			if(TargetStride == StrideStatus.Forward){
 				
 				if((Side == Base6Directions.Direction.Right && Rotor1.Angle >= Rotor1.UpperLimitRad - 0.02f) || (Side == Base6Directions.Direction.Left && Rotor1.Angle <= Rotor1.LowerLimitRad + 0.02f))
-					return LegStatus.Forward;
+					return StrideStatus.Forward;
 				else
-					return LegStatus.Rushing;
+					return StrideStatus.Rushing;
 			}
 			else {
 				if((Side == Base6Directions.Direction.Right && Rotor1.Angle <= Rotor1.LowerLimitRad + 0.02f) || (Side == Base6Directions.Direction.Left && Rotor1.Angle >= Rotor1.UpperLimitRad - 0.02f))
-				if(Raised)
-					return LegStatus.Backward;
+					return StrideStatus.Backward;
 				else
-					return LegStatus.Reversing;
+					return StrideStatus.Reversing;
 			}
 		}
 	}
@@ -340,9 +366,12 @@ public class Leg{
 	}
 	
 	public static bool TryGet(MyGridProgram Prog, Base6Directions.Direction S, IMyMotorStator R1, out Leg output){
+		output = null;
+		if(R1 == null)
+			return false;
 		if(S != Base6Directions.Direction.Left && S != Base6Directions.Direction.Right)
 			return false;
-		List<IMyMotorStator> MotorList = (new GenericMethods<IMyMotorStator>(Program)).GetAllContaining("Leg Hinge 1");
+		List<IMyMotorStator> MotorList = (new GenericMethods<IMyMotorStator>(Prog)).GetAllContaining("Leg Hinge 1");
 		IMyMotorStator H1 = null;
 		foreach(IMyMotorStator Hinge in MotorList){
 			if(R1.TopGrid == Hinge.CubeGrid){
@@ -352,7 +381,7 @@ public class Leg{
 		}
 		if(H1 == null)
 			return false;
-		MotorList = (new GenericMethods<IMyMotorStator>(Program)).GetAllContaining("Leg Hinge 2");
+		MotorList = (new GenericMethods<IMyMotorStator>(Prog)).GetAllContaining("Leg Hinge 2");
 		IMyMotorStator H2 = null;
 		foreach(IMyMotorStator Hinge in MotorList){
 			if(H1.TopGrid == Hinge.CubeGrid){
@@ -362,7 +391,7 @@ public class Leg{
 		}
 		if(H2 == null)
 			return false;
-		MotorList = (new GenericMethods<IMyMotorStator>(Program)).GetAllContaining("Leg Hinge 3");
+		MotorList = (new GenericMethods<IMyMotorStator>(Prog)).GetAllContaining("Leg Hinge 3");
 		IMyMotorStator H3 = null;
 		foreach(IMyMotorStator Hinge in MotorList){
 			if(H2.TopGrid == Hinge.CubeGrid){
@@ -372,7 +401,7 @@ public class Leg{
 		}
 		if(H3 == null)
 			return false;
-		MotorList = (new GenericMethods<IMyMotorStator>(Program)).GetAllContaining("Leg Hinge 4");
+		MotorList = (new GenericMethods<IMyMotorStator>(Prog)).GetAllContaining("Leg Hinge 4");
 		IMyMotorStator H4 = null;
 		foreach(IMyMotorStator Hinge in MotorList){
 			if(H3.TopGrid == Hinge.CubeGrid){
@@ -382,7 +411,7 @@ public class Leg{
 		}
 		if(H4 == null)
 			return false;
-		MotorList = (new GenericMethods<IMyMotorStator>(Program)).GetAllContaining("Ankle Rotor");
+		MotorList = (new GenericMethods<IMyMotorStator>(Prog)).GetAllContaining("Ankle Rotor");
 		IMyMotorStator R2 = null;
 		foreach(IMyMotorStator Rotor in MotorList){
 			if(H4.TopGrid == Rotor.CubeGrid){
@@ -392,7 +421,7 @@ public class Leg{
 		}
 		if(R2 == null)
 			return false;
-		List<IMyLandingGear> GearList = (new GenericMethods<IMyLandingGear>(Program)).GetAllContaining("Foot");
+		List<IMyLandingGear> GearList = (new GenericMethods<IMyLandingGear>(Prog)).GetAllContaining("Foot");
 		IMyLandingGear LG = null;
 		foreach(IMyLandingGear LandingGear in GearList){
 			if(R2.TopGrid == LandingGear.CubeGrid){
@@ -403,12 +432,13 @@ public class Leg{
 		if(LG == null)
 			return false;
 		output = new Leg(R1, H1, H2, H3, H4, R2, LG, S);
+		output.Program = Prog;
 		return true;
 	}
 	
 	private void Raise(){
-		float t = -1.5f;
-		TargetStatus = LegStatus.Raised;
+		float t = -3f;
+		TargetLeg = LegStatus.Raised;
 		Hinge1.TargetVelocityRPM = t;
 		Hinge2.TargetVelocityRPM = t;
 		Hinge3.TargetVelocityRPM = t;
@@ -417,8 +447,8 @@ public class Leg{
 	}
 	
 	private void Lower(){
-		float t = 1.5f;
-		TargetStatus = LegStatus.Lowered;
+		float t = 3f;
+		TargetLeg = LegStatus.Lowered;
 		Hinge1.TargetVelocityRPM = t;
 		Hinge2.TargetVelocityRPM = t;
 		Hinge3.TargetVelocityRPM = t;
@@ -426,11 +456,27 @@ public class Leg{
 		Stopped = false;
 	}
 	
+	private void Rush(){
+		TargetStride = StrideStatus.Forward;
+		if(Side == Base6Directions.Direction.Right)
+			Rotor1.TargetVelocityRPM = 15f;
+		if(Side == Base6Directions.Direction.Left)
+			Rotor1.TargetVelocityRPM = -15f;
+	}
+	
+	private void Reverse(){
+		TargetStride = StrideStatus.Backward;
+		if(Side == Base6Directions.Direction.Right)
+			Rotor1.TargetVelocityRPM = -15f;
+		if(Side == Base6Directions.Direction.Left)
+			Rotor1.TargetVelocityRPM = 15f;
+	}
+	
 	private void UpdateMotor(IMyMotorStator Motor){
-		if(Motor.TargetVelocityRPM > 0 && Motor.Angle >= Motor.UpperLimit - 0.02f){
+		if(Motor.TargetVelocityRPM > 0 && Motor.Angle >= Motor.UpperLimitRad - 0.02f){
 			Motor.TargetVelocityRPM = 0;
 		}
-		else if(Motor.TargetVelocityRPM < 0 && Motor.Angle <= Motor.UpperLimit + 0.02f){
+		else if(Motor.TargetVelocityRPM < 0 && Motor.Angle <= Motor.LowerLimitRad + 0.02f){
 			Motor.TargetVelocityRPM = 0;
 		}
 	}
@@ -452,44 +498,60 @@ public class Leg{
 	}
 	
 	public void Forward(){
-		Direction = Base6Direction.Direction.Forward;
-	}
-	
-	public void Reverse(){
-		Direction = Base6Direction.Direction.Backward;
-	}
-	
-	
-	
-	public void Update(){
-		if(!Stopped && Status == LegStatus.Raised){
+		if(Direction != Base6Directions.Direction.Forward){
+			Direction = Base6Directions.Direction.Forward;
+			Rush();
 			Lower();
 		}
-		else if(!Stopped && Status == LegStatus.Lowered && Stride == StrideStatus.Backward){
-			if(Side == Base6Directions.Direction.Right)
-				Rotor1.TargetVelocityRPM = 1.5f;
-			else if(Side == Base6Directions.Direction.Left)
-				Rotor1.TargetVelocityRPM = -1.5f;
-			Raise();
+		Update();
+	}
+	
+	public void Backward(){
+		if(Direction != Base6Directions.Direction.Backward){		
+			Direction = Base6Directions.Direction.Backward;
+			Reverse();
+			Lower();
+		}
+		Update();
+	}
+	
+	public void Update(){
+		if(Status == LegStatus.Raised){
+			Lower();
+		}
+		if(!Stopped){
+			if(Direction == Base6Directions.Direction.Forward && Stride == StrideStatus.Backward){
+				Rush();
+				Raise();
+			}
+			else if(Direction == Base6Directions.Direction.Backward && Stride == StrideStatus.Forward){
+				Reverse();
+				Raise();
+			}
+			else if(Status == LegStatus.Lowered){
+				Lower();
+				if(Direction == Base6Directions.Direction.Forward)
+					Reverse();
+				else if(Direction == Base6Directions.Direction.Backward)
+					Rush();
+			}
+			else if(Direction == Base6Directions.Direction.Forward && Status == LegStatus.Raising && StridePercent>=50.0f)
+				Lower();
+			else if(Direction == Base6Directions.Direction.Backward && Status == LegStatus.Raising && StridePercent<=50.0f)
+				Lower();
 		}
 		if(TargetLeg == LegStatus.Lowered){
-			Foot.Lock();
-			if(!Stopped){
-				if(Side == Base6Directions.Direction.Right)
-					Rotor1.TargetVelocityRPM = 1.5f;
-				else if(Side == Base6Directions.Direction.Left)
-					Rotor1.TargetVelocityRPM = -1.5f;
-			}
+			LandingGear.Lock();
 		}
 		else {
-			Foot.Unlock();
+			LandingGear.Unlock();
 		}
 		UpdateMotor(Rotor1);
 		UpdateHinge(Hinge1);
 		UpdateHinge(Hinge2);
 		UpdateHinge(Hinge3);
 		UpdateHinge(Hinge4);
-		if(Foot.LockMode != LandingGearMode.Locked){
+		if(LandingGear.LockMode != LandingGearMode.Locked){
 			Rotor2.Enabled = true;
 			Rotor2.TargetVelocityRad = Rotor2.Angle / -2;
 		}
@@ -499,8 +561,6 @@ public class Leg{
 	}
 }
 
-
-
 private long cycle_long = 1;
 private long cycle = 0;
 private char loading_char = '|';
@@ -509,12 +569,24 @@ double seconds_since_last_update = 0;
 
 
 private IMyShipController Controller = null;
-private IMyGyro Gyro = null;
+private Leg MyLeg = null;
 
 public Program()
 {
     Me.CustomName = (Program_Name + " Programmable block").Trim();
 	Echo("Beginning initialization");
+	Controller = (new GenericMethods<IMyShipController>(this)).GetContaining("");
+	IMyMotorStator Rotor = (new GenericMethods<IMyMotorStator>(this)).GetFull("Leg Rotor");
+	if(Controller!=null && Rotor!=null && Leg.TryGet(this, Base6Directions.Direction.Right, Rotor, out MyLeg))
+		Runtime.UpdateFrequency = UpdateFrequency.Update1;
+	else{
+		if(Controller==null)
+			Echo("No controller");
+		else if(Rotor==null)
+			Echo("No Rotor");
+		else
+			Echo("No Leg");
+	}
 	
 	// The constructor, called only once every session and
     // always before any other method is called. Use it to
@@ -576,6 +648,24 @@ private void UpdateProgramInfo(){
 
 public void Main(string argument, UpdateType updateSource)
 {
+	UpdateProgramInfo();
+	if(Controller.MoveIndicator.Z < 0){
+		Me.GetSurface(0).WriteText("Forward", false);
+		MyLeg.Forward();
+	}
+	else if(Controller.MoveIndicator.Z > 0){
+		Me.GetSurface(0).WriteText("Backward", false);
+		MyLeg.Backward();
+	}
+	else if(Controller.MoveIndicator.Y > 0){
+		Me.GetSurface(0).WriteText("Stop", false);
+		MyLeg.Stop();
+	}
+	MyLeg.Update();
+	Me.GetSurface(0).WriteText('\n' + MyLeg.Status.ToString(), true);
+	Me.GetSurface(0).WriteText('\n' + MyLeg.Stride.ToString(), true);
+	Me.GetSurface(0).WriteText('\n' + Math.Round(MyLeg.LiftPercent,1).ToString() + '%', true);
+	Me.GetSurface(0).WriteText('\n' + Math.Round(MyLeg.StridePercent,1).ToString() + '%', true);
     // The main entry point of the script, invoked every time
     // one of the programmable block's Run actions are invoked,
     // or the script updates itself. The updateSource argument
