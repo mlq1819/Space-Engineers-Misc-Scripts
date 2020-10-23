@@ -272,6 +272,17 @@ public class Leg{
 	private IMyLandingGear LandingGear;
 	private Base6Directions.Direction Side;
 	protected MyGridProgram Program;
+	private float _Speed_Multx = 1.0f;
+	public float Speed_Multx{
+		get{
+			return _Speed_Multx;
+		}
+		set{
+			if(value>=0.1f && value <= 2.0f){
+				_Speed_Multx = value;
+			}
+		}
+	}
 	
 	private LegStatus TargetLeg = LegStatus.Lowered;
 	private StrideStatus TargetStride = StrideStatus.Forward;
@@ -437,7 +448,7 @@ public class Leg{
 	}
 	
 	private void Raise(){
-		float t = -3f;
+		float t = -3f * Speed_Multx;
 		TargetLeg = LegStatus.Raised;
 		Hinge1.TargetVelocityRPM = t;
 		Hinge2.TargetVelocityRPM = t;
@@ -447,7 +458,7 @@ public class Leg{
 	}
 	
 	private void Lower(){
-		float t = 3f;
+		float t = 3f * Speed_Multx;
 		TargetLeg = LegStatus.Lowered;
 		Hinge1.TargetVelocityRPM = t;
 		Hinge2.TargetVelocityRPM = t;
@@ -459,17 +470,17 @@ public class Leg{
 	private void Rush(){
 		TargetStride = StrideStatus.Forward;
 		if(Side == Base6Directions.Direction.Right)
-			Rotor1.TargetVelocityRPM = 15f;
+			Rotor1.TargetVelocityRPM = 15f * Speed_Multx;
 		if(Side == Base6Directions.Direction.Left)
-			Rotor1.TargetVelocityRPM = -15f;
+			Rotor1.TargetVelocityRPM = -15f * Speed_Multx;
 	}
 	
 	private void Reverse(){
 		TargetStride = StrideStatus.Backward;
 		if(Side == Base6Directions.Direction.Right)
-			Rotor1.TargetVelocityRPM = -15f;
+			Rotor1.TargetVelocityRPM = -15f * Speed_Multx;
 		if(Side == Base6Directions.Direction.Left)
-			Rotor1.TargetVelocityRPM = 15f;
+			Rotor1.TargetVelocityRPM = 15f * Speed_Multx;
 	}
 	
 	private void UpdateMotor(IMyMotorStator Motor){
@@ -649,16 +660,17 @@ private void UpdateProgramInfo(){
 public void Main(string argument, UpdateType updateSource)
 {
 	UpdateProgramInfo();
+	Me.GetSurface(0).WriteText("", false);
 	if(Controller.MoveIndicator.Z < 0){
-		Me.GetSurface(0).WriteText("Forward", false);
+		Me.GetSurface(0).WriteText("Forward", true);
 		MyLeg.Forward();
 	}
 	else if(Controller.MoveIndicator.Z > 0){
-		Me.GetSurface(0).WriteText("Backward", false);
+		Me.GetSurface(0).WriteText("Backward", true);
 		MyLeg.Backward();
 	}
 	else if(Controller.MoveIndicator.Y > 0){
-		Me.GetSurface(0).WriteText("Stop", false);
+		Me.GetSurface(0).WriteText("Stop", true);
 		MyLeg.Stop();
 	}
 	MyLeg.Update();
