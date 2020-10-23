@@ -248,6 +248,259 @@ private bool SetBlockData(IMyTerminalBlock Block, string Name, string Data){
 	return true;
 }
 
+public enum LegStatus{
+	Raising = 0,
+	Lowering = 1,
+	Raised = 3,
+	Lowered = 4
+}
+
+public enum StrideStatus{
+	Rushing = 0,
+	Reversing = 2,
+	Forward = 2,
+	Backward = 4
+}
+
+public class Leg{
+	private IMyMotorStator Rotor1;
+	private IMyMotorStator Hinge1;
+	private IMyMotorStator Hinge2;
+	private IMyMotorStator Hinge3;
+	private IMyMotorStator Hinge4;
+	private IMyMotorStator Rotor2;
+	private IMyLandingGear LandingGear;
+	private Base6Directions.Direction Side;
+	protected MyGridProgram Program;
+	
+	private LegStatus TargetLeg = LegStatus.Lowered;
+	private StrideStatus TargetStride = StrideStatus.Forward;
+	
+	private Base6Direction.Direction Direction = Base6Direction.Direction.Forward;
+	
+	private bool Stopped = true;
+	
+	public LegStatus Status{
+		get{
+			if(TargetLeg == LegStatus.Lowered){
+				if(Foot.LockMode == LandingGearMode.Locked)
+					return LegStatus.Lowered;
+				bool lowered = true;
+				lowered = lowered && Hinge1.Angle <= Hinge1.LowerLimitRad + .02f;
+				lowered = lowered && Hinge2.Angle <= Hinge2.LowerLimitRad + .02f;
+				lowered = lowered && Hinge3.Angle <= Hinge3.LowerLimitRad + .02f;
+				lowered = lowered && Hinge4.Angle <= Hinge4.LowerLimitRad + .02f;
+				if(Lowered)
+					return LegStatus.Lowered;
+				else
+					return LegStatus.Lowering;
+			}
+			else {
+				bool raised = true;
+				raised = raised && Hinge1.Angle >= Hinge1.LowerLimitRad - .02f;
+				raised = raised && Hinge2.Angle >= Hinge2.LowerLimitRad - .02f;
+				raised = raised && Hinge3.Angle >= Hinge3.LowerLimitRad - .02f;
+				raised = raised && Hinge4.Angle >= Hinge4.LowerLimitRad - .02f;
+				if(Raised)
+					return LegStatus.Raised;
+				else
+					return LegStatus.Raising;
+			}
+		}
+	}
+	
+	public StrideStatus Stride{
+		get{
+			if(TargetStride == StrideStatus.Forward){
+				
+				if((Side == Base6Directions.Direction.Right && Rotor1.Angle >= Rotor1.UpperLimitRad - 0.02f) || (Side == Base6Directions.Direction.Left && Rotor1.Angle <= Rotor1.LowerLimitRad + 0.02f))
+					return LegStatus.Forward;
+				else
+					return LegStatus.Rushing;
+			}
+			else {
+				if((Side == Base6Directions.Direction.Right && Rotor1.Angle <= Rotor1.LowerLimitRad + 0.02f) || (Side == Base6Directions.Direction.Left && Rotor1.Angle >= Rotor1.UpperLimitRad - 0.02f))
+				if(Raised)
+					return LegStatus.Backward;
+				else
+					return LegStatus.Reversing;
+			}
+		}
+	}
+	
+	private Leg(IMyMotorStator R1, IMyMotorStator H1, IMyMotorStator H2, IMyMotorStator H3, IMyMotorStator H4, IMyMotorStator R2, IMyLandingGear LG, Base6Directions.Direction S){
+		Rotor1 = R1;
+		Hinge1 = H1;
+		Hinge2 = H2;
+		Hinge3 = H3;
+		Hinge4 = H4;
+		Rotor2 = R2;
+		LandingGear = LG;
+		Side = S;
+	}
+	
+	public static bool TryGet(MyGridProgram Prog, Base6Directions.Direction S, IMyMotorStator R1, out Leg output){
+		if(S != Base6Directions.Direction.Left && S != Base6Directions.Direction.Right)
+			return false;
+		List<IMyMotorStator> MotorList = (new GenericMethods<IMyMotorStator>(Program)).GetAllContaining("Leg Hinge 1");
+		IMyMotorStator H1 = null;
+		foreach(IMyMotorStator Hinge in MotorList){
+			if(R1.TopGrid == Hinge.CubeGrid){
+				H1 = Hinge;
+				break;
+			}
+		}
+		if(H1 == null)
+			return false;
+		MotorList = (new GenericMethods<IMyMotorStator>(Program)).GetAllContaining("Leg Hinge 2");
+		IMyMotorStator H2 = null;
+		foreach(IMyMotorStator Hinge in MotorList){
+			if(H1.TopGrid == Hinge.CubeGrid){
+				H2 = Hinge;
+				break;
+			}
+		}
+		if(H2 == null)
+			return false;
+		MotorList = (new GenericMethods<IMyMotorStator>(Program)).GetAllContaining("Leg Hinge 3");
+		IMyMotorStator H3 = null;
+		foreach(IMyMotorStator Hinge in MotorList){
+			if(H2.TopGrid == Hinge.CubeGrid){
+				H3 = Hinge;
+				break;
+			}
+		}
+		if(H3 == null)
+			return false;
+		MotorList = (new GenericMethods<IMyMotorStator>(Program)).GetAllContaining("Leg Hinge 4");
+		IMyMotorStator H4 = null;
+		foreach(IMyMotorStator Hinge in MotorList){
+			if(H3.TopGrid == Hinge.CubeGrid){
+				H4 = Hinge;
+				break;
+			}
+		}
+		if(H4 == null)
+			return false;
+		MotorList = (new GenericMethods<IMyMotorStator>(Program)).GetAllContaining("Ankle Rotor");
+		IMyMotorStator R2 = null;
+		foreach(IMyMotorStator Rotor in MotorList){
+			if(H4.TopGrid == Rotor.CubeGrid){
+				R2 = Rotor;
+				break;
+			}
+		}
+		if(R2 == null)
+			return false;
+		List<IMyLandingGear> GearList = (new GenericMethods<IMyLandingGear>(Program)).GetAllContaining("Foot");
+		IMyLandingGear LG = null;
+		foreach(IMyLandingGear LandingGear in GearList){
+			if(R2.TopGrid == LandingGear.CubeGrid){
+				LG = LandingGear;
+				break;
+			}
+		}
+		if(LG == null)
+			return false;
+		output = new Leg(R1, H1, H2, H3, H4, R2, LG, S);
+		return true;
+	}
+	
+	private void Raise(){
+		float t = -1.5f;
+		TargetStatus = LegStatus.Raised;
+		Hinge1.TargetVelocityRPM = t;
+		Hinge2.TargetVelocityRPM = t;
+		Hinge3.TargetVelocityRPM = t;
+		Hinge4.TargetVelocityRPM = t;
+		Stopped = false;
+	}
+	
+	private void Lower(){
+		float t = 1.5f;
+		TargetStatus = LegStatus.Lowered;
+		Hinge1.TargetVelocityRPM = t;
+		Hinge2.TargetVelocityRPM = t;
+		Hinge3.TargetVelocityRPM = t;
+		Hinge4.TargetVelocityRPM = t;
+		Stopped = false;
+	}
+	
+	private void UpdateMotor(IMyMotorStator Motor){
+		if(Motor.TargetVelocityRPM > 0 && Motor.Angle >= Motor.UpperLimit - 0.02f){
+			Motor.TargetVelocityRPM = 0;
+		}
+		else if(Motor.TargetVelocityRPM < 0 && Motor.Angle <= Motor.UpperLimit + 0.02f){
+			Motor.TargetVelocityRPM = 0;
+		}
+	}
+	
+	public void Stop(){
+		Rotor1.TargetVelocityRPM = 0;
+		Hinge1.TargetVelocityRPM = 0;
+		Hinge2.TargetVelocityRPM = 0;
+		Hinge3.TargetVelocityRPM = 0;
+		Hinge4.TargetVelocityRPM = 0;
+		Stopped = true;
+	}
+	
+	private void UpdateHinge(IMyMotorStator Motor){
+		if(Status == LegStatus.Lowered)
+			Motor.TargetVelocityRPM = 0;
+		else
+			UpdateMotor(Motor);
+	}
+	
+	public void Forward(){
+		Direction = Base6Direction.Direction.Forward;
+	}
+	
+	public void Reverse(){
+		Direction = Base6Direction.Direction.Backward;
+	}
+	
+	
+	
+	public void Update(){
+		if(!Stopped && Status == LegStatus.Raised){
+			Lower();
+		}
+		else if(!Stopped && Status == LegStatus.Lowered && Stride == StrideStatus.Backward){
+			if(Side == Base6Directions.Direction.Right)
+				Rotor1.TargetVelocityRPM = 1.5f;
+			else if(Side == Base6Directions.Direction.Left)
+				Rotor1.TargetVelocityRPM = -1.5f;
+			Raise();
+		}
+		if(TargetLeg == LegStatus.Lowered){
+			Foot.Lock();
+			if(!Stopped){
+				if(Side == Base6Directions.Direction.Right)
+					Rotor1.TargetVelocityRPM = 1.5f;
+				else if(Side == Base6Directions.Direction.Left)
+					Rotor1.TargetVelocityRPM = -1.5f;
+			}
+		}
+		else {
+			Foot.Unlock();
+		}
+		UpdateMotor(Rotor1);
+		UpdateHinge(Hinge1);
+		UpdateHinge(Hinge2);
+		UpdateHinge(Hinge3);
+		UpdateHinge(Hinge4);
+		if(Foot.LockMode != LandingGearMode.Locked){
+			Rotor2.Enabled = true;
+			Rotor2.TargetVelocityRad = Rotor2.Angle / -2;
+		}
+		else{
+			Rotor2.Enabled = false;
+		}
+	}
+}
+
+
+
 private long cycle_long = 1;
 private long cycle = 0;
 private char loading_char = '|';
@@ -262,6 +515,7 @@ public Program()
 {
     Me.CustomName = (Program_Name + " Programmable block").Trim();
 	Echo("Beginning initialization");
+	
 	// The constructor, called only once every session and
     // always before any other method is called. Use it to
     // initialize your script. 
