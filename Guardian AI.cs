@@ -449,6 +449,7 @@ public class Leg{
 		IMyMotorStator H1 = null;
 		foreach(IMyMotorStator Hinge in MotorList){
 			if(R1.TopGrid == Hinge.CubeGrid){
+				Prog.Echo("Found Hinge 1");
 				H1 = Hinge;
 				break;
 			}
@@ -459,6 +460,7 @@ public class Leg{
 		IMyMotorStator H2 = null;
 		foreach(IMyMotorStator Hinge in MotorList){
 			if(H1.TopGrid == Hinge.CubeGrid){
+				Prog.Echo("Found Hinge 2");
 				H2 = Hinge;
 				break;
 			}
@@ -469,6 +471,7 @@ public class Leg{
 		IMyMotorStator H3 = null;
 		foreach(IMyMotorStator Hinge in MotorList){
 			if(H2.TopGrid == Hinge.CubeGrid){
+				Prog.Echo("Found Hinge 3");
 				H3 = Hinge;
 				break;
 			}
@@ -479,6 +482,7 @@ public class Leg{
 		IMyMotorStator H4 = null;
 		foreach(IMyMotorStator Hinge in MotorList){
 			if(H3.TopGrid == Hinge.CubeGrid){
+				Prog.Echo("Found Hinge 4");
 				H4 = Hinge;
 				break;
 			}
@@ -489,6 +493,7 @@ public class Leg{
 		IMyMotorStator R2 = null;
 		foreach(IMyMotorStator Rotor in MotorList){
 			if(H4.TopGrid == Rotor.CubeGrid){
+				Prog.Echo("Found Rotor 2");
 				R2 = Rotor;
 				break;
 			}
@@ -499,6 +504,7 @@ public class Leg{
 		IMyLandingGear LG = null;
 		foreach(IMyLandingGear LandingGear in GearList){
 			if(R2.TopGrid == LandingGear.CubeGrid){
+				Prog.Echo("Found Foot");
 				LG = LandingGear;
 				break;
 			}
@@ -771,27 +777,30 @@ double seconds_since_last_update = 0;
 
 
 private IMyShipController Controller = null;
-private Leg MyLeg = null;
 private List<LegPair> LegPairs = new List<LegPair>();
 
 
 public Program()
 {
     Me.CustomName = (Program_Name + " Programmable block").Trim();
-	Echo("Beginning initialization");
+	Write("Beginning initialization", true, false);
 	Controller = (new GenericMethods<IMyShipController>(this)).GetContaining("");
 	List<Leg> LeftLegs = new List<Leg>();
 	List<Leg> RightLegs = new List<Leg>();
-	foreach(IMyMotorStator Rotor in (new GenericMethods<IMyMotorStator(this)).GetAllContaining("Left Leg Rotor")){
+	foreach(IMyMotorStator Rotor in (new GenericMethods<IMyMotorStator>(this)).GetAllContaining("Left Leg Rotor")){
+		Write("Found Left Rotor: " + Rotor.CustomName);
 		Leg LeftLeg = null;
 		if(Leg.TryGet(this, Base6Directions.Direction.Left, Rotor, out LeftLeg)){
 			LeftLegs.Add(LeftLeg);
+			Write("Found Left Leg");
 		}
 	}
-	foreach(IMyMotorStator Rotor in (new GenericMethods<IMyMotorStator(this)).GetAllContaining("Right Leg Rotor")){
+	foreach(IMyMotorStator Rotor in (new GenericMethods<IMyMotorStator>(this)).GetAllContaining("Right Leg Rotor")){
+		Write("Found Right Rotor: " + Rotor.CustomName);
 		Leg RightLeg = null;
 		if(Leg.TryGet(this, Base6Directions.Direction.Right, Rotor, out RightLeg)){
 			RightLegs.Add(RightLeg);
+			Write("Found Right Leg");
 		}
 	}
 	
@@ -806,6 +815,7 @@ public Program()
 			if(distance >= max_distance - 0.1){
 				LegPair Pair = null;
 				if(LegPair.TryGet(this, LeftLegs[0], RightLegs[i], out Pair)){
+					Write("Found Leg Pair");
 					LegPairs.Add(Pair);
 					RightLegs.RemoveAt(i);
 					break;
@@ -819,11 +829,9 @@ public Program()
 		Runtime.UpdateFrequency = UpdateFrequency.Update1;
 	else{
 		if(Controller==null)
-			Echo("No controller");
-		else if(Rotor==null)
-			Echo("No Rotor");
+			Write("No controller");
 		else
-			Echo("No Leg");
+			Write("No Leg Pairs");
 	}
 	
 	// The constructor, called only once every session and
@@ -890,23 +898,38 @@ public void Main(string argument, UpdateType updateSource)
 	UpdateProgramInfo();
 	if(Controller.MoveIndicator.Z < 0){
 		last_input = "Forward";
-		MyLeg.Forward();
+		foreach(LegPair Pair in LegPairs){
+			Pair.Command = LegCommand.Forward;
+		}
 	}
 	else if(Controller.MoveIndicator.Z > 0){
 		last_input = "Backward";
-		MyLeg.Backward();
+		foreach(LegPair Pair in LegPairs){
+			Pair.Command = LegCommand.Backward;
+		}
+	}
+	else if(Controller.MoveIndicator.X > 0){
+		last_input = "Right";
+		foreach(LegPair Pair in LegPairs){
+			Pair.Command = LegCommand.Right;
+		}
+	}
+	else if(Controller.MoveIndicator.X < 0){
+		last_input = "Left";
+		foreach(LegPair Pair in LegPairs){
+			Pair.Command = LegCommand.Left;
+		}
 	}
 	else if(Controller.MoveIndicator.Y > 0){
 		last_input = "Stop";
-		MyLeg.Stop();
+		foreach(LegPair Pair in LegPairs){
+			Pair.Command = LegCommand.Stop;
+		}
 	}
-	MyLeg.Update();
+	foreach(LegPair Pair in LegPairs){
+		Pair.Update();
+	}
 	Write(last_input, last_input.Length>0, false);
-	Write(MyLeg.Status.ToString() + '-' + MyLeg.TargetLeg.ToString());
-	Write(MyLeg.Stride.ToString() + '-' + MyLeg.TargetStride.ToString());
-	Write(Math.Round(MyLeg.LiftPercent,1).ToString() + '%');
-	Write(Math.Round(MyLeg.StridePercent,1).ToString() + '%');
-	Write(MyLeg.State.ToString());
     // The main entry point of the script, invoked every time
     // one of the programmable block's Run actions are invoked,
     // or the script updates itself. The updateSource argument
