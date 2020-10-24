@@ -251,15 +251,15 @@ private bool SetBlockData(IMyTerminalBlock Block, string Name, string Data){
 public enum LegStatus{
 	Raising = 0,
 	Lowering = 1,
-	Raised = 3,
-	Lowered = 4
+	Raised = 2,
+	Lowered = 3
 }
 
 public enum StrideStatus{
 	Rushing = 0,
-	Reversing = 2,
+	Reversing = 1,
 	Forward = 2,
-	Backward = 4
+	Backward = 3
 }
 
 public class Leg{
@@ -271,6 +271,7 @@ public class Leg{
 	private IMyMotorStator Rotor2;
 	private IMyLandingGear LandingGear;
 	private Base6Directions.Direction Side;
+	private Base6Directions.Direction Direction = Base6Directions.Direction.Forward;
 	protected MyGridProgram Program;
 	private float _Speed_Multx = 1.0f;
 	public float Speed_Multx{
@@ -284,8 +285,29 @@ public class Leg{
 		}
 	}
 	
-	private LegStatus TargetLeg = LegStatus.Lowered;
-	private StrideStatus TargetStride = StrideStatus.Forward;
+	public string DebugString = "";
+	
+	
+	private LegStatus _TargetLeg = LegStatus.Lowered;
+	public LegStatus TargetLeg{
+		get{
+			return _TargetLeg;
+		}
+		set{
+			if(value == LegStatus.Lowered || value == LegStatus.Raised)
+				_TargetLeg = value;
+		}
+	}
+	private StrideStatus _TargetStride = StrideStatus.Forward;
+	public StrideStatus TargetStride{
+		get{
+			return _TargetStride;
+		}
+		set{
+			if(value == StrideStatus.Forward || value == StrideStatus.Backward)
+				_TargetStride = value;
+		}
+	}
 	
 	public float LiftPercent{
 		get{
@@ -305,7 +327,7 @@ public class Leg{
 	
 	public float StridePercent{
 		get{
-			if(Side == Base6Directions.Direction.Right){
+			if((Side == Base6Directions.Direction.Right) ^ (Direction == Base6Directions.Direction.Backward)){
 				return Rotor1.Angle / ((Rotor1.UpperLimitRad - Rotor1.LowerLimitRad)) * 100.0f;
 			}
 			else {
@@ -314,54 +336,66 @@ public class Leg{
 		}
 	}
 	
-	private Base6Directions.Direction Direction = Base6Directions.Direction.Forward;
-	
 	private bool Stopped = true;
 	
+	private LegStatus _Status;
+	private bool UpdatedStatus = false;
 	public LegStatus Status{
 		get{
-			if(TargetLeg == LegStatus.Lowered){
-				if(LandingGear.LockMode == LandingGearMode.Locked)
-					return LegStatus.Lowered;
-				bool lowered = true;
-				lowered = lowered && Hinge1.Angle >= Hinge1.UpperLimitRad - .02f;
-				lowered = lowered && Hinge2.Angle >= Hinge2.UpperLimitRad - .02f;
-				lowered = lowered && Hinge3.Angle >= Hinge3.UpperLimitRad - .02f;
-				lowered = lowered && Hinge4.Angle >= Hinge4.UpperLimitRad - .02f;
-				if(lowered)
-					return LegStatus.Lowered;
-				else
-					return LegStatus.Lowering;
+			if(!UpdatedStatus){
+				if(TargetLeg == LegStatus.Lowered){
+					if(LandingGear.LockMode == LandingGearMode.Locked){
+						_Status = LegStatus.Lowered;
+					}
+					else {
+						bool lowered = true;
+						lowered = lowered && Hinge1.Angle >= Hinge1.UpperLimitRad - .02f;
+						lowered = lowered && Hinge2.Angle >= Hinge2.UpperLimitRad - .02f;
+						lowered = lowered && Hinge3.Angle >= Hinge3.UpperLimitRad - .02f;
+						lowered = lowered && Hinge4.Angle >= Hinge4.UpperLimitRad - .02f;
+						if(lowered)
+							_Status = LegStatus.Lowered;
+						else
+							_Status = LegStatus.Lowering;
+						}
+				}
+				else {
+					bool raised = true;
+					raised = raised && Hinge1.Angle <= Hinge1.LowerLimitRad + .02f;
+					raised = raised && Hinge2.Angle <= Hinge2.LowerLimitRad + .02f;
+					raised = raised && Hinge3.Angle <= Hinge3.LowerLimitRad + .02f;
+					raised = raised && Hinge4.Angle <= Hinge4.LowerLimitRad + .02f;
+					if(raised)
+						_Status = LegStatus.Raised;
+					else
+						_Status = LegStatus.Raising;
+				}
+				UpdatedStatus = true;
 			}
-			else {
-				bool raised = true;
-				raised = raised && Hinge1.Angle <= Hinge1.LowerLimitRad + .02f;
-				raised = raised && Hinge2.Angle <= Hinge2.LowerLimitRad + .02f;
-				raised = raised && Hinge3.Angle <= Hinge3.LowerLimitRad + .02f;
-				raised = raised && Hinge4.Angle <= Hinge4.LowerLimitRad + .02f;
-				if(raised)
-					return LegStatus.Raised;
-				else
-					return LegStatus.Raising;
-			}
+			return _Status;
 		}
 	}
 	
+	private StrideStatus _Stride;
+	private bool UpdatedStride = false;
 	public StrideStatus Stride{
 		get{
-			if(TargetStride == StrideStatus.Forward){
-				
-				if((Side == Base6Directions.Direction.Right && Rotor1.Angle >= Rotor1.UpperLimitRad - 0.02f) || (Side == Base6Directions.Direction.Left && Rotor1.Angle <= Rotor1.LowerLimitRad + 0.02f))
-					return StrideStatus.Forward;
-				else
-					return StrideStatus.Rushing;
+			if(!UpdatedStride){
+				if(TargetStride == StrideStatus.Forward){
+					if((Side == Base6Directions.Direction.Right && Rotor1.Angle >= Rotor1.UpperLimitRad - 0.02f) || (Side == Base6Directions.Direction.Left && Rotor1.Angle <= Rotor1.LowerLimitRad + 0.02f))
+						_Stride = StrideStatus.Forward;
+					else
+						_Stride = StrideStatus.Rushing;
+				}
+				else {
+					if((Side == Base6Directions.Direction.Right && Rotor1.Angle <= Rotor1.LowerLimitRad + 0.02f) || (Side == Base6Directions.Direction.Left && Rotor1.Angle >= Rotor1.UpperLimitRad - 0.02f))
+						_Stride = StrideStatus.Backward;
+					else
+						_Stride = StrideStatus.Reversing;
+				}
+				UpdatedStride = true;
 			}
-			else {
-				if((Side == Base6Directions.Direction.Right && Rotor1.Angle <= Rotor1.LowerLimitRad + 0.02f) || (Side == Base6Directions.Direction.Left && Rotor1.Angle >= Rotor1.UpperLimitRad - 0.02f))
-					return StrideStatus.Backward;
-				else
-					return StrideStatus.Reversing;
-			}
+			return _Stride;
 		}
 	}
 	
@@ -509,47 +543,59 @@ public class Leg{
 	}
 	
 	public void Forward(){
-		if(Direction != Base6Directions.Direction.Forward){
-			Direction = Base6Directions.Direction.Forward;
-			Rush();
-			Lower();
-		}
+		UpdatedStatus = false;
+		UpdatedStride = false;
+		Direction = Base6Directions.Direction.Forward;
+		Rush();
+		Lower();
 		Update();
 	}
 	
 	public void Backward(){
-		if(Direction != Base6Directions.Direction.Backward){		
-			Direction = Base6Directions.Direction.Backward;
-			Reverse();
-			Lower();
-		}
+		UpdatedStatus = false;
+		UpdatedStride = false;	
+		Direction = Base6Directions.Direction.Backward;
+		Reverse();
+		Lower();
 		Update();
 	}
 	
+	private bool MovingTowardsDirection(){
+		if(Direction == Base6Directions.Direction.Forward)
+			return TargetStride == StrideStatus.Forward;
+		if(Direction == Base6Directions.Direction.Backward)
+			return TargetStride == StrideStatus.Backward;
+		return false;
+	}
+	
 	public void Update(){
+		UpdatedStatus = false;
+		UpdatedStride = false;
 		if(Status == LegStatus.Raised){
 			Lower();
 		}
 		if(!Stopped){
-			if(Direction == Base6Directions.Direction.Forward && Stride == StrideStatus.Backward){
-				Rush();
+			DebugString = "None";
+			if(StridePercent <= 2.5f){
 				Raise();
+				DebugString = "Returning";
+				if(Direction == Base6Directions.Direction.Forward)
+					Rush();
+				else
+					Reverse();
 			}
-			else if(Direction == Base6Directions.Direction.Backward && Stride == StrideStatus.Forward){
-				Reverse();
-				Raise();
-			}
-			else if(Status == LegStatus.Lowered){
+			else if(Status == LegStatus.Lowered && StridePercent >= 97.5f){
 				Lower();
+				DebugString = "Pushing";
 				if(Direction == Base6Directions.Direction.Forward)
 					Reverse();
 				else if(Direction == Base6Directions.Direction.Backward)
 					Rush();
 			}
-			else if(Direction == Base6Directions.Direction.Forward && Status == LegStatus.Raising && StridePercent>=50.0f)
+			else if(Status == LegStatus.Raising && StridePercent>=50.0f && MovingTowardsDirection()){
 				Lower();
-			else if(Direction == Base6Directions.Direction.Backward && Status == LegStatus.Raising && StridePercent<=50.0f)
-				Lower();
+				DebugString = "Lowering";
+			}
 		}
 		if(TargetLeg == LegStatus.Lowered){
 			LandingGear.Lock();
@@ -657,27 +703,31 @@ private void UpdateProgramInfo(){
 	}
 }
 
+private string last_input = "";
 public void Main(string argument, UpdateType updateSource)
 {
 	UpdateProgramInfo();
-	Me.GetSurface(0).WriteText("", false);
 	if(Controller.MoveIndicator.Z < 0){
-		Me.GetSurface(0).WriteText("Forward", true);
+		last_input = "Forward";
 		MyLeg.Forward();
 	}
 	else if(Controller.MoveIndicator.Z > 0){
-		Me.GetSurface(0).WriteText("Backward", true);
+		last_input = "Backward";
 		MyLeg.Backward();
 	}
 	else if(Controller.MoveIndicator.Y > 0){
-		Me.GetSurface(0).WriteText("Stop", true);
+		last_input = "Stop";
 		MyLeg.Stop();
 	}
 	MyLeg.Update();
-	Me.GetSurface(0).WriteText('\n' + MyLeg.Status.ToString(), true);
-	Me.GetSurface(0).WriteText('\n' + MyLeg.Stride.ToString(), true);
+	Me.GetSurface(0).WriteText(last_input, false);
+	Me.GetSurface(0).WriteText('\n' + "Status: " + MyLeg.Status.ToString(), true);
+	Me.GetSurface(0).WriteText('\n' + "Stride: " + MyLeg.Stride.ToString(), true);
+	Me.GetSurface(0).WriteText('\n' + "TargetLeg: " + MyLeg.TargetLeg.ToString(), true);
+	Me.GetSurface(0).WriteText('\n' + "TargetStride: " + MyLeg.TargetStride.ToString(), true);
 	Me.GetSurface(0).WriteText('\n' + Math.Round(MyLeg.LiftPercent,1).ToString() + '%', true);
 	Me.GetSurface(0).WriteText('\n' + Math.Round(MyLeg.StridePercent,1).ToString() + '%', true);
+	Me.GetSurface(0).WriteText('\n' + MyLeg.DebugString, true);
     // The main entry point of the script, invoked every time
     // one of the programmable block's Run actions are invoked,
     // or the script updates itself. The updateSource argument
