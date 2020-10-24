@@ -510,7 +510,7 @@ public class Leg{
 		return true;
 	}
 	
-	private void Raise(){
+	public void Raise(){
 		float t = -3f * Speed_Multx;
 		TargetLeg = LegStatus.Raised;
 		Hinge1.TargetVelocityRPM = t;
@@ -520,7 +520,7 @@ public class Leg{
 		Stopped = false;
 	}
 	
-	private void Lower(){
+	public void Lower(){
 		float t = 3f * Speed_Multx;
 		TargetLeg = LegStatus.Lowered;
 		Hinge1.TargetVelocityRPM = t;
@@ -530,7 +530,7 @@ public class Leg{
 		Stopped = false;
 	}
 	
-	private void Rush(){
+	public void Rush(){
 		TargetStride = StrideStatus.Forward;
 		if(Side == Base6Directions.Direction.Right)
 			Rotor1.TargetVelocityRPM = 15f * Speed_Multx;
@@ -538,7 +538,7 @@ public class Leg{
 			Rotor1.TargetVelocityRPM = -15f * Speed_Multx;
 	}
 	
-	private void Reverse(){
+	public void Reverse(){
 		TargetStride = StrideStatus.Backward;
 		if(Side == Base6Directions.Direction.Right)
 			Rotor1.TargetVelocityRPM = -15f * Speed_Multx;
@@ -564,6 +564,21 @@ public class Leg{
 		Stopped = true;
 	}
 	
+	public void Continue(){
+		if(TargetStride == StrideStatus.Forward){
+			Rush();
+		}
+		else {
+			Reverse();
+		}
+		if(TargetLeg == LegStatus.Raised){
+			Raise();
+		}
+		else {
+			Lower();
+		}
+	}
+	
 	private void UpdateHinge(IMyMotorStator Motor){
 		if(Status == LegStatus.Lowered)
 			Motor.TargetVelocityRPM = 0;
@@ -575,8 +590,11 @@ public class Leg{
 		UpdatedStatus = false;
 		UpdatedStride = false;
 		Direction = Base6Directions.Direction.Forward;
+		bool was_stopped = Stopped;
 		Rush();
 		Lower();
+		if(was_stopped)
+			Stop();
 		Update();
 	}
 	
@@ -584,8 +602,11 @@ public class Leg{
 		UpdatedStatus = false;
 		UpdatedStride = false;	
 		Direction = Base6Directions.Direction.Backward;
+		bool was_stopped = Stopped;
 		Reverse();
 		Lower();
+		if(was_stopped)
+			Stop();
 		Update();
 	}
 	
@@ -671,10 +692,18 @@ public class LegPair{
 			Update();
 		}
 	}
+	private Base6Directions.Direction Preferance;
 	
 	private LegPair(Leg L, Leg R){
 		Left = L;
 		Right = R;
+		Random rnd = new Random();
+		if(rnd.Next(0,1)==0){
+			Preferance = Base6Directions.Direction.Right;
+		}
+		else {
+			Preferance = Base6Directions.Direction.Left;
+		}
 	}
 	
 	public static bool TryGet(MyGridProgram Prog, Leg LeftLeg, Leg RightLeg, out LegPair output){
@@ -688,7 +717,49 @@ public class LegPair{
 		return true;
 	}
 	
-	
+	public void Update(){
+		Leg MovingLeg = null;
+		Leg StaticLeg = null;
+		switch(Command){
+			case LegCommand.Stop:
+				Left.Stop();
+				Right.Stop();
+				break;
+			case LegCommand.Forward:
+				Left.Forward();
+				Right.Forward();
+				break;
+			case LegCommand.Backward:
+				Left.Backward();
+				Right.Backward();
+				break;
+			case LegCommand.Left:
+				Left.Backward();
+				Right.Forward();
+				break;
+			case LegCommand.Right:
+				Left.Forward();
+				Right.Backward();
+				break;
+		}
+		if(Left.Status == LegStatus.Lowered && (Right.Status != LegStatus.Lowered || Preferance == Base6Directions.Direction.Left) || (Right.Status != LegStatus.Lowered && Preferance == Base6Directions.Direction.Left)){
+			//Move Right, stop Left
+			MovingLeg = Right;
+			StaticLeg = Left;
+		}
+		else {
+			//Move Left, stop Right
+			MovingLeg = Left;
+			StaticLeg = Right;
+		}
+		StaticLeg.Lower();
+		if(StaticLeg.Status == LegStatus.Lowered)
+			StaticLeg.Stop();
+		if(Command != LegCommand.Stop)
+			MovingLeg.Continue();
+		StaticLeg.Update();
+		MovingLeg.Update();
+	}
 	
 }
 
