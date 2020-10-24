@@ -248,6 +248,14 @@ private bool SetBlockData(IMyTerminalBlock Block, string Name, string Data){
 	return true;
 }
 
+public void Write(string text, bool new_line=true, bool append=true){
+	Echo(text);
+	if(new_line)
+		Me.GetSurface(0).WriteText(text+'\n', append);
+	else
+		Me.GetSurface(0).WriteText(text, append);
+}
+
 public enum LegStatus{
 	Raising = 0,
 	Lowering = 1,
@@ -262,6 +270,13 @@ public enum StrideStatus{
 	Backward = 3
 }
 
+public enum LegState{
+	Stopped = 0,
+	Pushing = 1,
+	Lowering = 2,
+	Returning = 3
+}
+
 public class Leg{
 	private IMyMotorStator Rotor1;
 	private IMyMotorStator Hinge1;
@@ -270,7 +285,12 @@ public class Leg{
 	private IMyMotorStator Hinge4;
 	private IMyMotorStator Rotor2;
 	private IMyLandingGear LandingGear;
-	private Base6Directions.Direction Side;
+	private Base6Directions.Direction _Side;
+	public Base6Directions.Direction Side{
+		get{
+			return Side;
+		}
+	}
 	private Base6Directions.Direction Direction = Base6Directions.Direction.Forward;
 	protected MyGridProgram Program;
 	private float _Speed_Multx = 1.0f;
@@ -286,7 +306,12 @@ public class Leg{
 	}
 	
 	public string DebugString = "";
-	
+	private LegState _State = LegState.Stopped;
+	public LegState State{
+		get{
+			return _State;
+		}
+	}
 	
 	private LegStatus _TargetLeg = LegStatus.Lowered;
 	public LegStatus TargetLeg{
@@ -407,7 +432,11 @@ public class Leg{
 		Hinge4 = H4;
 		Rotor2 = R2;
 		LandingGear = LG;
-		Side = S;
+		_Side = S;
+	}
+	
+	public Vector3D GetPosition(){
+		return Rotor1.GetPosition();
 	}
 	
 	public static bool TryGet(MyGridProgram Prog, Base6Directions.Direction S, IMyMotorStator R1, out Leg output){
@@ -575,10 +604,9 @@ public class Leg{
 			Lower();
 		}
 		if(!Stopped){
-			DebugString = "None";
 			if(StridePercent <= 2.5f){
 				Raise();
-				DebugString = "Returning";
+				_State = LegState.Returning;
 				if(Direction == Base6Directions.Direction.Forward)
 					Rush();
 				else
@@ -586,7 +614,7 @@ public class Leg{
 			}
 			else if(Status == LegStatus.Lowered && StridePercent >= 97.5f){
 				Lower();
-				DebugString = "Pushing";
+				_State = LegState.Pushing;
 				if(Direction == Base6Directions.Direction.Forward)
 					Reverse();
 				else if(Direction == Base6Directions.Direction.Backward)
@@ -594,8 +622,11 @@ public class Leg{
 			}
 			else if(Status == LegStatus.Raising && StridePercent>=50.0f && MovingTowardsDirection()){
 				Lower();
-				DebugString = "Lowering";
+				_State = LegState.Lowering;
 			}
+		}
+		else {
+			_State = LegState.Stopped;
 		}
 		if(TargetLeg == LegStatus.Lowered){
 			LandingGear.Lock();
@@ -618,6 +649,49 @@ public class Leg{
 	}
 }
 
+public enum LegCommand{
+	Stop = 0,
+	Forward = 1,
+	Backward = 2,
+	Left = 3,
+	Right = 4
+}
+
+public class LegPair{
+	private Leg Left;
+	private Leg Right;
+	protected MyGridProgram Program;
+	private LegCommand _Command = LegCommand.Stop;
+	public LegCommand Command{
+		get{
+			return _Command;
+		}
+		set{
+			_Command = value;
+			Update();
+		}
+	}
+	
+	private LegPair(Leg L, Leg R){
+		Left = L;
+		Right = R;
+	}
+	
+	public static bool TryGet(MyGridProgram Prog, Leg LeftLeg, Leg RightLeg, out LegPair output){
+		output = null;
+		if(LeftLeg==null || LeftLeg.Side!=Base6Directions.Direction.Left)
+			return false;
+		if(RightLeg==null || RightLeg.Side!=Base6Directions.Direction.Right)
+			return false;
+		output = new LegPair(LeftLeg, RightLeg);
+		output.Program = Prog;
+		return true;
+	}
+	
+	
+	
+}
+
 private long cycle_long = 1;
 private long cycle = 0;
 private char loading_char = '|';
@@ -627,14 +701,50 @@ double seconds_since_last_update = 0;
 
 private IMyShipController Controller = null;
 private Leg MyLeg = null;
+private List<LegPair> LegPairs = new List<LegPair>();
+
 
 public Program()
 {
     Me.CustomName = (Program_Name + " Programmable block").Trim();
 	Echo("Beginning initialization");
 	Controller = (new GenericMethods<IMyShipController>(this)).GetContaining("");
-	IMyMotorStator Rotor = (new GenericMethods<IMyMotorStator>(this)).GetFull("Leg Rotor");
-	if(Controller!=null && Rotor!=null && Leg.TryGet(this, Base6Directions.Direction.Right, Rotor, out MyLeg))
+	List<Leg> LeftLegs = new List<Leg>();
+	List<Leg> RightLegs = new List<Leg>();
+	foreach(IMyMotorStator Rotor in (new GenericMethods<IMyMotorStator(this)).GetAllContaining("Left Leg Rotor")){
+		Leg LeftLeg = null;
+		if(Leg.TryGet(this, Base6Directions.Direction.Left, Rotor, out LeftLeg)){
+			LeftLegs.Add(LeftLeg);
+		}
+	}
+	foreach(IMyMotorStator Rotor in (new GenericMethods<IMyMotorStator(this)).GetAllContaining("Right Leg Rotor")){
+		Leg RightLeg = null;
+		if(Leg.TryGet(this, Base6Directions.Direction.Right, Rotor, out RightLeg)){
+			RightLegs.Add(RightLeg);
+		}
+	}
+	
+	while(LeftLegs.Count > 0 && RightLegs.Count > 0){
+		double max_distance = 0;
+		foreach(Leg RightLeg in RightLegs){
+			double distance = (LeftLegs[0].GetPosition()-RightLeg.GetPosition()).Length();
+			max_distance = Math.Max(max_distance, distance);
+		}
+		for(int i=0; i<RightLegs.Count; i++){
+			double distance = (LeftLegs[0].GetPosition()-RightLegs[i].GetPosition()).Length();
+			if(distance >= max_distance - 0.1){
+				LegPair Pair = null;
+				if(LegPair.TryGet(this, LeftLegs[0], RightLegs[i], out Pair)){
+					LegPairs.Add(Pair);
+					RightLegs.RemoveAt(i);
+					break;
+				}
+			}
+		}
+		LeftLegs.RemoveAt(0);
+	}
+	
+	if(Controller!=null && LegPairs.Count > 0)
 		Runtime.UpdateFrequency = UpdateFrequency.Update1;
 	else{
 		if(Controller==null)
@@ -720,14 +830,12 @@ public void Main(string argument, UpdateType updateSource)
 		MyLeg.Stop();
 	}
 	MyLeg.Update();
-	Me.GetSurface(0).WriteText(last_input, false);
-	Me.GetSurface(0).WriteText('\n' + "Status: " + MyLeg.Status.ToString(), true);
-	Me.GetSurface(0).WriteText('\n' + "Stride: " + MyLeg.Stride.ToString(), true);
-	Me.GetSurface(0).WriteText('\n' + "TargetLeg: " + MyLeg.TargetLeg.ToString(), true);
-	Me.GetSurface(0).WriteText('\n' + "TargetStride: " + MyLeg.TargetStride.ToString(), true);
-	Me.GetSurface(0).WriteText('\n' + Math.Round(MyLeg.LiftPercent,1).ToString() + '%', true);
-	Me.GetSurface(0).WriteText('\n' + Math.Round(MyLeg.StridePercent,1).ToString() + '%', true);
-	Me.GetSurface(0).WriteText('\n' + MyLeg.DebugString, true);
+	Write(last_input, last_input.Length>0, false);
+	Write(MyLeg.Status.ToString() + '-' + MyLeg.TargetLeg.ToString());
+	Write(MyLeg.Stride.ToString() + '-' + MyLeg.TargetStride.ToString());
+	Write(Math.Round(MyLeg.LiftPercent,1).ToString() + '%');
+	Write(Math.Round(MyLeg.StridePercent,1).ToString() + '%');
+	Write(MyLeg.State.ToString());
     // The main entry point of the script, invoked every time
     // one of the programmable block's Run actions are invoked,
     // or the script updates itself. The updateSource argument
