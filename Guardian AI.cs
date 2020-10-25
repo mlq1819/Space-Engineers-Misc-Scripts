@@ -75,6 +75,27 @@ public class GenericMethods<T> where T : class, IMyTerminalBlock{
 		return GetContaining(name, double.MaxValue);
 	}
 	
+	public List<T> GetAllIncluding(string name, Vector3D Reference, double max_distance = double.MaxValue){
+		List<T> AllBlocks = new List<T>();
+		List<T> MyBlocks = new List<T>();
+		TerminalSystem.GetBlocksOfType<T>(AllBlocks);
+		foreach(T Block in AllBlocks){
+			double distance = (Reference - Block.GetPosition()).Length();
+			if(Block.CustomName.Contains(name) && distance <= max_distance){
+				MyBlocks.Add(Block);
+			}
+		}
+		return MyBlocks;
+	}
+	
+	public List<T> GetAllIncluding(string name, IMyTerminalBlock Reference, double max_distance = double.MaxValue){
+		return GetAllIncluding(name, Reference.GetPosition(), max_distance);
+	}
+	
+	public List<T> GetAllIncluding(string name, double max_distance = double.MaxValue){
+		return GetAllIncluding(name, Prog, max_distance);
+	}
+	
 	public List<T> GetAllContaining(string name, double max_distance, Vector3D Reference){
 		List<T> AllBlocks = new List<T>();
 		List<List<T>> MyLists = new List<List<T>>();
@@ -288,7 +309,7 @@ public class Leg{
 	private Base6Directions.Direction _Side;
 	public Base6Directions.Direction Side{
 		get{
-			return Side;
+			return _Side;
 		}
 	}
 	private Base6Directions.Direction Direction = Base6Directions.Direction.Forward;
@@ -334,18 +355,29 @@ public class Leg{
 		}
 	}
 	
+	public float FromTarget{
+		get{
+			if((TargetStride == StrideStatus.Forward) ^ (Direction == Base6Directions.Direction.Backward)){
+				return StridePercent;
+			}
+			else{
+				return 100.0f - StridePercent;
+			}
+		}
+	}
+	
 	public float LiftPercent{
 		get{
 			float total_range = 0;
 			float sum_range = 0;
 			total_range += Hinge1.UpperLimitRad - Hinge1.LowerLimitRad;
-			sum_range += Hinge1.Angle;
+			sum_range += Hinge1.Angle - Hinge1.LowerLimitRad;
 			total_range += Hinge2.UpperLimitRad - Hinge2.LowerLimitRad;
-			sum_range += Hinge2.Angle;
+			sum_range += Hinge2.Angle - Hinge2.LowerLimitRad;
 			total_range += Hinge3.UpperLimitRad - Hinge3.LowerLimitRad;
-			sum_range += Hinge3.Angle;
+			sum_range += Hinge3.Angle - Hinge3.LowerLimitRad;
 			total_range += Hinge4.UpperLimitRad - Hinge4.LowerLimitRad;
-			sum_range += Hinge4.Angle;
+			sum_range += Hinge4.Angle - Hinge4.LowerLimitRad;
 			return (1-(sum_range / total_range)) * 100.0f;
 		}
 	}
@@ -445,66 +477,60 @@ public class Leg{
 			return false;
 		if(S != Base6Directions.Direction.Left && S != Base6Directions.Direction.Right)
 			return false;
-		List<IMyMotorStator> MotorList = (new GenericMethods<IMyMotorStator>(Prog)).GetAllContaining("Leg Hinge 1");
+		List<IMyMotorStator> MotorList = (new GenericMethods<IMyMotorStator>(Prog)).GetAllIncluding("Leg Hinge 1");
 		IMyMotorStator H1 = null;
 		foreach(IMyMotorStator Hinge in MotorList){
 			if(R1.TopGrid == Hinge.CubeGrid){
-				Prog.Echo("Found Hinge 1");
 				H1 = Hinge;
 				break;
 			}
 		}
 		if(H1 == null)
 			return false;
-		MotorList = (new GenericMethods<IMyMotorStator>(Prog)).GetAllContaining("Leg Hinge 2");
+		MotorList = (new GenericMethods<IMyMotorStator>(Prog)).GetAllIncluding("Leg Hinge 2");
 		IMyMotorStator H2 = null;
 		foreach(IMyMotorStator Hinge in MotorList){
 			if(H1.TopGrid == Hinge.CubeGrid){
-				Prog.Echo("Found Hinge 2");
 				H2 = Hinge;
 				break;
 			}
 		}
 		if(H2 == null)
 			return false;
-		MotorList = (new GenericMethods<IMyMotorStator>(Prog)).GetAllContaining("Leg Hinge 3");
+		MotorList = (new GenericMethods<IMyMotorStator>(Prog)).GetAllIncluding("Leg Hinge 3");
 		IMyMotorStator H3 = null;
 		foreach(IMyMotorStator Hinge in MotorList){
 			if(H2.TopGrid == Hinge.CubeGrid){
-				Prog.Echo("Found Hinge 3");
 				H3 = Hinge;
 				break;
 			}
 		}
 		if(H3 == null)
 			return false;
-		MotorList = (new GenericMethods<IMyMotorStator>(Prog)).GetAllContaining("Leg Hinge 4");
+		MotorList = (new GenericMethods<IMyMotorStator>(Prog)).GetAllIncluding("Leg Hinge 4");
 		IMyMotorStator H4 = null;
 		foreach(IMyMotorStator Hinge in MotorList){
 			if(H3.TopGrid == Hinge.CubeGrid){
-				Prog.Echo("Found Hinge 4");
 				H4 = Hinge;
 				break;
 			}
 		}
 		if(H4 == null)
 			return false;
-		MotorList = (new GenericMethods<IMyMotorStator>(Prog)).GetAllContaining("Ankle Rotor");
+		MotorList = (new GenericMethods<IMyMotorStator>(Prog)).GetAllIncluding("Ankle Rotor");
 		IMyMotorStator R2 = null;
 		foreach(IMyMotorStator Rotor in MotorList){
 			if(H4.TopGrid == Rotor.CubeGrid){
-				Prog.Echo("Found Rotor 2");
 				R2 = Rotor;
 				break;
 			}
 		}
 		if(R2 == null)
 			return false;
-		List<IMyLandingGear> GearList = (new GenericMethods<IMyLandingGear>(Prog)).GetAllContaining("Foot");
+		List<IMyLandingGear> GearList = (new GenericMethods<IMyLandingGear>(Prog)).GetAllIncluding("Foot");
 		IMyLandingGear LG = null;
 		foreach(IMyLandingGear LandingGear in GearList){
 			if(R2.TopGrid == LandingGear.CubeGrid){
-				Prog.Echo("Found Foot");
 				LG = LandingGear;
 				break;
 			}
@@ -583,6 +609,7 @@ public class Leg{
 		else {
 			Lower();
 		}
+		Progress = true;
 	}
 	
 	private void UpdateHinge(IMyMotorStator Motor){
@@ -624,6 +651,8 @@ public class Leg{
 		return false;
 	}
 	
+	private bool Progress = true;
+	
 	public void Update(){
 		UpdatedStatus = false;
 		UpdatedStride = false;
@@ -632,14 +661,17 @@ public class Leg{
 		}
 		if(!Stopped){
 			if(StridePercent <= 2.5f){
-				Raise();
-				_State = LegState.Returning;
-				if(Direction == Base6Directions.Direction.Forward)
-					Rush();
-				else
-					Reverse();
+				if(Progress){
+					Raise();
+					_State = LegState.Returning;
+					if(Direction == Base6Directions.Direction.Forward)
+						Rush();
+					else
+						Reverse();
+				}
 			}
 			else if(Status == LegStatus.Lowered && StridePercent >= 97.5f){
+				Progress = false;
 				Lower();
 				_State = LegState.Pushing;
 				if(Direction == Base6Directions.Direction.Forward)
@@ -685,8 +717,8 @@ public enum LegCommand{
 }
 
 public class LegPair{
-	private Leg Left;
-	private Leg Right;
+	public Leg Left;
+	public Leg Right;
 	protected MyGridProgram Program;
 	private LegCommand _Command = LegCommand.Stop;
 	public LegCommand Command{
@@ -699,6 +731,11 @@ public class LegPair{
 		}
 	}
 	private Base6Directions.Direction Preferance;
+	
+	public static int LeftLockCount = 0;
+	public static int RightLockCount = 0;
+	private bool LeftLock = false;
+	private bool RightLock = false;
 	
 	private LegPair(Leg L, Leg R){
 		Left = L;
@@ -723,46 +760,103 @@ public class LegPair{
 		return true;
 	}
 	
+	private LegCommand LastCommand = LegCommand.Stop;
 	public void Update(){
 		Leg MovingLeg = null;
 		Leg StaticLeg = null;
-		switch(Command){
-			case LegCommand.Stop:
-				Left.Stop();
-				Right.Stop();
-				break;
-			case LegCommand.Forward:
-				Left.Forward();
-				Right.Forward();
-				break;
-			case LegCommand.Backward:
-				Left.Backward();
-				Right.Backward();
-				break;
-			case LegCommand.Left:
-				Left.Backward();
-				Right.Forward();
-				break;
-			case LegCommand.Right:
-				Left.Forward();
-				Right.Backward();
-				break;
+		
+		if(Left.Status == LegStatus.Lowered){
+			if(!LeftLock){
+				LeftLockCount++;
+				LeftLock=true;
+			}
 		}
-		if(Left.Status == LegStatus.Lowered && (Right.Status != LegStatus.Lowered || Preferance == Base6Directions.Direction.Left) || (Right.Status != LegStatus.Lowered && Preferance == Base6Directions.Direction.Left)){
-			//Move Right, stop Left
+		else {
+			if(LeftLock){
+				LeftLockCount--;
+				LeftLock=false;
+			}
+		}
+		if(Right.Status == LegStatus.Lowered){
+			if(!RightLock){
+				RightLockCount++;
+				RightLock=true;
+			}
+		}
+		else {
+			if(RightLock){
+				RightLockCount--;
+				RightLock=false;
+			}
+		}
+		if(LastCommand != Command){
+			switch(Command){
+				case LegCommand.Stop:
+					Left.Stop();
+					Right.Stop();
+					break;
+				case LegCommand.Forward:
+					Left.Forward();
+					Right.Forward();
+					break;
+				case LegCommand.Backward:
+					Left.Backward();
+					Right.Backward();
+					break;
+				case LegCommand.Left:
+					Left.Backward();
+					Right.Forward();
+					break;
+				case LegCommand.Right:
+					Left.Forward();
+					Right.Backward();
+					break;
+			}
+			LastCommand = Command;
+		}
+		
+		
+		
+		if(LeftLock && RightLock){
+			if(Left.StridePercent < Right.StridePercent){
+				MovingLeg = Left;
+				StaticLeg = Right;
+			}
+			else {
+				MovingLeg = Right;
+				StaticLeg = Left;
+			}
+			MovingLeg.Raise();
+		}
+		else if(LeftLock){
 			MovingLeg = Right;
 			StaticLeg = Left;
 		}
-		else {
-			//Move Left, stop Right
+		else if(RightLock){
 			MovingLeg = Left;
 			StaticLeg = Right;
 		}
-		StaticLeg.Lower();
-		if(StaticLeg.Status == LegStatus.Lowered)
-			StaticLeg.Stop();
-		if(Command != LegCommand.Stop)
+		else{
+			if(Preferance == Base6Directions.Direction.Left){
+				MovingLeg = Right;
+				StaticLeg = Left;
+			}
+			else {
+				MovingLeg = Left;
+				StaticLeg = Right;
+			}
+		}
+		
+		bool cont = true;
+		if(StaticLeg == Left){
+			cont = (RightLockCount == 0);
+		}
+		else {
+			cont = (LeftLockCount == 0);
+		}
+		if(cont && Command!=LegCommand.Stop){
 			MovingLeg.Continue();
+		}
 		StaticLeg.Update();
 		MovingLeg.Update();
 	}
@@ -772,13 +866,12 @@ public class LegPair{
 private long cycle_long = 1;
 private long cycle = 0;
 private char loading_char = '|';
-private const string Program_Name = ""; //Name me!
+private const string Program_Name = "Guardian AI"; //Name me!
 double seconds_since_last_update = 0;
 
 
 private IMyShipController Controller = null;
 private List<LegPair> LegPairs = new List<LegPair>();
-
 
 public Program()
 {
@@ -787,23 +880,18 @@ public Program()
 	Controller = (new GenericMethods<IMyShipController>(this)).GetContaining("");
 	List<Leg> LeftLegs = new List<Leg>();
 	List<Leg> RightLegs = new List<Leg>();
-	foreach(IMyMotorStator Rotor in (new GenericMethods<IMyMotorStator>(this)).GetAllContaining("Left Leg Rotor")){
-		Write("Found Left Rotor: " + Rotor.CustomName);
+	foreach(IMyMotorStator Rotor in (new GenericMethods<IMyMotorStator>(this)).GetAllIncluding("Left Leg Rotor")){
 		Leg LeftLeg = null;
 		if(Leg.TryGet(this, Base6Directions.Direction.Left, Rotor, out LeftLeg)){
 			LeftLegs.Add(LeftLeg);
-			Write("Found Left Leg");
 		}
 	}
-	foreach(IMyMotorStator Rotor in (new GenericMethods<IMyMotorStator>(this)).GetAllContaining("Right Leg Rotor")){
-		Write("Found Right Rotor: " + Rotor.CustomName);
+	foreach(IMyMotorStator Rotor in (new GenericMethods<IMyMotorStator>(this)).GetAllIncluding("Right Leg Rotor")){
 		Leg RightLeg = null;
 		if(Leg.TryGet(this, Base6Directions.Direction.Right, Rotor, out RightLeg)){
 			RightLegs.Add(RightLeg);
-			Write("Found Right Leg");
 		}
 	}
-	
 	while(LeftLegs.Count > 0 && RightLegs.Count > 0){
 		double max_distance = 0;
 		foreach(Leg RightLeg in RightLegs){
@@ -833,17 +921,6 @@ public Program()
 		else
 			Write("No Leg Pairs");
 	}
-	
-	// The constructor, called only once every session and
-    // always before any other method is called. Use it to
-    // initialize your script. 
-    //     
-    // The constructor is optional and can be removed if not
-    // needed.
-    // 
-    // It's recommended to set RuntimeInfo.UpdateFrequency 
-    // here, which will allow your script to run itself without a 
-    // timer block.
 }
 
 public void Save()
@@ -873,7 +950,7 @@ private void UpdateProgramInfo(){
 			loading_char='|';
 			break;
 	}
-	Echo(Program_Name + " OS " + cycle_long.ToString() + '-' + cycle.ToString() + " (" + loading_char + ")");
+	Write(Program_Name + " OS " + cycle_long.ToString() + '-' + cycle.ToString() + " (" + loading_char + ")", true, false);
 	seconds_since_last_update = Runtime.TimeSinceLastRun.TotalSeconds + (Runtime.LastRunTimeMs / 1000);
 	if(seconds_since_last_update<1){
 		Echo(Math.Round(seconds_since_last_update*1000, 0).ToString() + " milliseconds\n");
@@ -926,10 +1003,19 @@ public void Main(string argument, UpdateType updateSource)
 			Pair.Command = LegCommand.Stop;
 		}
 	}
+	Write(last_input);
+	Write("Left Locks:" + LegPair.LeftLockCount);
+	Write("Right Locks:" + LegPair.RightLockCount);
 	foreach(LegPair Pair in LegPairs){
 		Pair.Update();
+		Write("Left-" + Pair.Left.State.ToString());
+		Write(Pair.Left.Status.ToString() + '-' + Pair.Left.TargetLeg.ToString());
+		Write(Pair.Left.Stride.ToString() + '-' + Pair.Left.TargetStride.ToString());
+		Write("Right-" + Pair.Right.State.ToString());
+		Write(Pair.Right.Status.ToString() + '-' + Pair.Right.TargetLeg.ToString());
+		Write(Pair.Right.Stride.ToString() + '-' + Pair.Right.TargetStride.ToString());
 	}
-	Write(last_input, last_input.Length>0, false);
+	
     // The main entry point of the script, invoked every time
     // one of the programmable block's Run actions are invoked,
     // or the script updates itself. The updateSource argument
