@@ -299,6 +299,7 @@ public enum LegState{
 }
 
 public class Leg{
+	private const float MARGIN = 5f;
 	private IMyMotorStator Rotor1;
 	private IMyMotorStator Hinge1;
 	private IMyMotorStator Hinge2;
@@ -550,6 +551,7 @@ public class Leg{
 		Hinge3.TargetVelocityRPM = t;
 		Hinge4.TargetVelocityRPM = t;
 		Stopped = false;
+		LandingGear.AutoLock=false;
 	}
 	
 	public void Lower(){
@@ -560,6 +562,7 @@ public class Leg{
 		Hinge3.TargetVelocityRPM = t;
 		Hinge4.TargetVelocityRPM = t;
 		Stopped = false;
+		LandingGear.AutoLock=true;
 	}
 	
 	public void Rush(){
@@ -597,17 +600,21 @@ public class Leg{
 	}
 	
 	public void Continue(){
-		if(TargetStride == StrideStatus.Forward){
-			Rush();
+		if(Stride != TargetStride){
+			if(TargetStride == StrideStatus.Forward){
+				Rush();
+			}
+			else {
+				Reverse();
+			}
 		}
-		else {
-			Reverse();
-		}
-		if(TargetLeg == LegStatus.Raised){
-			Raise();
-		}
-		else {
-			Lower();
+		if(Status != TargetLeg){
+			if(TargetLeg == LegStatus.Raised){
+				Raise();
+			}
+			else {
+				Lower();
+			}
 		}
 		Progress = true;
 	}
@@ -660,9 +667,10 @@ public class Leg{
 			Lower();
 		}
 		if(!Stopped){
-			if(StridePercent <= 2.5f){
+			if(StridePercent <= MARGIN){
 				if(Progress){
-					Raise();
+					if(Status == LegStatus.Lowered)
+						Raise();
 					_State = LegState.Returning;
 					if(Direction == Base6Directions.Direction.Forward)
 						Rush();
@@ -670,14 +678,16 @@ public class Leg{
 						Reverse();
 				}
 			}
-			else if(Status == LegStatus.Lowered && StridePercent >= 97.5f){
-				Progress = false;
+			else if(StridePercent >= 100 - MARGIN){
 				Lower();
-				_State = LegState.Pushing;
-				if(Direction == Base6Directions.Direction.Forward)
-					Reverse();
-				else if(Direction == Base6Directions.Direction.Backward)
-					Rush();
+				if(Status == LegStatus.Lowered){
+					Progress = false;
+					_State = LegState.Pushing;
+					if(Direction == Base6Directions.Direction.Forward)
+						Reverse();
+					else if(Direction == Base6Directions.Direction.Backward)
+						Rush();
+				}
 			}
 			else if(Status == LegStatus.Raising && StridePercent>=50.0f && MovingTowardsDirection()){
 				Lower();
@@ -732,10 +742,87 @@ public class LegPair{
 	}
 	private Base6Directions.Direction Preferance;
 	
+	public static int PairCount = 0;
 	public static int LeftLockCount = 0;
 	public static int RightLockCount = 0;
-	private bool LeftLock = false;
-	private bool RightLock = false;
+	private bool _LeftLock = false;
+	private bool LeftLock{
+		get{
+			return _LeftLock;
+		}
+		set{
+			if(value!=_LeftLock){
+				if(value){
+					LeftLockCount++;
+				}
+				else {
+					LeftLockCount--;
+				}
+			}
+			_LeftLock = value;
+		}
+	}
+	private bool _RightLock = false;
+	private bool RightLock{
+		get{
+			return _RightLock;
+		}
+		set{
+			if(value!=_RightLock){
+				if(value){
+					RightLockCount++;
+				}
+				else {
+					RightLockCount--;
+				}
+			}
+			_RightLock = value;
+		}
+	}
+	public static int NextLockLeftVote = 0;
+	public static int NextLockRightVote = 0;
+	private bool _NextLockLeft = false;
+	private bool NextLockLeft{
+		get{
+			return _NextLockLeft;
+		}
+		set{
+			if(value != _NextLockLeft){
+				if(value){
+					NextLockLeftVote++;
+					NextLockRightVote = Math.Max(0, NextLockRightVote-1);
+					NextLockRight = false;
+				}
+				else {
+					NextLockLeftVote = Math.Max(0, NextLockLeftVote-1);
+				}
+				ChangedVote = 100;
+			}
+			_NextLockLeft = value;
+		}
+	}
+	private bool _NextLockRight = false;
+	private bool NextLockRight{
+		get{
+			return _NextLockRight;
+		}
+		set{
+			if(value != _NextLockRight){
+				if(value){
+					NextLockRightVote++;
+					NextLockLeftVote = Math.Max(0, NextLockLeftVote-1);
+					NextLockLeft = false;
+				}
+				else {
+					NextLockRightVote = Math.Max(0, NextLockRightVote-1);
+				}
+				ChangedVote = 100;
+			}
+			_NextLockRight = value;
+		}
+	}
+	private int ChangedVote = 0;
+	
 	
 	private LegPair(Leg L, Leg R){
 		Left = L;
@@ -765,30 +852,11 @@ public class LegPair{
 		Leg MovingLeg = null;
 		Leg StaticLeg = null;
 		
-		if(Left.Status == LegStatus.Lowered){
-			if(!LeftLock){
-				LeftLockCount++;
-				LeftLock=true;
-			}
-		}
-		else {
-			if(LeftLock){
-				LeftLockCount--;
-				LeftLock=false;
-			}
-		}
-		if(Right.Status == LegStatus.Lowered){
-			if(!RightLock){
-				RightLockCount++;
-				RightLock=true;
-			}
-		}
-		else {
-			if(RightLock){
-				RightLockCount--;
-				RightLock=false;
-			}
-		}
+		Program.Echo('\n' + "Update()");
+		
+		LeftLock = (Left.Status == LegStatus.Lowered);
+		RightLock = (Right.Status == LegStatus.Lowered);
+		
 		if(LastCommand != Command){
 			switch(Command){
 				case LegCommand.Stop:
@@ -812,10 +880,7 @@ public class LegPair{
 					Right.Backward();
 					break;
 			}
-			LastCommand = Command;
 		}
-		
-		
 		
 		if(LeftLock && RightLock){
 			if(Left.StridePercent < Right.StridePercent){
@@ -847,18 +912,37 @@ public class LegPair{
 			}
 		}
 		
-		bool cont = true;
-		if(StaticLeg == Left){
-			cont = (RightLockCount == 0);
+		if(MovingLeg == Left){
+			NextLockLeft = true;
 		}
 		else {
-			cont = (LeftLockCount == 0);
+			NextLockRight = true;
 		}
-		if(cont && Command!=LegCommand.Stop){
+		if(ChangedVote>0){
+			ChangedVote--;
+		}
+		else {
+			if(NextLockLeftVote > NextLockRightVote && NextLockLeftVote > (PairCount/2)){
+				MovingLeg = Left;
+				StaticLeg = Right;
+			}
+			else if(NextLockRightVote > NextLockLeftVote && NextLockRightVote > (PairCount/2)){
+				MovingLeg = Right;
+				StaticLeg = Left;
+			}
+		}
+		if(MovingLeg == Left){
+			Program.Echo("ML, SR");
+		}
+		else {
+			Program.Echo("MR, SL");
+		}
+		if(Command!=LegCommand.Stop || LastCommand!=Command){
 			MovingLeg.Continue();
+			StaticLeg.Update();
+			MovingLeg.Update();
 		}
-		StaticLeg.Update();
-		MovingLeg.Update();
+		LastCommand = Command;
 	}
 	
 }
@@ -912,6 +996,8 @@ public Program()
 		}
 		LeftLegs.RemoveAt(0);
 	}
+	
+	LegPair.PairCount = LegPairs.Count;
 	
 	if(Controller!=null && LegPairs.Count > 0)
 		Runtime.UpdateFrequency = UpdateFrequency.Update1;
@@ -997,10 +1083,17 @@ public void Main(string argument, UpdateType updateSource)
 			Pair.Command = LegCommand.Left;
 		}
 	}
-	else if(Controller.MoveIndicator.Y > 0){
+	else if(Controller.MoveIndicator.Y != 0){
 		last_input = "Stop";
 		foreach(LegPair Pair in LegPairs){
 			Pair.Command = LegCommand.Stop;
+		}
+		if(Controller.MoveIndicator.Y < 0){
+			List<IMyLandingGear> AllGear = new List<IMyLandingGear>();
+			GridTerminalSystem.GetBlocksOfType<IMyLandingGear>(AllGear);
+			foreach(IMyLandingGear Gear in AllGear){
+				Gear.Unlock();
+			}
 		}
 	}
 	Write(last_input);
@@ -1008,13 +1101,9 @@ public void Main(string argument, UpdateType updateSource)
 	Write("Right Locks:" + LegPair.RightLockCount);
 	foreach(LegPair Pair in LegPairs){
 		Pair.Update();
-		Write("Left-" + Pair.Left.State.ToString());
-		Write(Pair.Left.Status.ToString() + '-' + Pair.Left.TargetLeg.ToString());
-		Write(Pair.Left.Stride.ToString() + '-' + Pair.Left.TargetStride.ToString());
-		Write("Right-" + Pair.Right.State.ToString());
-		Write(Pair.Right.Status.ToString() + '-' + Pair.Right.TargetLeg.ToString());
-		Write(Pair.Right.Stride.ToString() + '-' + Pair.Right.TargetStride.ToString());
 	}
+	Write("LeftVote: " + LegPair.NextLockLeftVote);
+	Write("RightVote: " + LegPair.NextLockRightVote);
 	
     // The main entry point of the script, invoked every time
     // one of the programmable block's Run actions are invoked,
