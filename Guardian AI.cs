@@ -300,6 +300,8 @@ public enum LegState{
 
 public class Leg{
 	private const float MARGIN = 5f;
+	private const float RAISE_SPEED = 9.0f;
+	private const float ROTATE_SPEED = 15.0f;
 	private IMyMotorStator Rotor1;
 	private IMyMotorStator Hinge1;
 	private IMyMotorStator Hinge2;
@@ -307,12 +309,7 @@ public class Leg{
 	private IMyMotorStator Hinge4;
 	private IMyMotorStator Rotor2;
 	private IMyLandingGear LandingGear;
-	private Base6Directions.Direction _Side;
-	public Base6Directions.Direction Side{
-		get{
-			return _Side;
-		}
-	}
+	public Base6Directions.Direction Side;
 	private Base6Directions.Direction Direction = Base6Directions.Direction.Forward;
 	protected MyGridProgram Program;
 	private float _Speed_Multx = 1.0f;
@@ -465,7 +462,7 @@ public class Leg{
 		Hinge4 = H4;
 		Rotor2 = R2;
 		LandingGear = LG;
-		_Side = S;
+		Side = S;
 	}
 	
 	public Vector3D GetPosition(){
@@ -544,18 +541,52 @@ public class Leg{
 	}
 	
 	public void Raise(){
-		float t = -3f * Speed_Multx;
+		float t = -1 * RAISE_SPEED * Speed_Multx;
 		TargetLeg = LegStatus.Raised;
 		Hinge1.TargetVelocityRPM = t;
 		Hinge2.TargetVelocityRPM = t;
 		Hinge3.TargetVelocityRPM = t;
 		Hinge4.TargetVelocityRPM = t;
 		Stopped = false;
+		LandingGear.Unlock();
 		LandingGear.AutoLock=false;
 	}
 	
+	public void Push(){
+		Lower();
+		if(Direction == Base6Directions.Direction.Forward){
+			Reverse();
+		}
+		else {
+			Rush();
+		}
+		_State = LegState.Pushing;
+	}
+	
+	public void Return(){
+		Raise();
+		if(Direction == Base6Directions.Direction.Forward){
+			Rush();
+		}
+		else {
+			Reverse();
+		}
+		_State = LegState.Returning;
+	}
+	
+	public void Drop(){
+		Lower();
+		if(Direction == Base6Directions.Direction.Forward){
+			Rush();
+		}
+		else {
+			Reverse();
+		}
+		_State = LegState.Lowering;
+	}
+	
 	public void Lower(){
-		float t = 3f * Speed_Multx;
+		float t = RAISE_SPEED * Speed_Multx;
 		TargetLeg = LegStatus.Lowered;
 		Hinge1.TargetVelocityRPM = t;
 		Hinge2.TargetVelocityRPM = t;
@@ -568,17 +599,17 @@ public class Leg{
 	public void Rush(){
 		TargetStride = StrideStatus.Forward;
 		if(Side == Base6Directions.Direction.Right)
-			Rotor1.TargetVelocityRPM = 15f * Speed_Multx;
+			Rotor1.TargetVelocityRPM = ROTATE_SPEED * Speed_Multx;
 		if(Side == Base6Directions.Direction.Left)
-			Rotor1.TargetVelocityRPM = -15f * Speed_Multx;
+			Rotor1.TargetVelocityRPM = -1 * ROTATE_SPEED * Speed_Multx;
 	}
 	
 	public void Reverse(){
 		TargetStride = StrideStatus.Backward;
 		if(Side == Base6Directions.Direction.Right)
-			Rotor1.TargetVelocityRPM = -15f * Speed_Multx;
+			Rotor1.TargetVelocityRPM = -1 * ROTATE_SPEED * Speed_Multx;
 		if(Side == Base6Directions.Direction.Left)
-			Rotor1.TargetVelocityRPM = 15f * Speed_Multx;
+			Rotor1.TargetVelocityRPM = ROTATE_SPEED * Speed_Multx;
 	}
 	
 	private void UpdateMotor(IMyMotorStator Motor){
@@ -616,7 +647,6 @@ public class Leg{
 				Lower();
 			}
 		}
-		Progress = true;
 	}
 	
 	private void UpdateHinge(IMyMotorStator Motor){
@@ -658,50 +688,16 @@ public class Leg{
 		return false;
 	}
 	
-	private bool Progress = true;
-	
 	public void Update(){
 		UpdatedStatus = false;
 		UpdatedStride = false;
-		if(Status == LegStatus.Raised){
-			Lower();
-		}
-		if(!Stopped){
-			if(StridePercent <= MARGIN){
-				if(Progress){
-					if(Status == LegStatus.Lowered)
-						Raise();
-					_State = LegState.Returning;
-					if(Direction == Base6Directions.Direction.Forward)
-						Rush();
-					else
-						Reverse();
-				}
-			}
-			else if(StridePercent >= 100 - MARGIN){
-				Lower();
-				if(Status == LegStatus.Lowered){
-					Progress = false;
-					_State = LegState.Pushing;
-					if(Direction == Base6Directions.Direction.Forward)
-						Reverse();
-					else if(Direction == Base6Directions.Direction.Backward)
-						Rush();
-				}
-			}
-			else if(Status == LegStatus.Raising && StridePercent>=50.0f && MovingTowardsDirection()){
-				Lower();
-				_State = LegState.Lowering;
-			}
-		}
-		else {
+		if(Stopped){
 			_State = LegState.Stopped;
 		}
+		
+		LandingGear.AutoLock = (TargetLeg == LegStatus.Lowered);
 		if(TargetLeg == LegStatus.Lowered){
 			LandingGear.Lock();
-		}
-		else {
-			LandingGear.Unlock();
 		}
 		UpdateMotor(Rotor1);
 		UpdateHinge(Hinge1);
@@ -779,26 +775,15 @@ public class LegPair{
 			_RightLock = value;
 		}
 	}
-	public static int NextLockLeftVote = 0;
-	public static int NextLockRightVote = 0;
 	private bool _NextLockLeft = false;
 	private bool NextLockLeft{
 		get{
 			return _NextLockLeft;
 		}
 		set{
-			if(value != _NextLockLeft){
-				if(value){
-					NextLockLeftVote++;
-					NextLockRightVote = Math.Max(0, NextLockRightVote-1);
-					NextLockRight = false;
-				}
-				else {
-					NextLockLeftVote = Math.Max(0, NextLockLeftVote-1);
-				}
-				ChangedVote = 100;
-			}
 			_NextLockLeft = value;
+			if(_NextLockLeft)
+				_NextLockRight = false;
 		}
 	}
 	private bool _NextLockRight = false;
@@ -807,21 +792,11 @@ public class LegPair{
 			return _NextLockRight;
 		}
 		set{
-			if(value != _NextLockRight){
-				if(value){
-					NextLockRightVote++;
-					NextLockLeftVote = Math.Max(0, NextLockLeftVote-1);
-					NextLockLeft = false;
-				}
-				else {
-					NextLockRightVote = Math.Max(0, NextLockRightVote-1);
-				}
-				ChangedVote = 100;
-			}
 			_NextLockRight = value;
+			if(_NextLockRight)
+				_NextLockLeft = false;
 		}
 	}
-	private int ChangedVote = 0;
 	
 	
 	private LegPair(Leg L, Leg R){
@@ -850,7 +825,7 @@ public class LegPair{
 	private LegCommand LastCommand = LegCommand.Stop;
 	public void Update(){
 		Leg MovingLeg = null;
-		Leg StaticLeg = null;
+		Leg LockedLeg = null;
 		
 		Program.Echo('\n' + "Update()");
 		
@@ -883,65 +858,77 @@ public class LegPair{
 		}
 		
 		if(LeftLock && RightLock){
-			if(Left.StridePercent < Right.StridePercent){
-				MovingLeg = Left;
-				StaticLeg = Right;
+			if(NextLockLeft || (Left.StridePercent < Right.StridePercent && !NextLockRight)){
+				MovingLeg = Right;
+				LockedLeg = Left;
 			}
 			else {
-				MovingLeg = Right;
-				StaticLeg = Left;
+				MovingLeg = Left;
+				LockedLeg = Right;
 			}
 			MovingLeg.Raise();
 		}
 		else if(LeftLock){
 			MovingLeg = Right;
-			StaticLeg = Left;
+			LockedLeg = Left;
 		}
 		else if(RightLock){
 			MovingLeg = Left;
-			StaticLeg = Right;
+			LockedLeg = Right;
 		}
 		else{
 			if(Preferance == Base6Directions.Direction.Left){
 				MovingLeg = Right;
-				StaticLeg = Left;
+				LockedLeg = Left;
 			}
 			else {
 				MovingLeg = Left;
-				StaticLeg = Right;
+				LockedLeg = Right;
 			}
 		}
 		
-		if(MovingLeg == Left){
-			NextLockLeft = true;
-		}
-		else {
-			NextLockRight = true;
-		}
-		if(ChangedVote>0){
-			ChangedVote--;
-		}
-		else {
-			if(NextLockLeftVote > NextLockRightVote && NextLockLeftVote > (PairCount/2)){
-				MovingLeg = Left;
-				StaticLeg = Right;
-			}
-			else if(NextLockRightVote > NextLockLeftVote && NextLockRightVote > (PairCount/2)){
-				MovingLeg = Right;
-				StaticLeg = Left;
-			}
-		}
-		if(MovingLeg == Left){
+		if(MovingLeg == Left)
 			Program.Echo("ML, SR");
-		}
-		else {
+		else 
 			Program.Echo("MR, SL");
+		if(NextLockLeft)
+			Program.Echo("NextLockLeft");
+		else if(NextLockRight)
+			Program.Echo("NextLockRight");
+		else
+			Program.Echo("NextLockNone");
+		if(Command!=LegCommand.Stop){
+			//MovingLeg.Continue();
+			if(LockedLeg.State != LegState.Pushing)
+				LockedLeg.Push();
+			if(MovingLeg.State != LegState.Returning && MovingLeg.State != LegState.Lowering){
+				MovingLeg.Return();
+			}
+			else{
+				if(MovingLeg.StridePercent < 50){
+					if(MovingLeg.State != LegState.Returning){
+						MovingLeg.Return();
+						if(MovingLeg == Left)
+							NextLockLeft = true;
+						else
+							NextLockRight = true;
+					}
+				}
+				else if(MovingLeg.StridePercent >= 50){
+					if(MovingLeg.State != LegState.Lowering)
+						MovingLeg.Drop();
+				}
+				if(MovingLeg.Status == LegStatus.Raised){
+					MovingLeg.Lower();
+				}
+			}
 		}
-		if(Command!=LegCommand.Stop || LastCommand!=Command){
-			MovingLeg.Continue();
-			StaticLeg.Update();
-			MovingLeg.Update();
+		else{
+			MovingLeg.Stop();
+			LockedLeg.Stop();
 		}
+		LockedLeg.Update();
+		MovingLeg.Update();
 		LastCommand = Command;
 	}
 	
@@ -977,14 +964,14 @@ public Program()
 		}
 	}
 	while(LeftLegs.Count > 0 && RightLegs.Count > 0){
-		double max_distance = 0;
+		double min_distance = double.MaxValue;
 		foreach(Leg RightLeg in RightLegs){
 			double distance = (LeftLegs[0].GetPosition()-RightLeg.GetPosition()).Length();
-			max_distance = Math.Max(max_distance, distance);
+			min_distance = Math.Min(min_distance, distance);
 		}
 		for(int i=0; i<RightLegs.Count; i++){
 			double distance = (LeftLegs[0].GetPosition()-RightLegs[i].GetPosition()).Length();
-			if(distance >= max_distance - 0.1){
+			if(distance <= min_distance + 0.1){
 				LegPair Pair = null;
 				if(LegPair.TryGet(this, LeftLegs[0], RightLegs[i], out Pair)){
 					Write("Found Leg Pair");
@@ -1102,8 +1089,6 @@ public void Main(string argument, UpdateType updateSource)
 	foreach(LegPair Pair in LegPairs){
 		Pair.Update();
 	}
-	Write("LeftVote: " + LegPair.NextLockLeftVote);
-	Write("RightVote: " + LegPair.NextLockRightVote);
 	
     // The main entry point of the script, invoked every time
     // one of the programmable block's Run actions are invoked,
