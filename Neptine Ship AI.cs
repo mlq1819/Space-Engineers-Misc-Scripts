@@ -891,6 +891,7 @@ private float Right_Thrust{
 	}
 }
 
+private double Time_To_Crash=double.MaxValue;
 private Menu_Submenu Command_Menu;
 
 private Base6Directions.Direction Forward;
@@ -920,6 +921,7 @@ private bool Match_Position = false;
 private Vector3D Target_Position;
 private long Target_ID = 0;
 
+private float Mass_Accomodation = 0.0f;
 
 private Vector3D RestingVelocity;
 private Vector3D Relative_RestingVelocity{
@@ -937,6 +939,12 @@ private Vector3D Gravity;
 private Vector3D Relative_Gravity{
 	get{
 		return GlobalToLocal(Gravity);
+	}
+}
+
+private double Speed_Deviation{
+	get{
+		return (CurrentVelocity-RelativeVelocity).Length();
 	}
 }
 
@@ -1679,10 +1687,20 @@ private AlertStatus ShipStatus{
 		AlertStatus status = AlertStatus.Green;
 		Submessage = "";
 		
-		if(Imminent_Crash){
+		if(Time_To_Crash < 15){
 			AlertStatus new_status = AlertStatus.Orange;
 			status = (AlertStatus) Math.Max((int)status, (int)new_status);
-			Submessage += "\nCRASH IMMINENT --- BRACE";
+			Submessage += "\n"+Math.Round(Time_To_Crash,1).ToString()+" seconds to possible impact";
+		}
+		else if(Time_To_Crash < 60){
+			AlertStatus new_status = AlertStatus.Yellow;
+			status = (AlertStatus) Math.Max((int)status, (int)new_status);
+			Submessage += "\n"+Math.Round(Time_To_Crash,1).ToString()+" seconds to possible impact";
+		}
+		else if(Time_To_Crash < 180){
+			AlertStatus new_status = AlertStatus.Blue;
+			status = (AlertStatus) Math.Max((int)status, (int)new_status);
+			Submessage += "\n"+Math.Round(Time_To_Crash,1).ToString()+" seconds to possible impact";
 		}
 		
 		double ActualEnemyShipDistance = Math.Min(SmallShipList.ClosestDistance(this, MyRelationsBetweenPlayerAndBlock.Enemies), LargeShipList.ClosestDistance(this, MyRelationsBetweenPlayerAndBlock.Enemies));
@@ -1951,6 +1969,18 @@ private void DisplayMenu(){
 			Panel.BackgroundColor=DEFAULT_BACKGROUND_COLOR;
 		}
 	}
+}
+
+private Color ColorParse(string parse){
+	parse = parse.Substring(parse.IndexOf('{')+1);
+	parse = parse.Substring(0, parse.IndexOf('}') - 1);
+	string[] args = parse.Split(' ');
+	int r, g, b, a;
+	r = Int32.Parse(args[0].Substring(args[0].IndexOf("R:")+2).Trim());
+	g = Int32.Parse(args[1].Substring(args[1].IndexOf("G:")+2).Trim());
+	b = Int32.Parse(args[2].Substring(args[2].IndexOf("B:")+2).Trim());
+	a = Int32.Parse(args[3].Substring(args[3].IndexOf("A:")+2).Trim());
+	return new Color(r,g,b,a);
 }
 
 private bool last_performed_alarm = false;
@@ -2437,8 +2467,108 @@ private void UpdateProgramInfo(){
 	}
 }
 
+double Pitch_Time =  1.0f;
+double Yaw_Time = 1.0f;
+double Roll_Time = 1.0f;
 private void SetGyroscopes(){
+	float current_pitch = (float) Relative_AngularVelocity.X;
+	float current_yaw = (float) Relative_AngularVelocity.Y;
+	float current_roll = (float) Relative_AngularVelocity.Z;
 	
+	float input_pitch = 0;
+	float input_yaw = 0;
+	float input_roll = 0;
+	
+	if(Pitch_Time<1)
+		Pitch_Time+=seconds_since_last_update;
+	if(Yaw_Time<1)
+		Yaw_Time+=seconds_since_last_update;
+	if(Roll_Time<1)
+		Roll_Time+=seconds_since_last_update;
+	
+	bool adjusting_target = false;
+	
+	input_pitch = Math.Min(Math.Max(Controller.RotationIndicator.X / 200, -1), 1);
+	if(Math.Abs(input_pitch) < 0.1f){
+		input_pitch = current_pitch * -0.99f;
+		if(Elevation<Controller.GetShipSpeed()*2 && Elevation<50 && GetAngle(Gravity, Controller_Down) < 90 && Pitch_Time>=1){
+			double difference = Math.Abs(GetAngle(Gravity, Controller_Forward));
+			if(difference < 90){
+				input_pitch-=((float)Math.Min(Math.Abs((90-difference)/90), 1));
+			}
+		}
+		if(Match_Direction){
+			double difference = GetAngle(Controller_Down, Target_Direction) - GetAngle(Controller_Up, Target_Direction);
+			if(Math.Abs(difference) > ACCEPTABLE_ANGLE){
+				adjusting_target = true;
+				if(Current_AngularVelocity.Length() < 1){
+					if(difference>0){
+						input_pitch -= 0.5f * ((float)Math.Min(Math.Abs(difference/(ACCEPTABLE_ANGLE*2)), 1));
+					}
+					else {
+						input_pitch += 0.5f * ((float)Math.Min(Math.Abs(difference/(ACCEPTABLE_ANGLE*2)), 1));
+					}
+				}
+			}
+		}
+	}
+	else{
+		Pitch_Time = 0;
+		input_pitch *= 30;
+	}
+	input_yaw = Math.Min(Math.Max(Controller.RotationIndicator.Y / 200, -1), 1);
+	if(Math.Abs(input_yaw) < 0.1f){
+		input_yaw = current_yaw * -0.99f;
+		if(Match_Direction){
+			double difference = GetAngle(Controller_Right, Target_Direction) - GetAngle(Controller_Left, Target_Direction);
+			if(Math.Abs(difference) > ACCEPTABLE_ANGLE || GetAngle(Controller_Forward, Target_Direction) > ACCEPTABLE_ANGLE){
+				adjusting_target = true;
+				if(Current_AngularVelocity.Length() < 1){
+					if(difference>0 || difference==0 && GetAngle(Controller_Forward, Target_Direction) > ACCEPTABLE_ANGLE){
+						input_yaw -= 0.5f * ((float)Math.Min(Math.Abs(difference/(ACCEPTABLE_ANGLE*2)), 1));
+					}
+					else {
+						input_yaw += 0.5f * ((float)Math.Min(Math.Abs(difference/(ACCEPTABLE_ANGLE*2)), 1));
+					}
+				}
+			}
+		}
+	}
+	else{
+		Yaw_Time = 0;
+		input_yaw *= 30;
+	}
+	input_roll = Controller.RollIndicator;
+	if(Math.Abs(input_roll) < 0.1f){
+		input_roll = current_roll * -0.99f;
+		if(Gravity.Length() > 0  && Roll_Time >= 1 && !adjusting_target){
+			double difference = (GetAngle(Left_Vector, Gravity) - GetAngle(Right_Vector, Gravity));
+			if(Math.Abs(difference) > ACCEPTABLE_ANGLE){
+				if(Current_AngularVelocity.Length() < 1){
+					if(difference>0){
+						input_roll += 0.9f * ((float)Math.Min(Math.Abs(difference/(ACCEPTABLE_ANGLE*2)), 1));
+					}
+					else {
+						input_roll -= 0.9f * ((float)Math.Min(Math.Abs(difference/(ACCEPTABLE_ANGLE*2)), 1));
+					}
+				}
+			}
+		}
+	}
+	else{
+		Roll_Time = 0;
+		input_roll *= 20;
+	}
+	
+	Gyro_Tuple output = Transform(new Gyro_Tuple(input_pitch, input_yaw, input_roll));
+	
+	Gyroscope.Pitch = output.Pitch + GlitchFloat / 100;
+	Gyroscope.Yaw = output.Yaw + GlitchFloat / 100;
+	Gyroscope.Roll = output.Roll + GlitchFloat / 100;
+	
+	Write("Pitch: " + Math.Round(Gyroscope.Pitch*100, 1).ToString() + " RPM");
+	Write("Yaw: " + Math.Round(Gyroscope.Yaw*100, 1).ToString() + " RPM");
+	Write("Roll: " + Math.Round(Gyroscope.Roll*100, 1).ToString() + " RPM");
 }
 
 private void SetThrusters(){
@@ -2572,6 +2702,10 @@ private void GetPositionData(){
 			Right_Thrust+=Thruster.MaxEffectiveThrust;
 	}
 	
+	Gravity = Controller.GetNaturalGravity();
+	CurrentVelocity=Controller.GetShipVelocities().LinearVelocity;
+	AngularVelocity=Controller.GetShipVelocities().AngularVelocity;
+	
 	if(Controller.TryGetPlanetElevation(MyPlanetElevation.SeaLevel, out Sealevel)){
 		if(Controller.TryGetPlanetPosition(out PlanetCenter)){
 			if(Sealevel < 6000 && Controller.TryGetPlanetPosition(MyPlanetElevation.Surface, out Elevation)){
@@ -2591,6 +2725,22 @@ private void GetPositionData(){
 			else {
 				Elevation = Sealevel;
 			}
+			double height_dif = (Me.CubeGrid.GetPosition() - PlanetCenter).Length() - Elevation;
+			Vector3D next_position = Me.CubeGrid.GetPosition() + 1 * CurrentVelocity;
+			double elevation_per_second = ((next_position-PlanetCenter).Length()-height_dif)-Elevation;
+			Time_To_Crash = Elevation / elevation_per_second;
+			if(Time_To_Crash<15 && Controller.GetShipSpeed() > 5){
+				Controller.DampenersOverride = true;
+				Write("Crash predicted within 15 seconds; enabling Dampeners");
+			}
+			else {
+				if(Time_To_Crash*Math.Max(Elevation,1000) < 1800000 && Controller.GetShipSpeed() > 1.0f){
+					Write(Math.Round(Time_To_Crash, 1).ToString() + " seconds to crash");
+				}
+				else {
+					Write("No crash likely at current velocity");
+				}
+			}
 		}
 		else {
 			PlanetCenter = new Vector3D(0,0,0);
@@ -2599,10 +2749,6 @@ private void GetPositionData(){
 	else{
 		Sealevel = double.MaxValue;
 	}
-	
-	Gravity = Controller.GetNaturalGravity();
-	CurrentVelocity=Controller.GetShipVelocities().LinearVelocity;
-	AngularVelocity=Controller.GetShipVelocities.AngularVelocity;
 	if(Match_Position){
 		Target_Position+=seconds_since_last_update*RestingVelocity;
 	}
@@ -2610,6 +2756,8 @@ private void GetPositionData(){
 		Target_Direction = Target_Position-Me.CubeGrid.GetPosition();
 		Target_Direction.Normalize();
 	}
+	
+	Mass_Accomodation = (float) (Controller.CalculateShipMass().PhysicalMass * Gravity.Length());
 	
 }
 
