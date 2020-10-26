@@ -805,12 +805,54 @@ private List<IMyThrust> Up_Thrusters;
 private List<IMyThrust> Down_Thrusters;
 private List<IMyThrust> Left_Thrusters;
 private List<IMyThrust> Right_Thrusters;
-private float Forward_Thrust;
-private float Backward_Thrust;
-private float Up_Thrust;
-private float Down_Thrust;
-private float Left_Thrust;
-private float Right_Thrust;
+private float Forward_Thrust{
+	get{
+		float total = 0;
+		foreach(IMyThrust Thruster in Forward_Thrusters)
+			total+=Thruster.MaxEffectiveThrust;
+		return total;
+	}
+}
+private float Backward_Thrust{
+	get{
+		float total = 0;
+		foreach(IMyThrust Thruster in Backward_Thrusters)
+			total+=Thruster.MaxEffectiveThrust;
+		return total;
+	}
+}
+private float Up_Thrust{
+	get{
+		float total = 0;
+		foreach(IMyThrust Thruster in Up_Thrusters)
+			total+=Thruster.MaxEffectiveThrust;
+		return total;
+	}
+}
+private float Down_Thrust{
+	get{
+		float total = 0;
+		foreach(IMyThrust Thruster in Down_Thrusters)
+			total+=Thruster.MaxEffectiveThrust;
+		return total;
+	}
+}
+private float Left_Thrust{
+	get{
+		float total = 0;
+		foreach(IMyThrust Thruster in Left_Thrusters)
+			total+=Thruster.MaxEffectiveThrust;
+		return total;
+	}
+}
+private float Right_Thrust{
+	get{
+		float total = 0;
+		foreach(IMyThrust Thruster in Right_Thrusters)
+			total+=Thruster.MaxEffectiveThrust;
+		return total;
+	}
+}
 
 private Base6Directions.Direction Forward;
 private Base6Directions.Direction Backward;
@@ -1530,9 +1572,164 @@ private void GetPositionData(){
 	CurrentVelocity=Controller.GetShipVelocities().LinearVelocity;
 }
 
+private void UpdateList(List<MyDetectedEntityInfo> list, MyDetectedEntityInfo new_entity){
+	if(new_entity.Type == MyDetectedEntityType.None || new_entity.EntityId == Me.CubeGrid.EntityId)
+		return;
+	for(int i=0; i<list.Count; i++){
+		if(list[i].EntityId == new_entity.EntityId){
+			if(list[i].TimeStamp < new_entity.TimeStamp || ((list[i].HitPosition==null)&&(new_entity.HitPosition!=null)))
+				list[i] = new_entity;
+			return;
+		}
+	}
+	list.Add(new_entity);
+}
 
+private void UpdateList(List<EntityInfo> list, EntityInfo new_entity){
+	if(new_entity.Type == MyDetectedEntityType.None || new_entity.ID == Me.CubeGrid.EntityId)
+		return;
+	for(int i=0; i<list.Count; i++){
+		if(list[i].ID == new_entity.EntityId){
+			list[i] = new_entity;
+			return;
+		}
+	}
+	list.Add(new_entity);
+}
+
+private string ScanString = "";
+
+//Performs the scan function on all scanning devices
 public void PerformScan(){
+	Write("Beginning Scan");
+	ScanString = "";
 	PerformDisarm();
+	List<MyDetectedEntityInfo> DetectedEntities = new List<MyDetectedEntityInfo>();
+	List<IMySensorBlock> AllSensors = new List<IMySensorBlock>();
+	GridTerminalSystem.GetBlocksOfType<IMySensorBlock>(AllSensors);
+	foreach(IMySensorBlock Sensor in AllSensors){
+		UpdateList(DetectedEntities, Sensor.LastDetectedEntity);
+		List<MyDetectedEntityInfo> entities = new List<MyDetectedEntityInfo>();
+		Sensor.DetectedEntities(entities);
+		foreach(MyDetectedEntityInfo Entity in entities){
+			UpdateList(DetectedEntities, Entity);
+		}
+	}
+	List<IMyLargeTurretBase> AllTurrets = new List<IMyLargeTurretBase>();
+	GridTerminalSystem.GetBlocksOfType<IMyLargeTurretBase>(AllTurrets);
+	foreach(IMyLargeTurretBase Turret in AllTurrets){
+		if(Turret.HasTarget){
+			UpdateList(DetectedEntities, Turret.GetTargetedEntity());
+		}
+	}
+	List<IMyIMyCameraBlock> AllCameras = new List<IMyCameraBlock>();
+	GridTerminalSystem.GetBlocksOfType<IMyCameraBlock>(AllCameras);
+	foreach(IMyCameraBlock Camera in AllCameras){
+		if(!HasBlockData(Camera, "DoRaycast")){
+			SetBlockData(Camera, "DoRaycast", "maybe");
+			SetBlockData(Camera, "RaycastTestCount", "0");
+		}
+		if(GetBlockData(Camera, "DoRaycast").Equals("false")){
+			Camera.EnableRaycast = false;
+			continue;
+		}
+		Camera.EnableRaycast = true;
+		int count = 0;
+		bool update_me = false;
+		if(GetBlockData(Camera, "DoRaycast").Equals("maybe")){
+			Int32.TryParse(GetBlockData(Camera, "RaycastTestCount"), out count);
+			if(count>=100){
+				SetBlockData(Camera, "DoRaycast", "false");
+				continue;
+			}
+			update_me = true;
+		}
+		double raycast_distance = 10000;
+		if(Camera.RaycastDistanceLimit != -1){
+			raycast_distance = Math.Min(raycast_distance, Camera.RaycastDistanceLimit);
+		}
+		MyDetectedEntityInfo Raycast_Entity = Camera.Raycast(raycast_distance, 0, 0);
+		if(update_me && Raycast_Entity.Type != MyDetectedEntityType.None && Raycast_Entity.EntityId != Me.CubeGrid.EntityId && Raycast_Entity.EntityId != Camera.CubeGrid.EntityId){
+			SetBlockData(Camera, "DoRaycast", "true");
+			update_me = false;
+		}
+		UpdateList(Detected_Entities, Raycast_Entity);
+		const int SECTIONS = 3;
+		for(int i=0; i<9; i++){
+			if(i==4)
+				continue;
+			float Pitch = 0;
+			float Yaw = 0;
+			if(i<3 || i>5){
+				Pitch = Rnd.Next(0, ((int)(Camera.RaycastConeLimit/SECTIONS))*10)/10.0f;
+				if(i>5)
+					Pitch *= -1;
+			}
+			if((i%3)!=1){
+				Yaw = Rnd.Next(0, ((int)(Camera.RaycastConeLimit/SECTIONS))*10)/10.0f;
+				if((i%3)==0)
+					Yaw *= -1;
+			}
+			for(int j=1; j<=SECTIONS; j++){
+				Raycast_Entity = Camera.Raycast(raycast_distance, Pitch*j, Yaw*j);
+				if(update_me && Raycast_Entity.Type != MyDetectedEntityType.None && Raycast_Entity.EntityId != Me.CubeGrid.EntityId && Raycast_Entity.EntityId != Camera.CubeGrid.EntityId){
+					SetBlockData(Camera, "DoRaycast", "true");
+					update_me = false;
+				}
+				UpdateList(Detected_Entities, Raycast_Entity);
+			}
+		}
+	}
+	
+	ScanString += "Retrieved updated data on " + DetectedEntities.Count + " relevant entities" + '\n';
+	List<IMyBroadcastListener> listeners = new List<IMyBroadcastListener>();
+	IGC.GetBroadcastListeners(listeners);
+	foreach(MyDetectedEntityInfo entity in DetectedEntities){
+		EntityInfo Entity = new EntityInfo(entity);
+		foreach(IMyBroadcastListener Listener in listeners){
+			IGC.SendBroadcastMessage(Listener.Tag, Entity.ToString(), TransmissionDistance.TransmissionDistanceMax);
+		}
+	}
+	
+	List<EntityInfo> Entities = new List<EntityInfo>();
+	foreach(MyDetectedEntityInfo entity in DetectedEntities){
+		Entities.Add(new EntityInfo(entity));
+	}
+	
+	foreach(IMyBroadcastListener Listener in listeners){
+		while(Listener.HasPendingMessage){
+			MyIGCMessage message = Listener.AcceptMessage();
+			ScanString += "Received message on " + Listener.Tag + '\n';
+			EntityInfo Entity;
+			if(EntityInfo.TryParse(message.Data.ToString(), out Entity)){
+				UpdateList(Entities, Entity);
+			}
+		}
+	}
+	
+	foreach(EntityInfo Entity in Entities){
+		switch(Entity.Type){
+			case MyDetectedEntityType.Asteroid:
+				AsteroidList.UpdateEntity(Entity);
+				break;
+			case MyDetectedEntityType.Planet:
+				PlanetList.UpdateEntity(Entity);
+				break;
+			case MyDetectedEntityType.SmallGrid:
+				SmallShipList.UpdateEntity(Entity);
+				break;
+			case MyDetectedEntityType.LargeGrid:
+				LargeShipList.UpdateEntity(Entity);
+				break;
+			case MyDetectedEntityType.CharacterHuman:
+				CharacterList.UpdateEntity(Entity);
+				break;
+			case MyDetectedEntityType.CharacterOther:
+				CharacterList.UpdateEntity(Entity);
+				break;
+		}
+	}
+	
 	
 }
 
