@@ -8,7 +8,9 @@ private const string Program_Name = "Neptine Ship AI";
 //The angle of what the ship will accept as "correct"
 private const double ACCEPTABLE_ANGLE=20; //Suggested between 5° and 20°
 //The distance accepted for raycasts
-private const double RAYCAST_DISTANCE=2000; //Suggested below 10000
+private const double RAYCAST_DISTANCE=10000; //The lower the better, but whatever works for you
+//Set this to the distance you want lights, sound blocks, and doors to update when enemies are nearby
+private const double ALERT_DISTANCE=15;
 //Time between scans
 private const double SCAN_TIME=3;
 
@@ -393,6 +395,9 @@ public class EntityInfo{
 		}
 	}
 	
+	public double GetDistance(Vector3D Reference){
+		return (Position-Reference).Length();
+	}
 }
 
 public class EntityList : IEnumerable<EntityInfo>{
@@ -460,6 +465,27 @@ public class EntityList : IEnumerable<EntityInfo>{
 			}
 		}
 		return min_distance;
+	}
+	
+	public void Sort(Vector3D Reference){
+		List<EntityInfo> Sorted = new List<EntityInfo>();
+		List<EntityInfo> Unsorted = new List<EntityInfo>();
+		foreach(EntityInfo Entity in E_List){
+			double distance=Entity.GetDistance(Reference);
+			double last_distance=0;
+			if(Sorted.Count>0)
+				last_distance=Sorted[Sorted.Count-1].GetDistance(Reference);
+			if(distance>=last_distance)
+				Sorted.Add(Entity);
+			else
+				Unsorted.Add(Entity);
+		}
+		while(Unsorted.Count>0){
+			double distance=Unsorted[0].GetDistance(Reference);
+			int i=Sorted.Count/2;
+			
+		}
+		E_List=Sorted;
 	}
 }
 
@@ -854,6 +880,8 @@ private float Right_Thrust{
 	}
 }
 
+private Menu_Submenu Command_Menu;
+
 private Base6Directions.Direction Forward;
 private Base6Directions.Direction Backward;
 private Base6Directions.Direction Up;
@@ -904,7 +932,6 @@ private double Elevation;
 private double Sealevel;
 private Vector3D PlanetCenter;
 
-
 private bool HasBlockData(IMyTerminalBlock Block, string Name){
 	if(Name.Contains(':'))
 		return false;
@@ -946,6 +973,10 @@ private bool SetBlockData(IMyTerminalBlock Block, string Name, string Data){
 	}
 	Block.CustomData+='•'+Name+':'+Data;
 	return true;
+}
+
+private bool CanHaveJob(IMyTerminalBlock Block, string JobName){
+	return (!HasBlockData(Block, "Job")) || GetBlockData(Block, Job).Equals("None") || GetBlockData(Block, Job).Equals(JobName);
 }
 
 public void Write(string text, bool new_line=true, bool append=true){
@@ -1173,7 +1204,8 @@ public bool Setup(){
 	Gyroscope=(new GenericMethods<IMyGyro>(this)).GetContaining("Control Gyroscope");
 	if(Gyroscope==null){
 		Write("Failed to find Gyroscope", false, false);
-		return false;
+		if(!Me.CubeGrid.IsStatic)
+			return false;
 	}
 	else {
 		Gyroscope.GyroOverride=Controller.IsUnderControl;
@@ -1597,9 +1629,334 @@ private void UpdateList(List<EntityInfo> list, EntityInfo new_entity){
 	list.Add(new_entity);
 }
 
-private string ScanString = "";
+private void Stop(object obj=null){
+	
+	return true;
+}
+
+private void Lockdown(object obj=null){
+	
+	return true;
+}
+
+private bool FactoryReset(object obj=null){
+	
+	return true;
+}
+
+private bool UpdateEntityListing(Menu_Submenu Menu){
+	EntityList List = null;
+	switch(Menu.Name){
+		case "Asteroids":
+			List=AsteroidList;
+			break;
+		case "Planets":
+			List=PlanetList;
+			break;
+		case "Small Ships":
+			List=SmallShipList;
+			break;
+		case "Large Ships":
+			List=LargeShipList;
+			break;
+		case "Characters":
+			List=CharacterList;
+			break;
+	}
+	if(List==null)
+		return false;
+	Menu = new Menu_Submenu(Menu.Name);
+	List.Sort(Me.CubeGrid.GetPosition());
+	
+}
+
+private void AsteroidMenu;
+
+private void CreateMenu(){
+	Command_Menu = new Menu_Submenu("Command Menu");
+	//Command_Menu.Add(new Menu_Command("Update Menu", CreateMenu));
+	Menu_Submenu ShipCommands = new Menu_Submenu("Commands");
+	ShipCommands.Add(new Menu_Command<object>("Stop", Stop, "Disables autopilot"));
+	ShipCommands.Add(new Menu_Command<object>("Lockdown", Lockdown, "Closes/Opens Air Seals"));
+	ShipCommands.Add(new Menu_Command<object>("Factory Reset", FactoryReset, "Resets AI memory and settings, and turns it off"));
+	Command_Menu.Add(ShipCommands);
+	AsteroidMenu = 
+	
+	
+}
+
+private void RefreshMenu(){
+	
+}
+
+private bool last_performed_alarm = false;
+public void PerformAlarm(){
+	bool nearby_enemy = (CharacterList.ClosestDistance(this, MyRelationsBetweenPlayerAndBlock.Enemies) <= (float) Me.CubeGrid.GridSize);
+	if(!nearby_enemy && !last_performed_alarm){
+		return;
+	}
+	last_performed_alarm = nearby_enemy;
+	List<IMyInteriorLight> AllLights = new List<IMyInteriorLight>();
+	GridTerminalSystem.GetBlocksOfType<IMyInteriorLight>(AllLights);
+	foreach(IMyInteriorLight Light in AllLights){
+		if(!CanHaveJob(Light, "PlayerAlert"))
+			continue;
+		double distance = double.MaxValue;
+		foreach(EntityInfo Entity in CharacterList){
+			if((Entity.Relationship == MyRelationsBetweenPlayerAndBlock.Enemies) && Entity.Age.TotalSeconds <= 60)
+				distance = Math.Min(distance, Entity.GetDistance(Light.GetPosition()));
+		}
+		if(distance <= ALERT_DISTANCE){
+			if(!HasBlockData(Light, "DefaultColor")){
+				SetBlockData(Light, "DefaultColor", Light.Color.ToString());
+			}
+			if(!HasBlockData(Light, "DefaultBlinkLength")){
+				SetBlockData(Light, "DefaultBlinkLength", Light.BlinkLength.ToString());
+			}
+			if(!HasBlockData(Light, "DefaultBlinkInterval")){
+				SetBlockData(Light, "DefaultBlinkInterval", Light.BlinkIntervalSeconds.ToString());
+			}
+			SetBlockData(Light, "Job", "PlayerAlert");
+			Light.Color = new Color(255, 0, 0, 255);
+			Light.BlinkLength = 100.0f - (((float) (distance / ALERT_DISTANCE)) * 50.0f);
+			Light.BlinkIntervalSeconds = 1.0f;
+		}
+		else {
+			if(HasBlockData(Light, "Job") && GetBlockData(Light, "Job").Equals("PlayerAlert")){
+				if(HasBlockData(Light, "DefaultColor")){
+					try{
+						Light.Color = ColorParse(GetBlockData(Light, "DefaultColor"));
+					}
+					catch(Exception){
+						Echo("Failed to parse color");
+					}
+				}
+				if(HasBlockData(Light, "DefaultBlinkLength")){
+					try{
+						Light.BlinkLength = float.Parse(GetBlockData(Light, "DefaultBlinkLength"));
+					}
+					catch(Exception){
+						;
+					}
+				}
+				if(HasBlockData(Light, "DefaultBlinkInterval")){
+					try{
+						Light.BlinkIntervalSeconds = float.Parse(GetBlockData(Light, "DefaultBlinkInterval"));
+					}
+					catch(Exception){
+						;
+					}
+				}
+				SetBlockData(Light, "Job", "None");
+			}
+		}
+	}
+	List<IMySoundBlock> AllSounds = new List<IMySoundBlock>();
+	GridTerminalSystem.GetBlocksOfType<IMySoundBlock>(AllSounds);
+	foreach(IMySoundBlock Sound in AllSounds){
+		if(!CanHaveJob(Sound, "PlayerAlert"))
+			continue;
+		double distance = double.MaxValue;
+		foreach(EntityInfo Entity in CharacterList){
+			if((Entity.Relationship == MyRelationsBetweenPlayerAndBlock.Enemies) && Entity.Age.TotalSeconds <= 60)
+				distance = Math.Min(distance, Entity.GetDistance(Sound.GetPosition())););
+		}
+		if(distance <= ALERT_DISTANCE){
+			if(!HasBlockData(Sound, "DefaultSound")){
+				SetBlockData(Sound, "DefaultSound", Sound.SelectedSound);
+			}
+			if(!HasBlockData(Sound, "DefaultVolume")){
+				SetBlockData(Sound, "DefaultVolume", Sound.Volume.ToString());
+			}
+			SetBlockData(Sound, "Job", "PlayerAlert");
+			if(!HasBlockData(Sound, "Playing") || !GetBlockData(Sound, "Playing").Equals("True")){
+				Sound.SelectedSound = "SoundBlockEnemyDetected";
+				Sound.Volume = 100.0f;
+				Sound.Play();
+				SetBlockData(Sound, "Playing", "True");
+			}
+		}
+		else {
+			if(HasBlockData(Sound, "Job") && GetBlockData(Sound, "Job").Equals("PlayerAlert")){
+				if(HasBlockData(Sound, "DefaultSound")){
+					Sound.SelectedSound = GetBlockData(Sound, "DefaultSound");
+				}
+				if(HasBlockData(Sound, "DefaultVolume")){
+					try{
+						Sound.Volume = float.Parse(GetBlockData(Sound, "DefaultVolume"));
+					}
+					catch(Exception){
+						;
+					}
+				}
+				Sound.Stop();
+				SetBlockData(Sound, "Playing", "False");
+				SetBlockData(Sound, "Job", "None");
+			}
+		}
+	}
+	List<IMyDoor> AllDoors = new List<IMyDoor>();
+	GridTerminalSystem.GetBlocksOfType<IMyDoor>(AllDoors);
+	foreach(IMyDoor Door in AllDoors){
+		if(!CanHaveJob(Door, "PlayerAlert"))
+			continue;
+		double distance = double.MaxValue;
+		foreach(EntityInfo Entity in CharacterList){
+			if((Entity.Relationship == MyRelationsBetweenPlayerAndBlock.Enemies) && Entity.Age.TotalSeconds <= 60)
+				distance = Math.Min(distance, Entity.GetDistance(Door.GetPosition())););
+		}
+		if(distance <= ALERT_DISTANCE){
+			if(!HasBlockData(Door, "DefaultState")){
+				if(Door.Status.ToString().Contains("Open")){
+					SetBlockData(Door, "DefaultState", "Open");
+				}
+				else {
+					SetBlockData(Door, "DefaultState", "Closed");
+				}
+			}
+			if(!HasBlockData(Door, "DefaultPower")){
+				if(Door.Enabled){
+					SetBlockData(Door, "DefaultPower", "On");
+				}
+				else {
+					SetBlockData(Door, "DefaultPower", "Off");
+				}
+			}
+			SetBlockData(Door, "Job", "PlayerAlert");
+			Door.Enabled = (Door.Status != DoorStatus.Closed);
+			Door.CloseDoor();
+		}
+		else {
+			if(HasBlockData(Door, "Job") && GetBlockData(Door, "Job").Equals("PlayerAlert")){
+				if(HasBlockData(Door, "DefaultPower")){
+					Door.Enabled = GetBlockData(Door, "DefaultPower").Equals("On");
+				}
+				if(HasBlockData(Door, "DefaultState")){
+					if(GetBlockData(Door, "DefaultState").Equals("Open"))
+						Door.OpenDoor();
+					else
+						Door.CloseDoor();
+				}
+				SetBlockData(Door, "Job", "None");
+			}
+		}
+	}
+}
+
+private void UpdateAirlock(Airlock airlock){
+	if(airlock.Door1.Status != DoorStatus.Closed && airlock.Door2.Status != DoorStatus.Closed){
+		airlock.Door1.Enabled = true;
+		airlock.Door1.CloseDoor();
+		airlock.Door2.Enabled = true;
+		airlock.Door2.CloseDoor();
+	}
+	if(!(CanHaveJob(airlock.Door1, "Airlock")&&(CanHaveJob(airlock.Door2, "Airlock"))))
+		return;
+	bool detected = false;
+	double min_distance_1 = double.MaxValue;
+	double min_distance_2 = double.MaxValue;
+	double min_distance_check = 3.75 * (1 + (Controller.GetShipSpeed() / 200));
+	foreach(EntityInfo Entity in CharacterList){
+		if(Entity.Relationship != MyRelationsBetweenPlayerAndBlock.Enemies && Entity.Relationship != MyRelationsBetweenPlayerAndBlock.Neutral){
+			Vector3D position = Entity.Position + Controller.GetShipVelocities().LinearVelocity / 100;
+			double distance = airlock.Distance(Entity.Position);
+			bool is_closest_to_this_airlock = distance <= min_distance_check;
+			if(is_closest_to_this_airlock){
+				foreach(Airlock alock in Airlocks){
+					if(is_closest_to_this_airlock && !alock.Equals(airlock)){
+						is_closest_to_this_airlock = is_closest_to_this_airlock && distance < (alock.Distance(position));
+					}
+				}
+			}
+			if(is_closest_to_this_airlock){
+				detected=true;
+				min_distance_1 = Math.Min(min_distance_1, (airlock.Door1.GetPosition() - position).Length());
+				min_distance_2 = Math.Min(min_distance_2, (airlock.Door2.GetPosition() - position).Length());
+			}
+		}
+	}
+	float multx_1 = 1.0f + GlitchFloat;
+	float multx_2 = 1.0f + GlitchFloat;
+	if(min_distance_1 != double.MaxValue)
+		min_distance_1 *= multx_1;
+	if(min_distance_2 != double.MaxValue)
+		min_distance_2 *= multx_2;
+	
+	if(detected){
+		SetBlockData(airlock.Door1, "Job", "Airlock");
+		SetBlockData(airlock.Door2, "Job", "Airlock");
+		if(min_distance_1 <= min_distance_2){
+			airlock.Door2.Enabled = (airlock.Door2.Status != DoorStatus.Closed);
+			if(airlock.Door2.Status != DoorStatus.Closing)
+				airlock.Door2.CloseDoor();
+			if(airlock.Door2.Enabled){
+				airlock.Door1.Enabled = (airlock.Door1.Status != DoorStatus.Closed);
+				if(airlock.Door1.Status != DoorStatus.Closing)
+					airlock.Door1.CloseDoor();
+				ScanString += '\t' + "Closing Door 2" + '\n';
+			}
+			else {
+				airlock.Door1.Enabled = true;
+				if(airlock.Door1.Status != DoorStatus.Opening)
+					airlock.Door1.OpenDoor();
+				ScanString += '\t' + "Opening Door 1" + '\n';
+			}
+		}
+		else {
+			airlock.Door1.Enabled = (airlock.Door1.Status != DoorStatus.Closed);
+			if(airlock.Door1.Status != DoorStatus.Closing)
+				airlock.Door1.CloseDoor();
+			if(airlock.Door1.Enabled){
+				airlock.Door2.Enabled = (airlock.Door2.Status != DoorStatus.Closed);
+				if(airlock.Door2.Status != DoorStatus.Closing)
+					airlock.Door2.CloseDoor();
+				ScanString += '\t' + "Closing Door 1" + '\n';
+			}
+			else {
+				airlock.Door2.Enabled = true;
+				if(airlock.Door2.Status != DoorStatus.Opening)
+					airlock.Door2.OpenDoor();
+				ScanString += '\t' + "Opening Door 2" + '\n';
+			}
+		}
+	}
+	else{
+		SetBlockData(airlock.Door1, "Job", "None");
+		SetBlockData(airlock.Door2, "Job", "None");
+		airlock.Door1.Enabled = (airlock.Door1.Status != DoorStatus.Closed);
+		if(airlock.Door1.Status != DoorStatus.Closing)
+			airlock.Door1.CloseDoor();
+		airlock.Door2.Enabled = (airlock.Door2.Status != DoorStatus.Closed);
+		if(airlock.Door2.Status != DoorStatus.Closing)
+			airlock.Door2.CloseDoor();
+		ScanString += '\t' + "Closing both Doors" + '\n';
+	}
+}
 
 //Performs the scan function on all scanning devices
+private double Scan_Frequency{
+	get{
+		double output = 10;
+		double MySize = Me.CubeGrid.GridSize;
+		double distance = SmallShipList.ClosestDistance(this);
+		if(distance >= MySize){
+			output = Math.Max(1, Math.Min((distance+MySize+100)/100));
+		}
+		distance = SmallShipList.ClosestDistance(this, MyRelationsBetweenPlayerAndBlock.Enemies);
+		output = Math.Max(1, Math.Min((distance-MySize+100)/100));
+		distance = LargeShipList.ClosestDistance(this);
+		if(distance >= MySize){
+			output = Math.Max(1, Math.Min((distance+MySize+100)/100));
+		}
+		distance = LargeShipList.ClosestDistance(this, MyRelationsBetweenPlayerAndBlock.Enemies);
+		output = Math.Max(1, Math.Min((distance-MySize+100)/100));
+		distance = CharacterList.ClosestDistance(this);
+		output = Math.Max(1, Math.Min((distance+MySize+100)/100));
+		return output;
+	}
+}
+private double Scan_Time = Scan_Frequency;
+private string ScanString = "";
 public void PerformScan(){
 	Write("Beginning Scan");
 	ScanString = "";
@@ -1644,39 +2001,37 @@ public void PerformScan(){
 			}
 			update_me = true;
 		}
-		double raycast_distance = 10000;
+		double raycast_distance = RAYCAST_DISTANCE;
 		if(Camera.RaycastDistanceLimit != -1){
 			raycast_distance = Math.Min(raycast_distance, Camera.RaycastDistanceLimit);
 		}
 		MyDetectedEntityInfo Raycast_Entity = Camera.Raycast(raycast_distance, 0, 0);
-		if(update_me && Raycast_Entity.Type != MyDetectedEntityType.None && Raycast_Entity.EntityId != Me.CubeGrid.EntityId && Raycast_Entity.EntityId != Camera.CubeGrid.EntityId){
+		if(update_me && Raycast_Entity.EntityId != Me.CubeGrid.EntityId && Raycast_Entity.EntityId != Camera.CubeGrid.EntityId){
 			SetBlockData(Camera, "DoRaycast", "true");
 			update_me = false;
 		}
 		UpdateList(Detected_Entities, Raycast_Entity);
-		const int SECTIONS = 3;
-		for(int i=0; i<9; i++){
-			if(i==4)
-				continue;
-			float Pitch = 0;
-			float Yaw = 0;
-			if(i<3 || i>5){
-				Pitch = Rnd.Next(0, ((int)(Camera.RaycastConeLimit/SECTIONS))*10)/10.0f;
-				if(i>5)
-					Pitch *= -1;
-			}
-			if((i%3)!=1){
-				Yaw = Rnd.Next(0, ((int)(Camera.RaycastConeLimit/SECTIONS))*10)/10.0f;
-				if((i%3)==0)
-					Yaw *= -1;
-			}
-			for(int j=1; j<=SECTIONS; j++){
-				Raycast_Entity = Camera.Raycast(raycast_distance, Pitch*j, Yaw*j);
-				if(update_me && Raycast_Entity.Type != MyDetectedEntityType.None && Raycast_Entity.EntityId != Me.CubeGrid.EntityId && Raycast_Entity.EntityId != Camera.CubeGrid.EntityId){
-					SetBlockData(Camera, "DoRaycast", "true");
-					update_me = false;
+		if(!update_me){
+			const int SECTIONS = 3;
+			for(int i=0; i<9; i++){
+				if(i==4)
+					continue;
+				float Pitch = 0;
+				float Yaw = 0;
+				if(i<3 || i>5){
+					Pitch = Rnd.Next(0, ((int)(Camera.RaycastConeLimit/SECTIONS))*10)/10.0f;
+					if(i>5)
+						Pitch *= -1;
 				}
-				UpdateList(Detected_Entities, Raycast_Entity);
+				if((i%3)!=1){
+					Yaw = Rnd.Next(0, ((int)(Camera.RaycastConeLimit/SECTIONS))*10)/10.0f;
+					if((i%3)==0)
+						Yaw *= -1;
+				}
+				for(int j=1; j<=SECTIONS; j++){
+					Raycast_Entity = Camera.Raycast(raycast_distance, Pitch*j, Yaw*j);
+					UpdateList(Detected_Entities, Raycast_Entity);
+				}
 			}
 		}
 	}
@@ -1730,14 +2085,23 @@ public void PerformScan(){
 		}
 	}
 	
+	PerformAlarm();
 	
+	for(int i=0; i<Airlocks.Count; i++){
+		ScanString += "Airlock " + (i+1).ToString() + " Status:" + '\n';
+		UpdateAirlock(Airlocks[i]);
+	}
+	ScanString += "Completed updating data" + '\n';
+	Scan_Time = 0;
 }
 
 public void PerformDisarm(){
 	List<IMyWarhead> Warheads = new List<IMyWarhead>();
 	GridTerminalSystem.GetBlocksOfType<IMyWarhead>(Warheads);
 	foreach(IMyWarhead Warhead in Warheads){
-		Warhead.DetonationTime = Math.Max(10 * SCAN_TIME, Warhead.DetonationTime);
+		if(HasBlockData(Warhead, "VerifiedWarhead") && GetBlockData(Warhead, "VerifiedWahead").Equals("Active"))
+			continue;
+		Warhead.DetonationTime = Math.Max(60, Warhead.DetonationTime);
 		Warhead.IsArmed = false;
 		Warhead.StopCountdown();
 	}
@@ -1783,11 +2147,14 @@ private void UpdateProgramInfo(){
 
 public void Main(string argument, UpdateType updateSource)
 {
-    // The main entry point of the script, invoked every time
-    // one of the programmable block's Run actions are invoked,
-    // or the script updates itself. The updateSource argument
-    // describes where the update came from.
-    // 
-    // The method itself is required, but the arguments above
-    // can be removed if not needed.
+	Scan_Time+=seconds_since_last_update;
+	if(Scan_Time >= Scan_Frequency){
+		PerformScan();
+	}
+    
+	if(!Me.CubeGrid.IsStatic){
+		
+	}
+	
+	Runtime.UpdateFrequency = GetUpdateFrequency();
 }
