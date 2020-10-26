@@ -13,6 +13,8 @@ private const double RAYCAST_DISTANCE=10000; //The lower the better, but whateve
 private const double ALERT_DISTANCE=15;
 //Time between scans
 private const double SCAN_TIME=3;
+private const Color DEFAULT_TEXT_COLOR = new Color(197,137,255,255);
+private const Color DEFAULT_BACKGROUND_COLOR = new Color(197,137,255,255);
 
 public class GenericMethods<T> where T : class, IMyTerminalBlock{
 	private IMyGridTerminalSystem TerminalSystem;
@@ -482,8 +484,18 @@ public class EntityList : IEnumerable<EntityInfo>{
 		}
 		while(Unsorted.Count>0){
 			double distance=Unsorted[0].GetDistance(Reference);
-			int i=Sorted.Count/2;
-			
+			if(distance>=Sorted[Sorted.Count-1].GetDistance(Reference)){
+				Sorted.Add(Unsorted[0]);
+				Unsorted.RemoveAt(0);
+				continue;
+			}
+			for(int i=0;i<Sorted.Count;i++){
+				if(distance<=Sorted[i].GetDistance(Reference)){
+					Sorted.Insert(i,Unsorted[0]);
+					Unsorted.RemoveAt(0);
+					break;
+				}
+			}
 		}
 		E_List=Sorted;
 	}
@@ -736,7 +748,6 @@ public class Menu_Display : MenuOption{
 	}
 	private bool Selected;
 	private EntityInfo Entity;
-	private bool Selected;
 	private bool Can_GoTo;
 	private Func<bool, EntityInfo> Command;
 	private Menu_Command Subcommand {
@@ -1255,6 +1266,12 @@ private bool Operational=false;
 public Program()
 {
     Me.CustomName=(Program_Name+" Programmable block").Trim();
+	for(int i=0;i<Me.SurfaceCount;i++){
+		Me.GetSurface(i).FontColor=DEFAULT_TEXT_COLOR;
+		Me.GetSurface(i).BackgroundColor=DEFAULT_BACKGROUND_COLOR;
+		Me.GetSurface(i).Alignment=TextAlignment.CENTER;
+		Me.GetSurface(i).ContentType=ContentType.TEXT_AND_IMAGE;
+	}
 	Echo("Beginning initialization");
 	Me.Enabled = true;
 	Rnd = new Random();
@@ -1446,6 +1463,93 @@ public Vector3D LocalToGlobal(Vector3D Local){
 	return Global * Length;
 }
 
+private enum AlertStatus{
+	Green = 0,
+	Blue = 1,
+	Yellow = 2,
+	Orange = 3,
+	Red = 4
+}
+private string Submessage = "";
+private AlertStatus ShipStatus{
+	get{
+		AlertStatus status = AlertStatus.Green;
+		Submessage = "";
+		
+		if(Imminent_Crash){
+			AlertStatus new_status = AlertStatus.Orange;
+			status = (AlertStatus) Math.Max((int)status, (int)new_status);
+			Submessage += "\nCRASH IMMINENT --- BRACE";
+		}
+		
+		double ActualEnemyShipDistance = Math.Min(SmallShipList.ClosestDistance(this, MyRelationsBetweenPlayerAndBlock.Enemies), LargeShipList.ClosestDistance(this, MyRelationsBetweenPlayerAndBlock.Enemies));
+		double EnemyShipDistance = Math.Min(SmallShipList.ClosestDistance(this, MyRelationsBetweenPlayerAndBlock.Enemies), LargeShipList.ClosestDistance(this, MyRelationsBetweenPlayerAndBlock.Enemies)/2);
+		if(EnemyShipDistance<800){
+			AlertStatus new_status = AlertStatus.Red;
+			status = (AlertStatus) Math.Max((int)status, (int)new_status);
+			Submessage += "\nEnemy Ship at " + Math.Round(ActualEnemyShipDistance, 0) + " meters";
+		}
+		else if(EnemyShipDistance<2500){
+			AlertStatus new_status = AlertStatus.Orange;
+			status = (AlertStatus) Math.Max((int)status, (int)new_status);
+			Submessage += "\nEnemy Ship at " + Math.Round(ActualEnemyShipDistance, 0) + " meters";
+		}
+		else if(EnemyShipDistance<5000){
+			AlertStatus new_status = AlertStatus.Yellow;
+			status = (AlertStatus) Math.Max((int)status, (int)new_status);
+			Submessage += "\nEnemy Ship at " + Math.Round(ActualEnemyShipDistance, 0) + " meters";
+		}
+		
+		double EnemyCharacterDistance = CharacterList.ClosestDistance(this, MyRelationsBetweenPlayerAndBlock.Enemies);
+		if(EnemyCharacterDistance-Me.CubeGrid.GridSize<0){
+			AlertStatus new_status = AlertStatus.Red;
+			status = (AlertStatus) Math.Max((int)status, (int)new_status);
+			Submessage += "\nEnemy Creature has boarded ship";
+		}
+		else if(EnemyCharacterDistance-Me.CubeGrid.GridSize<800){
+			AlertStatus new_status = AlertStatus.Orange;
+			status = (AlertStatus) Math.Max((int)status, (int)new_status);
+			Submessage += "\nEnemy Creature at " + Math.Round(EnemyCharacterDistance, 0) + " meters";
+		}
+		else if(EnemyCharacterDistance-Me.CubeGrid.GridSize<2000){
+			AlertStatus new_status = AlertStatus.Yellow;
+			status = (AlertStatus) Math.Max((int)status, (int)new_status);
+			Submessage += "\nEnemy Creature at " + Math.Round(EnemyCharacterDistance, 0) + " meters";
+		}
+		
+		double ShipDistance = Math.Min(SmallShipList.ClosestDistance(this),LargeShipList.ClosestDistance(this))-Me.CubeGrid.GridSize;
+		if(ShipDistance < 500 && ShipDistance > 0){
+			AlertStatus new_status = AlertStatus.Blue;
+			status = (AlertStatus) Math.Max((int)status, (int)new_status);
+			Submessage += "\nNearby ship at " + Math.Round(ShipDistance, 0) + " meters";
+		}
+		if(AsteroidList.ClosestDistance(this) < 500){
+			AlertStatus new_status = AlertStatus.Blue;
+			status = (AlertStatus) Math.Max((int)status, (int)new_status);
+			Submessage += "\nNearby asteroid at " + Math.Round(AsteroidList.ClosestDistance(this), 0) + " meters";
+		}
+		if(Controller.GetShipSpeed() > HIGH_SPEED){
+			AlertStatus new_status = AlertStatus.Blue;
+			status = (AlertStatus) Math.Max((int)status, (int)new_status);
+			double Speed = Controller.GetShipSpeed();
+			Submessage += "\nHigh Ship Speed [";
+			const int SECTIONS = 20;
+			for(int i=0; i<SECTIONS; i++){
+				if(Speed >= ((100.0/SECTIONS) * i)){
+					Submessage += '|';
+				}
+				else {
+					Submessage += ' ';
+				}
+			}
+			Submessage += ']';
+		}
+		if(status == AlertStatus.Green)
+			Submessage = "\nNo issues";
+		return status;
+	}
+}
+
 //Sets directional vectors, elevation, etc
 private void GetPositionData(){
 	Vector3D base_vector = new Vector3D(0,0,10);
@@ -1629,6 +1733,28 @@ private void UpdateList(List<EntityInfo> list, EntityInfo new_entity){
 	list.Add(new_entity);
 }
 
+private void SetStatus(string message, Color TextColor, Color BackgroundColor){
+	List<IMyTextPanel> StatusLCDs = (new GenericMethods<IMyTextPanel>(this)).GetAllIncluding("Ship Status");
+	float padding = 40.0f;
+	string[] lines = message.Split('\n')'
+	padding = Math.Max(10.0f, padding-(lines.Count*5.0f));
+	foreach(IMyTextPanel LCD in StatusLCDs){
+		Panel.Alignment=TextAlignment.CENTER;
+		Panel.FontSize=1.2f;
+		Panel.ContentType=ContentType.TEXT_AND_IMAGE;
+		Panel.TextPadding=padding;
+		LCD.WriteText(message, false);
+		if(LCD.CustomName.ToLower().Contains("transparent")){
+			LCD.FontColor = BackgroundColor;
+			LCD.BackgroundColor = new Color(0,0,0,255);
+		}
+		else {
+			LCD.FontColor = TextColor;
+			LCD.BackgroundColor = BackgroundColor;
+		}
+	}
+}
+
 private void Stop(object obj=null){
 	
 	return true;
@@ -1644,33 +1770,56 @@ private bool FactoryReset(object obj=null){
 	return true;
 }
 
-private bool UpdateEntityListing(Menu_Submenu Menu){
-	EntityList List = null;
-	switch(Menu.Name){
-		case "Asteroids":
-			List=AsteroidList;
-			break;
-		case "Planets":
-			List=PlanetList;
-			break;
-		case "Small Ships":
-			List=SmallShipList;
-			break;
-		case "Large Ships":
-			List=LargeShipList;
-			break;
-		case "Characters":
-			List=CharacterList;
-			break;
-	}
-	if(List==null)
-		return false;
-	Menu = new Menu_Submenu(Menu.Name);
-	List.Sort(Me.CubeGrid.GetPosition());
+private bool GoTo(EntityInfo Entity){
+	//Match velocity for hostiles, GoTo for others
 	
+	return true;
 }
 
-private void AsteroidMenu;
+private bool UpdateEntityListing(Menu_Submenu Menu){
+	EntityList list = null;
+	bool do_goto = false;
+	switch(Menu.Name){
+		case "Asteroids":
+			list=AsteroidList;
+			do_goto = true;
+			break;
+		case "Planets":
+			list=PlanetList;
+			do_goto = false;
+			break;
+		case "Small Ships":
+			list=SmallShipList;
+			do_goto = true;
+			break;
+		case "Large Ships":
+			list=LargeShipList;
+			do_goto = true;
+			break;
+		case "Characters":
+			list=CharacterList;
+			do_goto = true;
+			break;
+	}
+	if(list==null)
+		return false;
+	Menu = new Menu_Submenu(Menu.Name);
+	Menu.Add(new Menu_Command("Refresh", UpdateEntityListing, "Updates "+Menu.Name, Menu));
+	List.Sort(Me.CubeGrid.GetPosition());
+	for(int i=0;i<list.Count;i++){
+		if(do_goto)
+			Menu_Submenu.Add(new Menu_Display(list[i], this, GoTo));
+		else
+			Menu_Submenu.Add(new Menu_Display(list[i]));
+	}
+	return true;
+}
+
+private Menu_Submenu AsteroidMenu;
+private Menu_Submenu PlanetMenu;
+private Menu_Submenu SmallShipMenu;
+private Menu_Submenu LargeShipMenu;
+private Menu_Submenu CharacterMenu;
 
 private void CreateMenu(){
 	Command_Menu = new Menu_Submenu("Command Menu");
@@ -1680,13 +1829,34 @@ private void CreateMenu(){
 	ShipCommands.Add(new Menu_Command<object>("Lockdown", Lockdown, "Closes/Opens Air Seals"));
 	ShipCommands.Add(new Menu_Command<object>("Factory Reset", FactoryReset, "Resets AI memory and settings, and turns it off"));
 	Command_Menu.Add(ShipCommands);
-	AsteroidMenu = 
-	
-	
+	AsteroidMenu=new Menu_Submenu("Asteroids");
+	UpdateEntityListing(AsteroidMenu);
+	PlanetMenu=new Menu_Submenu("Planets");
+	UpdateEntityListing(PlanetMenu);
+	SmallShipMenu=new Menu_Submenu("Small Ships");
+	UpdateEntityListing(SmallShipMenu);
+	LargeShipMenu=new Menu_Submenu("Large Ships");
+	UpdateEntityListing(LargeShipMenu);
+	CharacterMenu=new Menu_Submenu("Characters");
+	UpdateEntityListing(CharacterMenu);
 }
 
-private void RefreshMenu(){
-	
+private void DisplayMenu(){
+	List<IMyTextPanel> Panels = (new GenericMethods<IMyTextPanel>(this)).GetAllContaining("Command Menu Display");
+	foreach(IMyTextPanel Panel in Panels){
+		Panel.WriteText(Command_Menu.ToString(), false);
+		Panel.Alignment=TextAlignment.CENTER;
+		Panel.FontSize=1.2f;
+		Panel.ContentType=ContentType.TEXT_AND_IMAGE;
+		if(Panel.CustomName.ToLower().Contains("transparent")){
+			Panel.FontColor=DEFAULT_BACKGROUND_COLOR;
+			Panel.BackgroundColor=new Color(0,0,0,0);
+		}
+		else{
+			Panel.FontColor=DEFAULT_TEXT_COLOR;
+			Panel.BackgroundColor=DEFAULT_BACKGROUND_COLOR;
+		}
+	}
 }
 
 private bool last_performed_alarm = false;
@@ -1759,7 +1929,7 @@ public void PerformAlarm(){
 		double distance = double.MaxValue;
 		foreach(EntityInfo Entity in CharacterList){
 			if((Entity.Relationship == MyRelationsBetweenPlayerAndBlock.Enemies) && Entity.Age.TotalSeconds <= 60)
-				distance = Math.Min(distance, Entity.GetDistance(Sound.GetPosition())););
+				distance = Math.Min(distance, Entity.GetDistance(Sound.GetPosition()));
 		}
 		if(distance <= ALERT_DISTANCE){
 			if(!HasBlockData(Sound, "DefaultSound")){
@@ -1803,7 +1973,7 @@ public void PerformAlarm(){
 		double distance = double.MaxValue;
 		foreach(EntityInfo Entity in CharacterList){
 			if((Entity.Relationship == MyRelationsBetweenPlayerAndBlock.Enemies) && Entity.Age.TotalSeconds <= 60)
-				distance = Math.Min(distance, Entity.GetDistance(Door.GetPosition())););
+				distance = Math.Min(distance, Entity.GetDistance(Door.GetPosition()));
 		}
 		if(distance <= ALERT_DISTANCE){
 			if(!HasBlockData(Door, "DefaultState")){
@@ -2091,6 +2261,28 @@ public void PerformScan(){
 		ScanString += "Airlock " + (i+1).ToString() + " Status:" + '\n';
 		UpdateAirlock(Airlocks[i]);
 	}
+	
+	if(Command_Menu.AutoRefresh)
+		DisplayMenu();
+	
+	switch(ShipStatus){
+		case AlertStatus.Green:
+			SetStatus("Condition " + ShipStatus.ToString() + Submessage, new Color(137, 255, 137, 255), new Color(0, 151, 0, 255));
+			break;
+		case AlertStatus.Blue:
+			SetStatus("Condition " + ShipStatus.ToString() + Submessage, new Color(137, 239, 255, 255), new Color(0, 88, 151, 255));
+			break;
+		case AlertStatus.Yellow:
+			SetStatus("Condition " + ShipStatus.ToString() + Submessage, new Color(255, 239, 137, 255), new Color(66, 66, 0, 255));
+			break;
+		case AlertStatus.Orange:
+			SetStatus("Condition " + ShipStatus.ToString() + Submessage, new Color(255, 197, 0, 255), new Color(88, 44, 0, 255));
+			break;
+		case AlertStatus.Red:
+			SetStatus("Condition " + ShipStatus.ToString() + Submessage, new Color(255, 137, 137, 255), new Color(151, 0, 0, 255));
+			break;
+	}
+	
 	ScanString += "Completed updating data" + '\n';
 	Scan_Time = 0;
 }
