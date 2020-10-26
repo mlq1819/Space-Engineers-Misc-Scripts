@@ -918,6 +918,7 @@ private bool Match_Direction = false;
 private Vector3D Target_Direction;
 private bool Match_Position = false;
 private Vector3D Target_Position;
+private long Target_ID = 0;
 
 
 private Vector3D RestingVelocity;
@@ -939,9 +940,208 @@ private Vector3D Relative_Gravity{
 	}
 }
 
+private Vector3D AngularVelocity;
+private Vector3D Relative_AngularVelocity{
+	get{
+		return GlobalToLocal(AngularVelocity);
+	}
+}
+
 private double Elevation;
 private double Sealevel;
 private Vector3D PlanetCenter;
+
+private struct Gyro_Tuple{
+	public float Pitch;
+	public float Yaw;
+	public float Roll;
+	
+	public Gyro_Tuple(float p, float y, float r){
+		Pitch = p;
+		Yaw = y;
+		Roll = r;
+	}
+	
+	public static Gyro_Tuple Parse(string input){
+		string[] args = input.Split(' ');
+		if(args.Count() != 3)
+			throw new ArgumentException("Invalid input for Gyro_Tuple");
+		if(args[0].IndexOf("P:")!=0)
+			throw new ArgumentException("Invalid input for Gyro_Tuple");
+		if(args[1].IndexOf("Y:")!=0)
+			throw new ArgumentException("Invalid input for Gyro_Tuple");
+		if(args[2].IndexOf("R:")!=0)
+			throw new ArgumentException("Invalid input for Gyro_Tuple");
+		try{
+			float pitch = float.Parse(args[0].Substring(args[0].IndexOf(':')+1));
+			float yaw = float.Parse(args[1].Substring(args[1].IndexOf(':')+1));
+			float roll = float.Parse(args[2].Substring(args[2].IndexOf(':')+1));
+			return new Gyro_Tuple(pitch, yaw, roll);
+		}
+		catch(Exception){
+			throw new ArgumentException("Invalid input for Gyro_Tuple");
+		}
+	}
+	
+	public override string ToString(){
+		return "P:" + Pitch.ToString() + " Y:" + Yaw.ToString() + " R:" + Roll.ToString();
+	}
+	
+	public string NiceString(){
+		return "Pitch: " + ((int)Pitch).ToString() + "\nYaw: " + ((int)Yaw).ToString() + "\nRoll: " + ((int)Roll).ToString();
+	}
+}
+
+private Gyro_Tuple Transform(Gyro_Tuple input){
+	float pitch = 0, yaw = 0, roll = 0;
+	switch(Forward){
+		case Base6Directions.Direction.Forward:
+			switch(Up){
+				case Base6Directions.Direction.Up:
+					pitch = input.Pitch;
+					yaw = input.Yaw;
+					roll = input.Roll;
+					break;
+				case Base6Directions.Direction.Down:
+					pitch = -1 * input.Pitch;
+					yaw = -1 * input.Yaw;
+					roll = input.Roll;
+					break;
+				case Base6Directions.Direction.Left:
+					yaw = input.Pitch;
+					pitch = -1 * input.Yaw;
+					roll = input.Roll;
+					break;
+				case Base6Directions.Direction.Right:
+					yaw = -1 * input.Pitch;
+					pitch = input.Yaw;
+					roll = input.Roll;
+					break;
+			}
+			break;
+		case Base6Directions.Direction.Backward:
+			switch(Up){
+				case Base6Directions.Direction.Up:
+					pitch = -1 * input.Pitch;
+					yaw = input.Yaw;
+					roll = -1 * input.Roll;
+					break;
+				case Base6Directions.Direction.Down:
+					pitch = input.Pitch;
+					yaw = input.Yaw;
+					roll = -1 * input.Roll;
+					break;
+				case Base6Directions.Direction.Left:
+					yaw = input.Pitch;
+					pitch = input.Yaw;
+					roll = -1 * input.Roll;
+					break;
+				case Base6Directions.Direction.Right:
+					yaw = -1 * input.Pitch;
+					pitch = -1 * input.Yaw;
+					roll = -1 * input.Roll;
+					break;
+			}
+			break;
+		case Base6Directions.Direction.Up:
+			switch(Up){
+				case Base6Directions.Direction.Forward:
+					pitch = -1 * input.Pitch;
+					roll = -1 * input.Yaw;
+					yaw = -1 * input.Roll;
+					break;
+				case Base6Directions.Direction.Backward:
+					pitch = input.Pitch;
+					roll = -1 * input.Yaw;
+					yaw = input.Roll;
+					break;
+				case Base6Directions.Direction.Left:
+					yaw = input.Pitch;
+					roll = -1 * input.Yaw;
+					pitch = -1 * input.Roll;
+					break;
+				case Base6Directions.Direction.Right:
+					yaw = -1 * input.Pitch;
+					roll = -1 * input.Yaw;
+					pitch = input.Roll;
+					break;
+			}
+			break;
+		case Base6Directions.Direction.Down:
+			switch(Up){
+				case Base6Directions.Direction.Forward:
+					pitch = input.Pitch;
+					roll = input.Yaw;
+					yaw = -1 * input.Roll;
+					break;
+				case Base6Directions.Direction.Backward:
+					pitch = -1 * input.Pitch;
+					roll = input.Yaw;
+					yaw = input.Roll;
+					break;
+				case Base6Directions.Direction.Left:
+					yaw = input.Pitch;
+					roll = input.Yaw;
+					pitch = input.Roll;
+					break;
+				case Base6Directions.Direction.Right:
+					yaw = -1 * input.Pitch;
+					roll = input.Yaw;
+					pitch = -1 * input.Roll;
+					break;
+			}
+			break;
+		case Base6Directions.Direction.Left:
+			switch(Up){
+				case Base6Directions.Direction.Forward:
+					roll = -1 * input.Pitch;
+					pitch = input.Yaw;
+					yaw = -1 * input.Roll;
+					break;
+				case Base6Directions.Direction.Backward:
+					roll = -1 * input.Pitch;
+					pitch = -1 * input.Yaw;
+					yaw = input.Roll;
+					break;
+				case Base6Directions.Direction.Up:
+					roll = -1 * input.Pitch;
+					yaw = input.Yaw;
+					pitch = input.Roll;
+					break;
+				case Base6Directions.Direction.Down:
+					roll = -1 * input.Pitch;
+					yaw = -1 * input.Yaw;
+					pitch = -1 * input.Roll;
+					break;
+			}
+			break;
+		case Base6Directions.Direction.Right:
+			switch(Up){
+				case Base6Directions.Direction.Forward:
+					roll = input.Pitch;
+					pitch = -1 * input.Yaw;
+					yaw = -1 * input.Roll;
+					break;
+				case Base6Directions.Direction.Backward:
+					roll = input.Pitch;
+					pitch = input.Yaw;
+					yaw = input.Roll;
+					break;
+				case Base6Directions.Direction.Up:
+					roll = input.Pitch;
+					yaw = input.Yaw;
+					pitch = -1 * input.Roll;
+					break;
+				case Base6Directions.Direction.Down:
+					roll = input.Pitch;
+					yaw = -1 * input.Yaw;
+					pitch = input.Roll;
+					break;
+			}
+			break;
+	}
+	return new Gyro_Tuple(pitch, yaw, roll);
+}
 
 private bool HasBlockData(IMyTerminalBlock Block, string Name){
 	if(Name.Contains(':'))
@@ -1249,12 +1449,12 @@ public bool Setup(){
 			Right_Thrusters.Add(Thruster);
 		}
 	}
-	SetThrusters(Forward_Thrusters, "Forward");
-	SetThrusters(Backward_Thrusters, "Backward");
-	SetThrusters(Up_Thrusters, "Up");
-	SetThrusters(Down_Thrusters, "Down");
-	SetThrusters(Left_Thrusters, "Left");
-	SetThrusters(Right_Thrusters, "Right");
+	SetThrusterList(Forward_Thrusters, "Forward");
+	SetThrusterList(Backward_Thrusters, "Backward");
+	SetThrusterList(Up_Thrusters, "Up");
+	SetThrusterList(Down_Thrusters, "Down");
+	SetThrusterList(Left_Thrusters, "Left");
+	SetThrusterList(Right_Thrusters, "Right");
 	
 	Operational=Me.IsWorking;
 	Runtime.UpdateFrequency = GetUpdateFrequency();
@@ -1301,13 +1501,16 @@ public Program()
 					break;
 			}
 		}
+		else if(arg.IndexOf("Lockdown:")==0){
+			bool.TryParse(arg.Substring("Lockdown:".Length), out _Lockdown);
+		}
 	}
 	IGC.RegisterBroadcastListener("Neptine AI");
 	IGC.RegisterBroadcastListener("Entity Report");
 	IGC.RegisterBroadcastListener(Me.CubeGrid.CustomName);
 }
 
-private void SetThrusters(List<IMyThrust> Thrusters, string Direction){
+private void SetThrusterList(List<IMyThrust> Thrusters, string Direction){
 	int small_misc=0;
 	int large_misc=0;
 	int small_hydrogen=0;
@@ -1408,7 +1611,7 @@ private void ResetThruster(IMyThrust Thruster){
 
 public void Save()
 {
-    this.Storage = "";
+	this.Storage="Lockdown:"+Lockdown.ToString();
 	foreach(EntityInfo Entity in AsteroidList){
 		this.Storage += '•' + Entity.ToString();
 	}
@@ -1550,164 +1753,6 @@ private AlertStatus ShipStatus{
 	}
 }
 
-//Sets directional vectors, elevation, etc
-private void GetPositionData(){
-	Vector3D base_vector = new Vector3D(0,0,10);
-	Forward_Vector = Vector3D.Transform(base_vector, Controller.WorldMatrix) - Controller.GetPosition();
-	Forward_Vector.Normalize();
-	Backward_Vector = -1 * Forward_Vector;
-	
-	base_vector = new Vector3D(0,10,0);
-	Up_Vector = Vector3D.Transform(base_vector, Controller.WorldMatrix) - Controller.GetPosition();
-	Up_Vector.Normalize();
-	Down_Vector = -1 * Up_Vector;
-	
-	base_vector = new Vector3D(10,0,0);
-	Left_Vector = Vector3D.Transform(base_vector, Controller.WorldMatrix) - Controller.GetPosition();
-	Left_Vector.Normalize();
-	Right_Vector = -1 * Left_Vector;
-	
-	switch(Forward){
-		case Base6Directions.Direction.Forward:
-			Controller_Forward = Forward_Vector;
-			Controller_Backward = Backward_Vector;
-			break;
-		case Base6Directions.Direction.Backward:
-			Controller_Forward = Backward_Vector;
-			Controller_Backward = Forward_Vector;
-			break;
-		case Base6Directions.Direction.Up:
-			Controller_Forward = Up_Vector;
-			Controller_Backward = Down_Vector;
-			break;
-		case Base6Directions.Direction.Down:
-			Controller_Forward = Down_Vector;
-			Controller_Backward = Up_Vector;
-			break;
-		case Base6Directions.Direction.Left:
-			Controller_Forward = Left_Vector;
-			Controller_Backward = Right_Vector;
-			break;
-		case Base6Directions.Direction.Right:
-			Controller_Forward = Right_Vector;
-			Controller_Backward = Left_Vector;
-			break;
-	}
-	switch(Up){
-		case Base6Directions.Direction.Forward:
-			Controller_Up = Forward_Vector;
-			Controller_Down = Backward_Vector;
-			break;
-		case Base6Directions.Direction.Backward:
-			Controller_Up = Backward_Vector;
-			Controller_Down = Forward_Vector;
-			break;
-		case Base6Directions.Direction.Up:
-			Controller_Up = Up_Vector;
-			Controller_Down = Down_Vector;
-			break;
-		case Base6Directions.Direction.Down:
-			Controller_Up = Down_Vector;
-			Controller_Down = Up_Vector;
-			break;
-		case Base6Directions.Direction.Left:
-			Controller_Up = Left_Vector;
-			Controller_Down = Right_Vector;
-			break;
-		case Base6Directions.Direction.Right:
-			Controller_Up = Right_Vector;
-			Controller_Down = Left_Vector;
-			break;
-	}
-	switch(Left){
-		case Base6Directions.Direction.Forward:
-			Controller_Left = Forward_Vector;
-			Controller_Right = Backward_Vector;
-			break;
-		case Base6Directions.Direction.Backward:
-			Controller_Left = Backward_Vector;
-			Controller_Right = Forward_Vector;
-			break;
-		case Base6Directions.Direction.Up:
-			Controller_Left = Up_Vector;
-			Controller_Right = Down_Vector;
-			break;
-		case Base6Directions.Direction.Down:
-			Controller_Left = Down_Vector;
-			Controller_Right = Up_Vector;
-			break;
-		case Base6Directions.Direction.Left:
-			Controller_Left = Left_Vector;
-			Controller_Right = Right_Vector;
-			break;
-		case Base6Directions.Direction.Right:
-			Controller_Left = Right_Vector;
-			Controller_Right = Left_Vector;
-			break;
-	}
-	Forward_Thrust=0.0f;
-	foreach(IMyThrust Thruster in Forward_Thrusters){
-		if(Thruster.IsWorking)
-			Forward_Thrust+=Thruster.MaxEffectiveThrust;
-	}
-	Backward_Thrust=0.0f;
-	foreach(IMyThrust Thruster in Backward_Thrusters){
-		if(Thruster.IsWorking)
-			Backward_Thrust+=Thruster.MaxEffectiveThrust;
-	}
-	Up_Thrust=0.0f;
-	foreach(IMyThrust Thruster in Up_Thrusters){
-		if(Thruster.IsWorking)
-			Up_Thrust+=Thruster.MaxEffectiveThrust;
-	}
-	Down_Thrust=0.0f;
-	foreach(IMyThrust Thruster in Down_Thrusters){
-		if(Thruster.IsWorking)
-			Down_Thrust+=Thruster.MaxEffectiveThrust;
-	}
-	Left_Thrust=0.0f;
-	foreach(IMyThrust Thruster in Left_Thrusters){
-		if(Thruster.IsWorking)
-			Left_Thrust+=Thruster.MaxEffectiveThrust;
-	}
-	Right_Thrust=0.0f;
-	foreach(IMyThrust Thruster in Right_Thrusters){
-		if(Thruster.IsWorking)
-			Right_Thrust+=Thruster.MaxEffectiveThrust;
-	}
-	
-	if(Controller.TryGetPlanetElevation(MyPlanetElevation.SeaLevel, out Sealevel)){
-		if(Controller.TryGetPlanetPosition(out PlanetCenter)){
-			if(Sealevel < 6000 && Controller.TryGetPlanetPosition(MyPlanetElevation.Surface, out Elevation)){
-				if(Sealevel > 5000){
-					double difference = Sealevel - 5000;
-					Elevation =  ((Elevation * (1000-difference)) + (Sealevel * difference)) / 1000;
-				}
-				else if(Elevation < 50){
-					double terrain_height = (Controller.GetPosition() - PlanetCenter).Length() - Elevation;
-					List<IMyTerminalBlock> AllBlocks = new List<IMyTerminalBlock>();
-					GridTerminalSystem.GetBlocksOfType<IMyTerminalBlock>(AllBlocks);
-					foreach(IMyTerminalBlock Block in AllBlocks){
-						Elevation = Math.Min(Elevation, (Block.GetPosition() - PlanetCenter)/Length() - terrain_height);
-					}
-				}
-			}
-			else {
-				Elevation = Sealevel;
-			}
-		}
-		else {
-			PlanetCenter = new Vector3D(0,0,0);
-		}
-	}
-	else{
-		Sealevel = double.MaxValue;
-	}
-	
-	Gravity = Controller.GetNaturalGravity();
-	CurrentVelocity=Controller.GetShipVelocities().LinearVelocity;
-}
-
 private void UpdateList(List<MyDetectedEntityInfo> list, MyDetectedEntityInfo new_entity){
 	if(new_entity.Type == MyDetectedEntityType.None || new_entity.EntityId == Me.CubeGrid.EntityId)
 		return;
@@ -1756,23 +1801,72 @@ private void SetStatus(string message, Color TextColor, Color BackgroundColor){
 }
 
 private void Stop(object obj=null){
-	
+	RestingVelocity=new Velocity(0,0,0);
+	Match_Direction=false;
+	Match_Position=false;
+	Target_ID=0;
 	return true;
 }
 
+private bool _Lockdown=false;
+private bool Lockdown{
+	get{
+		return _Lockdown;
+	}
+	set{
+		if(value!=_Lockdown){
+			_Lockdown=value;
+			List<IMyAirtightHangarDoor> Seals = (new GenericMethods<IMyAirtightHangarDoor>(this)).GetAllIncluding("Air Seal");
+			foreach(IMyAirtightHangarDoor Door in Seals){
+				if(_Lockdown){
+					if(CanHaveJob(Door, "Lockdown")){
+						SetBlockData(Door, "Job", "Lockdown");
+						Door.Enabled=(Door.Status!=DoorStatus.Closed);
+						Door.CloseDoor();
+					}
+				}
+				else{
+					if(CanHaveJob(Door, "Lockdown")){
+						SetBlockData(Door, "Job", "None");
+						Door.Enabled=(Door.Status!=DoorStatus.Open);
+						Door.OpenDoor();
+					}
+				}
+			}
+		}
+	}
+}
+
 private void Lockdown(object obj=null){
-	
+	Lockdown = !Lockdown;
 	return true;
 }
 
 private bool FactoryReset(object obj=null){
-	
+	SetStatus("Status LCD\nOffline", DEFAULT_TEXT_COLOR, DEFAULT_BACKGROUND_COLOR);
+	Reset();
+	Me.Enabled = false;
 	return true;
+}
+
+private Vector3D GetOffsetPosition(Vector3D Position){
+	Vector3D direction = Position-Me.CubeGrid.GetPosition();
+	direction.Normalize();
+	double distance = (Position-Me.CubeGrid.GetPosition()).Length();
+	return (distance-Me.CubeGrid.GridSize/2-Math.Min(distance/2,400))*direction;
 }
 
 private bool GoTo(EntityInfo Entity){
 	//Match velocity for hostiles, GoTo for others
-	
+	RestingVelocity=Entity.Velocity;
+	Target_ID=Entity.ID;
+	if(Entity.Relationship!=MyRelationBetweenPlayerAndBlock.Enemies){
+		Target_Direction = Entity.Position-Me.CubeGrid.GetPosition();
+		Target_Direction.Normalize();
+		Target_Position = GetOffsetPosition(Entity.Position);
+		Match_Position=true;
+		Match_Direction=true;
+	}
 	return true;
 }
 
@@ -2028,7 +2122,7 @@ private void UpdateAirlock(Airlock airlock){
 	double min_distance_check = 3.75 * (1 + (Controller.GetShipSpeed() / 200));
 	foreach(EntityInfo Entity in CharacterList){
 		if(Entity.Relationship != MyRelationsBetweenPlayerAndBlock.Enemies && Entity.Relationship != MyRelationsBetweenPlayerAndBlock.Neutral){
-			Vector3D position = Entity.Position + Controller.GetShipVelocities().LinearVelocity / 100;
+			Vector3D position = Entity.Position + CurrentVelocity / 100;
 			double distance = airlock.Distance(Entity.Position);
 			bool is_closest_to_this_airlock = distance <= min_distance_check;
 			if(is_closest_to_this_airlock){
@@ -2233,6 +2327,12 @@ public void PerformScan(){
 	}
 	
 	foreach(EntityInfo Entity in Entities){
+		if(Entity.ID==Target_ID){
+			RestingVelocity=Entity.Velocity;
+			Target_Direction = Entity.Position-Me.CubeGrid.GetPosition();
+			Target_Direction.Normalize();
+			Target_Position = GetOffsetPosition(Entity.Position);
+		}
 		switch(Entity.Type){
 			case MyDetectedEntityType.Asteroid:
 				AsteroidList.UpdateEntity(Entity);
@@ -2337,15 +2437,205 @@ private void UpdateProgramInfo(){
 	}
 }
 
+private void SetGyroscopes(){
+	
+}
+
+private void SetThrusters(){
+	
+}
+
+
+//Sets directional vectors, elevation, etc
+private void GetPositionData(){
+	Vector3D base_vector = new Vector3D(0,0,10);
+	Forward_Vector = Vector3D.Transform(base_vector, Controller.WorldMatrix) - Controller.GetPosition();
+	Forward_Vector.Normalize();
+	Backward_Vector = -1 * Forward_Vector;
+	
+	base_vector = new Vector3D(0,10,0);
+	Up_Vector = Vector3D.Transform(base_vector, Controller.WorldMatrix) - Controller.GetPosition();
+	Up_Vector.Normalize();
+	Down_Vector = -1 * Up_Vector;
+	
+	base_vector = new Vector3D(10,0,0);
+	Left_Vector = Vector3D.Transform(base_vector, Controller.WorldMatrix) - Controller.GetPosition();
+	Left_Vector.Normalize();
+	Right_Vector = -1 * Left_Vector;
+	
+	switch(Forward){
+		case Base6Directions.Direction.Forward:
+			Controller_Forward = Forward_Vector;
+			Controller_Backward = Backward_Vector;
+			break;
+		case Base6Directions.Direction.Backward:
+			Controller_Forward = Backward_Vector;
+			Controller_Backward = Forward_Vector;
+			break;
+		case Base6Directions.Direction.Up:
+			Controller_Forward = Up_Vector;
+			Controller_Backward = Down_Vector;
+			break;
+		case Base6Directions.Direction.Down:
+			Controller_Forward = Down_Vector;
+			Controller_Backward = Up_Vector;
+			break;
+		case Base6Directions.Direction.Left:
+			Controller_Forward = Left_Vector;
+			Controller_Backward = Right_Vector;
+			break;
+		case Base6Directions.Direction.Right:
+			Controller_Forward = Right_Vector;
+			Controller_Backward = Left_Vector;
+			break;
+	}
+	switch(Up){
+		case Base6Directions.Direction.Forward:
+			Controller_Up = Forward_Vector;
+			Controller_Down = Backward_Vector;
+			break;
+		case Base6Directions.Direction.Backward:
+			Controller_Up = Backward_Vector;
+			Controller_Down = Forward_Vector;
+			break;
+		case Base6Directions.Direction.Up:
+			Controller_Up = Up_Vector;
+			Controller_Down = Down_Vector;
+			break;
+		case Base6Directions.Direction.Down:
+			Controller_Up = Down_Vector;
+			Controller_Down = Up_Vector;
+			break;
+		case Base6Directions.Direction.Left:
+			Controller_Up = Left_Vector;
+			Controller_Down = Right_Vector;
+			break;
+		case Base6Directions.Direction.Right:
+			Controller_Up = Right_Vector;
+			Controller_Down = Left_Vector;
+			break;
+	}
+	switch(Left){
+		case Base6Directions.Direction.Forward:
+			Controller_Left = Forward_Vector;
+			Controller_Right = Backward_Vector;
+			break;
+		case Base6Directions.Direction.Backward:
+			Controller_Left = Backward_Vector;
+			Controller_Right = Forward_Vector;
+			break;
+		case Base6Directions.Direction.Up:
+			Controller_Left = Up_Vector;
+			Controller_Right = Down_Vector;
+			break;
+		case Base6Directions.Direction.Down:
+			Controller_Left = Down_Vector;
+			Controller_Right = Up_Vector;
+			break;
+		case Base6Directions.Direction.Left:
+			Controller_Left = Left_Vector;
+			Controller_Right = Right_Vector;
+			break;
+		case Base6Directions.Direction.Right:
+			Controller_Left = Right_Vector;
+			Controller_Right = Left_Vector;
+			break;
+	}
+	Forward_Thrust=0.0f;
+	foreach(IMyThrust Thruster in Forward_Thrusters){
+		if(Thruster.IsWorking)
+			Forward_Thrust+=Thruster.MaxEffectiveThrust;
+	}
+	Backward_Thrust=0.0f;
+	foreach(IMyThrust Thruster in Backward_Thrusters){
+		if(Thruster.IsWorking)
+			Backward_Thrust+=Thruster.MaxEffectiveThrust;
+	}
+	Up_Thrust=0.0f;
+	foreach(IMyThrust Thruster in Up_Thrusters){
+		if(Thruster.IsWorking)
+			Up_Thrust+=Thruster.MaxEffectiveThrust;
+	}
+	Down_Thrust=0.0f;
+	foreach(IMyThrust Thruster in Down_Thrusters){
+		if(Thruster.IsWorking)
+			Down_Thrust+=Thruster.MaxEffectiveThrust;
+	}
+	Left_Thrust=0.0f;
+	foreach(IMyThrust Thruster in Left_Thrusters){
+		if(Thruster.IsWorking)
+			Left_Thrust+=Thruster.MaxEffectiveThrust;
+	}
+	Right_Thrust=0.0f;
+	foreach(IMyThrust Thruster in Right_Thrusters){
+		if(Thruster.IsWorking)
+			Right_Thrust+=Thruster.MaxEffectiveThrust;
+	}
+	
+	if(Controller.TryGetPlanetElevation(MyPlanetElevation.SeaLevel, out Sealevel)){
+		if(Controller.TryGetPlanetPosition(out PlanetCenter)){
+			if(Sealevel < 6000 && Controller.TryGetPlanetPosition(MyPlanetElevation.Surface, out Elevation)){
+				if(Sealevel > 5000){
+					double difference = Sealevel - 5000;
+					Elevation =  ((Elevation * (1000-difference)) + (Sealevel * difference)) / 1000;
+				}
+				else if(Elevation < 50){
+					double terrain_height = (Controller.GetPosition() - PlanetCenter).Length() - Elevation;
+					List<IMyTerminalBlock> AllBlocks = new List<IMyTerminalBlock>();
+					GridTerminalSystem.GetBlocksOfType<IMyTerminalBlock>(AllBlocks);
+					foreach(IMyTerminalBlock Block in AllBlocks){
+						Elevation = Math.Min(Elevation, (Block.GetPosition() - PlanetCenter)/Length() - terrain_height);
+					}
+				}
+			}
+			else {
+				Elevation = Sealevel;
+			}
+		}
+		else {
+			PlanetCenter = new Vector3D(0,0,0);
+		}
+	}
+	else{
+		Sealevel = double.MaxValue;
+	}
+	
+	Gravity = Controller.GetNaturalGravity();
+	CurrentVelocity=Controller.GetShipVelocities().LinearVelocity;
+	AngularVelocity=Controller.GetShipVelocities.AngularVelocity;
+	if(Match_Position){
+		Target_Position+=seconds_since_last_update*RestingVelocity;
+	}
+	if(Match_Direction){
+		Target_Direction = Target_Position-Me.CubeGrid.GetPosition();
+		Target_Direction.Normalize();
+	}
+	
+}
+
 public void Main(string argument, UpdateType updateSource)
 {
+	UpdateProgramInfo();
+	GetPositionData();
 	Scan_Time+=seconds_since_last_update;
 	if(Scan_Time >= Scan_Frequency){
 		PerformScan();
 	}
+	
+	if(argument.ToLower().Equals("back"))
+		Command_Menu.Back();
+	else if(argument.ToLower().Equals("prev"))
+		Command_Menu.Prev();
+	else if(argument.ToLower().Equals("next"))
+		Command_Menu.Next();
+	else if(argument.ToLower().Equals("select"))
+		Command_Menu.Select();
+	else if(argument.ToLower().Equals("factory reset"))
+		FactoryReset();
     
 	if(!Me.CubeGrid.IsStatic){
-		
+		SetThrusters();
+		SetGyroscopes();
 	}
 	
 	Runtime.UpdateFrequency = GetUpdateFrequency();
