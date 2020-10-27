@@ -16,7 +16,7 @@ private const double ALERT_DISTANCE=15;
 //Time between scans
 private const double SCAN_TIME=3;
 private Color DEFAULT_TEXT_COLOR = new Color(197,137,255,255);
-private Color DEFAULT_BACKGROUND_COLOR = new Color(197,137,255,255);
+private Color DEFAULT_BACKGROUND_COLOR = new Color(44,0,88,255);
 
 public class GenericMethods<T> where T : class, IMyTerminalBlock{
 	private IMyGridTerminalSystem TerminalSystem;
@@ -93,6 +93,27 @@ public class GenericMethods<T> where T : class, IMyTerminalBlock{
 	
 	public T GetContaining(string name){
 		return GetContaining(name, double.MaxValue);
+	}
+	
+	public List<T> GetAllIncluding(string name, Vector3D Reference, double max_distance = double.MaxValue){
+		List<T> AllBlocks = new List<T>();
+		List<T> MyBlocks = new List<T>();
+		TerminalSystem.GetBlocksOfType<T>(AllBlocks);
+		foreach(T Block in AllBlocks){
+			double distance = (Reference - Block.GetPosition()).Length();
+			if(Block.CustomName.Contains(name) && distance <= max_distance){
+				MyBlocks.Add(Block);
+			}
+		}
+		return MyBlocks;
+	}
+	
+	public List<T> GetAllIncluding(string name, IMyTerminalBlock Reference, double max_distance = double.MaxValue){
+		return GetAllIncluding(name, Reference.GetPosition(), max_distance);
+	}
+	
+	public List<T> GetAllIncluding(string name, double max_distance = double.MaxValue){
+		return GetAllIncluding(name, Prog, max_distance);
 	}
 	
 	public List<T> GetAllContaining(string name, double max_distance, Vector3D Reference){
@@ -416,6 +437,15 @@ public class EntityList : IEnumerable<EntityInfo>{
 	public int Count{
 		get{
 			return E_List.Count;
+		}
+	}
+	
+	public EntityInfo this[int key]{
+		get{
+			return E_List[key];
+		}
+		set{
+			E_List[key]=value;
 		}
 	}
 	
@@ -834,7 +864,7 @@ double seconds_since_last_update=0;
 private Random Rnd;
 
 private IMyShipController Controller;
-private IMyGyro Gyro;
+private IMyGyro Gyroscope;
 
 private List<IMyTextPanel> StatusLCDs;
 
@@ -1222,7 +1252,7 @@ private bool SetBlockData(IMyTerminalBlock Block, string Name, string Data){
 }
 
 private bool CanHaveJob(IMyTerminalBlock Block, string JobName){
-	return (!HasBlockData(Block, "Job")) || GetBlockData(Block, Job).Equals("None") || GetBlockData(Block, Job).Equals(JobName);
+	return (!HasBlockData(Block, "Job")) || GetBlockData(Block, "Job").Equals("None") || GetBlockData(Block, "Job").Equals(JobName);
 }
 
 public void Write(string text, bool new_line=true, bool append=true){
@@ -1425,11 +1455,54 @@ private UpdateFrequency GetUpdateFrequency(){
 		return UpdateFrequency.None;
 	if(Controller.IsUnderControl)
 		return UpdateFrequency.Update1;
-	if(Controller.GetShipVelocities().AngularVelocity > .1f)
+	if(Controller.GetShipVelocities().AngularVelocity.Length() > .1f)
 		return UpdateFrequency.Update1;
-	if((Controller.GetShipVelocities() - RestingVelocity).Length() > .5)
+	if((Controller.GetShipVelocities().LinearVelocity - RestingVelocity).Length() > .5)
 		return UpdateFrequency.Update1;
 	return UpdateFrequency.Update10;
+}
+
+private string GetRemovedString(string big_string, string small_string){
+	string output = big_string;
+	if(big_string.Contains(small_string)){
+		output = big_string.Substring(0, big_string.IndexOf(small_string)) + big_string.Substring(big_string.IndexOf(small_string) + small_string.Length);
+	}
+	return output;
+}
+
+private List<List<IMyDoor>> RemoveDoor(List<List<IMyDoor>> list, IMyDoor Door){
+	List<List<IMyDoor>> output = new List<List<IMyDoor>>();
+	Echo("\tRemoving Door \"" + Door.CustomName + "\" from list[" + list.Count + "]");
+	if(list.Count == 0){
+		return output;
+	}
+	string ExampleDoorName = "";
+	foreach(List<IMyDoor> sublist in list){
+		if(sublist.Count > 0){
+			ExampleDoorName = sublist[0].CustomName;
+			break;
+		}
+	}
+	
+	bool is_leading_group = (ExampleDoorName.Contains("Door 1") && Door.CustomName.Contains("Door 1")) || (ExampleDoorName.Contains("Door 2") && Door.CustomName.Contains("Door 2"));
+	for(int i=0; i<list.Count; i++){
+		if(list[i].Count > 1 && (!is_leading_group || !list[i][0].Equals(Door))){
+			if(is_leading_group){
+				output.Add(list[i]);
+			}
+			else{
+				List<IMyDoor> pair = new List<IMyDoor>();
+				pair.Add(list[i][0]);
+				for(int j=1; j<list[i].Count; j++){
+					if(!list[i][j].Equals(Door))
+						pair.Add(list[i][j]);
+				}
+				if(pair.Count>1)
+					output.Add(pair);
+			}
+		}
+	}
+	return output;
 }
 
 public bool Setup(){
@@ -1517,22 +1590,22 @@ public Program()
 		if(EntityInfo.TryParse(arg, out Entity)){
 			switch(Entity.Type){
 				case MyDetectedEntityType.Asteroid:
-					AsteroidList.Add(Entity);
+					AsteroidList.UpdateEntry(Entity);
 					break;
 				case MyDetectedEntityType.Planet:
-					PlanetList.Add(Entity);
+					PlanetList.UpdateEntry(Entity);
 					break;
 				case MyDetectedEntityType.SmallGrid:
-					SmallShipList.Add(Entity);
+					SmallShipList.UpdateEntry(Entity);
 					break;
 				case MyDetectedEntityType.LargeGrid:
-					LargeShipList.Add(Entity);
+					LargeShipList.UpdateEntry(Entity);
 					break;
 				case MyDetectedEntityType.CharacterHuman:
-					CharacterList.Add(Entity);
+					CharacterList.UpdateEntry(Entity);
 					break;
 				case MyDetectedEntityType.CharacterOther:
-					CharacterList.Add(Entity);
+					CharacterList.UpdateEntry(Entity);
 					break;
 			}
 		}
@@ -1635,7 +1708,10 @@ private void SetThrusterList(List<IMyThrust> Thrusters, string Direction){
 
 private void ResetThruster(IMyThrust Thruster){
 	if(HasBlockData(Thruster, "DefaultOverride")){
-		if(!float.TryParse(GetBlockData(Thruster, "DefaultOverride"), out Thruster.ThrustOverridePercentage))
+		float ThrustOverride = 0.0f;
+		if(float.TryParse(GetBlockData(Thruster, "DefaultOverride"), out ThrustOverride))
+			Thruster.ThrustOverridePercentage=ThrustOverride;
+		else
 			Thruster.ThrustOverridePercentage = 0.0f;
 	}
 	if(HasBlockData(Thruster, "DefaultName")){
@@ -1646,7 +1722,7 @@ private void ResetThruster(IMyThrust Thruster){
 
 public void Save()
 {
-	this.Storage="Lockdown:"+Lockdown.ToString();
+	this.Storage="Lockdown:"+_Lockdown.ToString();
 	foreach(EntityInfo Entity in AsteroidList){
 		this.Storage += '•' + Entity.ToString();
 	}
@@ -1776,7 +1852,7 @@ private AlertStatus ShipStatus{
 			status = (AlertStatus) Math.Max((int)status, (int)new_status);
 			Submessage += "\nNearby asteroid at " + Math.Round(AsteroidList.ClosestDistance(this), 0) + " meters";
 		}
-		if(Controller.GetShipSpeed() > HIGH_SPEED){
+		if(Controller.GetShipSpeed() > 30){
 			AlertStatus new_status = AlertStatus.Blue;
 			status = (AlertStatus) Math.Max((int)status, (int)new_status);
 			double Speed = Controller.GetShipSpeed();
@@ -1815,7 +1891,7 @@ private void UpdateList(List<EntityInfo> list, EntityInfo new_entity){
 	if(new_entity.Type == MyDetectedEntityType.None || new_entity.ID == Me.CubeGrid.EntityId)
 		return;
 	for(int i=0; i<list.Count; i++){
-		if(list[i].ID == new_entity.EntityId){
+		if(list[i].ID == new_entity.ID){
 			list[i] = new_entity;
 			return;
 		}
@@ -1826,12 +1902,12 @@ private void UpdateList(List<EntityInfo> list, EntityInfo new_entity){
 private void SetStatus(string message, Color TextColor, Color BackgroundColor){
 	float padding = 40.0f;
 	string[] lines = message.Split('\n');
-	padding = Math.Max(10.0f, padding-(lines.Count*5.0f));
+	padding = Math.Max(10.0f, padding-(lines.Length*5.0f));
 	foreach(IMyTextPanel LCD in StatusLCDs){
-		Panel.Alignment=TextAlignment.CENTER;
-		Panel.FontSize=1.2f;
-		Panel.ContentType=ContentType.TEXT_AND_IMAGE;
-		Panel.TextPadding=padding;
+		LCD.Alignment=TextAlignment.CENTER;
+		LCD.FontSize=1.2f;
+		LCD.ContentType=ContentType.TEXT_AND_IMAGE;
+		LCD.TextPadding=padding;
 		LCD.WriteText(message, false);
 		if(LCD.CustomName.ToLower().Contains("transparent")){
 			LCD.FontColor = BackgroundColor;
@@ -1844,8 +1920,9 @@ private void SetStatus(string message, Color TextColor, Color BackgroundColor){
 	}
 }
 
-private void Stop(object obj=null){
-	RestingVelocity=new Velocity(0,0,0);
+private bool Stop(object obj=null){
+	RestingVelocity=new Vector3D(0,0,0);
+	Target_Position=new Vector3D(0,0,0);
 	Match_Direction=false;
 	Match_Position=false;
 	Target_ID=0;
@@ -1854,7 +1931,7 @@ private void Stop(object obj=null){
 
 private bool _Lockdown=false;
 
-private void Lockdown(object obj=null){
+private bool Lockdown(object obj=null){
 	_Lockdown=!_Lockdown;
 	List<IMyAirtightHangarDoor> Seals = (new GenericMethods<IMyAirtightHangarDoor>(this)).GetAllIncluding("Air Seal");
 	foreach(IMyAirtightHangarDoor Door in Seals){
@@ -1894,7 +1971,7 @@ private bool GoTo(EntityInfo Entity){
 	//Match velocity for hostiles, GoTo for others
 	RestingVelocity=Entity.Velocity;
 	Target_ID=Entity.ID;
-	if(Entity.Relationship!=MyRelationBetweenPlayerAndBlock.Enemies){
+	if(Entity.Relationship!=MyRelationsBetweenPlayerAndBlock.Enemies){
 		Target_Direction = Entity.Position-Me.CubeGrid.GetPosition();
 		Target_Direction.Normalize();
 		Target_Position = GetOffsetPosition(Entity.Position);
@@ -1932,13 +2009,13 @@ private bool UpdateEntityListing(Menu_Submenu Menu){
 	if(list==null)
 		return false;
 	Menu = new Menu_Submenu(Menu.Name());
-	Menu.Add(new Menu_Command("Refresh", UpdateEntityListing, "Updates "+Menu.Name(), Menu));
-	List.Sort(Me.CubeGrid.GetPosition());
+	Menu.Add(new Menu_Command<Menu_Submenu>("Refresh", UpdateEntityListing, "Updates "+Menu.Name(), Menu));
+	list.Sort(Me.CubeGrid.GetPosition());
 	for(int i=0;i<list.Count;i++){
 		if(do_goto)
-			Menu_Submenu.Add(new Menu_Display(list[i], this, GoTo));
+			Menu.Add(new Menu_Display(list[i], this, GoTo));
 		else
-			Menu_Submenu.Add(new Menu_Display(list[i]));
+			Menu.Add(new Menu_Display(list[i]));
 	}
 	return true;
 }
@@ -2185,12 +2262,6 @@ private void UpdateAirlock(Airlock airlock){
 			}
 		}
 	}
-	float multx_1 = 1.0f + GlitchFloat;
-	float multx_2 = 1.0f + GlitchFloat;
-	if(min_distance_1 != double.MaxValue)
-		min_distance_1 *= multx_1;
-	if(min_distance_2 != double.MaxValue)
-		min_distance_2 *= multx_2;
 	
 	if(detected){
 		SetBlockData(airlock.Door1, "Job", "Airlock");
@@ -2250,18 +2321,18 @@ private double Scan_Frequency{
 		double MySize = Me.CubeGrid.GridSize;
 		double distance = SmallShipList.ClosestDistance(this);
 		if(distance >= MySize){
-			output = Math.Max(1, Math.Min((distance+MySize+100)/100));
+			output = Math.Max(1, Math.Min(10,(distance+MySize+100)/100));
 		}
 		distance = SmallShipList.ClosestDistance(this, MyRelationsBetweenPlayerAndBlock.Enemies);
-		output = Math.Max(1, Math.Min((distance-MySize+100)/100));
+		output = Math.Max(1, Math.Min(10,(distance-MySize+100)/100));
 		distance = LargeShipList.ClosestDistance(this);
 		if(distance >= MySize){
-			output = Math.Max(1, Math.Min((distance+MySize+100)/100));
+			output = Math.Max(1, Math.Min(10,(distance+MySize+100)/100));
 		}
 		distance = LargeShipList.ClosestDistance(this, MyRelationsBetweenPlayerAndBlock.Enemies);
-		output = Math.Max(1, Math.Min((distance-MySize+100)/100));
+		output = Math.Max(1, Math.Min(10,(distance-MySize+100)/100));
 		distance = CharacterList.ClosestDistance(this);
-		output = Math.Max(1, Math.Min((distance+MySize+100)/100));
+		output = Math.Max(1, Math.Min(10,(distance+MySize+100)/100));
 		return output;
 	}
 }
@@ -2289,7 +2360,7 @@ public void PerformScan(){
 			UpdateList(DetectedEntities, Turret.GetTargetedEntity());
 		}
 	}
-	List<IMyIMyCameraBlock> AllCameras = new List<IMyCameraBlock>();
+	List<IMyCameraBlock> AllCameras = new List<IMyCameraBlock>();
 	GridTerminalSystem.GetBlocksOfType<IMyCameraBlock>(AllCameras);
 	foreach(IMyCameraBlock Camera in AllCameras){
 		if(!HasBlockData(Camera, "DoRaycast")){
@@ -2320,7 +2391,7 @@ public void PerformScan(){
 			SetBlockData(Camera, "DoRaycast", "true");
 			update_me = false;
 		}
-		UpdateList(Detected_Entities, Raycast_Entity);
+		UpdateList(DetectedEntities, Raycast_Entity);
 		if(!update_me){
 			const int SECTIONS = 3;
 			for(int i=0; i<9; i++){
@@ -2340,7 +2411,7 @@ public void PerformScan(){
 				}
 				for(int j=1; j<=SECTIONS; j++){
 					Raycast_Entity = Camera.Raycast(raycast_distance, Pitch*j, Yaw*j);
-					UpdateList(Detected_Entities, Raycast_Entity);
+					UpdateList(DetectedEntities, Raycast_Entity);
 				}
 			}
 		}
@@ -2381,22 +2452,22 @@ public void PerformScan(){
 		}
 		switch(Entity.Type){
 			case MyDetectedEntityType.Asteroid:
-				AsteroidList.UpdateEntity(Entity);
+				AsteroidList.UpdateEntry(Entity);
 				break;
 			case MyDetectedEntityType.Planet:
-				PlanetList.UpdateEntity(Entity);
+				PlanetList.UpdateEntry(Entity);
 				break;
 			case MyDetectedEntityType.SmallGrid:
-				SmallShipList.UpdateEntity(Entity);
+				SmallShipList.UpdateEntry(Entity);
 				break;
 			case MyDetectedEntityType.LargeGrid:
-				LargeShipList.UpdateEntity(Entity);
+				LargeShipList.UpdateEntry(Entity);
 				break;
 			case MyDetectedEntityType.CharacterHuman:
-				CharacterList.UpdateEntity(Entity);
+				CharacterList.UpdateEntry(Entity);
 				break;
 			case MyDetectedEntityType.CharacterOther:
-				CharacterList.UpdateEntity(Entity);
+				CharacterList.UpdateEntry(Entity);
 				break;
 		}
 	}
@@ -2483,6 +2554,10 @@ private void UpdateProgramInfo(){
 	}
 }
 
+private double GetAngle(Vector3D v1, Vector3D v2){
+	return GenericMethods<IMyTerminalBlock>.GetAngle(v1,v2);
+}
+
 //Sets gyroscope outputs from player input, dampeners, gravity, and autopilot
 double Pitch_Time =  1.0f;
 double Yaw_Time = 1.0f;
@@ -2518,7 +2593,7 @@ private void SetGyroscopes(){
 			double difference = GetAngle(Controller_Down, Target_Direction) - GetAngle(Controller_Up, Target_Direction);
 			if(Math.Abs(difference) > ACCEPTABLE_ANGLE){
 				adjusting_target = true;
-				if(Current_AngularVelocity.Length() < 1){
+				if(AngularVelocity.Length() < 1){
 					if(difference>0){
 						input_pitch -= 0.5f * ((float)Math.Min(Math.Abs(difference/(ACCEPTABLE_ANGLE*2)), 1));
 					}
@@ -2540,7 +2615,7 @@ private void SetGyroscopes(){
 			double difference = GetAngle(Controller_Right, Target_Direction) - GetAngle(Controller_Left, Target_Direction);
 			if(Math.Abs(difference) > ACCEPTABLE_ANGLE || GetAngle(Controller_Forward, Target_Direction) > ACCEPTABLE_ANGLE){
 				adjusting_target = true;
-				if(Current_AngularVelocity.Length() < 1){
+				if(AngularVelocity.Length() < 1){
 					if(difference>0 || difference==0 && GetAngle(Controller_Forward, Target_Direction) > ACCEPTABLE_ANGLE){
 						input_yaw -= 0.5f * ((float)Math.Min(Math.Abs(difference/(ACCEPTABLE_ANGLE*2)), 1));
 					}
@@ -2561,7 +2636,7 @@ private void SetGyroscopes(){
 		if(Gravity.Length() > 0  && Roll_Time >= 1 && !adjusting_target){
 			double difference = (GetAngle(Left_Vector, Gravity) - GetAngle(Right_Vector, Gravity));
 			if(Math.Abs(difference) > ACCEPTABLE_ANGLE){
-				if(Current_AngularVelocity.Length() < 1){
+				if(AngularVelocity.Length() < 1){
 					if(difference>0){
 						input_roll += 0.9f * ((float)Math.Min(Math.Abs(difference/(ACCEPTABLE_ANGLE*2)), 1));
 					}
@@ -2579,9 +2654,9 @@ private void SetGyroscopes(){
 	
 	Gyro_Tuple output = Transform(new Gyro_Tuple(input_pitch, input_yaw, input_roll));
 	
-	Gyroscope.Pitch = output.Pitch + GlitchFloat / 100;
-	Gyroscope.Yaw = output.Yaw + GlitchFloat / 100;
-	Gyroscope.Roll = output.Roll + GlitchFloat / 100;
+	Gyroscope.Pitch = output.Pitch / 100;
+	Gyroscope.Yaw = output.Yaw / 100;
+	Gyroscope.Roll = output.Roll / 100;
 	
 	Write("Pitch: " + Math.Round(Gyroscope.Pitch*100, 1).ToString() + " RPM");
 	Write("Yaw: " + Math.Round(Gyroscope.Yaw*100, 1).ToString() + " RPM");
@@ -2623,10 +2698,10 @@ private void SetThrusters(){
 		}
 	}
 	
-	double Target_Distance = (actual_target_position - Controller.GetPosition()).Length();
+	double Target_Distance = (Target_Position - Me.CubeGrid.GetPosition()).Length();
 	if(Target_Distance<Math.Max(0.5f, Math.Min(10, Me.CubeGrid.GridSize/10))){
-		match_direction = false;
-		match_position = false;
+		Match_Direction = false;
+		Match_Position = false;
 	}
 	effective_speed_limit = Math.Max(effective_speed_limit, 5);
 	
@@ -2672,7 +2747,7 @@ private void SetThrusters(){
 				input_right = Math.Max(input_right, 0);
 		}
 	}
-	else if(match_position){
+	else if(Match_Position){
 		double Relative_Speed = Relative_CurrentVelocity.X;
 		double Relative_Target_Speed = RestingVelocity.X;
 		double Relative_Distance = Relative_Target_Position.X;
@@ -2687,13 +2762,13 @@ private void SetThrusters(){
 		if((difference > 0) ^ (Relative_Distance < 0)){
 			double time = difference / deacceleration;
 			time = (Relative_Distance - (difference*time/2))/difference;
-			if(time > 0 && (!match_direction || matched_direction) && Relative_Speed-Relative_Target_Speed<=0.05){
+			if(time > 0 && (!Match_Direction || matched_direction) && Relative_Speed-Relative_Target_Speed<=0.05){
 				if(difference > 0){
-					if((CurrentVelocity + Controller_Left - RestingVelocity).Length() <= Math.Min(elevation, Math.Min(effective_speed_limit, Target_Distance)))
+					if((CurrentVelocity + Controller_Left - RestingVelocity).Length() <= Math.Min(Elevation, Math.Min(effective_speed_limit, Target_Distance)))
 						input_right = -0.95f * Left_Thrust;
 				}
 				else {
-					if((CurrentVelocity + Controller_Right - RestingVelocity).Length() <= Math.Min(elevation, Math.Min(effective_speed_limit, Target_Distance)))
+					if((CurrentVelocity + Controller_Right - RestingVelocity).Length() <= Math.Min(Elevation, Math.Min(effective_speed_limit, Target_Distance)))
 						input_right = 0.95f * Right_Thrust;
 				}
 			}
@@ -2713,7 +2788,7 @@ private void SetThrusters(){
 				input_up = Math.Max(input_up, 0);
 		}
 	}
-	else if(match_position){
+	else if(Match_Position){
 		double Relative_Speed = Relative_CurrentVelocity.Y;
 		double Relative_Target_Speed = RestingVelocity.Y;
 		double Relative_Distance = Relative_Target_Position.Y;
@@ -2728,13 +2803,13 @@ private void SetThrusters(){
 		if((difference > 0) ^ (Relative_Distance < 0)){
 			double time = difference / deacceleration;
 			time = (Relative_Distance - (difference*time/2))/difference;
-			if(time > 0 && (!match_direction || matched_direction) && Relative_Speed-Relative_Target_Speed<=0.05){
+			if(time > 0 && (!Match_Direction || matched_direction) && Relative_Speed-Relative_Target_Speed<=0.05){
 				if(difference > 0){
-					if((CurrentVelocity + Controller_Down - RestingVelocity).Length() <= Math.Min(elevation, Math.Min(effective_speed_limit, Target_Distance)))
+					if((CurrentVelocity + Controller_Down - RestingVelocity).Length() <= Math.Min(Elevation, Math.Min(effective_speed_limit, Target_Distance)))
 						input_up = -0.95f * Down_Thrust;
 				}
 				else {
-					if((CurrentVelocity + Controller_Up - RestingVelocity).Length() <= Math.Min(elevation, Math.Min(effective_speed_limit, Target_Distance)))
+					if((CurrentVelocity + Controller_Up - RestingVelocity).Length() <= Math.Min(Elevation, Math.Min(effective_speed_limit, Target_Distance)))
 						input_up = 0.95f * Up_Thrust;
 				}
 			}
@@ -2754,7 +2829,7 @@ private void SetThrusters(){
 				input_forward = Math.Max(input_forward, 0);
 		}
 	}
-	else if(match_position){
+	else if(Match_Position){
 		double Relative_Speed = Relative_CurrentVelocity.Z;
 		double Relative_Target_Speed = RestingVelocity.Z;
 		double Relative_Distance = Relative_Target_Position.Z;
@@ -2769,13 +2844,13 @@ private void SetThrusters(){
 		if((difference > 0) ^ (Relative_Distance < 0)){
 			double time = difference / deacceleration;
 			time = (Relative_Distance - (difference*time/2))/difference;
-			if(time > 0 && (!match_direction || matched_direction) && Relative_Speed-Relative_Target_Speed<=0.05){
+			if(time > 0 && (!Match_Direction || matched_direction) && Relative_Speed-Relative_Target_Speed<=0.05){
 				if(difference > 0){
-					if((CurrentVelocity + Controller_Down - RestingVelocity).Length() <= Math.Min(elevation, Math.Min(effective_speed_limit, Target_Distance)))
+					if((CurrentVelocity + Controller_Down - RestingVelocity).Length() <= Math.Min(Elevation, Math.Min(effective_speed_limit, Target_Distance)))
 						input_forward = -0.95f * Backward_Thrust;
 				}
 				else {
-					if((CurrentVelocity + Controller_Up - RestingVelocity).Length() <= Math.Min(elevation, Math.Min(effective_speed_limit, Target_Distance)))
+					if((CurrentVelocity + Controller_Up - RestingVelocity).Length() <= Math.Min(Elevation, Math.Min(effective_speed_limit, Target_Distance)))
 						input_forward = 0.95f * Forward_Thrust;
 				}
 			}
@@ -2833,7 +2908,7 @@ private void SetThrusters(){
 	}
 }
 
-//Sets directional vectors, elevation, etc
+//Sets directional vectors, Elevation, etc
 private void GetPositionData(){
 	Vector3D base_vector = new Vector3D(0,0,10);
 	Forward_Vector = Vector3D.Transform(base_vector, Controller.WorldMatrix) - Controller.GetPosition();
@@ -2928,44 +3003,14 @@ private void GetPositionData(){
 			Controller_Right = Left_Vector;
 			break;
 	}
-	Forward_Thrust=0.0f;
-	foreach(IMyThrust Thruster in Forward_Thrusters){
-		if(Thruster.IsWorking)
-			Forward_Thrust+=Thruster.MaxEffectiveThrust;
-	}
-	Backward_Thrust=0.0f;
-	foreach(IMyThrust Thruster in Backward_Thrusters){
-		if(Thruster.IsWorking)
-			Backward_Thrust+=Thruster.MaxEffectiveThrust;
-	}
-	Up_Thrust=0.0f;
-	foreach(IMyThrust Thruster in Up_Thrusters){
-		if(Thruster.IsWorking)
-			Up_Thrust+=Thruster.MaxEffectiveThrust;
-	}
-	Down_Thrust=0.0f;
-	foreach(IMyThrust Thruster in Down_Thrusters){
-		if(Thruster.IsWorking)
-			Down_Thrust+=Thruster.MaxEffectiveThrust;
-	}
-	Left_Thrust=0.0f;
-	foreach(IMyThrust Thruster in Left_Thrusters){
-		if(Thruster.IsWorking)
-			Left_Thrust+=Thruster.MaxEffectiveThrust;
-	}
-	Right_Thrust=0.0f;
-	foreach(IMyThrust Thruster in Right_Thrusters){
-		if(Thruster.IsWorking)
-			Right_Thrust+=Thruster.MaxEffectiveThrust;
-	}
 	
 	Gravity = Controller.GetNaturalGravity();
 	CurrentVelocity=Controller.GetShipVelocities().LinearVelocity;
 	AngularVelocity=Controller.GetShipVelocities().AngularVelocity;
 	
-	if(Controller.TryGetPlanetElevation(MyPlanetElevation.SeaLevel, out Sealevel)){
+	if(Controller.TryGetPlanetElevation(MyPlanetElevation.Sealevel, out Sealevel)){
 		if(Controller.TryGetPlanetPosition(out PlanetCenter)){
-			if(Sealevel < 6000 && Controller.TryGetPlanetPosition(MyPlanetElevation.Surface, out Elevation)){
+			if(Sealevel < 6000 && Controller.TryGetPlanetElevation(MyPlanetElevation.Surface, out Elevation)){
 				if(Sealevel > 5000){
 					double difference = Sealevel - 5000;
 					Elevation =  ((Elevation * (1000-difference)) + (Sealevel * difference)) / 1000;
@@ -2975,7 +3020,7 @@ private void GetPositionData(){
 					List<IMyTerminalBlock> AllBlocks = new List<IMyTerminalBlock>();
 					GridTerminalSystem.GetBlocksOfType<IMyTerminalBlock>(AllBlocks);
 					foreach(IMyTerminalBlock Block in AllBlocks){
-						Elevation = Math.Min(Elevation, (Block.GetPosition() - PlanetCenter)/Length() - terrain_height);
+						Elevation = Math.Min(Elevation, (Block.GetPosition() - PlanetCenter).Length() - terrain_height);
 					}
 				}
 			}
@@ -2984,8 +3029,8 @@ private void GetPositionData(){
 			}
 			double height_dif = (Me.CubeGrid.GetPosition() - PlanetCenter).Length() - Elevation;
 			Vector3D next_position = Me.CubeGrid.GetPosition() + 1 * CurrentVelocity;
-			double elevation_per_second = ((next_position-PlanetCenter).Length()-height_dif)-Elevation;
-			Time_To_Crash = Elevation / elevation_per_second;
+			double Elevation_per_second = ((next_position-PlanetCenter).Length()-height_dif)-Elevation;
+			Time_To_Crash = Elevation / Elevation_per_second;
 			if(Time_To_Crash<15 && Controller.GetShipSpeed() > 5){
 				Controller.DampenersOverride = true;
 				Write("Crash predicted within 15 seconds; enabling Dampeners");
