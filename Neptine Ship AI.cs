@@ -7,6 +7,8 @@
 private const string Program_Name = "Neptine Ship AI"; 
 //The angle of what the ship will accept as "correct"
 private const double ACCEPTABLE_ANGLE=20; //Suggested between 5° and 20°
+//The maximum speed limit of the ship
+private const double SPEED_LIMIT=100;
 //The distance accepted for raycasts
 private const double RAYCAST_DISTANCE=10000; //The lower the better, but whatever works for you
 //Set this to the distance you want lights, sound blocks, and doors to update when enemies are nearby
@@ -919,6 +921,11 @@ private bool Match_Direction = false;
 private Vector3D Target_Direction;
 private bool Match_Position = false;
 private Vector3D Target_Position;
+private Vector3D Relative_Target_Position{
+	get{
+		return GlobalToLocal(Target_Position);
+	}
+}
 private long Target_ID = 0;
 
 private float Mass_Accomodation = 0.0f;
@@ -939,6 +946,18 @@ private Vector3D Gravity;
 private Vector3D Relative_Gravity{
 	get{
 		return GlobalToLocal(Gravity);
+	}
+}
+private Vector3D Adjusted_Gravity{
+	get{
+		return Relative_Gravity*Mass_Accomodation;
+	}
+}
+private Vector3D Gravity_Direction{
+	get{
+		Vector3D direction = Gravity;
+		direction.Normalize();
+		return direction;
 	}
 }
 
@@ -1687,12 +1706,12 @@ private AlertStatus ShipStatus{
 		AlertStatus status = AlertStatus.Green;
 		Submessage = "";
 		
-		if(Time_To_Crash < 15){
+		if(Time_To_Crash < 15 && Controller.GetShipSpeed()>5){
 			AlertStatus new_status = AlertStatus.Orange;
 			status = (AlertStatus) Math.Max((int)status, (int)new_status);
 			Submessage += "\n"+Math.Round(Time_To_Crash,1).ToString()+" seconds to possible impact";
 		}
-		else if(Time_To_Crash < 60){
+		else if(Time_To_Crash < 60 && Controller.GetShipSpeed()>15){
 			AlertStatus new_status = AlertStatus.Yellow;
 			status = (AlertStatus) Math.Max((int)status, (int)new_status);
 			Submessage += "\n"+Math.Round(Time_To_Crash,1).ToString()+" seconds to possible impact";
@@ -1797,7 +1816,6 @@ private void UpdateList(List<EntityInfo> list, EntityInfo new_entity){
 }
 
 private void SetStatus(string message, Color TextColor, Color BackgroundColor){
-	List<IMyTextPanel> StatusLCDs = (new GenericMethods<IMyTextPanel>(this)).GetAllIncluding("Ship Status");
 	float padding = 40.0f;
 	string[] lines = message.Split('\n')'
 	padding = Math.Max(10.0f, padding-(lines.Count*5.0f));
@@ -2572,7 +2590,247 @@ private void SetGyroscopes(){
 }
 
 private void SetThrusters(){
+	float input_forward = 0.0f;
+	float input_up = 0.0f;
+	float input_right = 0.0f;
 	
+	float damp_multx = 0.99f;
+	double effective_speed_limit = SPEED_LIMIT;
+	
+	if(Elevation<100){
+		effective_speed_limit = Math.Min(effective_speed_limit, Elevation);
+		damp_multx = (float) (1.0f + (100 - Elevation)/50);
+	}
+	
+	if(Controller.DampenersOverride){
+		Write("Cruise Control: Off");
+		input_right -= (float) ((Relative_CurrentVelocity.X-Relative_RestingVelocity.X) * Mass_Accomodation * damp_multx);
+		input_up -= (float) ((Relative_CurrentVelocity.Y-Relative_RestingVelocity.Y) * Mass_Accomodation * damp_multx);
+		input_forward += (float) ((Relative_CurrentVelocity.Z-Relative_RestingVelocity.Z) * Mass_Accomodation * damp_multx);
+	}
+	else {
+		Write("Cruise Control: On");
+		Vector3D velocity_direction = Controller.GetShipVelocities().LinearVelocity;
+		velocity_direction.Normalize();
+		double angle = Math.Min(GetAngle(Controller_Forward, velocity_direction), GetAngle(Controller_Backward, velocity_direction));
+		if(angle <= ACCEPTABLE_ANGLE / 2){
+			input_right -= (float) ((Relative_CurrentVelocity.X-Relative_RestingVelocity.X) * Mass_Accomodation * damp_multx);
+			input_up -= (float) ((Relative_CurrentVelocity.Y-Relative_RestingVelocity.Y) * Mass_Accomodation * damp_multx);
+			Write("Stabilizers: On (" + Math.Round(angle, 1) + "° dev)");
+		}
+		else {
+			Write("Stabilizers: Off (" + Math.Round(angle, 1) + "° dev)");
+		}
+	}
+	
+	double Target_Distance = (actual_target_position - Controller.GetPosition()).Length();
+	if(Target_Distance<Math.Max(0.5f, Math.Min(10, Me.CubeGrid.GridSize/10))){
+		match_direction = false;
+		match_position = false;
+	}
+	effective_speed_limit = Math.Max(effective_speed_limit, 5);
+	
+	if(Gravity.Length() > 0 && Mass_Accomodation>0){
+		input_right -= (float) Adjusted_Gravity.X;
+		input_up -= (float) Adjusted_Gravity.Y;
+		input_forward += (float) Adjusted_Gravity.Z;
+	}
+	
+	bool matched_direction = !Match_Direction;
+	if(Match_Direction){
+		if(Gravity.Length() > 0){
+			matched_direction = Math.Abs(GetAngle(Target_Direction, Controller_Left) - GetAngle(Target_Direction, Controller_Right)) <= ACCEPTABLE_ANGLE/2;
+			double difference = GetAngle(Target_Direction, Gravity_Direction) - 90;
+			if(Math.Abs(difference) > ACCEPTABLE_ANGLE){
+				matched_direction = matched_direction && (GetAngle(Target_Direction, Controller_Forward) < GetAngle(Target_Direction, Controller_Backward));
+				if(difference > ACCEPTABLE_ANGLE){
+					matched_direction = matched_direction && (GetAngle(Gravity_Direction, Controller_Forward) >= 90 + (ACCEPTABLE_ANGLE - 5));
+				}
+				else if(difference < -1 * ACCEPTABLE_ANGLE){
+					matched_direction = matched_direction && (GetAngle(Gravity_Direction, Controller_Forward) <= 90 - (ACCEPTABLE_ANGLE - 5));
+				}
+			}
+			else{
+				matched_direction = matched_direction && (GetAngle(Controller_Forward, Target_Direction) <= ACCEPTABLE_ANGLE);
+			}
+		}
+		else {
+			matched_direction = (GetAngle(Controller_Forward, Target_Direction) <= ACCEPTABLE_ANGLE);
+		}
+	}
+	
+	if(Math.Abs(Controller.MoveIndicator.X)>0.5f){
+		if(Controller.MoveIndicator.X > 0){
+			if((CurrentVelocity + Controller_Right - RestingVelocity).Length() <= effective_speed_limit)
+				input_right = 0.95f * Right_Thrust;
+			else
+				input_right = Math.Min(input_right, 0);
+		} else {
+			if((CurrentVelocity + Controller_Left - RestingVelocity).Length() <= effective_speed_limit)
+				input_right = -0.95f * Left_Thrust;
+			else
+				input_right = Math.Max(input_right, 0);
+		}
+	}
+	else if(match_position){
+		double Relative_Speed = Relative_CurrentVelocity.X;
+		double Relative_Target_Speed = RestingVelocity.X;
+		double Relative_Distance = Relative_Target_Position.X;
+		double deacceleration = 0;
+		double difference = Relative_Speed - Relative_Target_Speed;
+		if(difference > 0){
+			deacceleration = Math.Abs(difference) / Left_Thrust;
+		}
+		else if(difference < 0){
+			deacceleration = Math.Abs(difference) / Right_Thrust;
+		}
+		if((difference > 0) ^ (Relative_Distance < 0)){
+			double time = difference / deacceleration;
+			time = (Relative_Distance - (difference*time/2))/difference;
+			if(time > 0 && (!match_direction || matched_direction) && Relative_Speed-Relative_Target_Speed<=0.05){
+				if(difference > 0){
+					if((CurrentVelocity + Controller_Left - RestingVelocity).Length() <= Math.Min(elevation, Math.Min(effective_speed_limit, Target_Distance)))
+						input_right = -0.95f * Left_Thrust;
+				}
+				else {
+					if((CurrentVelocity + Controller_Right - RestingVelocity).Length() <= Math.Min(elevation, Math.Min(effective_speed_limit, Target_Distance)))
+						input_right = 0.95f * Right_Thrust;
+				}
+			}
+		}
+	}
+	
+	if(Math.Abs(Controller.MoveIndicator.Y)>0.5f){
+		if(Controller.MoveIndicator.Y > 0){
+			if((CurrentVelocity + Controller_Up - RestingVelocity).Length() <= effective_speed_limit)
+				input_up = 0.95f * Up_Thrust;
+			else
+				input_up = Math.Min(input_up, 0);
+		} else {
+			if((CurrentVelocity + Controller_Down - RestingVelocity).Length() <= effective_speed_limit)
+				input_up = -0.95f * Down_Thrust;
+			else
+				input_up = Math.Max(input_up, 0);
+		}
+	}
+	else if(match_position){
+		double Relative_Speed = Relative_CurrentVelocity.Y;
+		double Relative_Target_Speed = RestingVelocity.Y;
+		double Relative_Distance = Relative_Target_Position.Y;
+		double deacceleration = 0;
+		double difference = Relative_Speed - Relative_Target_Speed;
+		if(difference > 0){
+			deacceleration = Math.Abs(difference) / Down_Thrust;
+		}
+		else if(difference < 0){
+			deacceleration = Math.Abs(difference) / Up_Thrust;
+		}
+		if((difference > 0) ^ (Relative_Distance < 0)){
+			double time = difference / deacceleration;
+			time = (Relative_Distance - (difference*time/2))/difference;
+			if(time > 0 && (!match_direction || matched_direction) && Relative_Speed-Relative_Target_Speed<=0.05){
+				if(difference > 0){
+					if((CurrentVelocity + Controller_Down - RestingVelocity).Length() <= Math.Min(elevation, Math.Min(effective_speed_limit, Target_Distance)))
+						input_up = -0.95f * Down_Thrust;
+				}
+				else {
+					if((CurrentVelocity + Controller_Up - RestingVelocity).Length() <= Math.Min(elevation, Math.Min(effective_speed_limit, Target_Distance)))
+						input_up = 0.95f * Up_Thrust;
+				}
+			}
+		}
+	}
+	
+	if(Math.Abs(Controller.MoveIndicator.Z)>0.5f){
+		if(Controller.MoveIndicator.Z > 0){
+			if((CurrentVelocity + Controller_Up - RestingVelocity).Length() <= effective_speed_limit)
+				input_forward = 0.95f * Forward_Thrust;
+			else
+				input_forward = Math.Min(input_forward, 0);
+		} else {
+			if((CurrentVelocity + Controller_Down - RestingVelocity).Length() <= effective_speed_limit)
+				input_forward = -0.95f * Backward_Thrust;
+			else
+				input_forward = Math.Max(input_forward, 0);
+		}
+	}
+	else if(match_position){
+		double Relative_Speed = Relative_CurrentVelocity.Z;
+		double Relative_Target_Speed = RestingVelocity.Z;
+		double Relative_Distance = Relative_Target_Position.Z;
+		double deacceleration = 0;
+		double difference = Relative_Speed - Relative_Target_Speed;
+		if(difference > 0){
+			deacceleration = Math.Abs(difference) / Backward_Thrust;
+		}
+		else if(difference < 0){
+			deacceleration = Math.Abs(difference) / Forward_Thrust;
+		}
+		if((difference > 0) ^ (Relative_Distance < 0)){
+			double time = difference / deacceleration;
+			time = (Relative_Distance - (difference*time/2))/difference;
+			if(time > 0 && (!match_direction || matched_direction) && Relative_Speed-Relative_Target_Speed<=0.05){
+				if(difference > 0){
+					if((CurrentVelocity + Controller_Down - RestingVelocity).Length() <= Math.Min(elevation, Math.Min(effective_speed_limit, Target_Distance)))
+						input_forward = -0.95f * Backward_Thrust;
+				}
+				else {
+					if((CurrentVelocity + Controller_Up - RestingVelocity).Length() <= Math.Min(elevation, Math.Min(effective_speed_limit, Target_Distance)))
+						input_forward = 0.95f * Forward_Thrust;
+				}
+			}
+		}
+	}
+	
+	float output_forward = 0.0f;
+	float output_backward = 0.0f;
+	if(input_forward / Forward_Thrust > 0.05f){
+		output_forward = Math.Min(Math.Abs(input_forward / Forward_Thrust), 1);
+		Write("Forward: " + Math.Round(output_forward*100, 1).ToString() + '%');
+	}
+	else if(input_forward / Backward_Thrust < -0.05f){
+		output_backward = Math.Min(Math.Abs(input_forward / Backward_Thrust), 1);
+		Write("Backward: " + Math.Round(output_backward*100, 1).ToString() + '%');
+	}
+	float output_up = 0.0f;
+	float output_down = 0.0f;
+	if(input_up / Up_Thrust > 0.05f){
+		output_up = Math.Min(Math.Abs(input_up / Up_Thrust), 1);
+		Write("Up: " + Math.Round(output_up*100, 1).ToString() + '%');
+	}
+	else if(input_up / Down_Thrust < -0.05f){
+		output_down = Math.Min(Math.Abs(input_up / Down_Thrust), 1);
+		Write("Down: " + Math.Round(output_down*100, 1).ToString() + '%');
+	}
+	float output_right = 0.0f;
+	float output_left = 0.0f;
+	if(input_right / Right_Thrust > 0.05f){
+		output_right = Math.Min(Math.Abs(input_right / Right_Thrust), 1);
+		Write("Right: " + Math.Round(output_right*100, 1).ToString() + '%');
+	}
+	else if(input_right / Left_Thrust < -0.05f){
+		output_left = Math.Min(Math.Abs(input_right / Left_Thrust), 1);
+		Write("Left: " + Math.Round(output_left*100, 1).ToString() + '%');
+	}
+	
+	foreach(IMyThrust Thruster in Forward_Thrusters){
+		Thruster.ThrustOverridePercentage = output_forward;
+	}
+	foreach(IMyThrust Thruster in Backward_Thrusters){
+		Thruster.ThrustOverridePercentage = output_backward;
+	}
+	foreach(IMyThrust Thruster in Up_Thrusters){
+		Thruster.ThrustOverridePercentage = output_up;
+	}
+	foreach(IMyThrust Thruster in Down_Thrusters){
+		Thruster.ThrustOverridePercentage = output_down;
+	}
+	foreach(IMyThrust Thruster in Right_Thrusters){
+		Thruster.ThrustOverridePercentage = output_right;
+	}
+	foreach(IMyThrust Thruster in Left_Thrusters){
+		Thruster.ThrustOverridePercentage = output_left;
+	}
 }
 
 
