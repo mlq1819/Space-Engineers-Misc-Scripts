@@ -408,7 +408,7 @@ public class EntityInfo{
 	}
 	
 	public static string NeatVector(Vector3D vector){
-		return "X:"+((long)vector.X).ToString()+" Y:"+((long)vector.Y).ToString()+" Z:"+((long)vector.Z).ToString();
+		return "X:"+Math.Round(vector.X,1).ToString()+" Y:"+Math.Round(vector.Y,1).ToString()+" Z:"+Math.Round(vector.Z,1).ToString();
 	}
 	
 	public void Update(double seconds){
@@ -988,7 +988,9 @@ private Vector3D Relative_Gravity{
 }
 private Vector3D Adjusted_Gravity{
 	get{
-		return Relative_Gravity*Mass_Accomodation;
+		Vector3D temp = Vector3D.Transform(Gravity+Controller.GetPosition(), MatrixD.Invert(Controller.WorldMatrix));
+		temp.Normalize();
+		return temp*Mass_Accomodation;
 	}
 }
 private Vector3D Gravity_Direction{
@@ -1616,6 +1618,7 @@ public Program()
 	IGC.RegisterBroadcastListener("Neptine AI");
 	IGC.RegisterBroadcastListener("Entity Report");
 	IGC.RegisterBroadcastListener(Me.CubeGrid.CustomName);
+	CreateMenu();
 }
 
 private void SetThrusterList(List<IMyThrust> Thrusters, string Direction){
@@ -1759,22 +1762,18 @@ public void Save()
 	foreach(IMyThrust Thruster in Right_Thrusters){
 		ResetThruster(Thruster);
 	}
-	Write("Powering Off...", false, false);
-	Runtime.UpdateFrequency = UpdateFrequency.None;
 }
 
 public Vector3D GlobalToLocal(Vector3D Global){
-	double Length = Global.Length();
 	Vector3D Local = Vector3D.Transform(Global, MatrixD.Invert(Controller.WorldMatrix));
 	Local.Normalize();
-	return Local * Length;
+	return Local * Global.Length();
 }
 
 public Vector3D LocalToGlobal(Vector3D Local){
-	double Length = Local.Length();
 	Vector3D Global = Vector3D.Transform(Local, Controller.WorldMatrix);
 	Global.Normalize();
-	return Global * Length;
+	return Global * Local.Length();
 }
 
 private enum AlertStatus{
@@ -2606,7 +2605,7 @@ private void SetGyroscopes(){
 	}
 	else{
 		Pitch_Time = 0;
-		input_pitch *= 30;
+		input_pitch *= 300;
 	}
 	input_yaw = Math.Min(Math.Max(Controller.RotationIndicator.Y / 200, -1), 1);
 	if(Math.Abs(input_yaw) < 0.1f){
@@ -2628,7 +2627,7 @@ private void SetGyroscopes(){
 	}
 	else{
 		Yaw_Time = 0;
-		input_yaw *= 30;
+		input_yaw *= 300;
 	}
 	input_roll = Controller.RollIndicator;
 	if(Math.Abs(input_roll) < 0.1f){
@@ -2638,10 +2637,10 @@ private void SetGyroscopes(){
 			if(Math.Abs(difference) > ACCEPTABLE_ANGLE){
 				if(AngularVelocity.Length() < 1){
 					if(difference>0){
-						input_roll += 0.9f * ((float)Math.Min(Math.Abs(difference/(ACCEPTABLE_ANGLE*2)), 1));
+						input_roll += 0.9f * 30 * ((float)Math.Min(Math.Abs(difference/(ACCEPTABLE_ANGLE*2)), 1));
 					}
 					else {
-						input_roll -= 0.9f * ((float)Math.Min(Math.Abs(difference/(ACCEPTABLE_ANGLE*2)), 1));
+						input_roll -= 0.9f * 30 * ((float)Math.Min(Math.Abs(difference/(ACCEPTABLE_ANGLE*2)), 1));
 					}
 				}
 			}
@@ -2649,7 +2648,7 @@ private void SetGyroscopes(){
 	}
 	else{
 		Roll_Time = 0;
-		input_roll *= 20;
+		input_roll *= 200;
 	}
 	
 	Gyro_Tuple output = Transform(new Gyro_Tuple(input_pitch, input_yaw, input_roll));
@@ -2674,14 +2673,24 @@ private void SetThrusters(){
 	
 	if(Elevation<100){
 		effective_speed_limit = Math.Min(effective_speed_limit, Elevation);
-		damp_multx = (float) (1.0f + (100 - Elevation)/50);
 	}
 	
 	if(Controller.DampenersOverride){
 		Write("Cruise Control: Off");
-		input_right -= (float) ((Relative_CurrentVelocity.X-Relative_RestingVelocity.X) * Mass_Accomodation * damp_multx);
+		
+		Write(EntityInfo.NeatVector(CurrentVelocity));
+		Write(EntityInfo.NeatVector(Relative_CurrentVelocity));
+		Write("");
+		input_right -= (float) (Relative_CurrentVelocity.X * 1 * damp_multx);
+		input_up -= (float) (Relative_CurrentVelocity.Y * 1 * damp_multx);
+		input_forward += (float) (Relative_CurrentVelocity.Z * 1 * damp_multx);
+		Write(Math.Round(input_right/Gravity.Length(), 3).ToString());
+		Write(Math.Round(input_up/Gravity.Length(), 3).ToString());
+		Write(Math.Round(input_forward/Gravity.Length(), 3).ToString());
+		
+		/*input_right -= (float) ((Relative_CurrentVelocity.X-Relative_RestingVelocity.X) * Mass_Accomodation * damp_multx);
 		input_up -= (float) ((Relative_CurrentVelocity.Y-Relative_RestingVelocity.Y) * Mass_Accomodation * damp_multx);
-		input_forward += (float) ((Relative_CurrentVelocity.Z-Relative_RestingVelocity.Z) * Mass_Accomodation * damp_multx);
+		input_forward += (float) ((Relative_CurrentVelocity.Z-Relative_RestingVelocity.Z) * Mass_Accomodation * damp_multx);*/
 	}
 	else {
 		Write("Cruise Control: On");
@@ -2817,7 +2826,7 @@ private void SetThrusters(){
 	}
 	
 	if(Math.Abs(Controller.MoveIndicator.Z)>0.5f){
-		if(Controller.MoveIndicator.Z > 0){
+		if(Controller.MoveIndicator.Z < 0){
 			if((CurrentVelocity + Controller_Up - RestingVelocity).Length() <= effective_speed_limit)
 				input_forward = 0.95f * Forward_Thrust;
 			else
