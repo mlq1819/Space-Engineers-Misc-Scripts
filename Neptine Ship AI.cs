@@ -15,8 +15,8 @@ private const double RAYCAST_DISTANCE=10000; //The lower the better, but whateve
 private const double ALERT_DISTANCE=15;
 //Time between scans
 private const double SCAN_TIME=3;
-private const Color DEFAULT_TEXT_COLOR = new Color(197,137,255,255);
-private const Color DEFAULT_BACKGROUND_COLOR = new Color(197,137,255,255);
+private Color DEFAULT_TEXT_COLOR = new Color(197,137,255,255);
+private Color DEFAULT_BACKGROUND_COLOR = new Color(197,137,255,255);
 
 public class GenericMethods<T> where T : class, IMyTerminalBlock{
 	private IMyGridTerminalSystem TerminalSystem;
@@ -455,7 +455,7 @@ public class EntityList : IEnumerable<EntityInfo>{
 		double min_distance=double.MaxValue;
 		foreach(EntityInfo entity in E_List){
 			if(entity.Size >= min_size && entity.Relationship==Relationship){
-				min_distance=Math.Min(min_distance, (P.CubeGrid.GetPosition()-entity.Position).Length()-entity.Size);
+				min_distance=Math.Min(min_distance, (P.Me.CubeGrid.GetPosition()-entity.Position).Length()-entity.Size);
 			}
 		}
 		return min_distance;
@@ -465,7 +465,7 @@ public class EntityList : IEnumerable<EntityInfo>{
 		double min_distance=double.MaxValue;
 		foreach(EntityInfo entity in E_List){
 			if(entity.Size >= min_size){
-				min_distance=Math.Min(min_distance, (P.CubeGrid.GetPosition()-entity.Position).Length()-entity.Size);
+				min_distance=Math.Min(min_distance, (P.Me.CubeGrid.GetPosition()-entity.Position).Length()-entity.Size);
 			}
 		}
 		return min_distance;
@@ -510,41 +510,33 @@ public enum MenuType{
 }
 
 public interface MenuOption{
-	string Name{get;}
-	MenuType Type{get;}
-	bool AutoRefresh{get;}
-	int Depth{get;}
+	string Name();
+	MenuType Type();
+	bool AutoRefresh();
+	int Depth();
 	bool Back();
 	bool Select();
 }
 
 public class Menu_Submenu : MenuOption{
 	private string _Name;
-	public string Name{
-		get{
-			return _Name;
-		}
+	public string Name(){
+		return _Name;
 	}
-	public MenuType Type{
-		get{
-			return MenuType.Submenu;;
-		}
+	public MenuType Type(){
+		return MenuType.Submenu;
 	}
-	public bool AutoRefresh{
-		get{
-			if(IsSelected){
-				return Menu[Selection].AutoRefresh;
-			}
-			return LastCount==Count;
+	public bool AutoRefresh(){
+		if(IsSelected){
+			return Menu[Selection].AutoRefresh();
 		}
+		return Last_Count==Count;
 	}
-	public int Depth{
-		get{
-			if(Selected){
-				return 1+Menu[Selection].Depth;
-			}
-			return 1;
+	public int Depth(){
+		if(Selected){
+			return 1+Menu[Selection].Depth();
 		}
+		return 1;
 	}
 	private bool Selected;
 	public bool IsSelected{
@@ -571,10 +563,6 @@ public class Menu_Submenu : MenuOption{
 	}
 	
 	public bool Add(MenuOption new_item){
-		foreach(MenuOption Item in Menu){
-			if(Menu.Name==new_item.Name)
-				return false;
-		}
 		Menu.Add(new_item);
 		return true;
 	}
@@ -597,7 +585,7 @@ public class Menu_Submenu : MenuOption{
 	
 	public bool Next(){
 		if(Selected){
-			if(Menu[Selection].Type==MenuType.Submenu){
+			if(Menu[Selection].Type()==MenuType.Submenu){
 				return ((Menu_Submenu)(Menu[Selection])).Next();
 			}
 			return false;
@@ -608,7 +596,7 @@ public class Menu_Submenu : MenuOption{
 	
 	public bool Prev(){
 		if(Selected){
-			if(Menu[Selection].Type==MenuType.Submenu){
+			if(Menu[Selection].Type()==MenuType.Submenu){
 				return ((Menu_Submenu)(Menu[Selection])).Prev();
 			}
 			return false;
@@ -622,10 +610,10 @@ public class Menu_Submenu : MenuOption{
 		if(Selected){
 			return Menu[Selection].ToString();
 		}
-		string output=" -- "+Name+" -- ";
+		string output=" -- "+Name()+" -- ";
 		for(int i=0; i<Menu.Count; i++){
 			output+="\n ";
-			switch(Selection.Type){
+			switch(Menu[Selection].Type()){
 				case MenuType.Submenu:
 					output+="[";
 					break;
@@ -638,12 +626,12 @@ public class Menu_Submenu : MenuOption{
 			}
 			output+=' ';
 			if(Selection==i){
-				output+=' '+Menu[i].Name.ToUpper()+' ';
+				output+=' '+Menu[i].Name().ToUpper()+' ';
 			}
 			else {
-				output+=Menu[i].Name.ToLower();
+				output+=Menu[i].Name().ToLower();
 			}
-			switch(Selection.Type){
+			switch(Menu[Selection].Type()){
 				case MenuType.Submenu:
 					output+="]";
 					break;
@@ -661,34 +649,24 @@ public class Menu_Submenu : MenuOption{
 
 public class Menu_Command<T> : MenuOption where T : class{
 	private string _Name;
-	public string Name{
-		get{
-			return _Name;
-		}
+	public string Name(){
+		return _Name;
 	}
-	public MenuType Type{
-		get{
-			return MenuType.Command;
-		}
+	public MenuType Type(){
+		return MenuType.Command;
 	}
 	private bool _AutoRefresh;
-	public bool AutoRefresh{
-		get{
-			return _AutoRefresh;
-		}
+	public bool AutoRefresh(){
+		return _AutoRefresh;
 	}
-	public int Depth{
-		get{
-			if(Selected)
-				return 2;
-			return 1;
-		}
+	public int Depth(){
+		return 1;
 	}
 	private string Desc;
 	private T Arg;
-	private Func<bool, T> Command;
+	private Func<T, bool> Command;
 	
-	public Menu_Command(string name, Func<bool, T> command, string desc="No description provided", T arg=null, bool autorefresh=false){
+	public Menu_Command(string name, Func<T, bool> command, string desc="No description provided", T arg=null, bool autorefresh=false){
 		if(name.Trim().Length > 0)
 			_Name=name;
 		Desc=desc;
@@ -706,8 +684,8 @@ public class Menu_Command<T> : MenuOption where T : class{
 	}
 	
 	public override string ToString(){
-		string output=Name+'\n';
-		string words[]=desc.Split(' ');
+		string output=Name()+'\n';
+		string[] words=Desc.Split(' ');
 		int length=32;
 		foreach(string word in words){
 			if(length > 0 && length+word.Length > 32){
@@ -717,7 +695,7 @@ public class Menu_Command<T> : MenuOption where T : class{
 			else {
 				output+=' ';
 			}
-			outut+=word;
+			output+=word;
 			if(word.Contains('\n'))
 				length=word.Length-word.IndexOf('\n')-1;
 		}
@@ -726,41 +704,33 @@ public class Menu_Command<T> : MenuOption where T : class{
 }
 
 public class Menu_Display : MenuOption{
-	public string Name{
-		get{
-			return Entity.Name.Substring(0, Math.Min(24, Entity.Name.Length));
-		}
+	public string Name(){
+		return Entity.Name.Substring(0, Math.Min(24, Entity.Name.Length));
 	}
-	public MenuType Type{
-		get{
-			return MenuType.Display;
-		}
+	public MenuType Type(){
+		return MenuType.Display;
 	}
-	public bool AutoRefresh{
-		get{
-			return true;
-		}
+	public bool AutoRefresh(){
+		return true;
 	}
-	public int Depth{
-		get{
-			if(Selected)
-				return 2;
-			return 1;
-		}
+	public int Depth(){
+		if(Selected)
+			return 2;
+		return 1;
 	}
 	private bool Selected;
 	private EntityInfo Entity;
 	private bool Can_GoTo;
-	private Func<bool, EntityInfo> Command;
-	private Menu_Command Subcommand {
+	private Func<EntityInfo, bool> Command;
+	private Menu_Command<EntityInfo> Subcommand {
 		get{
-			double distance=(Me.CubeGrid.GetPosition()-Entity.Position).Length-Entity.Size;
+			double distance=(P.Me.CubeGrid.GetPosition()-Entity.Position).Length()-Entity.Size;
 			return new Menu_Command<EntityInfo>("GoTo "+Entity.Name, Command, "Set autopilot to match target Entity's expected position and velocity", Entity);
 		}
 	}
 	private MyGridProgram P;
 	
-	public Menu_Display(EntityInfo entity, MyGridProgram p, Func<bool, EntityInfo> GoTo){
+	public Menu_Display(EntityInfo entity, MyGridProgram p, Func<EntityInfo, bool> GoTo){
 		P=p;
 		Entity=entity;
 		Command=GoTo;
@@ -963,7 +933,7 @@ private Vector3D Gravity_Direction{
 
 private double Speed_Deviation{
 	get{
-		return (CurrentVelocity-RelativeVelocity).Length();
+		return (CurrentVelocity-RestingVelocity).Length();
 	}
 }
 
@@ -1583,41 +1553,41 @@ private void SetThrusterList(List<IMyThrust> Thrusters, string Direction){
 		int number;
 		if(Thruster.CustomName.ToLower().Contains("hydrogen")){
 			if(Thruster.CustomName.ToLower().Contains("large")){
-				tag="Large Hydrogen"
+				tag="Large Hydrogen";
 				number=large_hydrogen--;
 			}
 			else {
-				tag="Small Hydrogen"
+				tag="Small Hydrogen";
 				number=small_hydrogen--;
 			}
 		}
 		else if(Thruster.CustomName.ToLower().Contains("atmospheric")){
 			if(Thruster.CustomName.ToLower().Contains("large")){
-				tag="Large Atmospheric"
+				tag="Large Atmospheric";
 				number=large_atmospheric--;
 			}
 			else {
-				tag="Small Atmospheric"
+				tag="Small Atmospheric";
 				number=small_atmospheric--;
 			}
 		}
 		else if(Thruster.CustomName.ToLower().Contains("ion")){
 			if(Thruster.CustomName.ToLower().Contains("large")){
-				tag="Large Ion"
+				tag="Large Ion";
 				number=large_ion--;
 			}
 			else {
-				tag="Small Ion"
+				tag="Small Ion";
 				number=small_ion--;
 			}
 		}
 		else{
 			if(Thruster.CustomName.ToLower().Contains("large")){
-				tag="Large Misc"
+				tag="Large Misc";
 				number=large_misc--;
 			}
 			else {
-				tag="Small Misc"
+				tag="Small Misc";
 				number=small_misc--;
 			}
 		}
@@ -1817,7 +1787,7 @@ private void UpdateList(List<EntityInfo> list, EntityInfo new_entity){
 
 private void SetStatus(string message, Color TextColor, Color BackgroundColor){
 	float padding = 40.0f;
-	string[] lines = message.Split('\n')'
+	string[] lines = message.Split('\n');
 	padding = Math.Max(10.0f, padding-(lines.Count*5.0f));
 	foreach(IMyTextPanel LCD in StatusLCDs){
 		Panel.Alignment=TextAlignment.CENTER;
@@ -1845,36 +1815,26 @@ private void Stop(object obj=null){
 }
 
 private bool _Lockdown=false;
-private bool Lockdown{
-	get{
-		return _Lockdown;
-	}
-	set{
-		if(value!=_Lockdown){
-			_Lockdown=value;
-			List<IMyAirtightHangarDoor> Seals = (new GenericMethods<IMyAirtightHangarDoor>(this)).GetAllIncluding("Air Seal");
-			foreach(IMyAirtightHangarDoor Door in Seals){
-				if(_Lockdown){
-					if(CanHaveJob(Door, "Lockdown")){
-						SetBlockData(Door, "Job", "Lockdown");
-						Door.Enabled=(Door.Status!=DoorStatus.Closed);
-						Door.CloseDoor();
-					}
-				}
-				else{
-					if(CanHaveJob(Door, "Lockdown")){
-						SetBlockData(Door, "Job", "None");
-						Door.Enabled=(Door.Status!=DoorStatus.Open);
-						Door.OpenDoor();
-					}
-				}
+
+private void Lockdown(object obj=null){
+	_Lockdown=!_Lockdown;
+	List<IMyAirtightHangarDoor> Seals = (new GenericMethods<IMyAirtightHangarDoor>(this)).GetAllIncluding("Air Seal");
+	foreach(IMyAirtightHangarDoor Door in Seals){
+		if(_Lockdown){
+			if(CanHaveJob(Door, "Lockdown")){
+				SetBlockData(Door, "Job", "Lockdown");
+				Door.Enabled=(Door.Status!=DoorStatus.Closed);
+				Door.CloseDoor();
+			}
+		}
+		else{
+			if(CanHaveJob(Door, "Lockdown")){
+				SetBlockData(Door, "Job", "None");
+				Door.Enabled=(Door.Status!=DoorStatus.Open);
+				Door.OpenDoor();
 			}
 		}
 	}
-}
-
-private void Lockdown(object obj=null){
-	Lockdown = !Lockdown;
 	return true;
 }
 
@@ -1909,7 +1869,7 @@ private bool GoTo(EntityInfo Entity){
 private bool UpdateEntityListing(Menu_Submenu Menu){
 	EntityList list = null;
 	bool do_goto = false;
-	switch(Menu.Name){
+	switch(Menu.Name()){
 		case "Asteroids":
 			list=AsteroidList;
 			do_goto = true;
@@ -1933,8 +1893,8 @@ private bool UpdateEntityListing(Menu_Submenu Menu){
 	}
 	if(list==null)
 		return false;
-	Menu = new Menu_Submenu(Menu.Name);
-	Menu.Add(new Menu_Command("Refresh", UpdateEntityListing, "Updates "+Menu.Name, Menu));
+	Menu = new Menu_Submenu(Menu.Name());
+	Menu.Add(new Menu_Command("Refresh", UpdateEntityListing, "Updates "+Menu.Name(), Menu));
 	List.Sort(Me.CubeGrid.GetPosition());
 	for(int i=0;i<list.Count;i++){
 		if(do_goto)
@@ -2267,7 +2227,7 @@ private double Scan_Frequency{
 		return output;
 	}
 }
-private double Scan_Time = Scan_Frequency;
+private double Scan_Time = 10;
 private string ScanString = "";
 public void PerformScan(){
 	Write("Beginning Scan");
@@ -2410,7 +2370,7 @@ public void PerformScan(){
 		UpdateAirlock(Airlocks[i]);
 	}
 	
-	if(Command_Menu.AutoRefresh)
+	if(Command_Menu.AutoRefresh())
 		DisplayMenu();
 	
 	switch(ShipStatus){
