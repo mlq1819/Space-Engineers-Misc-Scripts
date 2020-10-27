@@ -977,7 +977,10 @@ private Vector3D Relative_RestingVelocity{
 private Vector3D CurrentVelocity;
 private Vector3D Relative_CurrentVelocity{
 	get{
-		return GlobalToLocal(CurrentVelocity);
+		Vector3D output = Vector3D.Transform(CurrentVelocity, MatrixD.Invert(Controller.WorldMatrix));
+		output.Normalize();
+		output *= CurrentVelocity.Length();
+		return output;
 	}
 }
 private Vector3D Gravity;
