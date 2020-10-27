@@ -530,7 +530,7 @@ public class Menu_Submenu : MenuOption{
 		if(IsSelected){
 			return Menu[Selection].AutoRefresh();
 		}
-		return Last_Count==Count;
+		return Last_Count==Count || Count>10;
 	}
 	public int Depth(){
 		if(Selected){
@@ -611,36 +611,74 @@ public class Menu_Submenu : MenuOption{
 			return Menu[Selection].ToString();
 		}
 		string output=" -- "+Name()+" -- ";
-		for(int i=0; i<Menu.Count; i++){
-			output+="\n ";
-			switch(Menu[Selection].Type()){
-				case MenuType.Submenu:
-					output+="[";
-					break;
-				case MenuType.Command:
-					output+="<";
-					break;
-				case MenuType.Display:
-					output+="(";
-					break;
+		if(Count <= 10){
+			for(int i=0; i<Count; i++){
+				output+="\n ";
+				switch(Menu[i].Type()){
+					case MenuType.Submenu:
+						output+="[";
+						break;
+					case MenuType.Command:
+						output+="<";
+						break;
+					case MenuType.Display:
+						output+="(";
+						break;
+				}
+				output+=' ';
+				if(Selection==i){
+					output+=' '+Menu[i].Name().ToUpper()+' ';
+				}
+				else {
+					output+=Menu[i].Name().ToLower();
+				}
+				switch(Menu[i].Type()){
+					case MenuType.Submenu:
+						output+="]";
+						break;
+					case MenuType.Command:
+						output+=">";
+						break;
+					case MenuType.Display:
+						output+=")";
+						break;
+				}
 			}
-			output+=' ';
-			if(Selection==i){
-				output+=' '+Menu[i].Name().ToUpper()+' ';
-			}
-			else {
-				output+=Menu[i].Name().ToLower();
-			}
-			switch(Menu[Selection].Type()){
-				case MenuType.Submenu:
-					output+="]";
-					break;
-				case MenuType.Command:
-					output+=">";
-					break;
-				case MenuType.Display:
-					output+=")";
-					break;
+		}
+		else {
+			int count = 0;
+			for(int i=(Selection+Count-1)%Count; count<=10; i=(i+1)%Count){
+				count++;
+				output+="\n ";
+				switch(Menu[i].Type()){
+					case MenuType.Submenu:
+						output+="[";
+						break;
+					case MenuType.Command:
+						output+="<";
+						break;
+					case MenuType.Display:
+						output+="(";
+						break;
+				}
+				output+=' ';
+				if(Selection==i){
+					output+=' '+Menu[i].Name().ToUpper()+' ';
+				}
+				else {
+					output+=Menu[i].Name().ToLower();
+				}
+				switch(Menu[i].Type()){
+					case MenuType.Submenu:
+						output+="]";
+						break;
+					case MenuType.Command:
+						output+=">";
+						break;
+					case MenuType.Display:
+						output+=")";
+						break;
+				}
 			}
 		}
 		return output;
