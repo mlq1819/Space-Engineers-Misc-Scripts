@@ -2485,6 +2485,7 @@ private void UpdateProgramInfo(){
 	}
 }
 
+//Sets gyroscope outputs from player input, dampeners, gravity, and autopilot
 double Pitch_Time =  1.0f;
 double Yaw_Time = 1.0f;
 double Roll_Time = 1.0f;
@@ -2589,6 +2590,7 @@ private void SetGyroscopes(){
 	Write("Roll: " + Math.Round(Gyroscope.Roll*100, 1).ToString() + " RPM");
 }
 
+//Sets thruster outputs from player input, dampeners, gravity, and autopilot
 private void SetThrusters(){
 	float input_forward = 0.0f;
 	float input_up = 0.0f;
@@ -2833,7 +2835,6 @@ private void SetThrusters(){
 	}
 }
 
-
 //Sets directional vectors, elevation, etc
 private void GetPositionData(){
 	Vector3D base_vector = new Vector3D(0,0,10);
@@ -3027,6 +3028,7 @@ public void Main(string argument, UpdateType updateSource)
 	if(Scan_Time >= Scan_Frequency){
 		PerformScan();
 	}
+	Write(ScanString);
 	
 	if(argument.ToLower().Equals("back"))
 		Command_Menu.Back();
