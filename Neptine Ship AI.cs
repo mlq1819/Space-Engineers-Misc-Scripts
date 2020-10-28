@@ -1861,20 +1861,22 @@ private AlertStatus ShipStatus{
 		AlertStatus status = AlertStatus.Green;
 		Submessage = "";
 		
-		if(Time_To_Crash < 15 && Controller.GetShipSpeed()>5){
-			AlertStatus new_status = AlertStatus.Orange;
-			status = (AlertStatus) Math.Max((int)status, (int)new_status);
-			Submessage += "\n"+Math.Round(Time_To_Crash,1).ToString()+" seconds to possible impact";
-		}
-		else if(Time_To_Crash < 60 && Controller.GetShipSpeed()>15){
-			AlertStatus new_status = AlertStatus.Yellow;
-			status = (AlertStatus) Math.Max((int)status, (int)new_status);
-			Submessage += "\n"+Math.Round(Time_To_Crash,1).ToString()+" seconds to possible impact";
-		}
-		else if(Time_To_Crash < 180){
+		if(Time_To_Crash>0){
+			if(Time_To_Crash < 15 && Controller.GetShipSpeed()>5){
+				AlertStatus new_status = AlertStatus.Orange;
+				status = (AlertStatus) Math.Max((int)status, (int)new_status);
+				Submessage += "\n"+Math.Round(Time_To_Crash,1).ToString()+" seconds to possible impact";
+			}
+			else if(Time_To_Crash < 60 && Controller.GetShipSpeed()>15){
+				AlertStatus new_status = AlertStatus.Yellow;
+				status = (AlertStatus) Math.Max((int)status, (int)new_status);
+				Submessage += "\n"+Math.Round(Time_To_Crash,1).ToString()+" seconds to possible impact";
+			}
+			else if(Time_To_Crash < 180){
 			AlertStatus new_status = AlertStatus.Blue;
 			status = (AlertStatus) Math.Max((int)status, (int)new_status);
 			Submessage += "\n"+Math.Round(Time_To_Crash,1).ToString()+" seconds to possible impact";
+		}
 		}
 		
 		double ActualEnemyShipDistance = Math.Min(SmallShipList.ClosestDistance(this, MyRelationsBetweenPlayerAndBlock.Enemies), LargeShipList.ClosestDistance(this, MyRelationsBetweenPlayerAndBlock.Enemies));
