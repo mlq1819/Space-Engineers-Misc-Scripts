@@ -961,7 +961,7 @@ private bool Match_Position = false;
 private Vector3D Target_Position;
 private Vector3D Relative_Target_Position{
 	get{
-		return GlobalToLocal(Target_Position);
+		return GlobalToLocalPosition(Target_Position);
 	}
 }
 private long Target_ID = 0;
@@ -971,13 +971,13 @@ private float Mass_Accomodation = 0.0f;
 private Vector3D RestingVelocity;
 private Vector3D Relative_RestingVelocity{
 	get{
-		return GlobalToLocal(RestingVelocity);
+		return GlobalToLocalVelocity(RestingVelocity);
 	}
 }
 private Vector3D CurrentVelocity;
 private Vector3D Relative_CurrentVelocity{
 	get{
-		Vector3D output = Vector3D.Transform(CurrentVelocity, MatrixD.Invert(Controller.WorldMatrix));
+		Vector3D output = Vector3D.Transform(CurrentVelocity+Controller.GetPosition(), MatrixD.Invert(Controller.WorldMatrix));
 		output.Normalize();
 		output *= CurrentVelocity.Length();
 		return output;
@@ -986,12 +986,12 @@ private Vector3D Relative_CurrentVelocity{
 private Vector3D Gravity;
 private Vector3D Relative_Gravity{
 	get{
-		return GlobalToLocal(Gravity);
+		return GlobalToLocalVelocity(Gravity);
 	}
 }
 private Vector3D Adjusted_Gravity{
 	get{
-		Vector3D temp = Vector3D.Transform(Gravity+Controller.GetPosition(), MatrixD.Invert(Controller.WorldMatrix));
+		Vector3D temp = GlobalToLocalVelocity(Gravity);
 		temp.Normalize();
 		return temp*Mass_Accomodation;
 	}
@@ -1013,7 +1013,7 @@ private double Speed_Deviation{
 private Vector3D AngularVelocity;
 private Vector3D Relative_AngularVelocity{
 	get{
-		return GlobalToLocal(AngularVelocity);
+		return GlobalToLocalVelocity(AngularVelocity);
 	}
 }
 
@@ -1767,13 +1767,25 @@ public void Save()
 	}
 }
 
-public Vector3D GlobalToLocal(Vector3D Global){
+public Vector3D GlobalToLocalVelocity(Vector3D Global){
+	Vector3D Local = Vector3D.Transform(Global+Controller.GetPosition(), MatrixD.Invert(Controller.WorldMatrix));
+	Local.Normalize();
+	return Local * Global.Length();
+}
+
+public Vector3D LocalToGlobalVelocity(Vector3D Local){
+	Vector3D Global = Vector3D.Transform(Local, Controller.WorldMatrix)-Controller.GetPosition();
+	Global.Normalize();
+	return Global * Local.Length();
+}
+
+public Vector3D GlobalToLocalPosition(Vector3D Global){
 	Vector3D Local = Vector3D.Transform(Global, MatrixD.Invert(Controller.WorldMatrix));
 	Local.Normalize();
 	return Local * Global.Length();
 }
 
-public Vector3D LocalToGlobal(Vector3D Local){
+public Vector3D LocalToGlobalPosition(Vector3D Local){
 	Vector3D Global = Vector3D.Transform(Local, Controller.WorldMatrix);
 	Global.Normalize();
 	return Global * Local.Length();
@@ -2608,7 +2620,7 @@ private void SetGyroscopes(){
 	}
 	else{
 		Pitch_Time = 0;
-		input_pitch *= 300;
+		input_pitch *= 450;
 	}
 	input_yaw = Math.Min(Math.Max(Controller.RotationIndicator.Y / 200, -1), 1);
 	if(Math.Abs(input_yaw) < 0.1f){
@@ -2630,7 +2642,7 @@ private void SetGyroscopes(){
 	}
 	else{
 		Yaw_Time = 0;
-		input_yaw *= 300;
+		input_yaw *= 450;
 	}
 	input_roll = Controller.RollIndicator;
 	if(Math.Abs(input_roll) < 0.1f){
@@ -2640,10 +2652,10 @@ private void SetGyroscopes(){
 			if(Math.Abs(difference) > ACCEPTABLE_ANGLE){
 				if(AngularVelocity.Length() < 1){
 					if(difference>0){
-						input_roll += 0.9f * 30 * ((float)Math.Min(Math.Abs(difference/(ACCEPTABLE_ANGLE*2)), 1));
+						input_roll += 0.9f * 150 * ((float)Math.Min(Math.Abs(difference/(ACCEPTABLE_ANGLE*2)), 1));
 					}
 					else {
-						input_roll -= 0.9f * 30 * ((float)Math.Min(Math.Abs(difference/(ACCEPTABLE_ANGLE*2)), 1));
+						input_roll -= 0.9f * 150 * ((float)Math.Min(Math.Abs(difference/(ACCEPTABLE_ANGLE*2)), 1));
 					}
 				}
 			}
@@ -2651,7 +2663,7 @@ private void SetGyroscopes(){
 	}
 	else{
 		Roll_Time = 0;
-		input_roll *= 200;
+		input_roll *= 450;
 	}
 	
 	Gyro_Tuple output = Transform(new Gyro_Tuple(input_pitch, input_yaw, input_roll));
@@ -2680,20 +2692,9 @@ private void SetThrusters(){
 	
 	if(Controller.DampenersOverride){
 		Write("Cruise Control: Off");
-		
-		Write(EntityInfo.NeatVector(CurrentVelocity));
-		Write(EntityInfo.NeatVector(Relative_CurrentVelocity));
-		Write("");
-		input_right -= (float) (Relative_CurrentVelocity.X * 1 * damp_multx);
-		input_up -= (float) (Relative_CurrentVelocity.Y * 1 * damp_multx);
-		input_forward += (float) (Relative_CurrentVelocity.Z * 1 * damp_multx);
-		Write(Math.Round(input_right/Gravity.Length(), 3).ToString());
-		Write(Math.Round(input_up/Gravity.Length(), 3).ToString());
-		Write(Math.Round(input_forward/Gravity.Length(), 3).ToString());
-		
-		/*input_right -= (float) ((Relative_CurrentVelocity.X-Relative_RestingVelocity.X) * Mass_Accomodation * damp_multx);
+		input_right -= (float) ((Relative_CurrentVelocity.X-Relative_RestingVelocity.X) * Mass_Accomodation * damp_multx);
 		input_up -= (float) ((Relative_CurrentVelocity.Y-Relative_RestingVelocity.Y) * Mass_Accomodation * damp_multx);
-		input_forward += (float) ((Relative_CurrentVelocity.Z-Relative_RestingVelocity.Z) * Mass_Accomodation * damp_multx);*/
+		input_forward += (float) ((Relative_CurrentVelocity.Z-Relative_RestingVelocity.Z) * Mass_Accomodation * damp_multx);
 	}
 	else {
 		Write("Cruise Control: On");
@@ -3078,6 +3079,8 @@ private void GetPositionData(){
 public void Main(string argument, UpdateType updateSource)
 {
 	UpdateProgramInfo();
+	Write(Controller.CustomName);
+	Write(Gyroscope.CustomName);
 	GetPositionData();
 	Scan_Time+=seconds_since_last_update;
 	if(Scan_Time >= Scan_Frequency){
