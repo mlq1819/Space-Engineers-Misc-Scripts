@@ -461,7 +461,7 @@ public class EntityList : IEnumerable<EntityInfo>{
 	
 	public bool UpdateEntry(EntityInfo Entity){
 		for(int i=0; i<E_List.Count; i++){
-			if(E_List[i].ID==Entity.ID){
+			if(E_List[i].ID==Entity.ID || Entity.GetDistance(E_List[i].Position)<=0.5f){
 				if(E_List[i].Age >= Entity.Age){
 					E_List[i]=Entity;
 					return true;
@@ -772,9 +772,9 @@ public class Menu_Command<T> : MenuOption where T : class{
 	public override string ToString(){
 		string output=Name()+'\n';
 		string[] words=Desc.Split(' ');
-		int length=32;
+		int length=24;
 		foreach(string word in words){
-			if(length > 0 && length+word.Length > 32){
+			if(length > 0 && length+word.Length > 24){
 				length=0;
 				output+='\n';
 			}
@@ -791,13 +791,16 @@ public class Menu_Command<T> : MenuOption where T : class{
 
 public class Menu_Display : MenuOption{
 	public string Name(){
+		if(Entity==null){
+			return "null";
+		}
 		string name = Entity.Name.Substring(0, Math.Min(24, Entity.Name.Length));
 		string[] args = name.Split(' ');
 		int number = 0;
 		if(args.Length==3 && args[1].ToLower().Equals("grid") && Int32.TryParse(args[2], out number)){
 			name = "Unnamed "+args[0]+' '+args[1];
 		}
-		double distance=Entity.GetDistance(P.Me.CubeGrid.GetPosition());
+		double distance=Entity.GetDistance(P.Me.CubeGrid.GetPosition())-Entity.Size;
 		string distance_string=Math.Round(distance,0).ToString()+"M";
 		if(distance>=1000)
 			distance_string=Math.Round(distance/1000,1).ToString()+"kM";
@@ -834,16 +837,19 @@ public class Menu_Display : MenuOption{
 		Can_GoTo=true;
 	}
 	
-	public Menu_Display(EntityInfo entity){
+	public Menu_Display(EntityInfo entity, MyGridProgram p){
 		Entity=entity;
+		P=p;
 		Selected=false;
 		Can_GoTo=false;
 	}
 	
 	public bool Select(){
-		if(Can_GoTo)
+		if(!Can_GoTo)
 			return false;
 		if(Selected){
+			if(Command==null)
+				return false;
 			return Subcommand.Select();
 		}
 		Selected=true;
@@ -1973,7 +1979,7 @@ private void SetStatus(string message, Color TextColor, Color BackgroundColor){
 	}
 }
 
-private bool Stop(object obj=null){
+public bool Stop(object obj=null){
 	RestingVelocity=new Vector3D(0,0,0);
 	Target_Position=new Vector3D(0,0,0);
 	Match_Direction=false;
@@ -1984,7 +1990,7 @@ private bool Stop(object obj=null){
 
 private bool _Lockdown=false;
 
-private bool Lockdown(object obj=null){
+public bool Lockdown(object obj=null){
 	_Lockdown=!_Lockdown;
 	List<IMyAirtightHangarDoor> Seals = (new GenericMethods<IMyAirtightHangarDoor>(this)).GetAllIncluding("Air Seal");
 	foreach(IMyAirtightHangarDoor Door in Seals){
@@ -2006,8 +2012,28 @@ private bool Lockdown(object obj=null){
 	return true;
 }
 
-private bool FactoryReset(object obj=null){
+public bool FactoryReset(object obj=null){
 	SetStatus("Status LCD\nOffline", DEFAULT_TEXT_COLOR, DEFAULT_BACKGROUND_COLOR);
+	if(Gyroscope!=null)
+		Gyroscope.GyroOverride = false;
+	foreach(IMyThrust Thruster in Forward_Thrusters){
+		ResetThruster(Thruster);
+	}
+	foreach(IMyThrust Thruster in Backward_Thrusters){
+		ResetThruster(Thruster);
+	}
+	foreach(IMyThrust Thruster in Up_Thrusters){
+		ResetThruster(Thruster);
+	}
+	foreach(IMyThrust Thruster in Down_Thrusters){
+		ResetThruster(Thruster);
+	}
+	foreach(IMyThrust Thruster in Left_Thrusters){
+		ResetThruster(Thruster);
+	}
+	foreach(IMyThrust Thruster in Right_Thrusters){
+		ResetThruster(Thruster);
+	}
 	Reset();
 	Me.Enabled = false;
 	return true;
@@ -2020,7 +2046,7 @@ private Vector3D GetOffsetPosition(Vector3D Position){
 	return (distance-Me.CubeGrid.GridSize/2-Math.Min(distance/2,400))*direction;
 }
 
-private bool GoTo(EntityInfo Entity){
+public bool GoTo(EntityInfo Entity){
 	//Match velocity for hostiles, GoTo for others
 	RestingVelocity=Entity.Velocity;
 	Target_ID=Entity.ID;
@@ -2034,7 +2060,7 @@ private bool GoTo(EntityInfo Entity){
 	return true;
 }
 
-private bool UpdateEntityListing(Menu_Submenu Menu){
+public bool UpdateEntityListing(Menu_Submenu Menu){
 	EntityList list = null;
 	bool do_goto = false;
 	switch(Menu.Name()){
@@ -2068,7 +2094,7 @@ private bool UpdateEntityListing(Menu_Submenu Menu){
 		if(do_goto)
 			Menu.Add(new Menu_Display(list[i], this, GoTo));
 		else
-			Menu.Add(new Menu_Display(list[i]));
+			Menu.Add(new Menu_Display(list[i], this));
 	}
 	if(Command_Menu.Replace(Menu)){
 		DisplayMenu();
@@ -2747,7 +2773,7 @@ private void SetThrusters(){
 	}
 	else {
 		Write("Cruise Control: On");
-		Vector3D velocity_direction = Controller.GetShipVelocities().LinearVelocity;
+		Vector3D velocity_direction = CurrentVelocity;
 		velocity_direction.Normalize();
 		double angle = Math.Min(GetAngle(Controller_Forward, velocity_direction), GetAngle(Controller_Backward, velocity_direction));
 		if(angle <= ACCEPTABLE_ANGLE / 2){
@@ -3092,7 +3118,7 @@ private void GetPositionData(){
 			double height_dif = (Me.CubeGrid.GetPosition() - PlanetCenter).Length() - Elevation;
 			Vector3D next_position = Me.CubeGrid.GetPosition() + 1 * CurrentVelocity;
 			double Elevation_per_second = ((next_position-PlanetCenter).Length()-height_dif)-Elevation;
-			Time_To_Crash = Elevation / Elevation_per_second;
+			Time_To_Crash=Elevation/Elevation_per_second;
 			if(Time_To_Crash<15 && Controller.GetShipSpeed() > 5){
 				Controller.DampenersOverride = true;
 				Write("Crash predicted within 15 seconds; enabling Dampeners");
@@ -3139,6 +3165,8 @@ public void Main(string argument, UpdateType updateSource)
 		else
 			Write("Last Scan "+Math.Round(Scan_Time,1).ToString());
 		Write(ScanString);
+		
+		Write(EntityInfo.NeatVector(Relative_RestingVelocity));
 		
 		if(argument.ToLower().Equals("back")){
 			Command_Menu.Back();
