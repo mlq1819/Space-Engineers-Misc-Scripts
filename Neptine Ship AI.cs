@@ -2669,9 +2669,9 @@ private void SetGyroscopes(){
 	
 	bool adjusting_target = false;
 	
-	input_pitch = Math.Min(Math.Max(Controller.RotationIndicator.X / 200, -1), 1);
-	if(Math.Abs(input_pitch) < 0.1f){
-		input_pitch = current_pitch * -0.99f;
+	input_pitch = Math.Min(Math.Max(Controller.RotationIndicator.X / 100, -1), 1);
+	if(Math.Abs(input_pitch) < 0.05f){
+		input_pitch = current_pitch*0.99f*1;
 		if(Elevation<Controller.GetShipSpeed()*2 && Elevation<50 && GetAngle(Gravity, Controller_Down) < 90 && Pitch_Time>=1){
 			double difference = Math.Abs(GetAngle(Gravity, Controller_Forward));
 			if(difference < 90){
@@ -2684,10 +2684,10 @@ private void SetGyroscopes(){
 				adjusting_target = true;
 				if(AngularVelocity.Length() < 1){
 					if(difference>0){
-						input_pitch -= 0.5f * ((float)Math.Min(Math.Abs(difference/(ACCEPTABLE_ANGLE*2)), 1));
+						input_pitch -= 0.5f*30*((float)Math.Min(Math.Abs(difference/(ACCEPTABLE_ANGLE*2)), 1));
 					}
 					else {
-						input_pitch += 0.5f * ((float)Math.Min(Math.Abs(difference/(ACCEPTABLE_ANGLE*2)), 1));
+						input_pitch += 0.5f*30*((float)Math.Min(Math.Abs(difference/(ACCEPTABLE_ANGLE*2)), 1));
 					}
 				}
 			}
@@ -2695,21 +2695,21 @@ private void SetGyroscopes(){
 	}
 	else{
 		Pitch_Time = 0;
-		input_pitch *= 450;
+		input_pitch *= 30;
 	}
-	input_yaw = Math.Min(Math.Max(Controller.RotationIndicator.Y / 200, -1), 1);
-	if(Math.Abs(input_yaw) < 0.1f){
-		input_yaw = current_yaw * -0.99f;
+	input_yaw = Math.Min(Math.Max(Controller.RotationIndicator.Y / 100, -1), 1);
+	if(Math.Abs(input_yaw) < 0.05f){
+		input_yaw = current_yaw*0.99f*1;
 		if(Match_Direction){
 			double difference = GetAngle(Controller_Right, Target_Direction) - GetAngle(Controller_Left, Target_Direction);
 			if(Math.Abs(difference) > ACCEPTABLE_ANGLE || GetAngle(Controller_Forward, Target_Direction) > ACCEPTABLE_ANGLE){
 				adjusting_target = true;
 				if(AngularVelocity.Length() < 1){
 					if(difference>0 || difference==0 && GetAngle(Controller_Forward, Target_Direction) > ACCEPTABLE_ANGLE){
-						input_yaw -= 0.5f * ((float)Math.Min(Math.Abs(difference/(ACCEPTABLE_ANGLE*2)), 1));
+						input_yaw -= 0.5f*30*((float)Math.Min(Math.Abs(difference/(ACCEPTABLE_ANGLE*2)), 1));
 					}
 					else {
-						input_yaw += 0.5f * ((float)Math.Min(Math.Abs(difference/(ACCEPTABLE_ANGLE*2)), 1));
+						input_yaw += 0.5f*30*((float)Math.Min(Math.Abs(difference/(ACCEPTABLE_ANGLE*2)), 1));
 					}
 				}
 			}
@@ -2717,20 +2717,20 @@ private void SetGyroscopes(){
 	}
 	else{
 		Yaw_Time = 0;
-		input_yaw *= 450;
+		input_yaw *= 30;
 	}
 	input_roll = Controller.RollIndicator;
-	if(Math.Abs(input_roll) < 0.1f){
-		input_roll = current_roll * -0.99f;
+	if(Math.Abs(input_roll) < 0.05f){
+		input_roll = current_roll*0.99f*1;
 		if(Gravity.Length() > 0  && Roll_Time >= 1 && !adjusting_target){
 			double difference = (GetAngle(Left_Vector, Gravity) - GetAngle(Right_Vector, Gravity));
 			if(Math.Abs(difference) > ACCEPTABLE_ANGLE){
 				if(AngularVelocity.Length() < 1){
 					if(difference>0){
-						input_roll += 0.9f * 150 * ((float)Math.Min(Math.Abs(difference/(ACCEPTABLE_ANGLE*2)), 1));
+						input_roll += 0.9f * 15 * ((float)Math.Min(Math.Abs(difference/(ACCEPTABLE_ANGLE*2)), 1));
 					}
 					else {
-						input_roll -= 0.9f * 150 * ((float)Math.Min(Math.Abs(difference/(ACCEPTABLE_ANGLE*2)), 1));
+						input_roll -= 0.9f * 15 * ((float)Math.Min(Math.Abs(difference/(ACCEPTABLE_ANGLE*2)), 1));
 					}
 				}
 			}
@@ -2738,18 +2738,14 @@ private void SetGyroscopes(){
 	}
 	else{
 		Roll_Time = 0;
-		input_roll *= 450;
+		input_roll *= 15;
 	}
 	
 	Gyro_Tuple output = Transform(new Gyro_Tuple(input_pitch, input_yaw, input_roll));
 	
-	Gyroscope.Pitch = output.Pitch / 100;
-	Gyroscope.Yaw = output.Yaw / 100;
-	Gyroscope.Roll = output.Roll / 100;
-	
-	Write("Pitch: " + Math.Round(Gyroscope.Pitch*100, 1).ToString() + " RPM");
-	Write("Yaw: " + Math.Round(Gyroscope.Yaw*100, 1).ToString() + " RPM");
-	Write("Roll: " + Math.Round(Gyroscope.Roll*100, 1).ToString() + " RPM");
+	Gyroscope.Pitch = output.Pitch;
+	Gyroscope.Yaw = output.Yaw;
+	Gyroscope.Roll = output.Roll;
 }
 
 //Sets thruster outputs from player input, dampeners, gravity, and autopilot
@@ -2947,34 +2943,22 @@ private void SetThrusters(){
 	
 	float output_forward = 0.0f;
 	float output_backward = 0.0f;
-	if(input_forward / Forward_Thrust > 0.05f){
+	if(input_forward / Forward_Thrust > 0.05f)
 		output_forward = Math.Min(Math.Abs(input_forward / Forward_Thrust), 1);
-		Write("Forward: " + Math.Round(output_forward*100, 1).ToString() + '%');
-	}
-	else if(input_forward / Backward_Thrust < -0.05f){
+	else if(input_forward / Backward_Thrust < -0.05f)
 		output_backward = Math.Min(Math.Abs(input_forward / Backward_Thrust), 1);
-		Write("Backward: " + Math.Round(output_backward*100, 1).ToString() + '%');
-	}
 	float output_up = 0.0f;
 	float output_down = 0.0f;
-	if(input_up / Up_Thrust > 0.05f){
+	if(input_up / Up_Thrust > 0.05f)
 		output_up = Math.Min(Math.Abs(input_up / Up_Thrust), 1);
-		Write("Up: " + Math.Round(output_up*100, 1).ToString() + '%');
-	}
-	else if(input_up / Down_Thrust < -0.05f){
+	else if(input_up / Down_Thrust < -0.05f)
 		output_down = Math.Min(Math.Abs(input_up / Down_Thrust), 1);
-		Write("Down: " + Math.Round(output_down*100, 1).ToString() + '%');
-	}
 	float output_right = 0.0f;
 	float output_left = 0.0f;
-	if(input_right / Right_Thrust > 0.05f){
+	if(input_right / Right_Thrust > 0.05f)
 		output_right = Math.Min(Math.Abs(input_right / Right_Thrust), 1);
-		Write("Right: " + Math.Round(output_right*100, 1).ToString() + '%');
-	}
-	else if(input_right / Left_Thrust < -0.05f){
+	else if(input_right / Left_Thrust < -0.05f)
 		output_left = Math.Min(Math.Abs(input_right / Left_Thrust), 1);
-		Write("Left: " + Math.Round(output_left*100, 1).ToString() + '%');
-	}
 	
 	foreach(IMyThrust Thruster in Forward_Thrusters){
 		Thruster.ThrustOverridePercentage = output_forward;
@@ -3166,7 +3150,8 @@ public void Main(string argument, UpdateType updateSource)
 			Write("Last Scan "+Math.Round(Scan_Time,1).ToString());
 		Write(ScanString);
 		
-		Write(EntityInfo.NeatVector(Relative_RestingVelocity));
+		Write(Math.Round(Controller.RotationIndicator.X,1).ToString());
+		Write(Math.Round(Controller.RotationIndicator.Y,1).ToString());
 		
 		if(argument.ToLower().Equals("back")){
 			Command_Menu.Back();
