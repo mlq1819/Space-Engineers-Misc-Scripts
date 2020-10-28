@@ -695,7 +695,7 @@ public class Menu_Submenu : MenuOption{
 		}
 		else {
 			int count = 0;
-			for(int i=(Selection+Count-1)%Count; count<=10;i=(i+1)%Count){
+			for(int i=Selection; count<=10 && i<Count;i++){
 				count++;
 				output+="\n ";
 				switch(Menu[i].Type()){
