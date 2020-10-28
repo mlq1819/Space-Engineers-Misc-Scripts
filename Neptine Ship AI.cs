@@ -791,7 +791,17 @@ public class Menu_Command<T> : MenuOption where T : class{
 
 public class Menu_Display : MenuOption{
 	public string Name(){
-		return Entity.Name.Substring(0, Math.Min(24, Entity.Name.Length));
+		string name = Entity.Name.Substring(0, Math.Min(24, Entity.Name.Length));
+		string[] args = name.Split(' ');
+		int number = 0;
+		if(args.Length==3 && args[1].ToLower().Equals("grid") && Int32.TryParse(args[2], out number)){
+			name = "Unnamed "+args[0]+' '+args[1];
+		}
+		double distance=Entity.GetDistance(P.Me.CubeGrid.GetPosition());
+		string distance_string=Math.Round(distance,0).ToString()+"M";
+		if(distance>=1000)
+			distance_string=Math.Round(distance/1000,1).ToString()+"kM";
+		return name+' '+distance_string;
 	}
 	public MenuType Type(){
 		return MenuType.Display;
@@ -1542,6 +1552,16 @@ public bool Setup(){
 	}
 	else {
 		SetControllerDirections();
+		IMyTextSurfaceProvider Cockpit = Controller as IMyTextSurfaceProvider;
+		if(Cockpit!=null){
+			for(int i=0;i<Cockpit.SurfaceCount;i++){
+				Cockpit.GetSurface(i).FontColor=DEFAULT_TEXT_COLOR;
+				Cockpit.GetSurface(i).BackgroundColor=DEFAULT_BACKGROUND_COLOR;
+				Cockpit.GetSurface(i).Alignment=TextAlignment.CENTER;
+				Cockpit.GetSurface(i).ScriptForegroundColor=DEFAULT_TEXT_COLOR;
+				Cockpit.GetSurface(i).ScriptBackgroundColor=DEFAULT_BACKGROUND_COLOR;
+			}
+		}
 	}
 	Gyroscope=(new GenericMethods<IMyGyro>(this)).GetContaining("Control Gyroscope");
 	if(Gyroscope==null){
@@ -2050,7 +2070,11 @@ private bool UpdateEntityListing(Menu_Submenu Menu){
 		else
 			Menu.Add(new Menu_Display(list[i]));
 	}
-	return Command_Menu.Replace(Menu);
+	if(Command_Menu.Replace(Menu)){
+		DisplayMenu();
+		return true;
+	}
+	return false;
 }
 
 private Menu_Submenu AsteroidMenu;
@@ -2068,20 +2092,20 @@ private void CreateMenu(){
 	ShipCommands.Add(new Menu_Command<object>("Factory Reset", FactoryReset, "Resets AI memory and settings, and turns it off"));
 	Command_Menu.Add(ShipCommands);
 	AsteroidMenu=new Menu_Submenu("Asteroids");
-	UpdateEntityListing(AsteroidMenu);
 	Command_Menu.Add(AsteroidMenu);
+	UpdateEntityListing(AsteroidMenu);
 	PlanetMenu=new Menu_Submenu("Planets");
-	UpdateEntityListing(PlanetMenu);
 	Command_Menu.Add(PlanetMenu);
+	UpdateEntityListing(PlanetMenu);
 	SmallShipMenu=new Menu_Submenu("Small Ships");
-	UpdateEntityListing(SmallShipMenu);
 	Command_Menu.Add(SmallShipMenu);
+	UpdateEntityListing(SmallShipMenu);
 	LargeShipMenu=new Menu_Submenu("Large Ships");
-	UpdateEntityListing(LargeShipMenu);
 	Command_Menu.Add(LargeShipMenu);
+	UpdateEntityListing(LargeShipMenu);
 	CharacterMenu=new Menu_Submenu("Characters");
-	UpdateEntityListing(CharacterMenu);
 	Command_Menu.Add(CharacterMenu);
+	UpdateEntityListing(CharacterMenu);
 }
 
 private void DisplayMenu(){
@@ -2476,6 +2500,7 @@ public void PerformScan(){
 			ScanString += "Received message on " + Listener.Tag + '\n';
 			EntityInfo Entity;
 			if(EntityInfo.TryParse(message.Data.ToString(), out Entity)){
+				ScanString+="Got new data on "+Entity.Name+'\n';
 				UpdateList(Entities, Entity);
 			}
 		}
@@ -3102,41 +3127,50 @@ private void GetPositionData(){
 
 public void Main(string argument, UpdateType updateSource)
 {
-	UpdateProgramInfo();
-	Write(Controller.CustomName);
-	Write(Gyroscope.CustomName);
-	GetPositionData();
-	Scan_Time+=seconds_since_last_update;
-	if(Scan_Time >= Scan_Frequency){
-		PerformScan();
+	try{
+		UpdateProgramInfo();
+		Write(Controller.CustomName);
+		Write(Gyroscope.CustomName);
+		GetPositionData();
+		Scan_Time+=seconds_since_last_update;
+		if(Scan_Time >= Scan_Frequency){
+			PerformScan();
+		}
+		else
+			Write("Last Scan "+Math.Round(Scan_Time,1).ToString());
+		Write(ScanString);
+		
+		if(argument.ToLower().Equals("back")){
+			Command_Menu.Back();
+			DisplayMenu();
+		}
+		else if(argument.ToLower().Equals("prev")){
+			Command_Menu.Prev();
+			DisplayMenu();
+		}
+		else if(argument.ToLower().Equals("next")){
+			Command_Menu.Next();
+			DisplayMenu();
+		}
+		else if(argument.ToLower().Equals("select")){
+			Command_Menu.Select();
+			DisplayMenu();
+		}
+		else if(argument.ToLower().Equals("factory reset")){
+			FactoryReset();
+			DisplayMenu();
+		}
+		
+		if(!Me.CubeGrid.IsStatic){
+			SetThrusters();
+			SetGyroscopes();
+		}
+		
+		Runtime.UpdateFrequency = GetUpdateFrequency();
 	}
-	Write(ScanString);
-	
-	if(argument.ToLower().Equals("back")){
-		Command_Menu.Back();
-		DisplayMenu();
-	}
-	else if(argument.ToLower().Equals("prev")){
-		Command_Menu.Prev();
-		DisplayMenu();
-	}
-	else if(argument.ToLower().Equals("next")){
-		Command_Menu.Next();
-		DisplayMenu();
-	}
-	else if(argument.ToLower().Equals("select")){
-		Command_Menu.Select();
-		DisplayMenu();
-	}
-	else if(argument.ToLower().Equals("factory reset")){
+	catch(Exception E){
+		Write(E.ToString());
 		FactoryReset();
 		DisplayMenu();
 	}
-    
-	if(!Me.CubeGrid.IsStatic){
-		SetThrusters();
-		SetGyroscopes();
-	}
-	
-	Runtime.UpdateFrequency = GetUpdateFrequency();
 }
