@@ -2596,24 +2596,6 @@ public void PerformScan(){
 	if(Command_Menu.AutoRefresh())
 		DisplayMenu();
 	
-	switch(ShipStatus){
-		case AlertStatus.Green:
-			SetStatus("Condition " + ShipStatus.ToString() + Submessage, new Color(137, 255, 137, 255), new Color(0, 151, 0, 255));
-			break;
-		case AlertStatus.Blue:
-			SetStatus("Condition " + ShipStatus.ToString() + Submessage, new Color(137, 239, 255, 255), new Color(0, 88, 151, 255));
-			break;
-		case AlertStatus.Yellow:
-			SetStatus("Condition " + ShipStatus.ToString() + Submessage, new Color(255, 239, 137, 255), new Color(66, 66, 0, 255));
-			break;
-		case AlertStatus.Orange:
-			SetStatus("Condition " + ShipStatus.ToString() + Submessage, new Color(255, 197, 0, 255), new Color(88, 44, 0, 255));
-			break;
-		case AlertStatus.Red:
-			SetStatus("Condition " + ShipStatus.ToString() + Submessage, new Color(255, 137, 137, 255), new Color(151, 0, 0, 255));
-			break;
-	}
-	
 	ScanString += "Completed updating data" + '\n';
 	Scan_Time = 0;
 }
@@ -3215,6 +3197,24 @@ public void Main(string argument, UpdateType updateSource)
 		if(!Me.CubeGrid.IsStatic){
 			SetThrusters();
 			SetGyroscopes();
+		}
+		
+		switch(ShipStatus){
+			case AlertStatus.Green:
+				SetStatus("Condition " + ShipStatus.ToString() + Submessage, new Color(137, 255, 137, 255), new Color(0, 151, 0, 255));
+				break;
+			case AlertStatus.Blue:
+				SetStatus("Condition " + ShipStatus.ToString() + Submessage, new Color(137, 239, 255, 255), new Color(0, 88, 151, 255));
+				break;
+			case AlertStatus.Yellow:
+				SetStatus("Condition " + ShipStatus.ToString() + Submessage, new Color(255, 239, 137, 255), new Color(66, 66, 0, 255));
+				break;
+			case AlertStatus.Orange:
+				SetStatus("Condition " + ShipStatus.ToString() + Submessage, new Color(255, 197, 0, 255), new Color(88, 44, 0, 255));
+				break;
+			case AlertStatus.Red:
+				SetStatus("Condition " + ShipStatus.ToString() + Submessage, new Color(255, 137, 137, 255), new Color(151, 0, 0, 255));
+				break;
 		}
 		
 		Runtime.UpdateFrequency = GetUpdateFrequency();
