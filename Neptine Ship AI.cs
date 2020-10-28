@@ -784,8 +784,10 @@ public class Menu_Command<T> : MenuOption where T : class{
 			output+=word;
 			if(word.Contains('\n'))
 				length=word.Length-word.IndexOf('\n')-1;
+			else
+				length+=word.Length;
 		}
-		return output;
+		return output + "\n\nSelect to Execute";
 	}
 }
 
@@ -850,7 +852,11 @@ public class Menu_Display : MenuOption{
 		if(Selected){
 			if(Command==null)
 				return false;
-			return Subcommand.Select();
+			if(Subcommand.Select()){
+				Selected=false;
+				return true;
+			}
+			return false;
 		}
 		Selected=true;
 		return true;
@@ -869,7 +875,11 @@ public class Menu_Display : MenuOption{
 			return Subcommand.ToString();
 		}
 		else {
-			return Entity.NiceString();
+			double distance=Entity.GetDistance(P.Me.CubeGrid.GetPosition());
+			string distance_string=Math.Round(distance,0)+"M";
+			if(distance>=1000)
+				distance_string=Math.Round(distance/1000,1)+"kM";
+			return Entity.NiceString()+"Distance: "+distance_string;
 		}
 	}
 }
@@ -1005,7 +1015,7 @@ private float Mass_Accomodation = 0.0f;
 private Vector3D RestingVelocity;
 private Vector3D Relative_RestingVelocity{
 	get{
-		return GlobalToLocalVelocity(RestingVelocity);
+		return GlobalToLocal(RestingVelocity);
 	}
 }
 private Vector3D CurrentVelocity;
@@ -1020,12 +1030,12 @@ private Vector3D Relative_CurrentVelocity{
 private Vector3D Gravity;
 private Vector3D Relative_Gravity{
 	get{
-		return GlobalToLocalVelocity(Gravity);
+		return GlobalToLocal(Gravity);
 	}
 }
 private Vector3D Adjusted_Gravity{
 	get{
-		Vector3D temp = GlobalToLocalVelocity(Gravity);
+		Vector3D temp = GlobalToLocal(Gravity);
 		temp.Normalize();
 		return temp*Mass_Accomodation;
 	}
@@ -1047,7 +1057,7 @@ private double Speed_Deviation{
 private Vector3D AngularVelocity;
 private Vector3D Relative_AngularVelocity{
 	get{
-		return GlobalToLocalVelocity(AngularVelocity);
+		return GlobalToLocal(AngularVelocity);
 	}
 }
 
@@ -1586,6 +1596,8 @@ public bool Setup(){
 			if(!Int64.TryParse(GetBlockData(Thruster, "Owner"), out ID) || (ID != 0 && ID!=Me.EntityId))
 				continue;
 		}
+		if(Thruster.CubeGrid!=Controller.CubeGrid)
+			continue;
 		Base6Directions.Direction ThrustDirection=Thruster.Orientation.Forward;
 		if(ThrustDirection==Backward){
 			Forward_Thrusters.Add(Thruster);
@@ -1812,28 +1824,28 @@ public void Save()
 	}
 }
 
-public Vector3D GlobalToLocalVelocity(Vector3D Global){
+public Vector3D GlobalToLocal(Vector3D Global){
 	Vector3D Local = Vector3D.Transform(Global+Controller.GetPosition(), MatrixD.Invert(Controller.WorldMatrix));
 	Local.Normalize();
 	return Local * Global.Length();
 }
 
-public Vector3D LocalToGlobalVelocity(Vector3D Local){
+public Vector3D GlobalToLocalPosition(Vector3D Global){
+	Vector3D Local = Vector3D.Transform(Global, MatrixD.Invert(Controller.WorldMatrix));
+	Local.Normalize();
+	return Local * (Global-Controller.GetPosition()).Length();
+	//Vector3D Direction=Global-Controller.GetPosition();
+	//return Vector3D.TransformNormal(Global+Controller.GetPosition(), MatrixD.Transpose(Controller.WorldMatrix));
+}
+
+public Vector3D LocalToGlobal(Vector3D Local){
 	Vector3D Global = Vector3D.Transform(Local, Controller.WorldMatrix)-Controller.GetPosition();
 	Global.Normalize();
 	return Global * Local.Length();
 }
 
-public Vector3D GlobalToLocalPosition(Vector3D Global){
-	Vector3D Local = Vector3D.Transform(Global, MatrixD.Invert(Controller.WorldMatrix));
-	Local.Normalize();
-	return Local * Global.Length();
-}
-
 public Vector3D LocalToGlobalPosition(Vector3D Local){
-	Vector3D Global = Vector3D.Transform(Local, Controller.WorldMatrix);
-	Global.Normalize();
-	return Global * Local.Length();
+	return Vector3D.Transform(Local,Controller.WorldMatrix);
 }
 
 private enum AlertStatus{
@@ -2040,18 +2052,29 @@ public bool FactoryReset(object obj=null){
 }
 
 private Vector3D GetOffsetPosition(Vector3D Position){
-	Vector3D direction = Position-Me.CubeGrid.GetPosition();
+	Vector3D direction = Position-Controller.GetPosition();
+	double distance = direction.Length();
 	direction.Normalize();
-	double distance = (Position-Me.CubeGrid.GetPosition()).Length();
-	return (distance-Me.CubeGrid.GridSize/2-Math.Min(distance/2,400))*direction;
+	if(distance>1000){
+		distance-=400;
+	}
+	else{
+		distance=distance/10*9;
+	}
+	double controller_offset = (Controller.GetPosition()-Me.CubeGrid.GetPosition()).Length();
+	distance-=Math.Max(0,Me.CubeGrid.GridSize/2-controller_offset);
+	return (distance*direction)+Controller.GetPosition();
 }
 
 public bool GoTo(EntityInfo Entity){
 	//Match velocity for hostiles, GoTo for others
+	if(Target_ID==Entity.ID){
+		return Stop();
+	}
 	RestingVelocity=Entity.Velocity;
 	Target_ID=Entity.ID;
 	if(Entity.Relationship!=MyRelationsBetweenPlayerAndBlock.Enemies){
-		Target_Direction = Entity.Position-Me.CubeGrid.GetPosition();
+		Target_Direction = Entity.Position-Controller.GetPosition();
 		Target_Direction.Normalize();
 		Target_Position = GetOffsetPosition(Entity.Position);
 		Match_Position=true;
@@ -2505,7 +2528,7 @@ public void PerformScan(){
 		}
 	}
 	
-	ScanString += "Retrieved updated data on " + DetectedEntities.Count + " relevant entities" + '\n';
+	ScanString += "Retrieved updated data\non " + DetectedEntities.Count + " relevant entities" + '\n';
 	List<IMyBroadcastListener> listeners = new List<IMyBroadcastListener>();
 	IGC.GetBroadcastListeners(listeners);
 	foreach(MyDetectedEntityInfo entity in DetectedEntities){
@@ -2738,7 +2761,7 @@ private void SetGyroscopes(){
 	}
 	else{
 		Roll_Time = 0;
-		input_roll *= 15;
+		input_roll *= 10;
 	}
 	
 	Gyro_Tuple output = Transform(new Gyro_Tuple(input_pitch, input_yaw, input_roll));
@@ -3080,6 +3103,7 @@ private void GetPositionData(){
 	CurrentVelocity=Controller.GetShipVelocities().LinearVelocity;
 	AngularVelocity=Controller.GetShipVelocities().AngularVelocity;
 	
+	Time_To_Crash=-1;
 	if(Controller.TryGetPlanetElevation(MyPlanetElevation.Sealevel, out Sealevel)){
 		if(Controller.TryGetPlanetPosition(out PlanetCenter)){
 			if(Sealevel < 6000 && Controller.TryGetPlanetElevation(MyPlanetElevation.Surface, out Elevation)){
@@ -3103,16 +3127,18 @@ private void GetPositionData(){
 			Vector3D next_position = Me.CubeGrid.GetPosition() + 1 * CurrentVelocity;
 			double Elevation_per_second = ((next_position-PlanetCenter).Length()-height_dif)-Elevation;
 			Time_To_Crash=Elevation/Elevation_per_second;
-			if(Time_To_Crash<15 && Controller.GetShipSpeed() > 5){
-				Controller.DampenersOverride = true;
-				Write("Crash predicted within 15 seconds; enabling Dampeners");
-			}
-			else {
-				if(Time_To_Crash*Math.Max(Elevation,1000) < 1800000 && Controller.GetShipSpeed() > 1.0f){
-					Write(Math.Round(Time_To_Crash, 1).ToString() + " seconds to crash");
+			if(Time_To_Crash>0){
+				if(Time_To_Crash<15 && Controller.GetShipSpeed() > 5){
+					Controller.DampenersOverride = true;
+					Write("Crash predicted within 15 seconds; enabling Dampeners");
 				}
 				else {
-					Write("No crash likely at current velocity");
+					if(Time_To_Crash*Math.Max(Elevation,1000) < 1800000 && Controller.GetShipSpeed() > 1.0f){
+						Write(Math.Round(Time_To_Crash, 1).ToString() + " seconds to crash");
+					}
+					else {
+						Write("No crash likely at current velocity");
+					}
 				}
 			}
 		}
@@ -3150,8 +3176,18 @@ public void Main(string argument, UpdateType updateSource)
 			Write("Last Scan "+Math.Round(Scan_Time,1).ToString());
 		Write(ScanString);
 		
-		Write(Math.Round(Controller.RotationIndicator.X,1).ToString());
-		Write(Math.Round(Controller.RotationIndicator.Y,1).ToString());
+		if(Match_Direction){
+			double angle=GetAngle(Target_Direction, Controller_Forward);
+			Write("Angle Difference: "+Math.Round(angle,1).ToString()+"°");
+		}
+		if(Match_Position){
+			double distance=(Target_Position-Me.CubeGrid.GetPosition()).Length()-Me.CubeGrid.GridSize/2;
+			string distance_string=Math.Round(distance,0).ToString()+"M";
+			if(distance>=1000){
+				distance_string=Math.Round(distance/1000,1).ToString()+"kM";
+			}
+			Write("Distance: "+distance_string);
+		}
 		
 		if(argument.ToLower().Equals("back")){
 			Command_Menu.Back();
