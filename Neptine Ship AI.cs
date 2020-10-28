@@ -602,13 +602,18 @@ public class Menu_Submenu : MenuOption{
 			if(Menu[Selection].Back())
 				return true;
 			Selected=false;
+			return true;
 		}
 		return false;
 	}
 	
 	public bool Select(){
-		if(Selected)
-			return Menu[Selection].Select();
+		if(Selected){
+			bool output = Menu[Selection].Select();
+			if(Menu[Selection].Type()==MenuType.Command)
+				Selected=false;
+			return output;
+		}
 		Selected=true;
 		return true;
 	}
@@ -620,7 +625,8 @@ public class Menu_Submenu : MenuOption{
 			}
 			return false;
 		}
-		Selection=(Selection+1)%Count;
+		if(Count>0)
+			Selection=(Selection+1)%Count;
 		return true;
 	}
 	
@@ -631,12 +637,24 @@ public class Menu_Submenu : MenuOption{
 			}
 			return false;
 		}
-		Selection=(Selection-1+Count)%Count;
+		if(Count>0)
+			Selection=(Selection-1+Count)%Count;
 		return true;
 	}
 	
+	public bool Replace(Menu_Submenu Replacement){
+		for(int i=0;i<Count;i++){
+			if(Menu[i].Name().Equals(Replacement.Name())){
+				Menu[i]=Replacement;
+				return true;
+			}
+		}
+		return false;
+	}
+	
 	public override string ToString(){
-		Selection=Selection%Count;
+		if(Count>0)
+			Selection=Selection%Count;
 		if(Selected){
 			return Menu[Selection].ToString();
 		}
@@ -664,7 +682,7 @@ public class Menu_Submenu : MenuOption{
 				}
 				switch(Menu[i].Type()){
 					case MenuType.Submenu:
-						output+="]";
+						output+=" ("+(Menu[i] as Menu_Submenu).Count.ToString()+")]";
 						break;
 					case MenuType.Command:
 						output+=">";
@@ -677,7 +695,7 @@ public class Menu_Submenu : MenuOption{
 		}
 		else {
 			int count = 0;
-			for(int i=(Selection+Count-1)%Count; count<=10; i=(i+1)%Count){
+			for(int i=(Selection+Count-1)%Count; count<=10;i=(i+1)%Count){
 				count++;
 				output+="\n ";
 				switch(Menu[i].Type()){
@@ -1622,6 +1640,7 @@ public Program()
 	IGC.RegisterBroadcastListener("Entity Report");
 	IGC.RegisterBroadcastListener(Me.CubeGrid.CustomName);
 	CreateMenu();
+	DisplayMenu();
 }
 
 private void SetThrusterList(List<IMyThrust> Thrusters, string Direction){
@@ -2031,7 +2050,7 @@ private bool UpdateEntityListing(Menu_Submenu Menu){
 		else
 			Menu.Add(new Menu_Display(list[i]));
 	}
-	return true;
+	return Command_Menu.Replace(Menu);
 }
 
 private Menu_Submenu AsteroidMenu;
@@ -2050,14 +2069,19 @@ private void CreateMenu(){
 	Command_Menu.Add(ShipCommands);
 	AsteroidMenu=new Menu_Submenu("Asteroids");
 	UpdateEntityListing(AsteroidMenu);
+	Command_Menu.Add(AsteroidMenu);
 	PlanetMenu=new Menu_Submenu("Planets");
 	UpdateEntityListing(PlanetMenu);
+	Command_Menu.Add(PlanetMenu);
 	SmallShipMenu=new Menu_Submenu("Small Ships");
 	UpdateEntityListing(SmallShipMenu);
+	Command_Menu.Add(SmallShipMenu);
 	LargeShipMenu=new Menu_Submenu("Large Ships");
 	UpdateEntityListing(LargeShipMenu);
+	Command_Menu.Add(LargeShipMenu);
 	CharacterMenu=new Menu_Submenu("Characters");
 	UpdateEntityListing(CharacterMenu);
+	Command_Menu.Add(CharacterMenu);
 }
 
 private void DisplayMenu(){
@@ -3088,16 +3112,26 @@ public void Main(string argument, UpdateType updateSource)
 	}
 	Write(ScanString);
 	
-	if(argument.ToLower().Equals("back"))
+	if(argument.ToLower().Equals("back")){
 		Command_Menu.Back();
-	else if(argument.ToLower().Equals("prev"))
+		DisplayMenu();
+	}
+	else if(argument.ToLower().Equals("prev")){
 		Command_Menu.Prev();
-	else if(argument.ToLower().Equals("next"))
+		DisplayMenu();
+	}
+	else if(argument.ToLower().Equals("next")){
 		Command_Menu.Next();
-	else if(argument.ToLower().Equals("select"))
+		DisplayMenu();
+	}
+	else if(argument.ToLower().Equals("select")){
 		Command_Menu.Select();
-	else if(argument.ToLower().Equals("factory reset"))
+		DisplayMenu();
+	}
+	else if(argument.ToLower().Equals("factory reset")){
 		FactoryReset();
+		DisplayMenu();
+	}
     
 	if(!Me.CubeGrid.IsStatic){
 		SetThrusters();
