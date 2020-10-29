@@ -1590,33 +1590,39 @@ public bool Setup(){
 	}
 	
 	List<IMyThrust> MyThrusters=(new GenericMethods<IMyThrust>(this)).GetAllContaining("");
-	foreach(IMyThrust Thruster in MyThrusters){
-		if(HasBlockData(Thruster, "Owner")){
-			long ID = 0;
-			if(!Int64.TryParse(GetBlockData(Thruster, "Owner"), out ID) || (ID != 0 && ID!=Me.EntityId))
+	for(int i=0;i<2;i++){
+		bool retry=!Me.CubeGrid.IsStatic;
+		foreach(IMyThrust Thruster in MyThrusters){
+			if(HasBlockData(Thruster, "Owner")){
+				long ID = 0;
+				if(i==0 && !Int64.TryParse(GetBlockData(Thruster, "Owner"), out ID) || (ID != 0 && ID!=Me.CubeGrid.EntityId))
+					continue;
+			}
+			if(Thruster.CubeGrid!=Controller.CubeGrid)
 				continue;
+			retry=false;
+			Base6Directions.Direction ThrustDirection=Thruster.Orientation.Forward;
+			if(ThrustDirection==Backward){
+				Forward_Thrusters.Add(Thruster);
+			}
+			else if(ThrustDirection==Forward){
+				Backward_Thrusters.Add(Thruster);
+			}
+			else if(ThrustDirection==Down){
+				Up_Thrusters.Add(Thruster);
+			}
+			else if(ThrustDirection==Up){
+				Down_Thrusters.Add(Thruster);
+			}
+			else if(ThrustDirection==Right){
+				Left_Thrusters.Add(Thruster);
+			}
+			else if(ThrustDirection==Left){
+				Right_Thrusters.Add(Thruster);
+			}
 		}
-		if(Thruster.CubeGrid!=Controller.CubeGrid)
-			continue;
-		Base6Directions.Direction ThrustDirection=Thruster.Orientation.Forward;
-		if(ThrustDirection==Backward){
-			Forward_Thrusters.Add(Thruster);
-		}
-		else if(ThrustDirection==Forward){
-			Backward_Thrusters.Add(Thruster);
-		}
-		else if(ThrustDirection==Down){
-			Up_Thrusters.Add(Thruster);
-		}
-		else if(ThrustDirection==Up){
-			Down_Thrusters.Add(Thruster);
-		}
-		else if(ThrustDirection==Right){
-			Left_Thrusters.Add(Thruster);
-		}
-		else if(ThrustDirection==Left){
-			Right_Thrusters.Add(Thruster);
-		}
+		if(!retry)
+			break;
 	}
 	SetThrusterList(Forward_Thrusters, "Forward");
 	SetThrusterList(Backward_Thrusters, "Backward");
@@ -1695,7 +1701,7 @@ private void SetThrusterList(List<IMyThrust> Thrusters, string Direction){
 		if(!HasBlockData(Thruster, "DefaultOverride")){
 			SetBlockData(Thruster, "DefaultOverride", Thruster.ThrustOverridePercentage.ToString());
 		}
-		SetBlockData(Thruster, "Owner", Me.EntityId.ToString());
+		SetBlockData(Thruster, "Owner", Me.CubeGrid.EntityId.ToString());
 		SetBlockData(Thruster, "DefaultName", Thruster.CustomName);
 		if(Thruster.CustomName.ToLower().Contains("hydrogen")){
 			if(Thruster.CustomName.ToLower().Contains("large"))
@@ -3018,6 +3024,14 @@ private void GetPositionData(){
 	Left_Vector = Vector3D.Transform(base_vector, Controller.WorldMatrix) - Controller.GetPosition();
 	Left_Vector.Normalize();
 	Right_Vector = -1 * Left_Vector;
+	
+	Echo("ID:"+Me.CubeGrid.EntityId.ToString());
+	Echo("Forward_Thrusters:"+Forward_Thrusters.Count);
+	Echo("Backward_Thrusters:"+Backward_Thrusters.Count);
+	Echo("Up_Thrusters:"+Up_Thrusters.Count);
+	Echo("Down_Thrusters:"+Down_Thrusters.Count);
+	Echo("Left_Thrusters:"+Left_Thrusters.Count);
+	Echo("Right_Thrusters:"+Right_Thrusters.Count);
 	
 	switch(Forward){
 		case Base6Directions.Direction.Forward:
