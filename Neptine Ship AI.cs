@@ -10,7 +10,7 @@ private const double ACCEPTABLE_ANGLE=20; //Suggested between 5° and 20°
 //The maximum speed limit of the ship
 private const double SPEED_LIMIT=100;
 //The distance accepted for raycasts
-private const double RAYCAST_DISTANCE=10000; //The lower the better, but whatever works for you
+private const double RAYCAST_DISTANCE=5000; //The lower the better, but whatever works for you
 //Set this to the distance you want lights, sound blocks, and doors to update when enemies are nearby
 private const double ALERT_DISTANCE=15;
 //Time between scans
@@ -2451,6 +2451,25 @@ private void UpdateAirlock(Airlock airlock){
 	}
 }
 
+private List<IMyCameraBlock> GetValidCameras(){
+	List<IMyCameraBlock> AllCameras = new List<IMyCameraBlock>();
+	List<IMyCameraBlock> output = new List<IMyCameraBlock>();
+	GridTerminalSystem.GetBlocksOfType<IMyCameraBlock>(AllCameras);
+	foreach(IMyCameraBlock Camera in AllCameras){
+		if(!HasBlockData(Camera, "DoRaycast")){
+			SetBlockData(Camera, "DoRaycast", "maybe");
+			SetBlockData(Camera, "RaycastTestCount", "0");
+		}
+		if(GetBlockData(Camera, "DoRaycast").Equals("false")){
+			Camera.EnableRaycast = false;
+			continue;
+		}
+		Camera.EnableRaycast = true;
+		output.Add(Camera);
+	}
+	return output;
+}
+
 //Performs the scan function on all scanning devices
 private double Scan_Frequency{
 	get{
@@ -2497,22 +2516,13 @@ public void PerformScan(){
 			UpdateList(DetectedEntities, Turret.GetTargetedEntity());
 		}
 	}
-	List<IMyCameraBlock> AllCameras = new List<IMyCameraBlock>();
-	GridTerminalSystem.GetBlocksOfType<IMyCameraBlock>(AllCameras);
+	
 	List<bool> raycast_check = new List<bool>();
 	for(int i=0;i<DetectedEntities.Count;i++)
 		raycast_check.Add(false);
 	
-	foreach(IMyCameraBlock Camera in AllCameras){
-		if(!HasBlockData(Camera, "DoRaycast")){
-			SetBlockData(Camera, "DoRaycast", "maybe");
-			SetBlockData(Camera, "RaycastTestCount", "0");
-		}
-		if(GetBlockData(Camera, "DoRaycast").Equals("false")){
-			Camera.EnableRaycast = false;
-			continue;
-		}
-		Camera.EnableRaycast = true;
+	List<IMyCameraBlock> MyCameras = GetValidCameras();
+	foreach(IMyCameraBlock Camera in MyCameras){
 		int count = 0;
 		bool update_me = false;
 		if(GetBlockData(Camera, "DoRaycast").Equals("maybe")){
@@ -2601,7 +2611,7 @@ public void PerformScan(){
 			RestingVelocity=Entity.Velocity;
 			Target_Direction = Entity.Position-Me.CubeGrid.GetPosition();
 			Target_Direction.Normalize();
-			Target_Position = GetOffsetPosition(Entity.Position);
+			Target_Position = GetOffsetPosition(Entity.Position, Entity.Size);
 		}
 		switch(Entity.Type){
 			case MyDetectedEntityType.Asteroid:
@@ -3136,6 +3146,7 @@ private void GetPositionData(){
 	CurrentVelocity=Controller.GetShipVelocities().LinearVelocity;
 	AngularVelocity=Controller.GetShipVelocities().AngularVelocity;
 	
+	bool last_under_60 = Time_To_Crash<60;
 	Time_To_Crash=-1;
 	if(Controller.TryGetPlanetElevation(MyPlanetElevation.Sealevel, out Sealevel)){
 		if(Controller.TryGetPlanetPosition(out PlanetCenter)){
@@ -3160,6 +3171,30 @@ private void GetPositionData(){
 			Vector3D next_position = Me.CubeGrid.GetPosition() + 1 * CurrentVelocity;
 			double Elevation_per_second = (from_center-(next_position-PlanetCenter).Length());
 			Time_To_Crash=Elevation/Elevation_per_second;
+			
+			if((Time_To_Crash<60 || last_under_60) && Elevation<500){
+				List<IMyCameraBlock> Cameras = GetValidCameras();
+				Vector3D Velocity_Direction = CurrentVelocity;
+				Velocity_Direction.Normalize();
+				double speed_check = 15 * CurrentVelocity.Length();
+				foreach(IMyCameraBlock Camera in Cameras){
+					double distance = Math.Min(speed_check, Camera.AvailableScanRange/2);
+					if(Camera.CanScan(distance,Velocity_Direction)){
+						MyDetectedEntityInfo Entity = Camera.Raycast(distance,Velocity_Direction);
+						if(Entity.Type!=MyDetectedEntityType.None&&Entity.EntityId!=Me.CubeGrid.EntityId){
+							try{
+								double new_distance=(((Vector3D)Entity.HitPosition)-Camera.GetPosition()).Length();
+								double new_time=new_distance/CurrentVelocity.Length();
+								Time_To_Crash=Math.Min(Time_To_Crash,new_time);
+							}
+							catch(Exception){
+								;
+							}
+						}
+					}
+				}
+			}
+			
 			if(Time_To_Crash>0){
 				if(Time_To_Crash<15 && Controller.GetShipSpeed() > 5){
 					Controller.DampenersOverride = true;
