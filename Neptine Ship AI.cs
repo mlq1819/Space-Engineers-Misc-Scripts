@@ -3138,7 +3138,7 @@ private void GetPositionData(){
 			}
 			double from_center = (Me.CubeGrid.GetPosition() - PlanetCenter).Length();
 			Vector3D next_position = Me.CubeGrid.GetPosition() + 1 * CurrentVelocity;
-			double Elevation_per_second = ((next_position-PlanetCenter).Length()-from_center);
+			double Elevation_per_second = (from_center-(next_position-PlanetCenter).Length());
 			Time_To_Crash=Elevation/Elevation_per_second;
 			if(Time_To_Crash>0){
 				if(Time_To_Crash<15 && Controller.GetShipSpeed() > 5){
