@@ -810,7 +810,20 @@ public class Menu_Display : MenuOption{
 		string distance_string=Math.Round(distance,0).ToString()+"M";
 		if(distance>=1000)
 			distance_string=Math.Round(distance/1000,1).ToString()+"kM";
-		return name+' '+distance_string;
+		string output=' '+name+' '+distance_string;
+		switch(Entity.Relationship){
+			case MyRelationsBetweenPlayerAndBlock.Owner:
+				return ''+output;
+			case MyRelationsBetweenPlayerAndBlock.FactionShare:
+				return ''+output;
+			case MyRelationsBetweenPlayerAndBlock.Friends:
+				return ''+output;
+			case MyRelationsBetweenPlayerAndBlock.NoOwnership:
+				return ''+output;
+			case MyRelationsBetweenPlayerAndBlock.Enemies:
+				return ''+output;
+		}
+		return ''+output;
 	}
 	public MenuType Type(){
 		return MenuType.Display;
@@ -2093,6 +2106,7 @@ public bool GoTo(EntityInfo Entity){
 	if(Target_ID==Entity.ID){
 		return Stop();
 	}
+	Controller.DampenersOverride=true;
 	RestingVelocity=Entity.Velocity;
 	Target_ID=Entity.ID;
 	if(Entity.Relationship!=MyRelationsBetweenPlayerAndBlock.Enemies){
@@ -2735,7 +2749,7 @@ private void SetGyroscopes(){
 			double difference=GetAngle(Controller_Down, Target_Direction)-GetAngle(Controller_Up, Target_Direction);
 			Echo("Pitch Difference:"+Math.Round(difference,1)+'°');
 			if(Math.Abs(difference) > 1){
-				float delta=2.5f*((float)Math.Min(Math.Abs(difference/(ACCEPTABLE_ANGLE/2)), 1));
+				float delta=2*((float)Math.Min(Math.Abs(difference/(ACCEPTABLE_ANGLE/2)), 1));
 				if(difference>0)
 					input_pitch -= delta;
 				else
@@ -2754,7 +2768,7 @@ private void SetGyroscopes(){
 			double difference=GetAngle(Controller_Right, Target_Direction)-GetAngle(Controller_Left, Target_Direction);
 			Echo("Yaw Difference:"+Math.Round(difference,1)+'°');
 			if(Math.Abs(difference) > 1 || GetAngle(Controller_Forward, Target_Direction) > ACCEPTABLE_ANGLE){
-				float delta=2.5f*((float)Math.Min(Math.Abs(difference/(ACCEPTABLE_ANGLE/2)), 1));
+				float delta=2*((float)Math.Min(Math.Abs(difference/(ACCEPTABLE_ANGLE/2)), 1));
 				if(difference>0 || difference==0 && GetAngle(Controller_Forward, Target_Direction) > ACCEPTABLE_ANGLE)
 					input_yaw -= delta;
 				else
@@ -2804,9 +2818,10 @@ private void SetThrusters(){
 	float damp_multx=0.99f;
 	double effective_speed_limit=SPEED_LIMIT;
 	
-	if(Elevation<100)
-		effective_speed_limit=Math.Min(effective_speed_limit, Elevation);
-	
+	if(Elevation<50)
+		effective_speed_limit=Math.Min(effective_speed_limit, Elevation*2);
+	if(Time_To_Crash<60 && Time_To_Crash>=0)
+		effective_speed_limit=Math.Min(effective_speed_limit,Time_To_Crash/60*100);
 	if(Controller.DampenersOverride){
 		Write("Cruise Control: Off");
 		input_right -= (float) ((Relative_CurrentVelocity.X-Relative_RestingVelocity.X) * Mass_Accomodation * damp_multx);
@@ -2833,7 +2848,7 @@ private void SetThrusters(){
 		Match_Position=false;
 	}
 	else {
-		effective_speed_limit=Math.Min(effective_speed_limit, Math.Sqrt(Target_Distance/10)*10);
+		effective_speed_limit=Math.Min(effective_speed_limit, Math.Sqrt(Target_Distance/4)*4);
 	}
 	effective_speed_limit=Math.Max(effective_speed_limit, 5);
 	
