@@ -4,7 +4,7 @@
 * https://github.com/mlq1819
 */
 //Name me!
-private const string Program_Name = "Neptine Ship AI"; 
+private const string Program_Name="Neptine Ship AI"; 
 //The angle of what the ship will accept as "correct"
 private const double ACCEPTABLE_ANGLE=20; //Suggested between 5° and 20°
 //The maximum speed limit of the ship
@@ -15,8 +15,8 @@ private const double RAYCAST_DISTANCE=5000; //The lower the better, but whatever
 private const double ALERT_DISTANCE=15;
 //Time between scans
 private const double SCAN_TIME=3;
-private Color DEFAULT_TEXT_COLOR = new Color(197,137,255,255);
-private Color DEFAULT_BACKGROUND_COLOR = new Color(44,0,88,255);
+private Color DEFAULT_TEXT_COLOR=new Color(197,137,255,255);
+private Color DEFAULT_BACKGROUND_COLOR=new Color(44,0,88,255);
 
 public class GenericMethods<T> where T : class, IMyTerminalBlock{
 	private IMyGridTerminalSystem TerminalSystem;
@@ -95,12 +95,12 @@ public class GenericMethods<T> where T : class, IMyTerminalBlock{
 		return GetContaining(name, double.MaxValue);
 	}
 	
-	public List<T> GetAllIncluding(string name, Vector3D Reference, double max_distance = double.MaxValue){
-		List<T> AllBlocks = new List<T>();
-		List<T> MyBlocks = new List<T>();
+	public List<T> GetAllIncluding(string name, Vector3D Reference, double max_distance=double.MaxValue){
+		List<T> AllBlocks=new List<T>();
+		List<T> MyBlocks=new List<T>();
 		TerminalSystem.GetBlocksOfType<T>(AllBlocks);
 		foreach(T Block in AllBlocks){
-			double distance = (Reference - Block.GetPosition()).Length();
+			double distance=(Reference-Block.GetPosition()).Length();
 			if(Block.CustomName.Contains(name) && distance <= max_distance){
 				MyBlocks.Add(Block);
 			}
@@ -108,11 +108,11 @@ public class GenericMethods<T> where T : class, IMyTerminalBlock{
 		return MyBlocks;
 	}
 	
-	public List<T> GetAllIncluding(string name, IMyTerminalBlock Reference, double max_distance = double.MaxValue){
+	public List<T> GetAllIncluding(string name, IMyTerminalBlock Reference, double max_distance=double.MaxValue){
 		return GetAllIncluding(name, Reference.GetPosition(), max_distance);
 	}
 	
-	public List<T> GetAllIncluding(string name, double max_distance = double.MaxValue){
+	public List<T> GetAllIncluding(string name, double max_distance=double.MaxValue){
 		return GetAllIncluding(name, Prog, max_distance);
 	}
 	
@@ -506,8 +506,8 @@ public class EntityList : IEnumerable<EntityInfo>{
 	}
 	
 	public void Sort(Vector3D Reference){
-		List<EntityInfo> Sorted = new List<EntityInfo>();
-		List<EntityInfo> Unsorted = new List<EntityInfo>();
+		List<EntityInfo> Sorted=new List<EntityInfo>();
+		List<EntityInfo> Unsorted=new List<EntityInfo>();
 		foreach(EntityInfo Entity in E_List){
 			double distance=Entity.GetDistance(Reference);
 			double last_distance=0;
@@ -613,7 +613,7 @@ public class Menu_Submenu : MenuOption{
 	
 	public bool Select(){
 		if(Selected){
-			bool output = Menu[Selection].Select();
+			bool output=Menu[Selection].Select();
 			if(Menu[Selection].Type()==MenuType.Command)
 				Selected=false;
 			return output;
@@ -698,7 +698,7 @@ public class Menu_Submenu : MenuOption{
 			}
 		}
 		else {
-			int count = 0;
+			int count=0;
 			for(int i=Selection; count<=10 && i<Count;i++){
 				count++;
 				output+="\n ";
@@ -791,7 +791,7 @@ public class Menu_Command<T> : MenuOption where T : class{
 			else
 				length+=word.Length;
 		}
-		return output + "\n\nSelect to Execute";
+		return output+"\n\nSelect to Execute";
 	}
 }
 
@@ -800,11 +800,11 @@ public class Menu_Display : MenuOption{
 		if(Entity==null){
 			return "null";
 		}
-		string name = Entity.Name.Substring(0, Math.Min(24, Entity.Name.Length));
-		string[] args = name.Split(' ');
-		int number = 0;
+		string name=Entity.Name.Substring(0, Math.Min(24, Entity.Name.Length));
+		string[] args=name.Split(' ');
+		int number=0;
 		if(args.Length==3 && args[1].ToLower().Equals("grid") && Int32.TryParse(args[2], out number)){
-			name = "Unnamed "+args[0]+' '+args[1];
+			name="Unnamed "+args[0]+' '+args[1];
 		}
 		double distance=Entity.GetDistance(P.Me.CubeGrid.GetPosition())-Entity.Size;
 		string distance_string=Math.Round(distance,0).ToString()+"M";
@@ -932,7 +932,7 @@ private List<IMyThrust> Left_Thrusters;
 private List<IMyThrust> Right_Thrusters;
 private float Forward_Thrust{
 	get{
-		float total = 0;
+		float total=0;
 		foreach(IMyThrust Thruster in Forward_Thrusters)
 			total+=Thruster.MaxEffectiveThrust;
 		return total;
@@ -940,7 +940,7 @@ private float Forward_Thrust{
 }
 private float Backward_Thrust{
 	get{
-		float total = 0;
+		float total=0;
 		foreach(IMyThrust Thruster in Backward_Thrusters)
 			total+=Thruster.MaxEffectiveThrust;
 		return total;
@@ -948,7 +948,7 @@ private float Backward_Thrust{
 }
 private float Up_Thrust{
 	get{
-		float total = 0;
+		float total=0;
 		foreach(IMyThrust Thruster in Up_Thrusters)
 			total+=Thruster.MaxEffectiveThrust;
 		return total;
@@ -956,7 +956,7 @@ private float Up_Thrust{
 }
 private float Down_Thrust{
 	get{
-		float total = 0;
+		float total=0;
 		foreach(IMyThrust Thruster in Down_Thrusters)
 			total+=Thruster.MaxEffectiveThrust;
 		return total;
@@ -964,7 +964,7 @@ private float Down_Thrust{
 }
 private float Left_Thrust{
 	get{
-		float total = 0;
+		float total=0;
 		foreach(IMyThrust Thruster in Left_Thrusters)
 			total+=Thruster.MaxEffectiveThrust;
 		return total;
@@ -972,7 +972,7 @@ private float Left_Thrust{
 }
 private float Right_Thrust{
 	get{
-		float total = 0;
+		float total=0;
 		foreach(IMyThrust Thruster in Right_Thrusters)
 			total+=Thruster.MaxEffectiveThrust;
 		return total;
@@ -1003,9 +1003,9 @@ private Vector3D Controller_Down;
 private Vector3D Controller_Left;
 private Vector3D Controller_Right;
 
-private bool Match_Direction = false;
+private bool Match_Direction=false;
 private Vector3D Target_Direction;
-private bool Match_Position = false;
+private bool Match_Position=false;
 private Vector3D Target_Position;
 private Vector3D Relative_Target_Position{
 	get{
@@ -1014,12 +1014,12 @@ private Vector3D Relative_Target_Position{
 }
 private double Target_Distance{
 	get{
-		return (Target_Position - Me.CubeGrid.GetPosition()).Length();
+		return (Target_Position-Me.CubeGrid.GetPosition()).Length();
 	}
 }
-private long Target_ID = 0;
+private long Target_ID=0;
 
-private float Mass_Accomodation = 0.0f;
+private float Mass_Accomodation=0.0f;
 
 private Vector3D RestingVelocity;
 private Vector3D Relative_RestingVelocity{
@@ -1030,7 +1030,7 @@ private Vector3D Relative_RestingVelocity{
 private Vector3D CurrentVelocity;
 private Vector3D Relative_CurrentVelocity{
 	get{
-		Vector3D output = Vector3D.Transform(CurrentVelocity+Controller.GetPosition(), MatrixD.Invert(Controller.WorldMatrix));
+		Vector3D output=Vector3D.Transform(CurrentVelocity+Controller.GetPosition(), MatrixD.Invert(Controller.WorldMatrix));
 		output.Normalize();
 		output *= CurrentVelocity.Length();
 		return output;
@@ -1044,14 +1044,14 @@ private Vector3D Relative_Gravity{
 }
 private Vector3D Adjusted_Gravity{
 	get{
-		Vector3D temp = GlobalToLocal(Gravity);
+		Vector3D temp=GlobalToLocal(Gravity);
 		temp.Normalize();
 		return temp*Mass_Accomodation;
 	}
 }
 private Vector3D Gravity_Direction{
 	get{
-		Vector3D direction = Gravity;
+		Vector3D direction=Gravity;
 		direction.Normalize();
 		return direction;
 	}
@@ -1080,13 +1080,13 @@ private struct Gyro_Tuple{
 	public float Roll;
 	
 	public Gyro_Tuple(float p, float y, float r){
-		Pitch = p;
-		Yaw = y;
-		Roll = r;
+		Pitch=p;
+		Yaw=y;
+		Roll=r;
 	}
 	
 	public static Gyro_Tuple Parse(string input){
-		string[] args = input.Split(' ');
+		string[] args=input.Split(' ');
 		if(args.Count() != 3)
 			throw new ArgumentException("Invalid input for Gyro_Tuple");
 		if(args[0].IndexOf("P:")!=0)
@@ -1096,9 +1096,9 @@ private struct Gyro_Tuple{
 		if(args[2].IndexOf("R:")!=0)
 			throw new ArgumentException("Invalid input for Gyro_Tuple");
 		try{
-			float pitch = float.Parse(args[0].Substring(args[0].IndexOf(':')+1));
-			float yaw = float.Parse(args[1].Substring(args[1].IndexOf(':')+1));
-			float roll = float.Parse(args[2].Substring(args[2].IndexOf(':')+1));
+			float pitch=float.Parse(args[0].Substring(args[0].IndexOf(':')+1));
+			float yaw=float.Parse(args[1].Substring(args[1].IndexOf(':')+1));
+			float roll=float.Parse(args[2].Substring(args[2].IndexOf(':')+1));
 			return new Gyro_Tuple(pitch, yaw, roll);
 		}
 		catch(Exception){
@@ -1107,158 +1107,158 @@ private struct Gyro_Tuple{
 	}
 	
 	public override string ToString(){
-		return "P:" + Pitch.ToString() + " Y:" + Yaw.ToString() + " R:" + Roll.ToString();
+		return "P:"+Pitch.ToString()+" Y:"+Yaw.ToString()+" R:"+Roll.ToString();
 	}
 	
 	public string NiceString(){
-		return "Pitch: " + ((int)Pitch).ToString() + "\nYaw: " + ((int)Yaw).ToString() + "\nRoll: " + ((int)Roll).ToString();
+		return "Pitch: "+((int)Pitch).ToString()+"\nYaw: "+((int)Yaw).ToString()+"\nRoll: "+((int)Roll).ToString();
 	}
 }
 
 private Gyro_Tuple Transform(Gyro_Tuple input){
-	float pitch = 0, yaw = 0, roll = 0;
+	float pitch=0, yaw=0, roll=0;
 	switch(Forward){
 		case Base6Directions.Direction.Forward:
 			switch(Up){
 				case Base6Directions.Direction.Up:
-					pitch = input.Pitch;
-					yaw = input.Yaw;
-					roll = input.Roll;
+					pitch=input.Pitch;
+					yaw=input.Yaw;
+					roll=input.Roll;
 					break;
 				case Base6Directions.Direction.Down:
-					pitch = -1 * input.Pitch;
-					yaw = -1 * input.Yaw;
-					roll = input.Roll;
+					pitch=-1 * input.Pitch;
+					yaw=-1 * input.Yaw;
+					roll=input.Roll;
 					break;
 				case Base6Directions.Direction.Left:
-					yaw = input.Pitch;
-					pitch = -1 * input.Yaw;
-					roll = input.Roll;
+					yaw=input.Pitch;
+					pitch=-1 * input.Yaw;
+					roll=input.Roll;
 					break;
 				case Base6Directions.Direction.Right:
-					yaw = -1 * input.Pitch;
-					pitch = input.Yaw;
-					roll = input.Roll;
+					yaw=-1 * input.Pitch;
+					pitch=input.Yaw;
+					roll=input.Roll;
 					break;
 			}
 			break;
 		case Base6Directions.Direction.Backward:
 			switch(Up){
 				case Base6Directions.Direction.Up:
-					pitch = -1 * input.Pitch;
-					yaw = input.Yaw;
-					roll = -1 * input.Roll;
+					pitch=-1 * input.Pitch;
+					yaw=input.Yaw;
+					roll=-1 * input.Roll;
 					break;
 				case Base6Directions.Direction.Down:
-					pitch = input.Pitch;
-					yaw = input.Yaw;
-					roll = -1 * input.Roll;
+					pitch=input.Pitch;
+					yaw=input.Yaw;
+					roll=-1 * input.Roll;
 					break;
 				case Base6Directions.Direction.Left:
-					yaw = input.Pitch;
-					pitch = input.Yaw;
-					roll = -1 * input.Roll;
+					yaw=input.Pitch;
+					pitch=input.Yaw;
+					roll=-1 * input.Roll;
 					break;
 				case Base6Directions.Direction.Right:
-					yaw = -1 * input.Pitch;
-					pitch = -1 * input.Yaw;
-					roll = -1 * input.Roll;
+					yaw=-1 * input.Pitch;
+					pitch=-1 * input.Yaw;
+					roll=-1 * input.Roll;
 					break;
 			}
 			break;
 		case Base6Directions.Direction.Up:
 			switch(Up){
 				case Base6Directions.Direction.Forward:
-					pitch = -1 * input.Pitch;
-					roll = -1 * input.Yaw;
-					yaw = -1 * input.Roll;
+					pitch=-1 * input.Pitch;
+					roll=-1 * input.Yaw;
+					yaw=-1 * input.Roll;
 					break;
 				case Base6Directions.Direction.Backward:
-					pitch = input.Pitch;
-					roll = -1 * input.Yaw;
-					yaw = input.Roll;
+					pitch=input.Pitch;
+					roll=-1 * input.Yaw;
+					yaw=input.Roll;
 					break;
 				case Base6Directions.Direction.Left:
-					yaw = input.Pitch;
-					roll = -1 * input.Yaw;
-					pitch = -1 * input.Roll;
+					yaw=input.Pitch;
+					roll=-1 * input.Yaw;
+					pitch=-1 * input.Roll;
 					break;
 				case Base6Directions.Direction.Right:
-					yaw = -1 * input.Pitch;
-					roll = -1 * input.Yaw;
-					pitch = input.Roll;
+					yaw=-1 * input.Pitch;
+					roll=-1 * input.Yaw;
+					pitch=input.Roll;
 					break;
 			}
 			break;
 		case Base6Directions.Direction.Down:
 			switch(Up){
 				case Base6Directions.Direction.Forward:
-					pitch = input.Pitch;
-					roll = input.Yaw;
-					yaw = -1 * input.Roll;
+					pitch=input.Pitch;
+					roll=input.Yaw;
+					yaw=-1 * input.Roll;
 					break;
 				case Base6Directions.Direction.Backward:
-					pitch = -1 * input.Pitch;
-					roll = input.Yaw;
-					yaw = input.Roll;
+					pitch=-1 * input.Pitch;
+					roll=input.Yaw;
+					yaw=input.Roll;
 					break;
 				case Base6Directions.Direction.Left:
-					yaw = input.Pitch;
-					roll = input.Yaw;
-					pitch = input.Roll;
+					yaw=input.Pitch;
+					roll=input.Yaw;
+					pitch=input.Roll;
 					break;
 				case Base6Directions.Direction.Right:
-					yaw = -1 * input.Pitch;
-					roll = input.Yaw;
-					pitch = -1 * input.Roll;
+					yaw=-1 * input.Pitch;
+					roll=input.Yaw;
+					pitch=-1 * input.Roll;
 					break;
 			}
 			break;
 		case Base6Directions.Direction.Left:
 			switch(Up){
 				case Base6Directions.Direction.Forward:
-					roll = -1 * input.Pitch;
-					pitch = input.Yaw;
-					yaw = -1 * input.Roll;
+					roll=-1 * input.Pitch;
+					pitch=input.Yaw;
+					yaw=-1 * input.Roll;
 					break;
 				case Base6Directions.Direction.Backward:
-					roll = -1 * input.Pitch;
-					pitch = -1 * input.Yaw;
-					yaw = input.Roll;
+					roll=-1 * input.Pitch;
+					pitch=-1 * input.Yaw;
+					yaw=input.Roll;
 					break;
 				case Base6Directions.Direction.Up:
-					roll = -1 * input.Pitch;
-					yaw = input.Yaw;
-					pitch = input.Roll;
+					roll=-1 * input.Pitch;
+					yaw=input.Yaw;
+					pitch=input.Roll;
 					break;
 				case Base6Directions.Direction.Down:
-					roll = -1 * input.Pitch;
-					yaw = -1 * input.Yaw;
-					pitch = -1 * input.Roll;
+					roll=-1 * input.Pitch;
+					yaw=-1 * input.Yaw;
+					pitch=-1 * input.Roll;
 					break;
 			}
 			break;
 		case Base6Directions.Direction.Right:
 			switch(Up){
 				case Base6Directions.Direction.Forward:
-					roll = input.Pitch;
-					pitch = -1 * input.Yaw;
-					yaw = -1 * input.Roll;
+					roll=input.Pitch;
+					pitch=-1 * input.Yaw;
+					yaw=-1 * input.Roll;
 					break;
 				case Base6Directions.Direction.Backward:
-					roll = input.Pitch;
-					pitch = input.Yaw;
-					yaw = input.Roll;
+					roll=input.Pitch;
+					pitch=input.Yaw;
+					yaw=input.Roll;
 					break;
 				case Base6Directions.Direction.Up:
-					roll = input.Pitch;
-					yaw = input.Yaw;
-					pitch = -1 * input.Roll;
+					roll=input.Pitch;
+					yaw=input.Yaw;
+					pitch=-1 * input.Roll;
 					break;
 				case Base6Directions.Direction.Down:
-					roll = input.Pitch;
-					yaw = -1 * input.Yaw;
-					pitch = input.Roll;
+					roll=input.Pitch;
+					yaw=-1 * input.Yaw;
+					pitch=input.Roll;
 					break;
 			}
 			break;
@@ -1339,7 +1339,7 @@ public void Reset(){
 	Down_Thrusters=new List<IMyThrust>();
 	Left_Thrusters=new List<IMyThrust>();
 	Right_Thrusters=new List<IMyThrust>();
-	RestingVelocity = new Vector3D(0,0,0);
+	RestingVelocity=new Vector3D(0,0,0);
 	Runtime.UpdateFrequency=UpdateFrequency.None;
 }
 
@@ -1443,67 +1443,67 @@ private void SetupAirlocks(){
 }
 
 private void SetControllerDirections(){
-	Forward = Controller.Orientation.Forward;
+	Forward=Controller.Orientation.Forward;
 	switch(Forward){
 		case Base6Directions.Direction.Forward:
-			Backward = Base6Directions.Direction.Backward;
+			Backward=Base6Directions.Direction.Backward;
 			break;
 		case Base6Directions.Direction.Backward:
-			Backward = Base6Directions.Direction.Forward;
+			Backward=Base6Directions.Direction.Forward;
 			break;
 		case Base6Directions.Direction.Up:
-			Backward = Base6Directions.Direction.Down;
+			Backward=Base6Directions.Direction.Down;
 			break;
 		case Base6Directions.Direction.Down:
-			Backward = Base6Directions.Direction.Up;
+			Backward=Base6Directions.Direction.Up;
 			break;
 		case Base6Directions.Direction.Left:
-			Backward = Base6Directions.Direction.Right;
+			Backward=Base6Directions.Direction.Right;
 			break;
 		case Base6Directions.Direction.Right:
-			Backward = Base6Directions.Direction.Left;
+			Backward=Base6Directions.Direction.Left;
 			break;
 	}
-	Up = Controller.Orientation.Up;
+	Up=Controller.Orientation.Up;
 	switch(Up){
 		case Base6Directions.Direction.Forward:
-			Down = Base6Directions.Direction.Backward;
+			Down=Base6Directions.Direction.Backward;
 			break;
 		case Base6Directions.Direction.Backward:
-			Down = Base6Directions.Direction.Forward;
+			Down=Base6Directions.Direction.Forward;
 			break;
 		case Base6Directions.Direction.Up:
-			Down = Base6Directions.Direction.Down;
+			Down=Base6Directions.Direction.Down;
 			break;
 		case Base6Directions.Direction.Down:
-			Down = Base6Directions.Direction.Up;
+			Down=Base6Directions.Direction.Up;
 			break;
 		case Base6Directions.Direction.Left:
-			Down = Base6Directions.Direction.Right;
+			Down=Base6Directions.Direction.Right;
 			break;
 		case Base6Directions.Direction.Right:
-			Down = Base6Directions.Direction.Left;
+			Down=Base6Directions.Direction.Left;
 			break;
 	}
-	Left = Controller.Orientation.Left;
+	Left=Controller.Orientation.Left;
 	switch(Left){
 		case Base6Directions.Direction.Forward:
-			Right = Base6Directions.Direction.Backward;
+			Right=Base6Directions.Direction.Backward;
 			break;
 		case Base6Directions.Direction.Backward:
-			Right = Base6Directions.Direction.Forward;
+			Right=Base6Directions.Direction.Forward;
 			break;
 		case Base6Directions.Direction.Up:
-			Right = Base6Directions.Direction.Down;
+			Right=Base6Directions.Direction.Down;
 			break;
 		case Base6Directions.Direction.Down:
-			Right = Base6Directions.Direction.Up;
+			Right=Base6Directions.Direction.Up;
 			break;
 		case Base6Directions.Direction.Left:
-			Right = Base6Directions.Direction.Right;
+			Right=Base6Directions.Direction.Right;
 			break;
 		case Base6Directions.Direction.Right:
-			Right = Base6Directions.Direction.Left;
+			Right=Base6Directions.Direction.Left;
 			break;
 	}
 }
@@ -1515,41 +1515,41 @@ private UpdateFrequency GetUpdateFrequency(){
 		return UpdateFrequency.Update1;
 	if(Controller.GetShipVelocities().AngularVelocity.Length() > .1f)
 		return UpdateFrequency.Update1;
-	if((Controller.GetShipVelocities().LinearVelocity - RestingVelocity).Length() > .5)
+	if((Controller.GetShipVelocities().LinearVelocity-RestingVelocity).Length() > .5)
 		return UpdateFrequency.Update1;
 	return UpdateFrequency.Update10;
 }
 
 private string GetRemovedString(string big_string, string small_string){
-	string output = big_string;
+	string output=big_string;
 	if(big_string.Contains(small_string)){
-		output = big_string.Substring(0, big_string.IndexOf(small_string)) + big_string.Substring(big_string.IndexOf(small_string) + small_string.Length);
+		output=big_string.Substring(0, big_string.IndexOf(small_string))+big_string.Substring(big_string.IndexOf(small_string)+small_string.Length);
 	}
 	return output;
 }
 
 private List<List<IMyDoor>> RemoveDoor(List<List<IMyDoor>> list, IMyDoor Door){
-	List<List<IMyDoor>> output = new List<List<IMyDoor>>();
-	Echo("\tRemoving Door \"" + Door.CustomName + "\" from list[" + list.Count + "]");
+	List<List<IMyDoor>> output=new List<List<IMyDoor>>();
+	Echo("\tRemoving Door \""+Door.CustomName+"\" from list["+list.Count+"]");
 	if(list.Count == 0){
 		return output;
 	}
-	string ExampleDoorName = "";
+	string ExampleDoorName="";
 	foreach(List<IMyDoor> sublist in list){
 		if(sublist.Count > 0){
-			ExampleDoorName = sublist[0].CustomName;
+			ExampleDoorName=sublist[0].CustomName;
 			break;
 		}
 	}
 	
-	bool is_leading_group = (ExampleDoorName.Contains("Door 1") && Door.CustomName.Contains("Door 1")) || (ExampleDoorName.Contains("Door 2") && Door.CustomName.Contains("Door 2"));
+	bool is_leading_group=(ExampleDoorName.Contains("Door 1") && Door.CustomName.Contains("Door 1")) || (ExampleDoorName.Contains("Door 2") && Door.CustomName.Contains("Door 2"));
 	for(int i=0; i<list.Count; i++){
 		if(list[i].Count > 1 && (!is_leading_group || !list[i][0].Equals(Door))){
 			if(is_leading_group){
 				output.Add(list[i]);
 			}
 			else{
-				List<IMyDoor> pair = new List<IMyDoor>();
+				List<IMyDoor> pair=new List<IMyDoor>();
 				pair.Add(list[i][0]);
 				for(int j=1; j<list[i].Count; j++){
 					if(!list[i][j].Equals(Door))
@@ -1577,7 +1577,7 @@ public bool Setup(){
 	}
 	else {
 		SetControllerDirections();
-		IMyTextSurfaceProvider Cockpit = Controller as IMyTextSurfaceProvider;
+		IMyTextSurfaceProvider Cockpit=Controller as IMyTextSurfaceProvider;
 		if(Cockpit!=null){
 			for(int i=0;i<Cockpit.SurfaceCount;i++){
 				Cockpit.GetSurface(i).FontColor=DEFAULT_TEXT_COLOR;
@@ -1603,7 +1603,7 @@ public bool Setup(){
 		bool retry=!Me.CubeGrid.IsStatic;
 		foreach(IMyThrust Thruster in MyThrusters){
 			if(HasBlockData(Thruster, "Owner")){
-				long ID = 0;
+				long ID=0;
 				if(i==0 && !Int64.TryParse(GetBlockData(Thruster, "Owner"), out ID) || (ID != 0 && ID!=Me.CubeGrid.EntityId))
 					continue;
 			}
@@ -1641,7 +1641,7 @@ public bool Setup(){
 	SetThrusterList(Right_Thrusters, "Right");
 	
 	Operational=Me.IsWorking;
-	Runtime.UpdateFrequency = GetUpdateFrequency();
+	Runtime.UpdateFrequency=GetUpdateFrequency();
 	return true;
 }
 
@@ -1657,12 +1657,12 @@ public Program()
 		Me.GetSurface(i).ContentType=ContentType.TEXT_AND_IMAGE;
 	}
 	Echo("Beginning initialization");
-	Me.Enabled = true;
-	Rnd = new Random();
+	Me.Enabled=true;
+	Rnd=new Random();
 	Setup();
-	string[] args = this.Storage.Split('•');
+	string[] args=this.Storage.Split('•');
 	foreach(string arg in args){
-		EntityInfo Entity = null;
+		EntityInfo Entity=null;
 		if(EntityInfo.TryParse(arg, out Entity)){
 			switch(Entity.Type){
 				case MyDetectedEntityType.Asteroid:
@@ -1780,20 +1780,20 @@ private void SetThrusterList(List<IMyThrust> Thrusters, string Direction){
 				number=small_misc--;
 			}
 		}
-		Thruster.CustomName = Direction + tag + " Thruster " + number.ToString();
+		Thruster.CustomName=Direction+tag+" Thruster "+number.ToString();
 	}
 }
 
 private void ResetThruster(IMyThrust Thruster){
 	if(HasBlockData(Thruster, "DefaultOverride")){
-		float ThrustOverride = 0.0f;
+		float ThrustOverride=0.0f;
 		if(float.TryParse(GetBlockData(Thruster, "DefaultOverride"), out ThrustOverride))
 			Thruster.ThrustOverridePercentage=ThrustOverride;
 		else
-			Thruster.ThrustOverridePercentage = 0.0f;
+			Thruster.ThrustOverridePercentage=0.0f;
 	}
 	if(HasBlockData(Thruster, "DefaultName")){
-		Thruster.CustomName = GetBlockData(Thruster, "DefaultName");
+		Thruster.CustomName=GetBlockData(Thruster, "DefaultName");
 	}
 	SetBlockData(Thruster, "Owner", "0");
 }
@@ -1802,23 +1802,23 @@ public void Save()
 {
 	this.Storage="Lockdown:"+_Lockdown.ToString();
 	foreach(EntityInfo Entity in AsteroidList){
-		this.Storage += '•' + Entity.ToString();
+		this.Storage += '•'+Entity.ToString();
 	}
 	foreach(EntityInfo Entity in PlanetList){
-		this.Storage += '•' + Entity.ToString();
+		this.Storage += '•'+Entity.ToString();
 	}
 	foreach(EntityInfo Entity in SmallShipList){
-		this.Storage += '•' + Entity.ToString();
+		this.Storage += '•'+Entity.ToString();
 	}
 	foreach(EntityInfo Entity in LargeShipList){
-		this.Storage += '•' + Entity.ToString();
+		this.Storage += '•'+Entity.ToString();
 	}
 	foreach(EntityInfo Entity in CharacterList){
-		this.Storage += '•' + Entity.ToString();
+		this.Storage += '•'+Entity.ToString();
 	}
-	Me.CustomData = this.Storage;
+	Me.CustomData=this.Storage;
 	
-	Gyroscope.GyroOverride = false;
+	Gyroscope.GyroOverride=false;
 	foreach(IMyThrust Thruster in Forward_Thrusters){
 		ResetThruster(Thruster);
 	}
@@ -1840,13 +1840,13 @@ public void Save()
 }
 
 public Vector3D GlobalToLocal(Vector3D Global){
-	Vector3D Local = Vector3D.Transform(Global+Controller.GetPosition(), MatrixD.Invert(Controller.WorldMatrix));
+	Vector3D Local=Vector3D.Transform(Global+Controller.GetPosition(), MatrixD.Invert(Controller.WorldMatrix));
 	Local.Normalize();
 	return Local * Global.Length();
 }
 
 public Vector3D GlobalToLocalPosition(Vector3D Global){
-	Vector3D Local = Vector3D.Transform(Global, MatrixD.Invert(Controller.WorldMatrix));
+	Vector3D Local=Vector3D.Transform(Global, MatrixD.Invert(Controller.WorldMatrix));
 	Local.Normalize();
 	return Local * (Global-Controller.GetPosition()).Length();
 	//Vector3D Direction=Global-Controller.GetPosition();
@@ -1854,7 +1854,7 @@ public Vector3D GlobalToLocalPosition(Vector3D Global){
 }
 
 public Vector3D LocalToGlobal(Vector3D Local){
-	Vector3D Global = Vector3D.Transform(Local, Controller.WorldMatrix)-Controller.GetPosition();
+	Vector3D Global=Vector3D.Transform(Local, Controller.WorldMatrix)-Controller.GetPosition();
 	Global.Normalize();
 	return Global * Local.Length();
 }
@@ -1864,88 +1864,88 @@ public Vector3D LocalToGlobalPosition(Vector3D Local){
 }
 
 private enum AlertStatus{
-	Green = 0,
-	Blue = 1,
-	Yellow = 2,
-	Orange = 3,
-	Red = 4
+	Green=0,
+	Blue=1,
+	Yellow=2,
+	Orange=3,
+	Red=4
 }
-private string Submessage = "";
+private string Submessage="";
 private AlertStatus ShipStatus{
 	get{
-		AlertStatus status = AlertStatus.Green;
-		Submessage = "";
+		AlertStatus status=AlertStatus.Green;
+		Submessage="";
 		
 		if(Time_To_Crash>0){
 			if(Time_To_Crash < 15 && Controller.GetShipSpeed()>5){
-				AlertStatus new_status = AlertStatus.Orange;
-				status = (AlertStatus) Math.Max((int)status, (int)new_status);
+				AlertStatus new_status=AlertStatus.Orange;
+				status=(AlertStatus) Math.Max((int)status, (int)new_status);
 				Submessage += "\n"+Math.Round(Time_To_Crash,1).ToString()+" seconds to possible impact";
 			}
 			else if(Time_To_Crash < 60 && Controller.GetShipSpeed()>15){
-				AlertStatus new_status = AlertStatus.Yellow;
-				status = (AlertStatus) Math.Max((int)status, (int)new_status);
+				AlertStatus new_status=AlertStatus.Yellow;
+				status=(AlertStatus) Math.Max((int)status, (int)new_status);
 				Submessage += "\n"+Math.Round(Time_To_Crash,1).ToString()+" seconds to possible impact";
 			}
 			else if(Time_To_Crash < 180){
-			AlertStatus new_status = AlertStatus.Blue;
-			status = (AlertStatus) Math.Max((int)status, (int)new_status);
+			AlertStatus new_status=AlertStatus.Blue;
+			status=(AlertStatus) Math.Max((int)status, (int)new_status);
 			Submessage += "\n"+Math.Round(Time_To_Crash,1).ToString()+" seconds to possible impact";
 		}
 		}
 		
-		double ActualEnemyShipDistance = Math.Min(SmallShipList.ClosestDistance(this, MyRelationsBetweenPlayerAndBlock.Enemies), LargeShipList.ClosestDistance(this, MyRelationsBetweenPlayerAndBlock.Enemies));
-		double EnemyShipDistance = Math.Min(SmallShipList.ClosestDistance(this, MyRelationsBetweenPlayerAndBlock.Enemies), LargeShipList.ClosestDistance(this, MyRelationsBetweenPlayerAndBlock.Enemies)/2);
+		double ActualEnemyShipDistance=Math.Min(SmallShipList.ClosestDistance(this, MyRelationsBetweenPlayerAndBlock.Enemies), LargeShipList.ClosestDistance(this, MyRelationsBetweenPlayerAndBlock.Enemies));
+		double EnemyShipDistance=Math.Min(SmallShipList.ClosestDistance(this, MyRelationsBetweenPlayerAndBlock.Enemies), LargeShipList.ClosestDistance(this, MyRelationsBetweenPlayerAndBlock.Enemies)/2);
 		if(EnemyShipDistance<800){
-			AlertStatus new_status = AlertStatus.Red;
-			status = (AlertStatus) Math.Max((int)status, (int)new_status);
-			Submessage += "\nEnemy Ship at " + Math.Round(ActualEnemyShipDistance, 0) + " meters";
+			AlertStatus new_status=AlertStatus.Red;
+			status=(AlertStatus) Math.Max((int)status, (int)new_status);
+			Submessage += "\nEnemy Ship at "+Math.Round(ActualEnemyShipDistance, 0)+" meters";
 		}
 		else if(EnemyShipDistance<2500){
-			AlertStatus new_status = AlertStatus.Orange;
-			status = (AlertStatus) Math.Max((int)status, (int)new_status);
-			Submessage += "\nEnemy Ship at " + Math.Round(ActualEnemyShipDistance, 0) + " meters";
+			AlertStatus new_status=AlertStatus.Orange;
+			status=(AlertStatus) Math.Max((int)status, (int)new_status);
+			Submessage += "\nEnemy Ship at "+Math.Round(ActualEnemyShipDistance, 0)+" meters";
 		}
 		else if(EnemyShipDistance<5000){
-			AlertStatus new_status = AlertStatus.Yellow;
-			status = (AlertStatus) Math.Max((int)status, (int)new_status);
-			Submessage += "\nEnemy Ship at " + Math.Round(ActualEnemyShipDistance, 0) + " meters";
+			AlertStatus new_status=AlertStatus.Yellow;
+			status=(AlertStatus) Math.Max((int)status, (int)new_status);
+			Submessage += "\nEnemy Ship at "+Math.Round(ActualEnemyShipDistance, 0)+" meters";
 		}
 		
-		double EnemyCharacterDistance = CharacterList.ClosestDistance(this, MyRelationsBetweenPlayerAndBlock.Enemies);
+		double EnemyCharacterDistance=CharacterList.ClosestDistance(this, MyRelationsBetweenPlayerAndBlock.Enemies);
 		if(EnemyCharacterDistance-Me.CubeGrid.GridSize<0){
-			AlertStatus new_status = AlertStatus.Red;
-			status = (AlertStatus) Math.Max((int)status, (int)new_status);
+			AlertStatus new_status=AlertStatus.Red;
+			status=(AlertStatus) Math.Max((int)status, (int)new_status);
 			Submessage += "\nEnemy Creature has boarded ship";
 		}
 		else if(EnemyCharacterDistance-Me.CubeGrid.GridSize<800){
-			AlertStatus new_status = AlertStatus.Orange;
-			status = (AlertStatus) Math.Max((int)status, (int)new_status);
-			Submessage += "\nEnemy Creature at " + Math.Round(EnemyCharacterDistance, 0) + " meters";
+			AlertStatus new_status=AlertStatus.Orange;
+			status=(AlertStatus) Math.Max((int)status, (int)new_status);
+			Submessage += "\nEnemy Creature at "+Math.Round(EnemyCharacterDistance, 0)+" meters";
 		}
 		else if(EnemyCharacterDistance-Me.CubeGrid.GridSize<2000){
-			AlertStatus new_status = AlertStatus.Yellow;
-			status = (AlertStatus) Math.Max((int)status, (int)new_status);
-			Submessage += "\nEnemy Creature at " + Math.Round(EnemyCharacterDistance, 0) + " meters";
+			AlertStatus new_status=AlertStatus.Yellow;
+			status=(AlertStatus) Math.Max((int)status, (int)new_status);
+			Submessage += "\nEnemy Creature at "+Math.Round(EnemyCharacterDistance, 0)+" meters";
 		}
 		
-		double ShipDistance = Math.Min(SmallShipList.ClosestDistance(this),LargeShipList.ClosestDistance(this))-Me.CubeGrid.GridSize;
+		double ShipDistance=Math.Min(SmallShipList.ClosestDistance(this),LargeShipList.ClosestDistance(this))-Me.CubeGrid.GridSize;
 		if(ShipDistance < 500 && ShipDistance > 0){
-			AlertStatus new_status = AlertStatus.Blue;
-			status = (AlertStatus) Math.Max((int)status, (int)new_status);
-			Submessage += "\nNearby ship at " + Math.Round(ShipDistance, 0) + " meters";
+			AlertStatus new_status=AlertStatus.Blue;
+			status=(AlertStatus) Math.Max((int)status, (int)new_status);
+			Submessage += "\nNearby ship at "+Math.Round(ShipDistance, 0)+" meters";
 		}
 		if(AsteroidList.ClosestDistance(this) < 500){
-			AlertStatus new_status = AlertStatus.Blue;
-			status = (AlertStatus) Math.Max((int)status, (int)new_status);
-			Submessage += "\nNearby asteroid at " + Math.Round(AsteroidList.ClosestDistance(this), 0) + " meters";
+			AlertStatus new_status=AlertStatus.Blue;
+			status=(AlertStatus) Math.Max((int)status, (int)new_status);
+			Submessage += "\nNearby asteroid at "+Math.Round(AsteroidList.ClosestDistance(this), 0)+" meters";
 		}
 		if(Controller.GetShipSpeed() > 30){
-			AlertStatus new_status = AlertStatus.Blue;
-			status = (AlertStatus) Math.Max((int)status, (int)new_status);
-			double Speed = Controller.GetShipSpeed();
+			AlertStatus new_status=AlertStatus.Blue;
+			status=(AlertStatus) Math.Max((int)status, (int)new_status);
+			double Speed=Controller.GetShipSpeed();
 			Submessage += "\nHigh Ship Speed [";
-			const int SECTIONS = 20;
+			const int SECTIONS=20;
 			for(int i=0; i<SECTIONS; i++){
 				if(Speed >= ((100.0/SECTIONS) * i)){
 					Submessage += '|';
@@ -1957,7 +1957,7 @@ private AlertStatus ShipStatus{
 			Submessage += ']';
 		}
 		if(status == AlertStatus.Green)
-			Submessage = "\nNo issues";
+			Submessage="\nNo issues";
 		return status;
 	}
 }
@@ -1968,7 +1968,7 @@ private void UpdateList(List<MyDetectedEntityInfo> list, MyDetectedEntityInfo ne
 	for(int i=0; i<list.Count; i++){
 		if(list[i].EntityId == new_entity.EntityId){
 			if(list[i].TimeStamp < new_entity.TimeStamp || ((list[i].HitPosition==null)&&(new_entity.HitPosition!=null)))
-				list[i] = new_entity;
+				list[i]=new_entity;
 			return;
 		}
 	}
@@ -1980,7 +1980,7 @@ private void UpdateList(List<EntityInfo> list, EntityInfo new_entity){
 		return;
 	for(int i=0; i<list.Count; i++){
 		if(list[i].ID == new_entity.ID){
-			list[i] = new_entity;
+			list[i]=new_entity;
 			return;
 		}
 	}
@@ -1988,9 +1988,9 @@ private void UpdateList(List<EntityInfo> list, EntityInfo new_entity){
 }
 
 private void SetStatus(string message, Color TextColor, Color BackgroundColor){
-	float padding = 40.0f;
-	string[] lines = message.Split('\n');
-	padding = Math.Max(10.0f, padding-(lines.Length*5.0f));
+	float padding=40.0f;
+	string[] lines=message.Split('\n');
+	padding=Math.Max(10.0f, padding-(lines.Length*5.0f));
 	foreach(IMyTextPanel LCD in StatusLCDs){
 		LCD.Alignment=TextAlignment.CENTER;
 		LCD.FontSize=1.2f;
@@ -1998,12 +1998,12 @@ private void SetStatus(string message, Color TextColor, Color BackgroundColor){
 		LCD.TextPadding=padding;
 		LCD.WriteText(message, false);
 		if(LCD.CustomName.ToLower().Contains("transparent")){
-			LCD.FontColor = BackgroundColor;
-			LCD.BackgroundColor = new Color(0,0,0,255);
+			LCD.FontColor=BackgroundColor;
+			LCD.BackgroundColor=new Color(0,0,0,255);
 		}
 		else {
-			LCD.FontColor = TextColor;
-			LCD.BackgroundColor = BackgroundColor;
+			LCD.FontColor=TextColor;
+			LCD.BackgroundColor=BackgroundColor;
 		}
 	}
 }
@@ -2021,7 +2021,7 @@ private bool _Lockdown=false;
 
 public bool Lockdown(object obj=null){
 	_Lockdown=!_Lockdown;
-	List<IMyAirtightHangarDoor> Seals = (new GenericMethods<IMyAirtightHangarDoor>(this)).GetAllIncluding("Air Seal");
+	List<IMyAirtightHangarDoor> Seals=(new GenericMethods<IMyAirtightHangarDoor>(this)).GetAllIncluding("Air Seal");
 	foreach(IMyAirtightHangarDoor Door in Seals){
 		if(_Lockdown){
 			if(CanHaveJob(Door, "Lockdown")){
@@ -2044,7 +2044,7 @@ public bool Lockdown(object obj=null){
 public bool FactoryReset(object obj=null){
 	SetStatus("Status LCD\nOffline", DEFAULT_TEXT_COLOR, DEFAULT_BACKGROUND_COLOR);
 	if(Gyroscope!=null)
-		Gyroscope.GyroOverride = false;
+		Gyroscope.GyroOverride=false;
 	foreach(IMyThrust Thruster in Forward_Thrusters){
 		ResetThruster(Thruster);
 	}
@@ -2072,13 +2072,13 @@ public bool FactoryReset(object obj=null){
 	this.Storage="";
 	
 	Reset();
-	Me.Enabled = false;
+	Me.Enabled=false;
 	return true;
 }
 
 private Vector3D GetOffsetPosition(Vector3D Position, double Target_Size=0){
-	Vector3D direction = Position-Controller.GetPosition();
-	double distance = direction.Length();
+	Vector3D direction=Position-Controller.GetPosition();
+	double distance=direction.Length();
 	direction.Normalize();
 	if(distance>1000){
 		distance-=400;
@@ -2087,7 +2087,7 @@ private Vector3D GetOffsetPosition(Vector3D Position, double Target_Size=0){
 		distance=distance/10*9;
 	}
 	distance-=Target_Size;
-	double controller_offset = (Controller.GetPosition()-Me.CubeGrid.GetPosition()).Length();
+	double controller_offset=(Controller.GetPosition()-Me.CubeGrid.GetPosition()).Length();
 	distance-=Math.Max(0,Me.CubeGrid.GridSize/2-controller_offset);
 	return (distance*direction)+Controller.GetPosition();
 }
@@ -2100,9 +2100,9 @@ public bool GoTo(EntityInfo Entity){
 	RestingVelocity=Entity.Velocity;
 	Target_ID=Entity.ID;
 	if(Entity.Relationship!=MyRelationsBetweenPlayerAndBlock.Enemies){
-		Target_Direction = Entity.Position-Controller.GetPosition();
+		Target_Direction=Entity.Position-Controller.GetPosition();
 		Target_Direction.Normalize();
-		Target_Position = GetOffsetPosition(Entity.Position, Entity.Size);
+		Target_Position=GetOffsetPosition(Entity.Position, Entity.Size);
 		Match_Position=true;
 		Match_Direction=true;
 	}
@@ -2110,33 +2110,33 @@ public bool GoTo(EntityInfo Entity){
 }
 
 public bool UpdateEntityListing(Menu_Submenu Menu){
-	EntityList list = null;
-	bool do_goto = false;
+	EntityList list=null;
+	bool do_goto=false;
 	switch(Menu.Name()){
 		case "Asteroids":
 			list=AsteroidList;
-			do_goto = true;
+			do_goto=true;
 			break;
 		case "Planets":
 			list=PlanetList;
-			do_goto = false;
+			do_goto=false;
 			break;
 		case "Small Ships":
 			list=SmallShipList;
-			do_goto = true;
+			do_goto=true;
 			break;
 		case "Large Ships":
 			list=LargeShipList;
-			do_goto = true;
+			do_goto=true;
 			break;
 		case "Characters":
 			list=CharacterList;
-			do_goto = true;
+			do_goto=true;
 			break;
 	}
 	if(list==null)
 		return false;
-	Menu = new Menu_Submenu(Menu.Name());
+	Menu=new Menu_Submenu(Menu.Name());
 	Menu.Add(new Menu_Command<Menu_Submenu>("Refresh", UpdateEntityListing, "Updates "+Menu.Name(), Menu));
 	list.Sort(Me.CubeGrid.GetPosition());
 	for(int i=0;i<list.Count;i++){
@@ -2159,9 +2159,9 @@ private Menu_Submenu LargeShipMenu;
 private Menu_Submenu CharacterMenu;
 
 private void CreateMenu(){
-	Command_Menu = new Menu_Submenu("Command Menu");
+	Command_Menu=new Menu_Submenu("Command Menu");
 	//Command_Menu.Add(new Menu_Command("Update Menu", CreateMenu));
-	Menu_Submenu ShipCommands = new Menu_Submenu("Commands");
+	Menu_Submenu ShipCommands=new Menu_Submenu("Commands");
 	ShipCommands.Add(new Menu_Command<object>("Stop", Stop, "Disables autopilot"));
 	ShipCommands.Add(new Menu_Command<object>("Lockdown", Lockdown, "Closes/Opens Air Seals"));
 	ShipCommands.Add(new Menu_Command<object>("Factory Reset", FactoryReset, "Resets AI memory and settings, and turns it off"));
@@ -2184,7 +2184,7 @@ private void CreateMenu(){
 }
 
 private void DisplayMenu(){
-	List<IMyTextPanel> Panels = (new GenericMethods<IMyTextPanel>(this)).GetAllContaining("Command Menu Display");
+	List<IMyTextPanel> Panels=(new GenericMethods<IMyTextPanel>(this)).GetAllContaining("Command Menu Display");
 	foreach(IMyTextPanel Panel in Panels){
 		Panel.WriteText(Command_Menu.ToString(), false);
 		Panel.Alignment=TextAlignment.CENTER;
@@ -2202,33 +2202,33 @@ private void DisplayMenu(){
 }
 
 private Color ColorParse(string parse){
-	parse = parse.Substring(parse.IndexOf('{')+1);
-	parse = parse.Substring(0, parse.IndexOf('}') - 1);
-	string[] args = parse.Split(' ');
+	parse=parse.Substring(parse.IndexOf('{')+1);
+	parse=parse.Substring(0, parse.IndexOf('}')-1);
+	string[] args=parse.Split(' ');
 	int r, g, b, a;
-	r = Int32.Parse(args[0].Substring(args[0].IndexOf("R:")+2).Trim());
-	g = Int32.Parse(args[1].Substring(args[1].IndexOf("G:")+2).Trim());
-	b = Int32.Parse(args[2].Substring(args[2].IndexOf("B:")+2).Trim());
-	a = Int32.Parse(args[3].Substring(args[3].IndexOf("A:")+2).Trim());
+	r=Int32.Parse(args[0].Substring(args[0].IndexOf("R:")+2).Trim());
+	g=Int32.Parse(args[1].Substring(args[1].IndexOf("G:")+2).Trim());
+	b=Int32.Parse(args[2].Substring(args[2].IndexOf("B:")+2).Trim());
+	a=Int32.Parse(args[3].Substring(args[3].IndexOf("A:")+2).Trim());
 	return new Color(r,g,b,a);
 }
 
-private bool last_performed_alarm = false;
+private bool last_performed_alarm=false;
 public void PerformAlarm(){
-	bool nearby_enemy = (CharacterList.ClosestDistance(this, MyRelationsBetweenPlayerAndBlock.Enemies) <= (float) Me.CubeGrid.GridSize);
+	bool nearby_enemy=(CharacterList.ClosestDistance(this, MyRelationsBetweenPlayerAndBlock.Enemies) <= (float) Me.CubeGrid.GridSize);
 	if(!nearby_enemy && !last_performed_alarm){
 		return;
 	}
-	last_performed_alarm = nearby_enemy;
-	List<IMyInteriorLight> AllLights = new List<IMyInteriorLight>();
+	last_performed_alarm=nearby_enemy;
+	List<IMyInteriorLight> AllLights=new List<IMyInteriorLight>();
 	GridTerminalSystem.GetBlocksOfType<IMyInteriorLight>(AllLights);
 	foreach(IMyInteriorLight Light in AllLights){
 		if(!CanHaveJob(Light, "PlayerAlert"))
 			continue;
-		double distance = double.MaxValue;
+		double distance=double.MaxValue;
 		foreach(EntityInfo Entity in CharacterList){
 			if((Entity.Relationship == MyRelationsBetweenPlayerAndBlock.Enemies) && Entity.Age.TotalSeconds <= 60)
-				distance = Math.Min(distance, Entity.GetDistance(Light.GetPosition()));
+				distance=Math.Min(distance, Entity.GetDistance(Light.GetPosition()));
 		}
 		if(distance <= ALERT_DISTANCE){
 			if(!HasBlockData(Light, "DefaultColor")){
@@ -2241,15 +2241,15 @@ public void PerformAlarm(){
 				SetBlockData(Light, "DefaultBlinkInterval", Light.BlinkIntervalSeconds.ToString());
 			}
 			SetBlockData(Light, "Job", "PlayerAlert");
-			Light.Color = new Color(255, 0, 0, 255);
-			Light.BlinkLength = 100.0f - (((float) (distance / ALERT_DISTANCE)) * 50.0f);
-			Light.BlinkIntervalSeconds = 1.0f;
+			Light.Color=new Color(255, 0, 0, 255);
+			Light.BlinkLength=100.0f-(((float) (distance / ALERT_DISTANCE)) * 50.0f);
+			Light.BlinkIntervalSeconds=1.0f;
 		}
 		else {
 			if(HasBlockData(Light, "Job") && GetBlockData(Light, "Job").Equals("PlayerAlert")){
 				if(HasBlockData(Light, "DefaultColor")){
 					try{
-						Light.Color = ColorParse(GetBlockData(Light, "DefaultColor"));
+						Light.Color=ColorParse(GetBlockData(Light, "DefaultColor"));
 					}
 					catch(Exception){
 						Echo("Failed to parse color");
@@ -2257,7 +2257,7 @@ public void PerformAlarm(){
 				}
 				if(HasBlockData(Light, "DefaultBlinkLength")){
 					try{
-						Light.BlinkLength = float.Parse(GetBlockData(Light, "DefaultBlinkLength"));
+						Light.BlinkLength=float.Parse(GetBlockData(Light, "DefaultBlinkLength"));
 					}
 					catch(Exception){
 						;
@@ -2265,7 +2265,7 @@ public void PerformAlarm(){
 				}
 				if(HasBlockData(Light, "DefaultBlinkInterval")){
 					try{
-						Light.BlinkIntervalSeconds = float.Parse(GetBlockData(Light, "DefaultBlinkInterval"));
+						Light.BlinkIntervalSeconds=float.Parse(GetBlockData(Light, "DefaultBlinkInterval"));
 					}
 					catch(Exception){
 						;
@@ -2275,15 +2275,15 @@ public void PerformAlarm(){
 			}
 		}
 	}
-	List<IMySoundBlock> AllSounds = new List<IMySoundBlock>();
+	List<IMySoundBlock> AllSounds=new List<IMySoundBlock>();
 	GridTerminalSystem.GetBlocksOfType<IMySoundBlock>(AllSounds);
 	foreach(IMySoundBlock Sound in AllSounds){
 		if(!CanHaveJob(Sound, "PlayerAlert"))
 			continue;
-		double distance = double.MaxValue;
+		double distance=double.MaxValue;
 		foreach(EntityInfo Entity in CharacterList){
 			if((Entity.Relationship == MyRelationsBetweenPlayerAndBlock.Enemies) && Entity.Age.TotalSeconds <= 60)
-				distance = Math.Min(distance, Entity.GetDistance(Sound.GetPosition()));
+				distance=Math.Min(distance, Entity.GetDistance(Sound.GetPosition()));
 		}
 		if(distance <= ALERT_DISTANCE){
 			if(!HasBlockData(Sound, "DefaultSound")){
@@ -2294,8 +2294,8 @@ public void PerformAlarm(){
 			}
 			SetBlockData(Sound, "Job", "PlayerAlert");
 			if(!HasBlockData(Sound, "Playing") || !GetBlockData(Sound, "Playing").Equals("True")){
-				Sound.SelectedSound = "SoundBlockEnemyDetected";
-				Sound.Volume = 100.0f;
+				Sound.SelectedSound="SoundBlockEnemyDetected";
+				Sound.Volume=100.0f;
 				Sound.Play();
 				SetBlockData(Sound, "Playing", "True");
 			}
@@ -2303,11 +2303,11 @@ public void PerformAlarm(){
 		else {
 			if(HasBlockData(Sound, "Job") && GetBlockData(Sound, "Job").Equals("PlayerAlert")){
 				if(HasBlockData(Sound, "DefaultSound")){
-					Sound.SelectedSound = GetBlockData(Sound, "DefaultSound");
+					Sound.SelectedSound=GetBlockData(Sound, "DefaultSound");
 				}
 				if(HasBlockData(Sound, "DefaultVolume")){
 					try{
-						Sound.Volume = float.Parse(GetBlockData(Sound, "DefaultVolume"));
+						Sound.Volume=float.Parse(GetBlockData(Sound, "DefaultVolume"));
 					}
 					catch(Exception){
 						;
@@ -2319,15 +2319,15 @@ public void PerformAlarm(){
 			}
 		}
 	}
-	List<IMyDoor> AllDoors = new List<IMyDoor>();
+	List<IMyDoor> AllDoors=new List<IMyDoor>();
 	GridTerminalSystem.GetBlocksOfType<IMyDoor>(AllDoors);
 	foreach(IMyDoor Door in AllDoors){
 		if(!CanHaveJob(Door, "PlayerAlert"))
 			continue;
-		double distance = double.MaxValue;
+		double distance=double.MaxValue;
 		foreach(EntityInfo Entity in CharacterList){
 			if((Entity.Relationship == MyRelationsBetweenPlayerAndBlock.Enemies) && Entity.Age.TotalSeconds <= 60)
-				distance = Math.Min(distance, Entity.GetDistance(Door.GetPosition()));
+				distance=Math.Min(distance, Entity.GetDistance(Door.GetPosition()));
 		}
 		if(distance <= ALERT_DISTANCE){
 			if(!HasBlockData(Door, "DefaultState")){
@@ -2347,13 +2347,13 @@ public void PerformAlarm(){
 				}
 			}
 			SetBlockData(Door, "Job", "PlayerAlert");
-			Door.Enabled = (Door.Status != DoorStatus.Closed);
+			Door.Enabled=(Door.Status != DoorStatus.Closed);
 			Door.CloseDoor();
 		}
 		else {
 			if(HasBlockData(Door, "Job") && GetBlockData(Door, "Job").Equals("PlayerAlert")){
 				if(HasBlockData(Door, "DefaultPower")){
-					Door.Enabled = GetBlockData(Door, "DefaultPower").Equals("On");
+					Door.Enabled=GetBlockData(Door, "DefaultPower").Equals("On");
 				}
 				if(HasBlockData(Door, "DefaultState")){
 					if(GetBlockData(Door, "DefaultState").Equals("Open"))
@@ -2369,33 +2369,33 @@ public void PerformAlarm(){
 
 private void UpdateAirlock(Airlock airlock){
 	if(airlock.Door1.Status != DoorStatus.Closed && airlock.Door2.Status != DoorStatus.Closed){
-		airlock.Door1.Enabled = true;
+		airlock.Door1.Enabled=true;
 		airlock.Door1.CloseDoor();
-		airlock.Door2.Enabled = true;
+		airlock.Door2.Enabled=true;
 		airlock.Door2.CloseDoor();
 	}
 	if(!(CanHaveJob(airlock.Door1, "Airlock")&&(CanHaveJob(airlock.Door2, "Airlock"))))
 		return;
-	bool detected = false;
-	double min_distance_1 = double.MaxValue;
-	double min_distance_2 = double.MaxValue;
-	double min_distance_check = 3.75 * (1 + (Controller.GetShipSpeed() / 200));
+	bool detected=false;
+	double min_distance_1=double.MaxValue;
+	double min_distance_2=double.MaxValue;
+	double min_distance_check=3.75 * (1+(Controller.GetShipSpeed() / 200));
 	foreach(EntityInfo Entity in CharacterList){
 		if(Entity.Relationship != MyRelationsBetweenPlayerAndBlock.Enemies && Entity.Relationship != MyRelationsBetweenPlayerAndBlock.Neutral){
-			Vector3D position = Entity.Position + CurrentVelocity / 100;
-			double distance = airlock.Distance(Entity.Position);
-			bool is_closest_to_this_airlock = distance <= min_distance_check;
+			Vector3D position=Entity.Position+CurrentVelocity / 100;
+			double distance=airlock.Distance(Entity.Position);
+			bool is_closest_to_this_airlock=distance <= min_distance_check;
 			if(is_closest_to_this_airlock){
 				foreach(Airlock alock in Airlocks){
 					if(is_closest_to_this_airlock && !alock.Equals(airlock)){
-						is_closest_to_this_airlock = is_closest_to_this_airlock && distance < (alock.Distance(position));
+						is_closest_to_this_airlock=is_closest_to_this_airlock && distance < (alock.Distance(position));
 					}
 				}
 			}
 			if(is_closest_to_this_airlock){
 				detected=true;
-				min_distance_1 = Math.Min(min_distance_1, (airlock.Door1.GetPosition() - position).Length());
-				min_distance_2 = Math.Min(min_distance_2, (airlock.Door2.GetPosition() - position).Length());
+				min_distance_1=Math.Min(min_distance_1, (airlock.Door1.GetPosition()-position).Length());
+				min_distance_2=Math.Min(min_distance_2, (airlock.Door2.GetPosition()-position).Length());
 			}
 		}
 	}
@@ -2404,56 +2404,56 @@ private void UpdateAirlock(Airlock airlock){
 		SetBlockData(airlock.Door1, "Job", "Airlock");
 		SetBlockData(airlock.Door2, "Job", "Airlock");
 		if(min_distance_1 <= min_distance_2){
-			airlock.Door2.Enabled = (airlock.Door2.Status != DoorStatus.Closed);
+			airlock.Door2.Enabled=(airlock.Door2.Status != DoorStatus.Closed);
 			if(airlock.Door2.Status != DoorStatus.Closing)
 				airlock.Door2.CloseDoor();
 			if(airlock.Door2.Enabled){
-				airlock.Door1.Enabled = (airlock.Door1.Status != DoorStatus.Closed);
+				airlock.Door1.Enabled=(airlock.Door1.Status != DoorStatus.Closed);
 				if(airlock.Door1.Status != DoorStatus.Closing)
 					airlock.Door1.CloseDoor();
-				ScanString += '\t' + "Closing Door 2" + '\n';
+				ScanString += '\t'+"Closing Door 2"+'\n';
 			}
 			else {
-				airlock.Door1.Enabled = true;
+				airlock.Door1.Enabled=true;
 				if(airlock.Door1.Status != DoorStatus.Opening)
 					airlock.Door1.OpenDoor();
-				ScanString += '\t' + "Opening Door 1" + '\n';
+				ScanString += '\t'+"Opening Door 1"+'\n';
 			}
 		}
 		else {
-			airlock.Door1.Enabled = (airlock.Door1.Status != DoorStatus.Closed);
+			airlock.Door1.Enabled=(airlock.Door1.Status != DoorStatus.Closed);
 			if(airlock.Door1.Status != DoorStatus.Closing)
 				airlock.Door1.CloseDoor();
 			if(airlock.Door1.Enabled){
-				airlock.Door2.Enabled = (airlock.Door2.Status != DoorStatus.Closed);
+				airlock.Door2.Enabled=(airlock.Door2.Status != DoorStatus.Closed);
 				if(airlock.Door2.Status != DoorStatus.Closing)
 					airlock.Door2.CloseDoor();
-				ScanString += '\t' + "Closing Door 1" + '\n';
+				ScanString += '\t'+"Closing Door 1"+'\n';
 			}
 			else {
-				airlock.Door2.Enabled = true;
+				airlock.Door2.Enabled=true;
 				if(airlock.Door2.Status != DoorStatus.Opening)
 					airlock.Door2.OpenDoor();
-				ScanString += '\t' + "Opening Door 2" + '\n';
+				ScanString += '\t'+"Opening Door 2"+'\n';
 			}
 		}
 	}
 	else{
 		SetBlockData(airlock.Door1, "Job", "None");
 		SetBlockData(airlock.Door2, "Job", "None");
-		airlock.Door1.Enabled = (airlock.Door1.Status != DoorStatus.Closed);
+		airlock.Door1.Enabled=(airlock.Door1.Status != DoorStatus.Closed);
 		if(airlock.Door1.Status != DoorStatus.Closing)
 			airlock.Door1.CloseDoor();
-		airlock.Door2.Enabled = (airlock.Door2.Status != DoorStatus.Closed);
+		airlock.Door2.Enabled=(airlock.Door2.Status != DoorStatus.Closed);
 		if(airlock.Door2.Status != DoorStatus.Closing)
 			airlock.Door2.CloseDoor();
-		ScanString += '\t' + "Closing both Doors" + '\n';
+		ScanString += '\t'+"Closing both Doors"+'\n';
 	}
 }
 
 private List<IMyCameraBlock> GetValidCameras(){
-	List<IMyCameraBlock> AllCameras = new List<IMyCameraBlock>();
-	List<IMyCameraBlock> output = new List<IMyCameraBlock>();
+	List<IMyCameraBlock> AllCameras=new List<IMyCameraBlock>();
+	List<IMyCameraBlock> output=new List<IMyCameraBlock>();
 	GridTerminalSystem.GetBlocksOfType<IMyCameraBlock>(AllCameras);
 	foreach(IMyCameraBlock Camera in AllCameras){
 		if(!HasBlockData(Camera, "DoRaycast")){
@@ -2461,10 +2461,10 @@ private List<IMyCameraBlock> GetValidCameras(){
 			SetBlockData(Camera, "RaycastTestCount", "0");
 		}
 		if(GetBlockData(Camera, "DoRaycast").Equals("false")){
-			Camera.EnableRaycast = false;
+			Camera.EnableRaycast=false;
 			continue;
 		}
-		Camera.EnableRaycast = true;
+		Camera.EnableRaycast=true;
 		output.Add(Camera);
 	}
 	return output;
@@ -2473,43 +2473,43 @@ private List<IMyCameraBlock> GetValidCameras(){
 //Performs the scan function on all scanning devices
 private double Scan_Frequency{
 	get{
-		double output = 10;
-		double MySize = Me.CubeGrid.GridSize;
-		double distance = SmallShipList.ClosestDistance(this);
+		double output=10;
+		double MySize=Me.CubeGrid.GridSize;
+		double distance=SmallShipList.ClosestDistance(this);
 		if(distance >= MySize){
-			output = Math.Max(1, Math.Min(10,(distance+MySize+100)/100));
+			output=Math.Max(1, Math.Min(10,(distance+MySize+100)/100));
 		}
-		distance = SmallShipList.ClosestDistance(this, MyRelationsBetweenPlayerAndBlock.Enemies);
-		output = Math.Max(1, Math.Min(10,(distance-MySize+100)/100));
-		distance = LargeShipList.ClosestDistance(this);
+		distance=SmallShipList.ClosestDistance(this, MyRelationsBetweenPlayerAndBlock.Enemies);
+		output=Math.Max(1, Math.Min(10,(distance-MySize+100)/100));
+		distance=LargeShipList.ClosestDistance(this);
 		if(distance >= MySize){
-			output = Math.Max(1, Math.Min(10,(distance+MySize+100)/100));
+			output=Math.Max(1, Math.Min(10,(distance+MySize+100)/100));
 		}
-		distance = LargeShipList.ClosestDistance(this, MyRelationsBetweenPlayerAndBlock.Enemies);
-		output = Math.Max(1, Math.Min(10,(distance-MySize+100)/100));
-		distance = CharacterList.ClosestDistance(this);
-		output = Math.Max(1, Math.Min(10,(distance+MySize+100)/100));
+		distance=LargeShipList.ClosestDistance(this, MyRelationsBetweenPlayerAndBlock.Enemies);
+		output=Math.Max(1, Math.Min(10,(distance-MySize+100)/100));
+		distance=CharacterList.ClosestDistance(this);
+		output=Math.Max(1, Math.Min(10,(distance+MySize+100)/100));
 		return output;
 	}
 }
-private double Scan_Time = 10;
-private string ScanString = "";
+private double Scan_Time=10;
+private string ScanString="";
 public void PerformScan(){
 	Write("Beginning Scan");
-	ScanString = "";
+	ScanString="";
 	PerformDisarm();
-	List<MyDetectedEntityInfo> DetectedEntities = new List<MyDetectedEntityInfo>();
-	List<IMySensorBlock> AllSensors = new List<IMySensorBlock>();
+	List<MyDetectedEntityInfo> DetectedEntities=new List<MyDetectedEntityInfo>();
+	List<IMySensorBlock> AllSensors=new List<IMySensorBlock>();
 	GridTerminalSystem.GetBlocksOfType<IMySensorBlock>(AllSensors);
 	foreach(IMySensorBlock Sensor in AllSensors){
 		UpdateList(DetectedEntities, Sensor.LastDetectedEntity);
-		List<MyDetectedEntityInfo> entities = new List<MyDetectedEntityInfo>();
+		List<MyDetectedEntityInfo> entities=new List<MyDetectedEntityInfo>();
 		Sensor.DetectedEntities(entities);
 		foreach(MyDetectedEntityInfo Entity in entities){
 			UpdateList(DetectedEntities, Entity);
 		}
 	}
-	List<IMyLargeTurretBase> AllTurrets = new List<IMyLargeTurretBase>();
+	List<IMyLargeTurretBase> AllTurrets=new List<IMyLargeTurretBase>();
 	GridTerminalSystem.GetBlocksOfType<IMyLargeTurretBase>(AllTurrets);
 	foreach(IMyLargeTurretBase Turret in AllTurrets){
 		if(Turret.HasTarget){
@@ -2517,30 +2517,30 @@ public void PerformScan(){
 		}
 	}
 	
-	List<bool> raycast_check = new List<bool>();
+	List<bool> raycast_check=new List<bool>();
 	for(int i=0;i<DetectedEntities.Count;i++)
 		raycast_check.Add(false);
 	
-	List<IMyCameraBlock> MyCameras = GetValidCameras();
+	List<IMyCameraBlock> MyCameras=GetValidCameras();
 	foreach(IMyCameraBlock Camera in MyCameras){
-		int count = 0;
-		bool update_me = false;
+		int count=0;
+		bool update_me=false;
 		if(GetBlockData(Camera, "DoRaycast").Equals("maybe")){
 			Int32.TryParse(GetBlockData(Camera, "RaycastTestCount"), out count);
 			if(count>=100){
 				SetBlockData(Camera, "DoRaycast", "false");
 				continue;
 			}
-			update_me = true;
+			update_me=true;
 		}
-		double raycast_distance = RAYCAST_DISTANCE;
+		double raycast_distance=RAYCAST_DISTANCE;
 		if(Camera.RaycastDistanceLimit != -1){
-			raycast_distance = Math.Min(raycast_distance, Camera.AvailableScanRange);
+			raycast_distance=Math.Min(raycast_distance, Camera.AvailableScanRange);
 		}
-		MyDetectedEntityInfo Raycast_Entity = Camera.Raycast(raycast_distance, 0, 0);
+		MyDetectedEntityInfo Raycast_Entity=Camera.Raycast(raycast_distance, 0, 0);
 		if(update_me && Raycast_Entity.EntityId != Me.CubeGrid.EntityId && Raycast_Entity.EntityId != Camera.CubeGrid.EntityId){
 			SetBlockData(Camera, "DoRaycast", "true");
-			update_me = true;
+			update_me=true;
 		}
 		UpdateList(DetectedEntities, Raycast_Entity);
 		
@@ -2556,19 +2556,19 @@ public void PerformScan(){
 			}
 			raycast_distance=Camera.AvailableScanRange/8;
 			if(raycast_distance>Math.Max(50,RAYCAST_DISTANCE/10)){
-				const int SECTIONS = 3;
+				const int SECTIONS=3;
 				for(int i=0; i<9; i++){
 					if(i==4)
 						continue;
-					float Pitch = 0;
-					float Yaw = 0;
+					float Pitch=0;
+					float Yaw=0;
 					if(i<3 || i>5){
-						Pitch = Rnd.Next(0, ((int)(Camera.RaycastConeLimit/SECTIONS))*10)/10.0f;
+						Pitch=Rnd.Next(0, ((int)(Camera.RaycastConeLimit/SECTIONS))*10)/10.0f;
 						if(i>5)
 							Pitch*=-1;
 					}
 					if((i%3)!=1){
-						Yaw = Rnd.Next(0, ((int)(Camera.RaycastConeLimit/SECTIONS))*10)/10.0f;
+						Yaw=Rnd.Next(0, ((int)(Camera.RaycastConeLimit/SECTIONS))*10)/10.0f;
 						if((i%3)==0)
 							Yaw*=-1;
 					}
@@ -2581,25 +2581,25 @@ public void PerformScan(){
 		}
 	}
 	
-	ScanString += "Retrieved updated data\non " + DetectedEntities.Count + " relevant entities" + '\n';
-	List<IMyBroadcastListener> listeners = new List<IMyBroadcastListener>();
+	ScanString += "Retrieved updated data\non "+DetectedEntities.Count+" relevant entities"+'\n';
+	List<IMyBroadcastListener> listeners=new List<IMyBroadcastListener>();
 	IGC.GetBroadcastListeners(listeners);
 	foreach(MyDetectedEntityInfo entity in DetectedEntities){
-		EntityInfo Entity = new EntityInfo(entity);
+		EntityInfo Entity=new EntityInfo(entity);
 		foreach(IMyBroadcastListener Listener in listeners){
 			IGC.SendBroadcastMessage(Listener.Tag, Entity.ToString(), TransmissionDistance.TransmissionDistanceMax);
 		}
 	}
 	
-	List<EntityInfo> Entities = new List<EntityInfo>();
+	List<EntityInfo> Entities=new List<EntityInfo>();
 	foreach(MyDetectedEntityInfo entity in DetectedEntities){
 		Entities.Add(new EntityInfo(entity));
 	}
 	
 	foreach(IMyBroadcastListener Listener in listeners){
 		while(Listener.HasPendingMessage){
-			MyIGCMessage message = Listener.AcceptMessage();
-			ScanString += "Received message on " + Listener.Tag + '\n';
+			MyIGCMessage message=Listener.AcceptMessage();
+			ScanString += "Received message on "+Listener.Tag+'\n';
 			EntityInfo Entity;
 			if(EntityInfo.TryParse(message.Data.ToString(), out Entity)){
 				ScanString+="Got new data on "+Entity.Name+'\n';
@@ -2611,9 +2611,9 @@ public void PerformScan(){
 	foreach(EntityInfo Entity in Entities){
 		if(Entity.ID==Target_ID){
 			RestingVelocity=Entity.Velocity;
-			Target_Direction = Entity.Position-Me.CubeGrid.GetPosition();
+			Target_Direction=Entity.Position-Me.CubeGrid.GetPosition();
 			Target_Direction.Normalize();
-			Target_Position = GetOffsetPosition(Entity.Position, Entity.Size);
+			Target_Position=GetOffsetPosition(Entity.Position, Entity.Size);
 		}
 		switch(Entity.Type){
 			case MyDetectedEntityType.Asteroid:
@@ -2640,25 +2640,25 @@ public void PerformScan(){
 	PerformAlarm();
 	
 	for(int i=0; i<Airlocks.Count; i++){
-		ScanString += "Airlock " + (i+1).ToString() + " Status:" + '\n';
+		ScanString += "Airlock "+(i+1).ToString()+" Status:"+'\n';
 		UpdateAirlock(Airlocks[i]);
 	}
 	
 	if(Command_Menu.AutoRefresh())
 		DisplayMenu();
 	
-	ScanString += "Completed updating data" + '\n';
-	Scan_Time = 0;
+	ScanString += "Completed updating data"+'\n';
+	Scan_Time=0;
 }
 
 public void PerformDisarm(){
-	List<IMyWarhead> Warheads = new List<IMyWarhead>();
+	List<IMyWarhead> Warheads=new List<IMyWarhead>();
 	GridTerminalSystem.GetBlocksOfType<IMyWarhead>(Warheads);
 	foreach(IMyWarhead Warhead in Warheads){
 		if(HasBlockData(Warhead, "VerifiedWarhead") && GetBlockData(Warhead, "VerifiedWahead").Equals("Active"))
 			continue;
-		Warhead.DetonationTime = Math.Max(60, Warhead.DetonationTime);
-		Warhead.IsArmed = false;
+		Warhead.DetonationTime=Math.Max(60, Warhead.DetonationTime);
+		Warhead.IsArmed=false;
 		Warhead.StopCountdown();
 	}
 }
@@ -2706,17 +2706,17 @@ private double GetAngle(Vector3D v1, Vector3D v2){
 }
 
 //Sets gyroscope outputs from player input, dampeners, gravity, and autopilot
-double Pitch_Time =  1.0f;
-double Yaw_Time = 1.0f;
-double Roll_Time = 1.0f;
+double Pitch_Time= 1.0f;
+double Yaw_Time=1.0f;
+double Roll_Time=1.0f;
 private void SetGyroscopes(){
-	float current_pitch = (float) Relative_AngularVelocity.X;
-	float current_yaw = (float) Relative_AngularVelocity.Y;
-	float current_roll = (float) Relative_AngularVelocity.Z;
+	float current_pitch=(float) Relative_AngularVelocity.X;
+	float current_yaw=(float) Relative_AngularVelocity.Y;
+	float current_roll=(float) Relative_AngularVelocity.Z;
 	
-	float input_pitch = 0;
-	float input_yaw = 0;
-	float input_roll = 0;
+	float input_pitch=0;
+	float input_yaw=0;
+	float input_roll=0;
 	
 	if(Pitch_Time<1)
 		Pitch_Time+=seconds_since_last_update;
@@ -2725,21 +2725,21 @@ private void SetGyroscopes(){
 	if(Roll_Time<1)
 		Roll_Time+=seconds_since_last_update;
 	
-	bool adjusting_target = false;
+	bool adjusting_target=false;
 	
-	input_pitch = Math.Min(Math.Max(Controller.RotationIndicator.X / 100, -1), 1);
+	input_pitch=Math.Min(Math.Max(Controller.RotationIndicator.X / 100, -1), 1);
 	if(Math.Abs(input_pitch) < 0.05f){
-		input_pitch = current_pitch*0.99f*1;
+		input_pitch=current_pitch*0.99f*1;
 		if(Elevation<Controller.GetShipSpeed()*2 && Elevation<50 && GetAngle(Gravity, Controller_Down) < 90 && Pitch_Time>=1){
-			double difference = Math.Abs(GetAngle(Gravity, Controller_Forward));
+			double difference=Math.Abs(GetAngle(Gravity, Controller_Forward));
 			if(difference < 90){
 				input_pitch-=((float)Math.Min(Math.Abs((90-difference)/90), 1));
 			}
 		}
 		if(Match_Direction){
-			double difference = GetAngle(Controller_Down, Target_Direction) - GetAngle(Controller_Up, Target_Direction);
+			double difference=GetAngle(Controller_Down, Target_Direction)-GetAngle(Controller_Up, Target_Direction);
 			if(Math.Abs(difference) > ACCEPTABLE_ANGLE/2){
-				adjusting_target = true;
+				adjusting_target=true;
 				if(AngularVelocity.Length() < 1){
 					if(difference>0){
 						input_pitch -= 0.5f*30*((float)Math.Min(Math.Abs(difference/(ACCEPTABLE_ANGLE*2)), 1));
@@ -2752,16 +2752,16 @@ private void SetGyroscopes(){
 		}
 	}
 	else{
-		Pitch_Time = 0;
+		Pitch_Time=0;
 		input_pitch *= 30;
 	}
-	input_yaw = Math.Min(Math.Max(Controller.RotationIndicator.Y / 100, -1), 1);
+	input_yaw=Math.Min(Math.Max(Controller.RotationIndicator.Y / 100, -1), 1);
 	if(Math.Abs(input_yaw) < 0.05f){
-		input_yaw = current_yaw*0.99f*1;
+		input_yaw=current_yaw*0.99f*1;
 		if(Match_Direction){
-			double difference = GetAngle(Controller_Right, Target_Direction) - GetAngle(Controller_Left, Target_Direction);
+			double difference=GetAngle(Controller_Right, Target_Direction)-GetAngle(Controller_Left, Target_Direction);
 			if(Math.Abs(difference) > ACCEPTABLE_ANGLE/2 || GetAngle(Controller_Forward, Target_Direction) > ACCEPTABLE_ANGLE){
-				adjusting_target = true;
+				adjusting_target=true;
 				if(AngularVelocity.Length() < 1){
 					if(difference>0 || difference==0 && GetAngle(Controller_Forward, Target_Direction) > ACCEPTABLE_ANGLE){
 						input_yaw -= 0.5f*30*((float)Math.Min(Math.Abs(difference/(ACCEPTABLE_ANGLE*2)), 1));
@@ -2774,14 +2774,14 @@ private void SetGyroscopes(){
 		}
 	}
 	else{
-		Yaw_Time = 0;
+		Yaw_Time=0;
 		input_yaw *= 30;
 	}
-	input_roll = Controller.RollIndicator;
+	input_roll=Controller.RollIndicator;
 	if(Math.Abs(input_roll) < 0.05f){
-		input_roll = current_roll*0.99f*1;
+		input_roll=current_roll*0.99f*1;
 		if(Gravity.Length() > 0  && Roll_Time >= 1 && !adjusting_target){
-			double difference = (GetAngle(Left_Vector, Gravity) - GetAngle(Right_Vector, Gravity));
+			double difference=(GetAngle(Left_Vector, Gravity)-GetAngle(Right_Vector, Gravity));
 			if(Math.Abs(difference) > ACCEPTABLE_ANGLE){
 				if(AngularVelocity.Length() < 1){
 					if(difference>0){
@@ -2795,29 +2795,28 @@ private void SetGyroscopes(){
 		}
 	}
 	else{
-		Roll_Time = 0;
+		Roll_Time=0;
 		input_roll *= 10;
 	}
 	
-	Gyro_Tuple output = Transform(new Gyro_Tuple(input_pitch, input_yaw, input_roll));
+	Gyro_Tuple output=Transform(new Gyro_Tuple(input_pitch, input_yaw, input_roll));
 	
-	Gyroscope.Pitch = output.Pitch;
-	Gyroscope.Yaw = output.Yaw;
-	Gyroscope.Roll = output.Roll;
+	Gyroscope.Pitch=output.Pitch;
+	Gyroscope.Yaw=output.Yaw;
+	Gyroscope.Roll=output.Roll;
 }
 
 //Sets thruster outputs from player input, dampeners, gravity, and autopilot
 private void SetThrusters(){
-	float input_forward = 0.0f;
-	float input_up = 0.0f;
-	float input_right = 0.0f;
+	float input_forward=0.0f;
+	float input_up=0.0f;
+	float input_right=0.0f;
 	
-	float damp_multx = 0.99f;
-	double effective_speed_limit = SPEED_LIMIT;
+	float damp_multx=0.99f;
+	double effective_speed_limit=SPEED_LIMIT;
 	
-	if(Elevation<100){
-		effective_speed_limit = Math.Min(effective_speed_limit, Elevation);
-	}
+	if(Elevation<100)
+		effective_speed_limit=Math.Min(effective_speed_limit, Elevation);
 	
 	if(Controller.DampenersOverride){
 		Write("Cruise Control: Off");
@@ -2827,27 +2826,27 @@ private void SetThrusters(){
 	}
 	else {
 		Write("Cruise Control: On");
-		Vector3D velocity_direction = CurrentVelocity;
+		Vector3D velocity_direction=CurrentVelocity;
 		velocity_direction.Normalize();
-		double angle = Math.Min(GetAngle(Controller_Forward, velocity_direction), GetAngle(Controller_Backward, velocity_direction));
+		double angle=Math.Min(GetAngle(Controller_Forward, velocity_direction), GetAngle(Controller_Backward, velocity_direction));
 		if(angle <= ACCEPTABLE_ANGLE / 2){
 			input_right -= (float) ((Relative_CurrentVelocity.X-Relative_RestingVelocity.X) * Mass_Accomodation * damp_multx);
 			input_up -= (float) ((Relative_CurrentVelocity.Y-Relative_RestingVelocity.Y) * Mass_Accomodation * damp_multx);
-			Write("Stabilizers: On (" + Math.Round(angle, 1) + "° dev)");
+			Write("Stabilizers: On ("+Math.Round(angle, 1)+"° dev)");
 		}
 		else {
-			Write("Stabilizers: Off (" + Math.Round(angle, 1) + "° dev)");
+			Write("Stabilizers: Off ("+Math.Round(angle, 1)+"° dev)");
 		}
 	}
 	
 	if(Target_Distance<Math.Max(0.5f, Math.Min(10, Me.CubeGrid.GridSize/10))){
-		Match_Direction = false;
-		Match_Position = false;
+		Match_Direction=false;
+		Match_Position=false;
 	}
 	else {
-		effective_speed_limit = Math.Min(effective_speed_limit, Math.Sqrt(Target_Distance));
+		effective_speed_limit=Math.Min(effective_speed_limit, Math.Sqrt(Target_Distance));
 	}
-	effective_speed_limit = Math.Max(effective_speed_limit, 5);
+	effective_speed_limit=Math.Max(effective_speed_limit, 5);
 	
 	if(Gravity.Length() > 0 && Mass_Accomodation>0){
 		input_right -= (float) Adjusted_Gravity.X;
@@ -2855,65 +2854,65 @@ private void SetThrusters(){
 		input_forward += (float) Adjusted_Gravity.Z;
 	}
 	
-	bool matched_direction = !Match_Direction;
+	bool matched_direction=!Match_Direction;
 	if(Match_Direction){
 		if(Gravity.Length() > 0){
-			matched_direction = Math.Abs(GetAngle(Target_Direction, Controller_Left) - GetAngle(Target_Direction, Controller_Right)) <= ACCEPTABLE_ANGLE/2;
-			double difference = GetAngle(Target_Direction, Gravity_Direction) - 90;
+			matched_direction=Math.Abs(GetAngle(Target_Direction, Controller_Left)-GetAngle(Target_Direction, Controller_Right)) <= ACCEPTABLE_ANGLE/2;
+			double difference=GetAngle(Target_Direction, Gravity_Direction)-90;
 			if(Math.Abs(difference) > ACCEPTABLE_ANGLE){
-				matched_direction = matched_direction && (GetAngle(Target_Direction, Controller_Forward) < GetAngle(Target_Direction, Controller_Backward));
+				matched_direction=matched_direction && (GetAngle(Target_Direction, Controller_Forward) < GetAngle(Target_Direction, Controller_Backward));
 				if(difference > ACCEPTABLE_ANGLE){
-					matched_direction = matched_direction && (GetAngle(Gravity_Direction, Controller_Forward) >= 90 + (ACCEPTABLE_ANGLE - 5));
+					matched_direction=matched_direction && (GetAngle(Gravity_Direction, Controller_Forward) >= 90+(ACCEPTABLE_ANGLE-5));
 				}
 				else if(difference < -1 * ACCEPTABLE_ANGLE){
-					matched_direction = matched_direction && (GetAngle(Gravity_Direction, Controller_Forward) <= 90 - (ACCEPTABLE_ANGLE - 5));
+					matched_direction=matched_direction && (GetAngle(Gravity_Direction, Controller_Forward) <= 90-(ACCEPTABLE_ANGLE-5));
 				}
 			}
 			else{
-				matched_direction = matched_direction && (GetAngle(Controller_Forward, Target_Direction) <= ACCEPTABLE_ANGLE);
+				matched_direction=matched_direction && (GetAngle(Controller_Forward, Target_Direction) <= ACCEPTABLE_ANGLE);
 			}
 		}
 		else {
-			matched_direction = (GetAngle(Controller_Forward, Target_Direction) <= ACCEPTABLE_ANGLE);
+			matched_direction=(GetAngle(Controller_Forward, Target_Direction) <= ACCEPTABLE_ANGLE);
 		}
 	}
 	
 	if(Math.Abs(Controller.MoveIndicator.X)>0.5f){
 		if(Controller.MoveIndicator.X > 0){
-			if((CurrentVelocity + Controller_Right - RestingVelocity).Length() <= effective_speed_limit)
-				input_right = 0.95f * Right_Thrust;
+			if((CurrentVelocity+Controller_Right-RestingVelocity).Length() <= effective_speed_limit)
+				input_right=0.95f * Right_Thrust;
 			else
-				input_right = Math.Min(input_right, 0);
+				input_right=Math.Min(input_right, 0);
 		} else {
-			if((CurrentVelocity + Controller_Left - RestingVelocity).Length() <= effective_speed_limit)
-				input_right = -0.95f * Left_Thrust;
+			if((CurrentVelocity+Controller_Left-RestingVelocity).Length() <= effective_speed_limit)
+				input_right=-0.95f * Left_Thrust;
 			else
-				input_right = Math.Max(input_right, 0);
+				input_right=Math.Max(input_right, 0);
 		}
 	}
 	else if(Match_Position){
-		double Relative_Speed = Relative_CurrentVelocity.X;
-		double Relative_Target_Speed = RestingVelocity.X;
-		double Relative_Distance = Relative_Target_Position.X;
-		double deacceleration = 0;
-		double difference = Relative_Speed - Relative_Target_Speed;
+		double Relative_Speed=Relative_CurrentVelocity.X;
+		double Relative_Target_Speed=RestingVelocity.X;
+		double Relative_Distance=Relative_Target_Position.X;
+		double deacceleration=0;
+		double difference=Relative_Speed-Relative_Target_Speed;
 		if(difference > 0){
-			deacceleration = Math.Abs(difference) / Left_Thrust;
+			deacceleration=Math.Abs(difference) / Left_Thrust;
 		}
 		else if(difference < 0){
-			deacceleration = Math.Abs(difference) / Right_Thrust;
+			deacceleration=Math.Abs(difference) / Right_Thrust;
 		}
 		if((difference > 0) ^ (Relative_Distance < 0)){
-			double time = difference / deacceleration;
-			time = (Relative_Distance - (difference*time/2))/difference;
+			double time=difference / deacceleration;
+			time=(Relative_Distance-(difference*time/2))/difference;
 			if(time > 0 && (!Match_Direction || matched_direction) && Relative_Speed-Relative_Target_Speed<=0.05){
 				if(difference > 0){
-					if((CurrentVelocity + Controller_Left - RestingVelocity).Length() <= Math.Min(Elevation, Math.Min(effective_speed_limit, Target_Distance)))
-						input_right = -0.95f * Left_Thrust;
+					if((CurrentVelocity+Controller_Left-RestingVelocity).Length() <= Math.Min(Elevation, Math.Min(effective_speed_limit, Target_Distance)))
+						input_right=-0.95f * Left_Thrust;
 				}
 				else {
-					if((CurrentVelocity + Controller_Right - RestingVelocity).Length() <= Math.Min(Elevation, Math.Min(effective_speed_limit, Target_Distance)))
-						input_right = 0.95f * Right_Thrust;
+					if((CurrentVelocity+Controller_Right-RestingVelocity).Length() <= Math.Min(Elevation, Math.Min(effective_speed_limit, Target_Distance)))
+						input_right=0.95f * Right_Thrust;
 				}
 			}
 		}
@@ -2921,40 +2920,40 @@ private void SetThrusters(){
 	
 	if(Math.Abs(Controller.MoveIndicator.Y)>0.5f){
 		if(Controller.MoveIndicator.Y > 0){
-			if((CurrentVelocity + Controller_Up - RestingVelocity).Length() <= effective_speed_limit)
-				input_up = 0.95f * Up_Thrust;
+			if((CurrentVelocity+Controller_Up-RestingVelocity).Length() <= effective_speed_limit)
+				input_up=0.95f * Up_Thrust;
 			else
-				input_up = Math.Min(input_up, 0);
+				input_up=Math.Min(input_up, 0);
 		} else {
-			if((CurrentVelocity + Controller_Down - RestingVelocity).Length() <= effective_speed_limit)
-				input_up = -0.95f * Down_Thrust;
+			if((CurrentVelocity+Controller_Down-RestingVelocity).Length() <= effective_speed_limit)
+				input_up=-0.95f * Down_Thrust;
 			else
-				input_up = Math.Max(input_up, 0);
+				input_up=Math.Max(input_up, 0);
 		}
 	}
 	else if(Match_Position){
-		double Relative_Speed = Relative_CurrentVelocity.Y;
-		double Relative_Target_Speed = RestingVelocity.Y;
-		double Relative_Distance = Relative_Target_Position.Y;
-		double deacceleration = 0;
-		double difference = Relative_Speed - Relative_Target_Speed;
+		double Relative_Speed=Relative_CurrentVelocity.Y;
+		double Relative_Target_Speed=RestingVelocity.Y;
+		double Relative_Distance=Relative_Target_Position.Y;
+		double deacceleration=0;
+		double difference=Relative_Speed-Relative_Target_Speed;
 		if(difference > 0){
-			deacceleration = Math.Abs(difference) / Down_Thrust;
+			deacceleration=Math.Abs(difference) / Down_Thrust;
 		}
 		else if(difference < 0){
-			deacceleration = Math.Abs(difference) / Up_Thrust;
+			deacceleration=Math.Abs(difference) / Up_Thrust;
 		}
 		if((difference > 0) ^ (Relative_Distance < 0)){
-			double time = difference / deacceleration;
-			time = (Relative_Distance - (difference*time/2))/difference;
+			double time=difference / deacceleration;
+			time=(Relative_Distance-(difference*time/2))/difference;
 			if(time > 0 && (!Match_Direction || matched_direction) && Relative_Speed-Relative_Target_Speed<=0.05){
 				if(difference > 0){
-					if((CurrentVelocity + Controller_Down - RestingVelocity).Length() <= Math.Min(Elevation, Math.Min(effective_speed_limit, Target_Distance)))
-						input_up = -0.95f * Down_Thrust;
+					if((CurrentVelocity+Controller_Down-RestingVelocity).Length() <= Math.Min(Elevation, Math.Min(effective_speed_limit, Target_Distance)))
+						input_up=-0.95f * Down_Thrust;
 				}
 				else {
-					if((CurrentVelocity + Controller_Up - RestingVelocity).Length() <= Math.Min(Elevation, Math.Min(effective_speed_limit, Target_Distance)))
-						input_up = 0.95f * Up_Thrust;
+					if((CurrentVelocity+Controller_Up-RestingVelocity).Length() <= Math.Min(Elevation, Math.Min(effective_speed_limit, Target_Distance)))
+						input_up=0.95f * Up_Thrust;
 				}
 			}
 		}
@@ -2962,100 +2961,100 @@ private void SetThrusters(){
 	
 	if(Math.Abs(Controller.MoveIndicator.Z)>0.5f){
 		if(Controller.MoveIndicator.Z < 0){
-			if((CurrentVelocity + Controller_Up - RestingVelocity).Length() <= effective_speed_limit)
-				input_forward = 0.95f * Forward_Thrust;
+			if((CurrentVelocity+Controller_Up-RestingVelocity).Length() <= effective_speed_limit)
+				input_forward=0.95f * Forward_Thrust;
 			else
-				input_forward = Math.Min(input_forward, 0);
+				input_forward=Math.Min(input_forward, 0);
 		} else {
-			if((CurrentVelocity + Controller_Down - RestingVelocity).Length() <= effective_speed_limit)
-				input_forward = -0.95f * Backward_Thrust;
+			if((CurrentVelocity+Controller_Down-RestingVelocity).Length() <= effective_speed_limit)
+				input_forward=-0.95f * Backward_Thrust;
 			else
-				input_forward = Math.Max(input_forward, 0);
+				input_forward=Math.Max(input_forward, 0);
 		}
 	}
 	else if(Match_Position){
-		double Relative_Speed = Relative_CurrentVelocity.Z;
-		double Relative_Target_Speed = RestingVelocity.Z;
-		double Relative_Distance = Relative_Target_Position.Z;
-		double deacceleration = 0;
-		double difference = Relative_Speed - Relative_Target_Speed;
+		double Relative_Speed=Relative_CurrentVelocity.Z;
+		double Relative_Target_Speed=RestingVelocity.Z;
+		double Relative_Distance=Relative_Target_Position.Z;
+		double deacceleration=0;
+		double difference=Relative_Speed-Relative_Target_Speed;
 		if(difference > 0){
-			deacceleration = Math.Abs(difference) / Backward_Thrust;
+			deacceleration=Math.Abs(difference) / Backward_Thrust;
 		}
 		else if(difference < 0){
-			deacceleration = Math.Abs(difference) / Forward_Thrust;
+			deacceleration=Math.Abs(difference) / Forward_Thrust;
 		}
 		if((difference > 0) ^ (Relative_Distance < 0)){
-			double time = difference / deacceleration;
-			time = (Relative_Distance - (difference*time/2))/difference;
+			double time=difference / deacceleration;
+			time=(Relative_Distance-(difference*time/2))/difference;
 			if(time > 0 && (!Match_Direction || matched_direction) && Relative_Speed-Relative_Target_Speed<=0.05){
 				if(difference > 0){
-					if((CurrentVelocity + Controller_Down - RestingVelocity).Length() <= Math.Min(Elevation, Math.Min(effective_speed_limit, Target_Distance)))
-						input_forward = -0.95f * Backward_Thrust;
+					if((CurrentVelocity+Controller_Down-RestingVelocity).Length() <= Math.Min(Elevation, Math.Min(effective_speed_limit, Target_Distance)))
+						input_forward=-0.95f * Backward_Thrust;
 				}
 				else {
-					if((CurrentVelocity + Controller_Up - RestingVelocity).Length() <= Math.Min(Elevation, Math.Min(effective_speed_limit, Target_Distance)))
-						input_forward = 0.95f * Forward_Thrust;
+					if((CurrentVelocity+Controller_Up-RestingVelocity).Length() <= Math.Min(Elevation, Math.Min(effective_speed_limit, Target_Distance)))
+						input_forward=0.95f * Forward_Thrust;
 				}
 			}
 		}
 	}
 	
-	float output_forward = 0.0f;
-	float output_backward = 0.0f;
+	float output_forward=0.0f;
+	float output_backward=0.0f;
 	if(input_forward / Forward_Thrust > 0.05f)
-		output_forward = Math.Min(Math.Abs(input_forward / Forward_Thrust), 1);
+		output_forward=Math.Min(Math.Abs(input_forward / Forward_Thrust), 1);
 	else if(input_forward / Backward_Thrust < -0.05f)
-		output_backward = Math.Min(Math.Abs(input_forward / Backward_Thrust), 1);
-	float output_up = 0.0f;
-	float output_down = 0.0f;
+		output_backward=Math.Min(Math.Abs(input_forward / Backward_Thrust), 1);
+	float output_up=0.0f;
+	float output_down=0.0f;
 	if(input_up / Up_Thrust > 0.05f)
-		output_up = Math.Min(Math.Abs(input_up / Up_Thrust), 1);
+		output_up=Math.Min(Math.Abs(input_up / Up_Thrust), 1);
 	else if(input_up / Down_Thrust < -0.05f)
-		output_down = Math.Min(Math.Abs(input_up / Down_Thrust), 1);
-	float output_right = 0.0f;
-	float output_left = 0.0f;
+		output_down=Math.Min(Math.Abs(input_up / Down_Thrust), 1);
+	float output_right=0.0f;
+	float output_left=0.0f;
 	if(input_right / Right_Thrust > 0.05f)
-		output_right = Math.Min(Math.Abs(input_right / Right_Thrust), 1);
+		output_right=Math.Min(Math.Abs(input_right / Right_Thrust), 1);
 	else if(input_right / Left_Thrust < -0.05f)
-		output_left = Math.Min(Math.Abs(input_right / Left_Thrust), 1);
+		output_left=Math.Min(Math.Abs(input_right / Left_Thrust), 1);
 	
 	foreach(IMyThrust Thruster in Forward_Thrusters){
-		Thruster.ThrustOverridePercentage = output_forward;
+		Thruster.ThrustOverridePercentage=output_forward;
 	}
 	foreach(IMyThrust Thruster in Backward_Thrusters){
-		Thruster.ThrustOverridePercentage = output_backward;
+		Thruster.ThrustOverridePercentage=output_backward;
 	}
 	foreach(IMyThrust Thruster in Up_Thrusters){
-		Thruster.ThrustOverridePercentage = output_up;
+		Thruster.ThrustOverridePercentage=output_up;
 	}
 	foreach(IMyThrust Thruster in Down_Thrusters){
-		Thruster.ThrustOverridePercentage = output_down;
+		Thruster.ThrustOverridePercentage=output_down;
 	}
 	foreach(IMyThrust Thruster in Right_Thrusters){
-		Thruster.ThrustOverridePercentage = output_right;
+		Thruster.ThrustOverridePercentage=output_right;
 	}
 	foreach(IMyThrust Thruster in Left_Thrusters){
-		Thruster.ThrustOverridePercentage = output_left;
+		Thruster.ThrustOverridePercentage=output_left;
 	}
 }
 
 //Sets directional vectors, Elevation, etc
 private void GetPositionData(){
-	Vector3D base_vector = new Vector3D(0,0,10);
-	Forward_Vector = Vector3D.Transform(base_vector, Controller.WorldMatrix) - Controller.GetPosition();
+	Vector3D base_vector=new Vector3D(0,0,10);
+	Forward_Vector=Vector3D.Transform(base_vector, Controller.WorldMatrix)-Controller.GetPosition();
 	Forward_Vector.Normalize();
-	Backward_Vector = -1 * Forward_Vector;
+	Backward_Vector=-1 * Forward_Vector;
 	
-	base_vector = new Vector3D(0,10,0);
-	Up_Vector = Vector3D.Transform(base_vector, Controller.WorldMatrix) - Controller.GetPosition();
+	base_vector=new Vector3D(0,10,0);
+	Up_Vector=Vector3D.Transform(base_vector, Controller.WorldMatrix)-Controller.GetPosition();
 	Up_Vector.Normalize();
-	Down_Vector = -1 * Up_Vector;
+	Down_Vector=-1 * Up_Vector;
 	
-	base_vector = new Vector3D(10,0,0);
-	Left_Vector = Vector3D.Transform(base_vector, Controller.WorldMatrix) - Controller.GetPosition();
+	base_vector=new Vector3D(10,0,0);
+	Left_Vector=Vector3D.Transform(base_vector, Controller.WorldMatrix)-Controller.GetPosition();
 	Left_Vector.Normalize();
-	Right_Vector = -1 * Left_Vector;
+	Right_Vector=-1 * Left_Vector;
 	
 	Echo("ID:"+Me.CubeGrid.EntityId.ToString());
 	Echo("Forward_Thrusters:"+Forward_Thrusters.Count);
@@ -3067,122 +3066,122 @@ private void GetPositionData(){
 	
 	switch(Forward){
 		case Base6Directions.Direction.Forward:
-			Controller_Forward = Forward_Vector;
-			Controller_Backward = Backward_Vector;
+			Controller_Forward=Forward_Vector;
+			Controller_Backward=Backward_Vector;
 			break;
 		case Base6Directions.Direction.Backward:
-			Controller_Forward = Backward_Vector;
-			Controller_Backward = Forward_Vector;
+			Controller_Forward=Backward_Vector;
+			Controller_Backward=Forward_Vector;
 			break;
 		case Base6Directions.Direction.Up:
-			Controller_Forward = Up_Vector;
-			Controller_Backward = Down_Vector;
+			Controller_Forward=Up_Vector;
+			Controller_Backward=Down_Vector;
 			break;
 		case Base6Directions.Direction.Down:
-			Controller_Forward = Down_Vector;
-			Controller_Backward = Up_Vector;
+			Controller_Forward=Down_Vector;
+			Controller_Backward=Up_Vector;
 			break;
 		case Base6Directions.Direction.Left:
-			Controller_Forward = Left_Vector;
-			Controller_Backward = Right_Vector;
+			Controller_Forward=Left_Vector;
+			Controller_Backward=Right_Vector;
 			break;
 		case Base6Directions.Direction.Right:
-			Controller_Forward = Right_Vector;
-			Controller_Backward = Left_Vector;
+			Controller_Forward=Right_Vector;
+			Controller_Backward=Left_Vector;
 			break;
 	}
 	switch(Up){
 		case Base6Directions.Direction.Forward:
-			Controller_Up = Forward_Vector;
-			Controller_Down = Backward_Vector;
+			Controller_Up=Forward_Vector;
+			Controller_Down=Backward_Vector;
 			break;
 		case Base6Directions.Direction.Backward:
-			Controller_Up = Backward_Vector;
-			Controller_Down = Forward_Vector;
+			Controller_Up=Backward_Vector;
+			Controller_Down=Forward_Vector;
 			break;
 		case Base6Directions.Direction.Up:
-			Controller_Up = Up_Vector;
-			Controller_Down = Down_Vector;
+			Controller_Up=Up_Vector;
+			Controller_Down=Down_Vector;
 			break;
 		case Base6Directions.Direction.Down:
-			Controller_Up = Down_Vector;
-			Controller_Down = Up_Vector;
+			Controller_Up=Down_Vector;
+			Controller_Down=Up_Vector;
 			break;
 		case Base6Directions.Direction.Left:
-			Controller_Up = Left_Vector;
-			Controller_Down = Right_Vector;
+			Controller_Up=Left_Vector;
+			Controller_Down=Right_Vector;
 			break;
 		case Base6Directions.Direction.Right:
-			Controller_Up = Right_Vector;
-			Controller_Down = Left_Vector;
+			Controller_Up=Right_Vector;
+			Controller_Down=Left_Vector;
 			break;
 	}
 	switch(Left){
 		case Base6Directions.Direction.Forward:
-			Controller_Left = Forward_Vector;
-			Controller_Right = Backward_Vector;
+			Controller_Left=Forward_Vector;
+			Controller_Right=Backward_Vector;
 			break;
 		case Base6Directions.Direction.Backward:
-			Controller_Left = Backward_Vector;
-			Controller_Right = Forward_Vector;
+			Controller_Left=Backward_Vector;
+			Controller_Right=Forward_Vector;
 			break;
 		case Base6Directions.Direction.Up:
-			Controller_Left = Up_Vector;
-			Controller_Right = Down_Vector;
+			Controller_Left=Up_Vector;
+			Controller_Right=Down_Vector;
 			break;
 		case Base6Directions.Direction.Down:
-			Controller_Left = Down_Vector;
-			Controller_Right = Up_Vector;
+			Controller_Left=Down_Vector;
+			Controller_Right=Up_Vector;
 			break;
 		case Base6Directions.Direction.Left:
-			Controller_Left = Left_Vector;
-			Controller_Right = Right_Vector;
+			Controller_Left=Left_Vector;
+			Controller_Right=Right_Vector;
 			break;
 		case Base6Directions.Direction.Right:
-			Controller_Left = Right_Vector;
-			Controller_Right = Left_Vector;
+			Controller_Left=Right_Vector;
+			Controller_Right=Left_Vector;
 			break;
 	}
 	
-	Gravity = Controller.GetNaturalGravity();
+	Gravity=Controller.GetNaturalGravity();
 	CurrentVelocity=Controller.GetShipVelocities().LinearVelocity;
 	AngularVelocity=Controller.GetShipVelocities().AngularVelocity;
 	
-	bool last_under_60 = Time_To_Crash<60;
+	bool last_under_60=Time_To_Crash<60;
 	Time_To_Crash=-1;
 	if(Controller.TryGetPlanetElevation(MyPlanetElevation.Sealevel, out Sealevel)){
 		if(Controller.TryGetPlanetPosition(out PlanetCenter)){
 			if(Sealevel < 6000 && Controller.TryGetPlanetElevation(MyPlanetElevation.Surface, out Elevation)){
 				if(Sealevel > 5000){
-					double difference = Sealevel - 5000;
-					Elevation =  ((Elevation * (1000-difference)) + (Sealevel * difference)) / 1000;
+					double difference=Sealevel-5000;
+					Elevation= ((Elevation * (1000-difference))+(Sealevel * difference)) / 1000;
 				}
 				else if(Elevation < 50){
-					double terrain_height = (Controller.GetPosition() - PlanetCenter).Length() - Elevation;
-					List<IMyTerminalBlock> AllBlocks = new List<IMyTerminalBlock>();
+					double terrain_height=(Controller.GetPosition()-PlanetCenter).Length()-Elevation;
+					List<IMyTerminalBlock> AllBlocks=new List<IMyTerminalBlock>();
 					GridTerminalSystem.GetBlocksOfType<IMyTerminalBlock>(AllBlocks);
 					foreach(IMyTerminalBlock Block in AllBlocks){
-						Elevation = Math.Min(Elevation, (Block.GetPosition() - PlanetCenter).Length() - terrain_height);
+						Elevation=Math.Min(Elevation, (Block.GetPosition()-PlanetCenter).Length()-terrain_height);
 					}
 				}
 			}
 			else {
-				Elevation = Sealevel;
+				Elevation=Sealevel;
 			}
-			double from_center = (Me.CubeGrid.GetPosition() - PlanetCenter).Length();
-			Vector3D next_position = Me.CubeGrid.GetPosition() + 1 * CurrentVelocity;
-			double Elevation_per_second = (from_center-(next_position-PlanetCenter).Length());
+			double from_center=(Me.CubeGrid.GetPosition()-PlanetCenter).Length();
+			Vector3D next_position=Me.CubeGrid.GetPosition()+1 * CurrentVelocity;
+			double Elevation_per_second=(from_center-(next_position-PlanetCenter).Length());
 			Time_To_Crash=Elevation/Elevation_per_second;
 			
 			if((Time_To_Crash<60 || last_under_60) && Elevation<500){
-				List<IMyCameraBlock> Cameras = GetValidCameras();
-				Vector3D Velocity_Direction = CurrentVelocity;
+				List<IMyCameraBlock> Cameras=GetValidCameras();
+				Vector3D Velocity_Direction=CurrentVelocity;
 				Velocity_Direction.Normalize();
-				double speed_check = 15 * CurrentVelocity.Length();
+				double speed_check=15 * CurrentVelocity.Length();
 				foreach(IMyCameraBlock Camera in Cameras){
-					double distance = Math.Min(speed_check, Camera.AvailableScanRange/2);
+					double distance=Math.Min(speed_check, Camera.AvailableScanRange/2);
 					if(Camera.CanScan(distance,Velocity_Direction)){
-						MyDetectedEntityInfo Entity = Camera.Raycast(distance,Velocity_Direction);
+						MyDetectedEntityInfo Entity=Camera.Raycast(distance,Velocity_Direction);
 						if(Entity.Type!=MyDetectedEntityType.None&&Entity.EntityId!=Me.CubeGrid.EntityId){
 							try{
 								double new_distance=(((Vector3D)Entity.HitPosition)-Camera.GetPosition()).Length();
@@ -3199,12 +3198,12 @@ private void GetPositionData(){
 			
 			if(Time_To_Crash>0){
 				if(Time_To_Crash<15 && Controller.GetShipSpeed() > 5){
-					Controller.DampenersOverride = true;
+					Controller.DampenersOverride=true;
 					Write("Crash predicted within 15 seconds; enabling Dampeners");
 				}
 				else {
 					if(Time_To_Crash*Math.Max(Elevation,1000) < 1800000 && Controller.GetShipSpeed() > 1.0f){
-						Write(Math.Round(Time_To_Crash, 1).ToString() + " seconds to crash");
+						Write(Math.Round(Time_To_Crash, 1).ToString()+" seconds to crash");
 					}
 					else {
 						Write("No crash likely at current velocity");
@@ -3213,21 +3212,21 @@ private void GetPositionData(){
 			}
 		}
 		else {
-			PlanetCenter = new Vector3D(0,0,0);
+			PlanetCenter=new Vector3D(0,0,0);
 		}
 	}
 	else{
-		Sealevel = double.MaxValue;
+		Sealevel=double.MaxValue;
 	}
 	if(Match_Position){
 		Target_Position+=seconds_since_last_update*RestingVelocity;
 	}
 	if(Match_Direction){
-		Target_Direction = Target_Position-Me.CubeGrid.GetPosition();
+		Target_Direction=Target_Position-Me.CubeGrid.GetPosition();
 		Target_Direction.Normalize();
 	}
 	
-	Mass_Accomodation = (float) (Controller.CalculateShipMass().PhysicalMass * Gravity.Length());
+	Mass_Accomodation=(float) (Controller.CalculateShipMass().PhysicalMass * Gravity.Length());
 	
 }
 
@@ -3260,6 +3259,14 @@ public void Main(string argument, UpdateType updateSource)
 			Write("Distance: "+distance_string);
 		}
 		
+		foreach(IMyCameraBlock Camera in GetValidCameras()){
+			double distance=Camera.AvailableScanRange;
+			string distance_string=Math.Round(distance,0).ToString()+"M";
+			if(distance>=1000)
+				distance_string=Math.Round(distance/1000,2).ToString()+"kM";
+			Echo("Camera Charge: "+distance_string);
+		}
+		
 		if(argument.ToLower().Equals("back")){
 			Command_Menu.Back();
 			DisplayMenu();
@@ -3288,23 +3295,23 @@ public void Main(string argument, UpdateType updateSource)
 		
 		switch(ShipStatus){
 			case AlertStatus.Green:
-				SetStatus("Condition " + ShipStatus.ToString() + Submessage, new Color(137, 255, 137, 255), new Color(0, 151, 0, 255));
+				SetStatus("Condition "+ShipStatus.ToString()+Submessage, new Color(137, 255, 137, 255), new Color(0, 151, 0, 255));
 				break;
 			case AlertStatus.Blue:
-				SetStatus("Condition " + ShipStatus.ToString() + Submessage, new Color(137, 239, 255, 255), new Color(0, 88, 151, 255));
+				SetStatus("Condition "+ShipStatus.ToString()+Submessage, new Color(137, 239, 255, 255), new Color(0, 88, 151, 255));
 				break;
 			case AlertStatus.Yellow:
-				SetStatus("Condition " + ShipStatus.ToString() + Submessage, new Color(255, 239, 137, 255), new Color(66, 66, 0, 255));
+				SetStatus("Condition "+ShipStatus.ToString()+Submessage, new Color(255, 239, 137, 255), new Color(66, 66, 0, 255));
 				break;
 			case AlertStatus.Orange:
-				SetStatus("Condition " + ShipStatus.ToString() + Submessage, new Color(255, 197, 0, 255), new Color(88, 44, 0, 255));
+				SetStatus("Condition "+ShipStatus.ToString()+Submessage, new Color(255, 197, 0, 255), new Color(88, 44, 0, 255));
 				break;
 			case AlertStatus.Red:
-				SetStatus("Condition " + ShipStatus.ToString() + Submessage, new Color(255, 137, 137, 255), new Color(151, 0, 0, 255));
+				SetStatus("Condition "+ShipStatus.ToString()+Submessage, new Color(255, 137, 137, 255), new Color(151, 0, 0, 255));
 				break;
 		}
 		
-		Runtime.UpdateFrequency = GetUpdateFrequency();
+		Runtime.UpdateFrequency=GetUpdateFrequency();
 	}
 	catch(Exception E){
 		Write(E.ToString());
