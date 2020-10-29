@@ -2475,6 +2475,10 @@ public void PerformScan(){
 	}
 	List<IMyCameraBlock> AllCameras = new List<IMyCameraBlock>();
 	GridTerminalSystem.GetBlocksOfType<IMyCameraBlock>(AllCameras);
+	List<bool> raycast_check = new List<bool>();
+	for(int i=0;i<DetectedEntities.Count;i++)
+		raycast_check.Add(false);
+	
 	foreach(IMyCameraBlock Camera in AllCameras){
 		if(!HasBlockData(Camera, "DoRaycast")){
 			SetBlockData(Camera, "DoRaycast", "maybe");
@@ -2502,10 +2506,21 @@ public void PerformScan(){
 		MyDetectedEntityInfo Raycast_Entity = Camera.Raycast(raycast_distance, 0, 0);
 		if(update_me && Raycast_Entity.EntityId != Me.CubeGrid.EntityId && Raycast_Entity.EntityId != Camera.CubeGrid.EntityId){
 			SetBlockData(Camera, "DoRaycast", "true");
-			update_me = false;
+			update_me = true;
 		}
 		UpdateList(DetectedEntities, Raycast_Entity);
+		
 		if(!update_me){
+			for(int i=0; i<Math.Min(raycast_check.Count,DetectedEntities.Count); i++){
+				if(raycast_check[i] && Camera.CanScan(DetectedEntities[i].Position)){
+					Raycast_Entity=Camera.Raycast(DetectedEntities[i].Position);
+					UpdateList(DetectedEntities, Raycast_Entity);
+					if(Raycast_Entity.Type!=MyDetectedEntityType.None&&Raycast_Entity.EntityId!=Me.CubeGrid.EntityId){
+						raycast_check[i]=false;
+					}
+				}
+			}
+			
 			const int SECTIONS = 3;
 			for(int i=0; i<9; i++){
 				if(i==4)
@@ -2523,7 +2538,7 @@ public void PerformScan(){
 						Yaw *= -1;
 				}
 				for(int j=1; j<=SECTIONS; j++){
-					Raycast_Entity = Camera.Raycast(raycast_distance, Pitch*j, Yaw*j);
+					Raycast_Entity=Camera.Raycast(raycast_distance, Pitch*j, Yaw*j);
 					UpdateList(DetectedEntities, Raycast_Entity);
 				}
 			}
@@ -3107,9 +3122,9 @@ private void GetPositionData(){
 			else {
 				Elevation = Sealevel;
 			}
-			double height_dif = (Me.CubeGrid.GetPosition() - PlanetCenter).Length() - Elevation;
+			double from_center = (Me.CubeGrid.GetPosition() - PlanetCenter).Length();
 			Vector3D next_position = Me.CubeGrid.GetPosition() + 1 * CurrentVelocity;
-			double Elevation_per_second = ((next_position-PlanetCenter).Length()-height_dif)-Elevation;
+			double Elevation_per_second = ((next_position-PlanetCenter).Length()-from_center);
 			Time_To_Crash=Elevation/Elevation_per_second;
 			if(Time_To_Crash>0){
 				if(Time_To_Crash<15 && Controller.GetShipSpeed() > 5){
@@ -3152,6 +3167,7 @@ public void Main(string argument, UpdateType updateSource)
 		Write(Controller.CustomName);
 		Write(Gyroscope.CustomName);
 		GetPositionData();
+		Write("Elevation: "+Math.Round(Elevation,1).ToString());
 		Scan_Time+=seconds_since_last_update;
 		if(Scan_Time >= Scan_Frequency){
 			PerformScan();
