@@ -501,6 +501,10 @@ public class EntityList : IEnumerable<EntityInfo>{
 		return min_distance;
 	}
 	
+	public void Clear(){
+		E_List.Clear();
+	}
+	
 	public void Sort(Vector3D Reference){
 		List<EntityInfo> Sorted = new List<EntityInfo>();
 		List<EntityInfo> Unsorted = new List<EntityInfo>();
@@ -2054,6 +2058,14 @@ public bool FactoryReset(object obj=null){
 	foreach(IMyThrust Thruster in Right_Thrusters){
 		ResetThruster(Thruster);
 	}
+	AsteroidList.Clear();
+	PlanetList.Clear();
+	SmallShipList.Clear();
+	LargeShipList.Clear();
+	CharacterList.Clear();
+	Me.CustomData="";
+	this.Storage="";
+	
 	Reset();
 	Me.Enabled = false;
 	return true;
