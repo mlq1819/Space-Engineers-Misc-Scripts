@@ -2733,8 +2733,9 @@ private void SetGyroscopes(){
 		}
 		if(Match_Direction){
 			double difference=GetAngle(Controller_Down, Target_Direction)-GetAngle(Controller_Up, Target_Direction);
-			if(Math.Abs(difference) > ACCEPTABLE_ANGLE/4){
-				float delta=5*((float)Math.Min(Math.Abs(difference/(ACCEPTABLE_ANGLE/2)), 1));
+			Echo("Pitch Difference:"+Math.Round(difference,1)+'°');
+			if(Math.Abs(difference) > 1){
+				float delta=2.5f*((float)Math.Min(Math.Abs(difference/(ACCEPTABLE_ANGLE/2)), 1));
 				if(difference>0)
 					input_pitch -= delta;
 				else
@@ -2751,8 +2752,9 @@ private void SetGyroscopes(){
 		input_yaw=current_yaw*0.99f*1;
 		if(Match_Direction){
 			double difference=GetAngle(Controller_Right, Target_Direction)-GetAngle(Controller_Left, Target_Direction);
-			if(Math.Abs(difference) > ACCEPTABLE_ANGLE/4 || GetAngle(Controller_Forward, Target_Direction) > ACCEPTABLE_ANGLE){
-				float delta=5*((float)Math.Min(Math.Abs(difference/(ACCEPTABLE_ANGLE/2)), 1));
+			Echo("Yaw Difference:"+Math.Round(difference,1)+'°');
+			if(Math.Abs(difference) > 1 || GetAngle(Controller_Forward, Target_Direction) > ACCEPTABLE_ANGLE){
+				float delta=2.5f*((float)Math.Min(Math.Abs(difference/(ACCEPTABLE_ANGLE/2)), 1));
 				if(difference>0 || difference==0 && GetAngle(Controller_Forward, Target_Direction) > ACCEPTABLE_ANGLE)
 					input_yaw -= delta;
 				else
