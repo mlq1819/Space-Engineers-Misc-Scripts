@@ -1647,8 +1647,7 @@ public bool Setup(){
 
 private bool Operational=false;
 
-public Program()
-{
+public Program(){
     Me.CustomName=(Program_Name+" Programmable block").Trim();
 	for(int i=0;i<Me.SurfaceCount;i++){
 		Me.GetSurface(i).FontColor=DEFAULT_TEXT_COLOR;
@@ -1798,8 +1797,7 @@ private void ResetThruster(IMyThrust Thruster){
 	SetBlockData(Thruster, "Owner", "0");
 }
 
-public void Save()
-{
+public void Save(){
 	this.Storage="Lockdown:"+_Lockdown.ToString();
 	foreach(EntityInfo Entity in AsteroidList){
 		this.Storage += '•'+Entity.ToString();
@@ -1849,8 +1847,6 @@ public Vector3D GlobalToLocalPosition(Vector3D Global){
 	Vector3D Local=Vector3D.Transform(Global, MatrixD.Invert(Controller.WorldMatrix));
 	Local.Normalize();
 	return Local * (Global-Controller.GetPosition()).Length();
-	//Vector3D Direction=Global-Controller.GetPosition();
-	//return Vector3D.TransformNormal(Global+Controller.GetPosition(), MatrixD.Transpose(Controller.WorldMatrix));
 }
 
 public Vector3D LocalToGlobal(Vector3D Local){
