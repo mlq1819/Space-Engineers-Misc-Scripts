@@ -1012,6 +1012,11 @@ private Vector3D Relative_Target_Position{
 		return GlobalToLocalPosition(Target_Position);
 	}
 }
+private double Target_Distance{
+	get{
+		return (Target_Position - Me.CubeGrid.GetPosition()).Length();
+	}
+}
 private long Target_ID = 0;
 
 private float Mass_Accomodation = 0.0f;
@@ -2071,7 +2076,7 @@ public bool FactoryReset(object obj=null){
 	return true;
 }
 
-private Vector3D GetOffsetPosition(Vector3D Position){
+private Vector3D GetOffsetPosition(Vector3D Position, double Target_Size=0){
 	Vector3D direction = Position-Controller.GetPosition();
 	double distance = direction.Length();
 	direction.Normalize();
@@ -2081,6 +2086,7 @@ private Vector3D GetOffsetPosition(Vector3D Position){
 	else{
 		distance=distance/10*9;
 	}
+	distance-=Target_Size;
 	double controller_offset = (Controller.GetPosition()-Me.CubeGrid.GetPosition()).Length();
 	distance-=Math.Max(0,Me.CubeGrid.GridSize/2-controller_offset);
 	return (distance*direction)+Controller.GetPosition();
@@ -2096,7 +2102,7 @@ public bool GoTo(EntityInfo Entity){
 	if(Entity.Relationship!=MyRelationsBetweenPlayerAndBlock.Enemies){
 		Target_Direction = Entity.Position-Controller.GetPosition();
 		Target_Direction.Normalize();
-		Target_Position = GetOffsetPosition(Entity.Position);
+		Target_Position = GetOffsetPosition(Entity.Position, Entity.Size);
 		Match_Position=true;
 		Match_Direction=true;
 	}
@@ -2720,7 +2726,7 @@ private void SetGyroscopes(){
 		}
 		if(Match_Direction){
 			double difference = GetAngle(Controller_Down, Target_Direction) - GetAngle(Controller_Up, Target_Direction);
-			if(Math.Abs(difference) > ACCEPTABLE_ANGLE){
+			if(Math.Abs(difference) > ACCEPTABLE_ANGLE/2){
 				adjusting_target = true;
 				if(AngularVelocity.Length() < 1){
 					if(difference>0){
@@ -2742,7 +2748,7 @@ private void SetGyroscopes(){
 		input_yaw = current_yaw*0.99f*1;
 		if(Match_Direction){
 			double difference = GetAngle(Controller_Right, Target_Direction) - GetAngle(Controller_Left, Target_Direction);
-			if(Math.Abs(difference) > ACCEPTABLE_ANGLE || GetAngle(Controller_Forward, Target_Direction) > ACCEPTABLE_ANGLE){
+			if(Math.Abs(difference) > ACCEPTABLE_ANGLE/2 || GetAngle(Controller_Forward, Target_Direction) > ACCEPTABLE_ANGLE){
 				adjusting_target = true;
 				if(AngularVelocity.Length() < 1){
 					if(difference>0 || difference==0 && GetAngle(Controller_Forward, Target_Direction) > ACCEPTABLE_ANGLE){
@@ -2822,10 +2828,12 @@ private void SetThrusters(){
 		}
 	}
 	
-	double Target_Distance = (Target_Position - Me.CubeGrid.GetPosition()).Length();
 	if(Target_Distance<Math.Max(0.5f, Math.Min(10, Me.CubeGrid.GridSize/10))){
 		Match_Direction = false;
 		Match_Position = false;
+	}
+	else {
+		effective_speed_limit = Math.Min(effective_speed_limit, Math.Sqrt(Target_Distance));
 	}
 	effective_speed_limit = Math.Max(effective_speed_limit, 5);
 	
