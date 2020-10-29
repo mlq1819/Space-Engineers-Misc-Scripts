@@ -6,7 +6,7 @@
 //Name me!
 private const string Program_Name="Neptine Ship AI"; 
 //The angle of what the ship will accept as "correct"
-private const double ACCEPTABLE_ANGLE=20; //Suggested between 5° and 20°
+private const double ACCEPTABLE_ANGLE=10; //Suggested between 5° and 20°
 //The maximum speed limit of the ship
 private const double SPEED_LIMIT=100;
 //The distance accepted for raycasts
@@ -1873,17 +1873,17 @@ private AlertStatus ShipStatus{
 		Submessage="";
 		
 		if(Time_To_Crash>0){
-			if(Time_To_Crash < 15 && Controller.GetShipSpeed()>5){
+			if(Time_To_Crash<15 && Controller.GetShipSpeed()>5){
 				AlertStatus new_status=AlertStatus.Orange;
 				status=(AlertStatus) Math.Max((int)status, (int)new_status);
 				Submessage += "\n"+Math.Round(Time_To_Crash,1).ToString()+" seconds to possible impact";
 			}
-			else if(Time_To_Crash < 60 && Controller.GetShipSpeed()>15){
+			else if(Time_To_Crash<60 && Controller.GetShipSpeed()>15){
 				AlertStatus new_status=AlertStatus.Yellow;
 				status=(AlertStatus) Math.Max((int)status, (int)new_status);
 				Submessage += "\n"+Math.Round(Time_To_Crash,1).ToString()+" seconds to possible impact";
 			}
-			else if(Time_To_Crash < 180){
+			else if(Time_To_Crash<180){
 			AlertStatus new_status=AlertStatus.Blue;
 			status=(AlertStatus) Math.Max((int)status, (int)new_status);
 			Submessage += "\n"+Math.Round(Time_To_Crash,1).ToString()+" seconds to possible impact";
@@ -1926,12 +1926,12 @@ private AlertStatus ShipStatus{
 		}
 		
 		double ShipDistance=Math.Min(SmallShipList.ClosestDistance(this),LargeShipList.ClosestDistance(this))-Me.CubeGrid.GridSize;
-		if(ShipDistance < 500 && ShipDistance > 0){
+		if(ShipDistance<500 && ShipDistance > 0){
 			AlertStatus new_status=AlertStatus.Blue;
 			status=(AlertStatus) Math.Max((int)status, (int)new_status);
 			Submessage += "\nNearby ship at "+Math.Round(ShipDistance, 0)+" meters";
 		}
-		if(AsteroidList.ClosestDistance(this) < 500){
+		if(AsteroidList.ClosestDistance(this)<500){
 			AlertStatus new_status=AlertStatus.Blue;
 			status=(AlertStatus) Math.Max((int)status, (int)new_status);
 			Submessage += "\nNearby asteroid at "+Math.Round(AsteroidList.ClosestDistance(this), 0)+" meters";
@@ -1963,7 +1963,7 @@ private void UpdateList(List<MyDetectedEntityInfo> list, MyDetectedEntityInfo ne
 		return;
 	for(int i=0; i<list.Count; i++){
 		if(list[i].EntityId == new_entity.EntityId){
-			if(list[i].TimeStamp < new_entity.TimeStamp || ((list[i].HitPosition==null)&&(new_entity.HitPosition!=null)))
+			if(list[i].TimeStamp<new_entity.TimeStamp || ((list[i].HitPosition==null)&&(new_entity.HitPosition!=null)))
 				list[i]=new_entity;
 			return;
 		}
@@ -2154,9 +2154,9 @@ private Menu_Submenu SmallShipMenu;
 private Menu_Submenu LargeShipMenu;
 private Menu_Submenu CharacterMenu;
 
-private void CreateMenu(){
+private bool CreateMenu(object obj=null){
 	Command_Menu=new Menu_Submenu("Command Menu");
-	//Command_Menu.Add(new Menu_Command("Update Menu", CreateMenu));
+	Command_Menu.Add(new Menu_Command<object>("Update Menu", CreateMenu));
 	Menu_Submenu ShipCommands=new Menu_Submenu("Commands");
 	ShipCommands.Add(new Menu_Command<object>("Stop", Stop, "Disables autopilot"));
 	ShipCommands.Add(new Menu_Command<object>("Lockdown", Lockdown, "Closes/Opens Air Seals"));
@@ -2177,6 +2177,7 @@ private void CreateMenu(){
 	CharacterMenu=new Menu_Submenu("Characters");
 	Command_Menu.Add(CharacterMenu);
 	UpdateEntityListing(CharacterMenu);
+	return true;
 }
 
 private void DisplayMenu(){
@@ -2384,7 +2385,7 @@ private void UpdateAirlock(Airlock airlock){
 			if(is_closest_to_this_airlock){
 				foreach(Airlock alock in Airlocks){
 					if(is_closest_to_this_airlock && !alock.Equals(airlock)){
-						is_closest_to_this_airlock=is_closest_to_this_airlock && distance < (alock.Distance(position));
+						is_closest_to_this_airlock=is_closest_to_this_airlock && distance<(alock.Distance(position));
 					}
 				}
 			}
@@ -2721,29 +2722,23 @@ private void SetGyroscopes(){
 	if(Roll_Time<1)
 		Roll_Time+=seconds_since_last_update;
 	
-	bool adjusting_target=false;
-	
 	input_pitch=Math.Min(Math.Max(Controller.RotationIndicator.X / 100, -1), 1);
-	if(Math.Abs(input_pitch) < 0.05f){
+	if(Math.Abs(input_pitch)<0.05f){
 		input_pitch=current_pitch*0.99f*1;
-		if(Elevation<Controller.GetShipSpeed()*2 && Elevation<50 && GetAngle(Gravity, Controller_Down) < 90 && Pitch_Time>=1){
+		if(Elevation<Controller.GetShipSpeed()*2 && Elevation<50 && GetAngle(Gravity, Controller_Down)<90 && Pitch_Time>=1){
 			double difference=Math.Abs(GetAngle(Gravity, Controller_Forward));
-			if(difference < 90){
+			if(difference<90){
 				input_pitch-=((float)Math.Min(Math.Abs((90-difference)/90), 1));
 			}
 		}
 		if(Match_Direction){
 			double difference=GetAngle(Controller_Down, Target_Direction)-GetAngle(Controller_Up, Target_Direction);
-			if(Math.Abs(difference) > ACCEPTABLE_ANGLE/2){
-				adjusting_target=true;
-				if(AngularVelocity.Length() < 1){
-					if(difference>0){
-						input_pitch -= 0.5f*30*((float)Math.Min(Math.Abs(difference/(ACCEPTABLE_ANGLE*2)), 1));
-					}
-					else {
-						input_pitch += 0.5f*30*((float)Math.Min(Math.Abs(difference/(ACCEPTABLE_ANGLE*2)), 1));
-					}
-				}
+			if(Math.Abs(difference) > ACCEPTABLE_ANGLE/4){
+				float delta=5*((float)Math.Min(Math.Abs(difference/(ACCEPTABLE_ANGLE/2)), 1));
+				if(difference>0)
+					input_pitch -= delta;
+				else
+					input_pitch += delta;
 			}
 		}
 	}
@@ -2752,20 +2747,16 @@ private void SetGyroscopes(){
 		input_pitch *= 30;
 	}
 	input_yaw=Math.Min(Math.Max(Controller.RotationIndicator.Y / 100, -1), 1);
-	if(Math.Abs(input_yaw) < 0.05f){
+	if(Math.Abs(input_yaw)<0.05f){
 		input_yaw=current_yaw*0.99f*1;
 		if(Match_Direction){
 			double difference=GetAngle(Controller_Right, Target_Direction)-GetAngle(Controller_Left, Target_Direction);
-			if(Math.Abs(difference) > ACCEPTABLE_ANGLE/2 || GetAngle(Controller_Forward, Target_Direction) > ACCEPTABLE_ANGLE){
-				adjusting_target=true;
-				if(AngularVelocity.Length() < 1){
-					if(difference>0 || difference==0 && GetAngle(Controller_Forward, Target_Direction) > ACCEPTABLE_ANGLE){
-						input_yaw -= 0.5f*30*((float)Math.Min(Math.Abs(difference/(ACCEPTABLE_ANGLE*2)), 1));
-					}
-					else {
-						input_yaw += 0.5f*30*((float)Math.Min(Math.Abs(difference/(ACCEPTABLE_ANGLE*2)), 1));
-					}
-				}
+			if(Math.Abs(difference) > ACCEPTABLE_ANGLE/4 || GetAngle(Controller_Forward, Target_Direction) > ACCEPTABLE_ANGLE){
+				float delta=5*((float)Math.Min(Math.Abs(difference/(ACCEPTABLE_ANGLE/2)), 1));
+				if(difference>0 || difference==0 && GetAngle(Controller_Forward, Target_Direction) > ACCEPTABLE_ANGLE)
+					input_yaw -= delta;
+				else
+					input_yaw += delta;
 			}
 		}
 	}
@@ -2774,12 +2765,12 @@ private void SetGyroscopes(){
 		input_yaw *= 30;
 	}
 	input_roll=Controller.RollIndicator;
-	if(Math.Abs(input_roll) < 0.05f){
+	if(Math.Abs(input_roll)<0.05f){
 		input_roll=current_roll*0.99f*1;
-		if(Gravity.Length() > 0  && Roll_Time >= 1 && !adjusting_target){
+		if(Gravity.Length() > 0  && Roll_Time >= 1){
 			double difference=(GetAngle(Left_Vector, Gravity)-GetAngle(Right_Vector, Gravity));
 			if(Math.Abs(difference) > ACCEPTABLE_ANGLE){
-				if(AngularVelocity.Length() < 1){
+				if(AngularVelocity.Length()<1){
 					if(difference>0){
 						input_roll += 0.9f * 15 * ((float)Math.Min(Math.Abs(difference/(ACCEPTABLE_ANGLE*2)), 1));
 					}
@@ -2835,12 +2826,12 @@ private void SetThrusters(){
 		}
 	}
 	
-	if(Target_Distance<Math.Max(0.5f, Math.Min(10, Me.CubeGrid.GridSize/10))){
+	if(Target_Distance<Math.Max(1, Math.Min(10, Me.CubeGrid.GridSize/10))){
 		Match_Direction=false;
 		Match_Position=false;
 	}
 	else {
-		effective_speed_limit=Math.Min(effective_speed_limit, Math.Sqrt(Target_Distance));
+		effective_speed_limit=Math.Min(effective_speed_limit, Math.Sqrt(Target_Distance/10)*10);
 	}
 	effective_speed_limit=Math.Max(effective_speed_limit, 5);
 	
@@ -2852,25 +2843,7 @@ private void SetThrusters(){
 	
 	bool matched_direction=!Match_Direction;
 	if(Match_Direction){
-		if(Gravity.Length() > 0){
-			matched_direction=Math.Abs(GetAngle(Target_Direction, Controller_Left)-GetAngle(Target_Direction, Controller_Right)) <= ACCEPTABLE_ANGLE/2;
-			double difference=GetAngle(Target_Direction, Gravity_Direction)-90;
-			if(Math.Abs(difference) > ACCEPTABLE_ANGLE){
-				matched_direction=matched_direction && (GetAngle(Target_Direction, Controller_Forward) < GetAngle(Target_Direction, Controller_Backward));
-				if(difference > ACCEPTABLE_ANGLE){
-					matched_direction=matched_direction && (GetAngle(Gravity_Direction, Controller_Forward) >= 90+(ACCEPTABLE_ANGLE-5));
-				}
-				else if(difference < -1 * ACCEPTABLE_ANGLE){
-					matched_direction=matched_direction && (GetAngle(Gravity_Direction, Controller_Forward) <= 90-(ACCEPTABLE_ANGLE-5));
-				}
-			}
-			else{
-				matched_direction=matched_direction && (GetAngle(Controller_Forward, Target_Direction) <= ACCEPTABLE_ANGLE);
-			}
-		}
-		else {
-			matched_direction=(GetAngle(Controller_Forward, Target_Direction) <= ACCEPTABLE_ANGLE);
-		}
+		matched_direction=Math.Abs(GetAngle(Target_Direction,Controller_Forward))<=ACCEPTABLE_ANGLE;
 	}
 	
 	if(Math.Abs(Controller.MoveIndicator.X)>0.5f){
@@ -2895,10 +2868,10 @@ private void SetThrusters(){
 		if(difference > 0){
 			deacceleration=Math.Abs(difference) / Left_Thrust;
 		}
-		else if(difference < 0){
+		else if(difference<0){
 			deacceleration=Math.Abs(difference) / Right_Thrust;
 		}
-		if((difference > 0) ^ (Relative_Distance < 0)){
+		if((difference > 0) ^ (Relative_Distance<0)){
 			double time=difference / deacceleration;
 			time=(Relative_Distance-(difference*time/2))/difference;
 			if(time > 0 && (!Match_Direction || matched_direction) && Relative_Speed-Relative_Target_Speed<=0.05){
@@ -2936,10 +2909,10 @@ private void SetThrusters(){
 		if(difference > 0){
 			deacceleration=Math.Abs(difference) / Down_Thrust;
 		}
-		else if(difference < 0){
+		else if(difference<0){
 			deacceleration=Math.Abs(difference) / Up_Thrust;
 		}
-		if((difference > 0) ^ (Relative_Distance < 0)){
+		if((difference > 0) ^ (Relative_Distance<0)){
 			double time=difference / deacceleration;
 			time=(Relative_Distance-(difference*time/2))/difference;
 			if(time > 0 && (!Match_Direction || matched_direction) && Relative_Speed-Relative_Target_Speed<=0.05){
@@ -2956,7 +2929,7 @@ private void SetThrusters(){
 	}
 	
 	if(Math.Abs(Controller.MoveIndicator.Z)>0.5f){
-		if(Controller.MoveIndicator.Z < 0){
+		if(Controller.MoveIndicator.Z<0){
 			if((CurrentVelocity+Controller_Up-RestingVelocity).Length() <= effective_speed_limit)
 				input_forward=0.95f * Forward_Thrust;
 			else
@@ -2977,10 +2950,10 @@ private void SetThrusters(){
 		if(difference > 0){
 			deacceleration=Math.Abs(difference) / Backward_Thrust;
 		}
-		else if(difference < 0){
+		else if(difference<0){
 			deacceleration=Math.Abs(difference) / Forward_Thrust;
 		}
-		if((difference > 0) ^ (Relative_Distance < 0)){
+		if((difference > 0) ^ (Relative_Distance<0)){
 			double time=difference / deacceleration;
 			time=(Relative_Distance-(difference*time/2))/difference;
 			if(time > 0 && (!Match_Direction || matched_direction) && Relative_Speed-Relative_Target_Speed<=0.05){
@@ -3000,19 +2973,19 @@ private void SetThrusters(){
 	float output_backward=0.0f;
 	if(input_forward / Forward_Thrust > 0.05f)
 		output_forward=Math.Min(Math.Abs(input_forward / Forward_Thrust), 1);
-	else if(input_forward / Backward_Thrust < -0.05f)
+	else if(input_forward / Backward_Thrust<-0.05f)
 		output_backward=Math.Min(Math.Abs(input_forward / Backward_Thrust), 1);
 	float output_up=0.0f;
 	float output_down=0.0f;
 	if(input_up / Up_Thrust > 0.05f)
 		output_up=Math.Min(Math.Abs(input_up / Up_Thrust), 1);
-	else if(input_up / Down_Thrust < -0.05f)
+	else if(input_up / Down_Thrust<-0.05f)
 		output_down=Math.Min(Math.Abs(input_up / Down_Thrust), 1);
 	float output_right=0.0f;
 	float output_left=0.0f;
 	if(input_right / Right_Thrust > 0.05f)
 		output_right=Math.Min(Math.Abs(input_right / Right_Thrust), 1);
-	else if(input_right / Left_Thrust < -0.05f)
+	else if(input_right / Left_Thrust<-0.05f)
 		output_left=Math.Min(Math.Abs(input_right / Left_Thrust), 1);
 	
 	foreach(IMyThrust Thruster in Forward_Thrusters){
@@ -3051,14 +3024,6 @@ private void GetPositionData(){
 	Left_Vector=Vector3D.Transform(base_vector, Controller.WorldMatrix)-Controller.GetPosition();
 	Left_Vector.Normalize();
 	Right_Vector=-1 * Left_Vector;
-	
-	Echo("ID:"+Me.CubeGrid.EntityId.ToString());
-	Echo("Forward_Thrusters:"+Forward_Thrusters.Count);
-	Echo("Backward_Thrusters:"+Backward_Thrusters.Count);
-	Echo("Up_Thrusters:"+Up_Thrusters.Count);
-	Echo("Down_Thrusters:"+Down_Thrusters.Count);
-	Echo("Left_Thrusters:"+Left_Thrusters.Count);
-	Echo("Right_Thrusters:"+Right_Thrusters.Count);
 	
 	switch(Forward){
 		case Base6Directions.Direction.Forward:
@@ -3147,12 +3112,12 @@ private void GetPositionData(){
 	Time_To_Crash=-1;
 	if(Controller.TryGetPlanetElevation(MyPlanetElevation.Sealevel, out Sealevel)){
 		if(Controller.TryGetPlanetPosition(out PlanetCenter)){
-			if(Sealevel < 6000 && Controller.TryGetPlanetElevation(MyPlanetElevation.Surface, out Elevation)){
+			if(Sealevel<6000 && Controller.TryGetPlanetElevation(MyPlanetElevation.Surface, out Elevation)){
 				if(Sealevel > 5000){
 					double difference=Sealevel-5000;
 					Elevation= ((Elevation * (1000-difference))+(Sealevel * difference)) / 1000;
 				}
-				else if(Elevation < 50){
+				else if(Elevation<50){
 					double terrain_height=(Controller.GetPosition()-PlanetCenter).Length()-Elevation;
 					List<IMyTerminalBlock> AllBlocks=new List<IMyTerminalBlock>();
 					GridTerminalSystem.GetBlocksOfType<IMyTerminalBlock>(AllBlocks);
@@ -3169,7 +3134,7 @@ private void GetPositionData(){
 			double Elevation_per_second=(from_center-(next_position-PlanetCenter).Length());
 			Time_To_Crash=Elevation/Elevation_per_second;
 			
-			if((Time_To_Crash<60 || last_under_60) && Elevation<500){
+			if(((Time_To_Crash<60 || last_under_60) && Elevation<500||Target_Distance<250)){
 				List<IMyCameraBlock> Cameras=GetValidCameras();
 				Vector3D Velocity_Direction=CurrentVelocity;
 				Velocity_Direction.Normalize();
@@ -3192,20 +3157,20 @@ private void GetPositionData(){
 				}
 			}
 			
+			bool need_print=true;
 			if(Time_To_Crash>0){
 				if(Time_To_Crash<15 && Controller.GetShipSpeed() > 5){
 					Controller.DampenersOverride=true;
 					Write("Crash predicted within 15 seconds; enabling Dampeners");
+					need_print=false;
 				}
-				else {
-					if(Time_To_Crash*Math.Max(Elevation,1000) < 1800000 && Controller.GetShipSpeed() > 1.0f){
-						Write(Math.Round(Time_To_Crash, 1).ToString()+" seconds to crash");
-					}
-					else {
-						Write("No crash likely at current velocity");
-					}
+				else if(Time_To_Crash*Math.Max(Elevation,1000)<1800000 && Controller.GetShipSpeed() > 1.0f){
+					Write(Math.Round(Time_To_Crash, 1).ToString()+" seconds to crash");
+					need_print=false;
 				}
 			}
+			if(need_print)
+				Write("No crash likely at current velocity");
 		}
 		else {
 			PlanetCenter=new Vector3D(0,0,0);
@@ -3230,8 +3195,6 @@ public void Main(string argument, UpdateType updateSource)
 {
 	try{
 		UpdateProgramInfo();
-		Write(Controller.CustomName);
-		Write(Gyroscope.CustomName);
 		GetPositionData();
 		Write("Elevation: "+Math.Round(Elevation,1).ToString());
 		Scan_Time+=seconds_since_last_update;
@@ -3253,14 +3216,6 @@ public void Main(string argument, UpdateType updateSource)
 				distance_string=Math.Round(distance/1000,1).ToString()+"kM";
 			}
 			Write("Distance: "+distance_string);
-		}
-		
-		foreach(IMyCameraBlock Camera in GetValidCameras()){
-			double distance=Camera.AvailableScanRange;
-			string distance_string=Math.Round(distance,0).ToString()+"M";
-			if(distance>=1000)
-				distance_string=Math.Round(distance/1000,2).ToString()+"kM";
-			Echo("Camera Charge: "+distance_string);
 		}
 		
 		if(argument.ToLower().Equals("back")){
@@ -3305,6 +3260,10 @@ public void Main(string argument, UpdateType updateSource)
 			case AlertStatus.Red:
 				SetStatus("Condition "+ShipStatus.ToString()+Submessage, new Color(255, 137, 137, 255), new Color(151, 0, 0, 255));
 				break;
+		}
+		
+		foreach(IMyCameraBlock Camera in GetValidCameras()){
+			Write("Camera Charge: "+Math.Round(Camera.AvailableScanRange/1000,1).ToString()+"kM");
 		}
 		
 		Runtime.UpdateFrequency=GetUpdateFrequency();
