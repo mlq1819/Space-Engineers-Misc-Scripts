@@ -2954,7 +2954,7 @@ public void Main(string argument, UpdateType updateSource)
 		
 		Echo((new GenericMethods<IMyDoor>(this)).GetAllIncluding("Air Seal").Count.ToString()+" Air Seals");
 		
-		if(!Me.CubeGrid.IsStatic){
+		if(!Me.CubeGrid.IsStatic && Controller.CalculateShipMass().PhysicalMass>0){
 			SetThrusters();
 			SetGyroscopes();
 		}
