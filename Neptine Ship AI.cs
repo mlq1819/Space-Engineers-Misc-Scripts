@@ -1288,15 +1288,6 @@ private void SetupAirlocks(){
 	}
 }
 
-private void SetControllerDirections(){
-	Forward=Controller.Orientation.Forward;
-	Up=Controller.Orientation.Up;
-	Left=Controller.Orientation.Left;
-	Controller.CustomData="Forward:"+Forward.ToString();
-	Controller.CustomData+="\nUp:"+Up.ToString();
-	Controller.CustomData+="\nLeft:"+Left.ToString();
-}
-
 private UpdateFrequency GetUpdateFrequency(){
 	if(!Operational)
 		return UpdateFrequency.None;
@@ -1381,7 +1372,12 @@ public bool Setup(){
 		return false;
 	}
 	else {
-		SetControllerDirections();
+		Forward=Controller.Orientation.Forward;
+		Up=Controller.Orientation.Up;
+		Left=Controller.Orientation.Left;
+		Controller.CustomData="Forward:"+Forward.ToString();
+		Controller.CustomData+="\nUp:"+Up.ToString();
+		Controller.CustomData+="\nLeft:"+Left.ToString();
 		IMyTextSurfaceProvider Cockpit=Controller as IMyTextSurfaceProvider;
 		if(Cockpit!=null){
 			for(int i=0;i<Cockpit.SurfaceCount;i++){
@@ -1400,6 +1396,9 @@ public bool Setup(){
 			return false;
 	}
 	else {
+		Gyroscope.CustomData="Forward:"+Gyroscope.Orientation.Forward.ToString();
+		Gyroscope.CustomData+="\nUp:"+Gyroscope.Orientation.Up.ToString();
+		Gyroscope.CustomData+="\nLeft:"+Gyroscope.Orientation.Left.ToString();
 		Gyroscope.GyroOverride=Controller.IsUnderControl;
 	}
 	
@@ -2542,9 +2541,9 @@ private void SetGyroscopes(){
 	if(Roll_Time<1)
 		Roll_Time+=seconds_since_last_update;
 	
-	input_pitch=-1*Math.Min(Math.Max(Controller.RotationIndicator.X / 100, -1), 1);
+	input_pitch=Math.Min(Math.Max(Controller.RotationIndicator.X / 100, -1), 1);
 	if(Math.Abs(input_pitch)<0.05f){
-		input_pitch=current_pitch*-0.99f;
+		input_pitch=current_pitch*0.99f;
 		if(Elevation<Controller.GetShipSpeed()*2&&Elevation<50&&GetAngle(Gravity,Down_Vector)<90&&Pitch_Time>=1){
 			double difference=Math.Abs(GetAngle(Gravity,Forward_Vector));
 			if(difference<90){
@@ -2553,13 +2552,8 @@ private void SetGyroscopes(){
 		}
 		if(Match_Direction){
 			double difference=GetAngle(Down_Vector, Target_Direction)-GetAngle(Up_Vector, Target_Direction);
-			Write("Pitch Difference:"+Math.Round(difference,1)+'°');
-			if(difference>0)
-				Write("Need to Pitch UP");
-			else if(difference<0)
-				Write("Need to Pitch DOWN");
 			if(Math.Abs(difference)>1)
-				input_pitch+=(float)Math.Min(Math.Max(difference/5,-4),4)*gyro_multx;
+				input_pitch-=(float)Math.Min(Math.Max(difference/5,-4),4)*gyro_multx;
 		}
 	}
 	else{
@@ -2571,11 +2565,6 @@ private void SetGyroscopes(){
 		input_yaw=current_yaw*0.99f;
 		if(Match_Direction){
 			double difference=GetAngle(Left_Vector, Target_Direction)-GetAngle(Right_Vector, Target_Direction);
-			Write("Yaw Difference:"+Math.Round(difference,1)+'°');
-			if(difference>0)
-				Write("Need to Yaw RIGHT");
-			else if(difference<0)
-				Write("Need to Yaw LEFT");
 			if(Math.Abs(difference) > 1){
 				input_yaw+=(float)Math.Min(Math.Max(difference/5,-4),4)*gyro_multx;
 			}
@@ -2585,13 +2574,13 @@ private void SetGyroscopes(){
 		Yaw_Time=0;
 		input_yaw*=30;
 	}
-	input_roll=-1*Controller.RollIndicator;
+	input_roll=Controller.RollIndicator;
 	if(Math.Abs(input_roll)<0.05f){
-		input_roll=current_roll*-0.99f;
+		input_roll=current_roll*0.99f;
 		if(Gravity.Length() > 0  && Roll_Time >= 1){
 			double difference=GetAngle(Left_Vector, Gravity)-GetAngle(Right_Vector, Gravity);
 			if(Math.Abs(difference)>ACCEPTABLE_ANGLE){
-				input_roll+=(float)Math.Min(Math.Max(difference/5,-1),1)*gyro_multx;
+				input_roll-=(float)Math.Min(Math.Max(difference/5,-1),1)*gyro_multx;
 			}
 		}
 	}
@@ -2600,9 +2589,15 @@ private void SetGyroscopes(){
 		input_roll*=10;
 	}
 	
-	Gyroscope.Pitch=input_pitch;
-	Gyroscope.Yaw=input_yaw;
-	Gyroscope.Roll=input_roll;
+	Vector3D input=new Vector3D(input_pitch,input_yaw,input_roll);
+	Vector3D global=Vector3D.TransformNormal(input,Controller.WorldMatrix);
+	Vector3D output=Vector3D.TransformNormal(global,MatrixD.Invert(Gyroscope.WorldMatrix));
+	output.Normalize();
+	output*=input.Length();
+	
+	Gyroscope.Pitch=(float)output.X;
+	Gyroscope.Yaw=(float)output.Y;
+	Gyroscope.Roll=(float)output.Z;
 }
 
 //Sets thruster outputs from player input, dampeners, gravity, and autopilot
