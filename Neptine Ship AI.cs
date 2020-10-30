@@ -242,7 +242,7 @@ public class GenericMethods<T> where T : class, IMyTerminalBlock{
 	public static double GetAngle(Vector3D v1, Vector3D v2){
 		v1.Normalize();
 		v2.Normalize();
-		return Math.Round(Math.Acos(v1.X*v2.X+v1.Y*v2.Y+v1.Z*v2.Z) * 57.295755, 5);
+		return Math.Round(Math.Acos(v1.X*v2.X+v1.Y*v2.Y+v1.Z*v2.Z)*57.295755, 5);
 	}
 }
 
@@ -414,9 +414,9 @@ public class EntityInfo{
 	public void Update(double seconds){
 		TimeSpan time=new TimeSpan((int)(seconds/60/60/24), ((int)(seconds/60/60))%24, ((int)(seconds/60))%60, ((int)(seconds))%60, ((int)(seconds*1000))%1000);
 		Age.Add(time);
-		Position+=seconds * Velocity;
+		Position+=seconds*Velocity;
 		if(HitPosition!=null){
-			HitPosition=(Vector3D?) (((Vector3D)HitPosition)+seconds * Velocity);
+			HitPosition=(Vector3D?) (((Vector3D)HitPosition)+seconds*Velocity);
 		}
 	}
 	
@@ -485,7 +485,7 @@ public class EntityList : IEnumerable<EntityInfo>{
 		double min_distance=double.MaxValue;
 		foreach(EntityInfo entity in E_List){
 			if(entity.Size >= min_size && entity.Relationship==Relationship){
-				min_distance=Math.Min(min_distance, (P.Me.CubeGrid.GetPosition()-entity.Position).Length()-entity.Size);
+				min_distance=Math.Min(min_distance, (P.Me.GetPosition()-entity.Position).Length()-entity.Size);
 			}
 		}
 		return min_distance;
@@ -495,7 +495,7 @@ public class EntityList : IEnumerable<EntityInfo>{
 		double min_distance=double.MaxValue;
 		foreach(EntityInfo entity in E_List){
 			if(entity.Size >= min_size){
-				min_distance=Math.Min(min_distance, (P.Me.CubeGrid.GetPosition()-entity.Position).Length()-entity.Size);
+				min_distance=Math.Min(min_distance, (P.Me.GetPosition()-entity.Position).Length()-entity.Size);
 			}
 		}
 		return min_distance;
@@ -806,7 +806,7 @@ public class Menu_Display : MenuOption{
 		if(args.Length==3 && args[1].ToLower().Equals("grid") && Int32.TryParse(args[2], out number)){
 			name="Unnamed "+args[0]+' '+args[1];
 		}
-		double distance=Entity.GetDistance(P.Me.CubeGrid.GetPosition())-Entity.Size;
+		double distance=Entity.GetDistance(P.Me.GetPosition())-Entity.Size;
 		string distance_string=Math.Round(distance,0).ToString()+"M";
 		if(distance>=1000)
 			distance_string=Math.Round(distance/1000,1).ToString()+"kM";
@@ -842,7 +842,7 @@ public class Menu_Display : MenuOption{
 	private Func<EntityInfo, bool> Command;
 	private Menu_Command<EntityInfo> Subcommand {
 		get{
-			double distance=(P.Me.CubeGrid.GetPosition()-Entity.Position).Length()-Entity.Size;
+			double distance=(P.Me.GetPosition()-Entity.Position).Length()-Entity.Size;
 			return new Menu_Command<EntityInfo>("GoTo "+Entity.Name, Command, "Set autopilot to match target Entity's expected position and velocity", Entity);
 		}
 	}
@@ -892,7 +892,7 @@ public class Menu_Display : MenuOption{
 			return Subcommand.ToString();
 		}
 		else {
-			double distance=Entity.GetDistance(P.Me.CubeGrid.GetPosition());
+			double distance=Entity.GetDistance(P.Me.GetPosition());
 			string distance_string=Math.Round(distance,0)+"M";
 			if(distance>=1000)
 				distance_string=Math.Round(distance/1000,1)+"kM";
@@ -1044,7 +1044,7 @@ private Vector3D Relative_Target_Position{
 }
 private double Target_Distance{
 	get{
-		return (Target_Position-Me.CubeGrid.GetPosition()).Length();
+		return (Target_Position-Controller.GetPosition()).Length();
 	}
 }
 private long Target_ID=0;
@@ -1156,17 +1156,17 @@ private Gyro_Tuple Transform(Gyro_Tuple input){
 					roll=input.Roll;
 					break;
 				case Base6Directions.Direction.Down:
-					pitch=-1 * input.Pitch;
-					yaw=-1 * input.Yaw;
+					pitch=-1*input.Pitch;
+					yaw=-1*input.Yaw;
 					roll=input.Roll;
 					break;
 				case Base6Directions.Direction.Left:
 					yaw=input.Pitch;
-					pitch=-1 * input.Yaw;
+					pitch=-1*input.Yaw;
 					roll=input.Roll;
 					break;
 				case Base6Directions.Direction.Right:
-					yaw=-1 * input.Pitch;
+					yaw=-1*input.Pitch;
 					pitch=input.Yaw;
 					roll=input.Roll;
 					break;
@@ -1175,47 +1175,47 @@ private Gyro_Tuple Transform(Gyro_Tuple input){
 		case Base6Directions.Direction.Backward:
 			switch(Up){
 				case Base6Directions.Direction.Up:
-					pitch=-1 * input.Pitch;
+					pitch=-1*input.Pitch;
 					yaw=input.Yaw;
-					roll=-1 * input.Roll;
+					roll=-1*input.Roll;
 					break;
 				case Base6Directions.Direction.Down:
 					pitch=input.Pitch;
 					yaw=input.Yaw;
-					roll=-1 * input.Roll;
+					roll=-1*input.Roll;
 					break;
 				case Base6Directions.Direction.Left:
 					yaw=input.Pitch;
 					pitch=input.Yaw;
-					roll=-1 * input.Roll;
+					roll=-1*input.Roll;
 					break;
 				case Base6Directions.Direction.Right:
-					yaw=-1 * input.Pitch;
-					pitch=-1 * input.Yaw;
-					roll=-1 * input.Roll;
+					yaw=-1*input.Pitch;
+					pitch=-1*input.Yaw;
+					roll=-1*input.Roll;
 					break;
 			}
 			break;
 		case Base6Directions.Direction.Up:
 			switch(Up){
 				case Base6Directions.Direction.Forward:
-					pitch=-1 * input.Pitch;
-					roll=-1 * input.Yaw;
-					yaw=-1 * input.Roll;
+					pitch=-1*input.Pitch;
+					roll=-1*input.Yaw;
+					yaw=-1*input.Roll;
 					break;
 				case Base6Directions.Direction.Backward:
 					pitch=input.Pitch;
-					roll=-1 * input.Yaw;
+					roll=-1*input.Yaw;
 					yaw=input.Roll;
 					break;
 				case Base6Directions.Direction.Left:
 					yaw=input.Pitch;
-					roll=-1 * input.Yaw;
-					pitch=-1 * input.Roll;
+					roll=-1*input.Yaw;
+					pitch=-1*input.Roll;
 					break;
 				case Base6Directions.Direction.Right:
-					yaw=-1 * input.Pitch;
-					roll=-1 * input.Yaw;
+					yaw=-1*input.Pitch;
+					roll=-1*input.Yaw;
 					pitch=input.Roll;
 					break;
 			}
@@ -1225,10 +1225,10 @@ private Gyro_Tuple Transform(Gyro_Tuple input){
 				case Base6Directions.Direction.Forward:
 					pitch=input.Pitch;
 					roll=input.Yaw;
-					yaw=-1 * input.Roll;
+					yaw=-1*input.Roll;
 					break;
 				case Base6Directions.Direction.Backward:
-					pitch=-1 * input.Pitch;
+					pitch=-1*input.Pitch;
 					roll=input.Yaw;
 					yaw=input.Roll;
 					break;
@@ -1238,33 +1238,33 @@ private Gyro_Tuple Transform(Gyro_Tuple input){
 					pitch=input.Roll;
 					break;
 				case Base6Directions.Direction.Right:
-					yaw=-1 * input.Pitch;
+					yaw=-1*input.Pitch;
 					roll=input.Yaw;
-					pitch=-1 * input.Roll;
+					pitch=-1*input.Roll;
 					break;
 			}
 			break;
 		case Base6Directions.Direction.Left:
 			switch(Up){
 				case Base6Directions.Direction.Forward:
-					roll=-1 * input.Pitch;
+					roll=-1*input.Pitch;
 					pitch=input.Yaw;
-					yaw=-1 * input.Roll;
+					yaw=-1*input.Roll;
 					break;
 				case Base6Directions.Direction.Backward:
-					roll=-1 * input.Pitch;
-					pitch=-1 * input.Yaw;
+					roll=-1*input.Pitch;
+					pitch=-1*input.Yaw;
 					yaw=input.Roll;
 					break;
 				case Base6Directions.Direction.Up:
-					roll=-1 * input.Pitch;
+					roll=-1*input.Pitch;
 					yaw=input.Yaw;
 					pitch=input.Roll;
 					break;
 				case Base6Directions.Direction.Down:
-					roll=-1 * input.Pitch;
-					yaw=-1 * input.Yaw;
-					pitch=-1 * input.Roll;
+					roll=-1*input.Pitch;
+					yaw=-1*input.Yaw;
+					pitch=-1*input.Roll;
 					break;
 			}
 			break;
@@ -1272,8 +1272,8 @@ private Gyro_Tuple Transform(Gyro_Tuple input){
 			switch(Up){
 				case Base6Directions.Direction.Forward:
 					roll=input.Pitch;
-					pitch=-1 * input.Yaw;
-					yaw=-1 * input.Roll;
+					pitch=-1*input.Yaw;
+					yaw=-1*input.Roll;
 					break;
 				case Base6Directions.Direction.Backward:
 					roll=input.Pitch;
@@ -1283,11 +1283,11 @@ private Gyro_Tuple Transform(Gyro_Tuple input){
 				case Base6Directions.Direction.Up:
 					roll=input.Pitch;
 					yaw=input.Yaw;
-					pitch=-1 * input.Roll;
+					pitch=-1*input.Roll;
 					break;
 				case Base6Directions.Direction.Down:
 					roll=input.Pitch;
-					yaw=-1 * input.Yaw;
+					yaw=-1*input.Yaw;
 					pitch=input.Roll;
 					break;
 			}
@@ -1812,19 +1812,19 @@ public void Save(){
 public Vector3D GlobalToLocal(Vector3D Global){
 	Vector3D Local=Vector3D.Transform(Global+Controller.GetPosition(), MatrixD.Invert(Controller.WorldMatrix));
 	Local.Normalize();
-	return Local * Global.Length();
+	return Local*Global.Length();
 }
 
 public Vector3D GlobalToLocalPosition(Vector3D Global){
 	Vector3D Local=Vector3D.Transform(Global, MatrixD.Invert(Controller.WorldMatrix));
 	Local.Normalize();
-	return Local * (Global-Controller.GetPosition()).Length();
+	return Local*(Global-Controller.GetPosition()).Length();
 }
 
 public Vector3D LocalToGlobal(Vector3D Local){
 	Vector3D Global=Vector3D.Transform(Local, Controller.WorldMatrix)-Controller.GetPosition();
 	Global.Normalize();
-	return Global * Local.Length();
+	return Global*Local.Length();
 }
 
 public Vector3D LocalToGlobalPosition(Vector3D Local){
@@ -1915,7 +1915,7 @@ private AlertStatus ShipStatus{
 			Submessage += "\nHigh Ship Speed [";
 			const int SECTIONS=20;
 			for(int i=0; i<SECTIONS; i++){
-				if(Speed >= ((100.0/SECTIONS) * i)){
+				if(Speed >= ((100.0/SECTIONS)*i)){
 					Submessage += '|';
 				}
 				else {
@@ -2053,7 +2053,7 @@ private Vector3D GetOffsetPosition(Vector3D Position, double Target_Size=0){
 		distance=distance/10*9;
 	}
 	distance-=Target_Size;
-	double controller_offset=(Controller.GetPosition()-Me.CubeGrid.GetPosition()).Length();
+	double controller_offset=(Controller.GetPosition()-Controller.GetPosition()).Length();
 	distance-=Math.Max(0,Me.CubeGrid.GridSize/2-controller_offset);
 	return (distance*direction)+Controller.GetPosition();
 }
@@ -2105,7 +2105,7 @@ public bool UpdateEntityListing(Menu_Submenu Menu){
 		return false;
 	Menu=new Menu_Submenu(Menu.Name());
 	Menu.Add(new Menu_Command<Menu_Submenu>("Refresh", UpdateEntityListing, "Updates "+Menu.Name(), Menu));
-	list.Sort(Me.CubeGrid.GetPosition());
+	list.Sort(Controller.GetPosition());
 	for(int i=0;i<list.Count;i++){
 		if(do_goto)
 			Menu.Add(new Menu_Display(list[i], this, GoTo));
@@ -2211,7 +2211,7 @@ public void PerformAlarm(){
 			}
 			SetBlockData(Light, "Job", "PlayerAlert");
 			Light.Color=new Color(255, 0, 0, 255);
-			Light.BlinkLength=100.0f-(((float) (distance / ALERT_DISTANCE)) * 50.0f);
+			Light.BlinkLength=100.0f-(((float) (distance / ALERT_DISTANCE))*50.0f);
 			Light.BlinkIntervalSeconds=1.0f;
 		}
 		else {
@@ -2348,7 +2348,7 @@ private void UpdateAirlock(Airlock airlock){
 	bool detected=false;
 	double min_distance_1=double.MaxValue;
 	double min_distance_2=double.MaxValue;
-	double min_distance_check=3.75 * (1+(Controller.GetShipSpeed() / 200));
+	double min_distance_check=3.75*(1+(Controller.GetShipSpeed() / 200));
 	foreach(EntityInfo Entity in CharacterList){
 		if(Entity.Relationship != MyRelationsBetweenPlayerAndBlock.Enemies && Entity.Relationship != MyRelationsBetweenPlayerAndBlock.Neutral){
 			Vector3D position=Entity.Position+CurrentVelocity / 100;
@@ -2522,7 +2522,7 @@ public void PerformScan(){
 			if((Time_To_Crash<60 && Elevation<500)||Target_Distance<250){
 				Vector3D Velocity_Direction=CurrentVelocity;
 				Velocity_Direction.Normalize();
-				double speed_check=15 * CurrentVelocity.Length();
+				double speed_check=15*CurrentVelocity.Length();
 				double distance=Math.Min(speed_check, Camera.AvailableScanRange/2);
 				if(Camera.CanScan(distance,Velocity_Direction)){
 					MyDetectedEntityInfo Entity=Camera.Raycast(distance,Velocity_Direction);
@@ -2584,7 +2584,7 @@ public void PerformScan(){
 	foreach(EntityInfo Entity in Entities){
 		if(Entity.ID==Target_ID){
 			RestingVelocity=Entity.Velocity;
-			Target_Direction=Entity.Position-Me.CubeGrid.GetPosition();
+			Target_Direction=Entity.Position-Controller.GetPosition();
 			Target_Direction.Normalize();
 			Target_Position=GetOffsetPosition(Entity.Position, Entity.Size);
 		}
@@ -2728,14 +2728,14 @@ private void SetGyroscopes(){
 	if(Math.Abs(input_yaw)<0.05f){
 		input_yaw=current_yaw*0.99f*1;
 		if(Match_Direction){
-			double difference=GetAngle(Right_Vector, Target_Direction)-GetAngle(Left_Vector, Target_Direction);
+			double difference=GetAngle(Left_Vector, Target_Direction)-GetAngle(Right_Vector, Target_Direction);
 			Echo("Yaw Difference:"+Math.Round(difference,1)+'°');
-			if(Math.Abs(difference) > 1 || GetAngle(Forward_Vector, Target_Direction) > ACCEPTABLE_ANGLE){
+			if(Math.Abs(difference) > 1 || GetAngle(Backward_Vector,Target_Direction)<GetAngle(Forward_Vector,Target_Direction)){
 				float delta=2*((float)Math.Min(Math.Abs(difference/(ACCEPTABLE_ANGLE/2)), 1));
 				if(difference>0 || difference==0 && GetAngle(Forward_Vector, Target_Direction) > ACCEPTABLE_ANGLE)
-					input_yaw -= delta;
-				else
 					input_yaw += delta;
+				else
+					input_yaw -= delta;
 			}
 		}
 	}
@@ -2747,7 +2747,7 @@ private void SetGyroscopes(){
 	if(Math.Abs(input_roll)<0.05f){
 		input_roll=current_roll*0.99f*1;
 		if(Gravity.Length() > 0  && Roll_Time >= 1){
-			double difference=(GetAngle(Left_Vector, Gravity)-GetAngle(Right_Vector, Gravity));
+			double difference=GetAngle(Right_Vector, Gravity)-GetAngle(Left_Vector, Gravity);
 			if(Math.Abs(difference)>ACCEPTABLE_ANGLE){
 				float delta=10*((float)Math.Min(Math.Abs(difference/(ACCEPTABLE_ANGLE*2)), 1));
 				if(difference>0)
@@ -2759,7 +2759,7 @@ private void SetGyroscopes(){
 	}
 	else{
 		Roll_Time=0;
-		input_roll *= 10;
+		input_roll*=10;
 	}
 	
 	Gyro_Tuple output=Transform(new Gyro_Tuple(input_pitch, input_yaw, input_roll));
@@ -2784,9 +2784,9 @@ private void SetThrusters(){
 		effective_speed_limit=Math.Min(effective_speed_limit,Time_To_Crash/60*100);
 	if(Controller.DampenersOverride){
 		Write("Cruise Control: Off");
-		input_right -= (float) ((Relative_CurrentVelocity.X-Relative_RestingVelocity.X) * Mass_Accomodation * damp_multx);
-		input_up -= (float) ((Relative_CurrentVelocity.Y-Relative_RestingVelocity.Y) * Mass_Accomodation * damp_multx);
-		input_forward += (float) ((Relative_CurrentVelocity.Z-Relative_RestingVelocity.Z) * Mass_Accomodation * damp_multx);
+		input_right -= (float) ((Relative_CurrentVelocity.X-Relative_RestingVelocity.X)*Mass_Accomodation*damp_multx);
+		input_up -= (float) ((Relative_CurrentVelocity.Y-Relative_RestingVelocity.Y)*Mass_Accomodation*damp_multx);
+		input_forward += (float) ((Relative_CurrentVelocity.Z-Relative_RestingVelocity.Z)*Mass_Accomodation*damp_multx);
 	}
 	else {
 		Write("Cruise Control: On");
@@ -2794,8 +2794,8 @@ private void SetThrusters(){
 		velocity_direction.Normalize();
 		double angle=Math.Min(GetAngle(Forward_Vector, velocity_direction), GetAngle(Backward_Vector, velocity_direction));
 		if(angle <= ACCEPTABLE_ANGLE / 2){
-			input_right -= (float) ((Relative_CurrentVelocity.X-Relative_RestingVelocity.X) * Mass_Accomodation * damp_multx);
-			input_up -= (float) ((Relative_CurrentVelocity.Y-Relative_RestingVelocity.Y) * Mass_Accomodation * damp_multx);
+			input_right -= (float) ((Relative_CurrentVelocity.X-Relative_RestingVelocity.X)*Mass_Accomodation*damp_multx);
+			input_up -= (float) ((Relative_CurrentVelocity.Y-Relative_RestingVelocity.Y)*Mass_Accomodation*damp_multx);
 			Write("Stabilizers: On ("+Math.Round(angle, 1)+"° dev)");
 		}
 		else {
@@ -2826,12 +2826,12 @@ private void SetThrusters(){
 	if(Math.Abs(Controller.MoveIndicator.X)>0.5f){
 		if(Controller.MoveIndicator.X > 0){
 			if((CurrentVelocity+Right_Vector-RestingVelocity).Length() <= effective_speed_limit)
-				input_right=0.95f * Right_Thrust;
+				input_right=0.95f*Right_Thrust;
 			else
 				input_right=Math.Min(input_right, 0);
 		} else {
 			if((CurrentVelocity+Left_Vector-RestingVelocity).Length() <= effective_speed_limit)
-				input_right=-0.95f * Left_Thrust;
+				input_right=-0.95f*Left_Thrust;
 			else
 				input_right=Math.Max(input_right, 0);
 		}
@@ -2854,11 +2854,11 @@ private void SetThrusters(){
 			if(time > 0 && (!Match_Direction || matched_direction) && Relative_Speed-Relative_Target_Speed<=0.05){
 				if(difference > 0){
 					if((CurrentVelocity+Left_Vector-RestingVelocity).Length() <= Math.Min(Elevation, Math.Min(effective_speed_limit, Target_Distance)))
-						input_right=-0.95f * Left_Thrust;
+						input_right=-0.95f*Left_Thrust;
 				}
 				else {
 					if((CurrentVelocity+Right_Vector-RestingVelocity).Length() <= Math.Min(Elevation, Math.Min(effective_speed_limit, Target_Distance)))
-						input_right=0.95f * Right_Thrust;
+						input_right=0.95f*Right_Thrust;
 				}
 			}
 		}
@@ -2867,12 +2867,12 @@ private void SetThrusters(){
 	if(Math.Abs(Controller.MoveIndicator.Y)>0.5f){
 		if(Controller.MoveIndicator.Y > 0){
 			if((CurrentVelocity+Up_Vector-RestingVelocity).Length() <= effective_speed_limit)
-				input_up=0.95f * Up_Thrust;
+				input_up=0.95f*Up_Thrust;
 			else
 				input_up=Math.Min(input_up, 0);
 		} else {
 			if((CurrentVelocity+Down_Vector-RestingVelocity).Length() <= effective_speed_limit)
-				input_up=-0.95f * Down_Thrust;
+				input_up=-0.95f*Down_Thrust;
 			else
 				input_up=Math.Max(input_up, 0);
 		}
@@ -2895,11 +2895,11 @@ private void SetThrusters(){
 			if(time > 0 && (!Match_Direction || matched_direction) && Relative_Speed-Relative_Target_Speed<=0.05){
 				if(difference > 0){
 					if((CurrentVelocity+Down_Vector-RestingVelocity).Length() <= Math.Min(Elevation, Math.Min(effective_speed_limit, Target_Distance)))
-						input_up=-0.95f * Down_Thrust;
+						input_up=-0.95f*Down_Thrust;
 				}
 				else {
 					if((CurrentVelocity+Up_Vector-RestingVelocity).Length() <= Math.Min(Elevation, Math.Min(effective_speed_limit, Target_Distance)))
-						input_up=0.95f * Up_Thrust;
+						input_up=0.95f*Up_Thrust;
 				}
 			}
 		}
@@ -2908,12 +2908,12 @@ private void SetThrusters(){
 	if(Math.Abs(Controller.MoveIndicator.Z)>0.5f){
 		if(Controller.MoveIndicator.Z<0){
 			if((CurrentVelocity+Up_Vector-RestingVelocity).Length() <= effective_speed_limit)
-				input_forward=0.95f * Forward_Thrust;
+				input_forward=0.95f*Forward_Thrust;
 			else
 				input_forward=Math.Min(input_forward, 0);
 		} else {
 			if((CurrentVelocity+Down_Vector-RestingVelocity).Length() <= effective_speed_limit)
-				input_forward=-0.95f * Backward_Thrust;
+				input_forward=-0.95f*Backward_Thrust;
 			else
 				input_forward=Math.Max(input_forward, 0);
 		}
@@ -2936,11 +2936,11 @@ private void SetThrusters(){
 			if(time > 0 && (!Match_Direction || matched_direction) && Relative_Speed-Relative_Target_Speed<=0.05){
 				if(difference > 0){
 					if((CurrentVelocity+Down_Vector-RestingVelocity).Length() <= Math.Min(Elevation, Math.Min(effective_speed_limit, Target_Distance)))
-						input_forward=-0.95f * Backward_Thrust;
+						input_forward=-0.95f*Backward_Thrust;
 				}
 				else {
 					if((CurrentVelocity+Up_Vector-RestingVelocity).Length() <= Math.Min(Elevation, Math.Min(effective_speed_limit, Target_Distance)))
-						input_forward=0.95f * Forward_Thrust;
+						input_forward=0.95f*Forward_Thrust;
 				}
 			}
 		}
@@ -2987,20 +2987,20 @@ private void SetThrusters(){
 
 //Sets directional vectors, Elevation, etc
 private void GetPositionData(){
-	Vector3D base_vector=new Vector3D(0,0,1);
+	Vector3D base_vector=new Vector3D(0,0,-1);
 	Forward_Vector=LocalToGlobal(base_vector);
 	Forward_Vector.Normalize();
-	Controller.CustomData=(new MyWaypointInfo("Forward",Me.CubeGrid.GetPosition()+10*Forward_Vector)).ToString();
+	Controller.CustomData=(new MyWaypointInfo("Forward",Controller.GetPosition()+10*Forward_Vector)).ToString();
 	
 	base_vector=new Vector3D(0,1,0);
 	Up_Vector=LocalToGlobal(base_vector);
 	Up_Vector.Normalize();
-	Controller.CustomData+='\n'+(new MyWaypointInfo("Up",Me.CubeGrid.GetPosition()+10*Up_Vector)).ToString();
+	Controller.CustomData+='\n'+(new MyWaypointInfo("Up",Controller.GetPosition()+10*Up_Vector)).ToString();
 	
-	base_vector=new Vector3D(1,0,0);
+	base_vector=new Vector3D(-1,0,0);
 	Left_Vector=LocalToGlobal(base_vector);
 	Left_Vector.Normalize();
-	Controller.CustomData+='\n'+(new MyWaypointInfo("Left",Me.CubeGrid.GetPosition()+10*Left_Vector)).ToString();
+	Controller.CustomData+='\n'+(new MyWaypointInfo("Left",Controller.GetPosition()+10*Left_Vector)).ToString();
 	
 	Gravity=Controller.GetNaturalGravity();
 	CurrentVelocity=Controller.GetShipVelocities().LinearVelocity;
@@ -3012,7 +3012,7 @@ private void GetPositionData(){
 			if(Sealevel<6000 && Controller.TryGetPlanetElevation(MyPlanetElevation.Surface, out Elevation)){
 				if(Sealevel > 5000){
 					double difference=Sealevel-5000;
-					Elevation= ((Elevation * (1000-difference))+(Sealevel * difference)) / 1000;
+					Elevation= ((Elevation*(1000-difference))+(Sealevel*difference)) / 1000;
 				}
 				else if(Elevation<50){
 					double terrain_height=(Controller.GetPosition()-PlanetCenter).Length()-Elevation;
@@ -3026,8 +3026,8 @@ private void GetPositionData(){
 			else {
 				Elevation=Sealevel;
 			}
-			double from_center=(Me.CubeGrid.GetPosition()-PlanetCenter).Length();
-			Vector3D next_position=Me.CubeGrid.GetPosition()+1 * CurrentVelocity;
+			double from_center=(Controller.GetPosition()-PlanetCenter).Length();
+			Vector3D next_position=Controller.GetPosition()+1*CurrentVelocity;
 			double Elevation_per_second=(from_center-(next_position-PlanetCenter).Length());
 			Time_To_Crash=Elevation/Elevation_per_second;
 			Vector3D Closest_Crash_Direction=Closest_Hit_Position;
@@ -3035,7 +3035,7 @@ private void GetPositionData(){
 			Vector3D Movement_Direction=CurrentVelocity;
 			Movement_Direction.Normalize();
 			if(GetAngle(Movement_Direction,Closest_Crash_Direction)<=ACCEPTABLE_ANGLE){
-				Time_To_Crash=Math.Min(Time_To_Crash,(Closest_Hit_Position-Me.CubeGrid.GetPosition()).Length()/CurrentVelocity.Length());
+				Time_To_Crash=Math.Min(Time_To_Crash,(Closest_Hit_Position-Controller.GetPosition()).Length()/CurrentVelocity.Length());
 			}
 			
 			bool need_print=true;
@@ -3064,11 +3064,11 @@ private void GetPositionData(){
 		Target_Position+=seconds_since_last_update*RestingVelocity;
 	}
 	if(Match_Direction){
-		Target_Direction=Target_Position-Me.CubeGrid.GetPosition();
+		Target_Direction=Target_Position-Controller.GetPosition();
 		Target_Direction.Normalize();
 	}
 	
-	Mass_Accomodation=(float) (Controller.CalculateShipMass().PhysicalMass * Gravity.Length());
+	Mass_Accomodation=(float) (Controller.CalculateShipMass().PhysicalMass*Gravity.Length());
 	
 }
 
@@ -3092,7 +3092,7 @@ public void Main(string argument, UpdateType updateSource)
 			Write("Angle Difference: "+Math.Round(angle,1).ToString()+"°");
 		}
 		if(Match_Position){
-			double distance=(Target_Position-Me.CubeGrid.GetPosition()).Length()-Me.CubeGrid.GridSize/2;
+			double distance=(Target_Position-Controller.GetPosition()).Length()-Me.CubeGrid.GridSize/2;
 			string distance_string=Math.Round(distance,0).ToString()+"M";
 			if(distance>=1000){
 				distance_string=Math.Round(distance/1000,1).ToString()+"kM";
