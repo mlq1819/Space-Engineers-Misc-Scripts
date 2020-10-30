@@ -2589,30 +2589,6 @@ public void PerformScan(){
 					}
 				}
 			}
-			raycast_distance=Camera.AvailableScanRange/8;
-			if(raycast_distance>Math.Max(50,RAYCAST_DISTANCE/10)){
-				const int SECTIONS=3;
-				for(int i=0; i<9; i++){
-					if(i==4)
-						continue;
-					float Pitch=0;
-					float Yaw=0;
-					if(i<3 || i>5){
-						Pitch=Rnd.Next(0, ((int)(Camera.RaycastConeLimit/SECTIONS))*10)/10.0f;
-						if(i>5)
-							Pitch*=-1;
-					}
-					if((i%3)!=1){
-						Yaw=Rnd.Next(0, ((int)(Camera.RaycastConeLimit/SECTIONS))*10)/10.0f;
-						if((i%3)==0)
-							Yaw*=-1;
-					}
-					for(int j=1; j<=SECTIONS; j++){
-						Raycast_Entity=Camera.Raycast(raycast_distance, Pitch*j, Yaw*j);
-						UpdateList(DetectedEntities, Raycast_Entity);
-					}
-				}
-			}
 		}
 	}
 	
