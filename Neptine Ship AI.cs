@@ -1348,7 +1348,7 @@ public bool Setup(){
 	
 	StatusLCDs=(new GenericMethods<IMyTextPanel>(this)).GetAllContaining("Ship Status");
 	
-	DebugLCDs=(new GenericMethods<IMyTextPanel>(this)).GetAllContaining("AI Debug Display");
+	DebugLCDs=(new GenericMethods<IMyTextPanel>(this)).GetAllContaining("AI Visual Display");
 	foreach(IMyTextPanel Display in DebugLCDs){
 		if(Display.CustomName.ToLower().Contains("transparent")){
 			Display.FontColor=DEFAULT_BACKGROUND_COLOR;
@@ -1962,6 +1962,7 @@ private bool CreateMenu(object obj=null){
 	Command_Menu.Add(new Menu_Command<object>("Update Menu", CreateMenu, "Refreshes menu"));
 	Menu_Submenu ShipCommands=new Menu_Submenu("Commands");
 	ShipCommands.Add(new Menu_Command<object>("Stop", Stop, "Disables autopilot"));
+	ShipCommands.Add(new Menu_Command<object>("Scan", PerformScan, "Immediately performs a scan operation"));
 	ShipCommands.Add(new Menu_Command<object>("Lockdown", Lockdown, "Closes/Opens Air Seals"));
 	ShipCommands.Add(new Menu_Command<object>("Factory Reset", FactoryReset, "Resets AI memory and settings, and turns it off"));
 	Command_Menu.Add(ShipCommands);
@@ -2300,7 +2301,7 @@ private double Scan_Frequency{
 private double Scan_Time=10;
 private string ScanString="";
 private string AirlockString="";
-public void PerformScan(){
+public bool PerformScan(object obj=null){
 	Write("Beginning Scan");
 	ScanString="";
 	AirlockString="";
@@ -2455,6 +2456,7 @@ public void PerformScan(){
 		DisplayMenu();
 	
 	Scan_Time=0;
+	return true;
 }
 
 public void PerformDisarm(){
