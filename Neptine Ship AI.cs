@@ -2724,9 +2724,9 @@ private void SetGyroscopes(){
 			if(Math.Abs(difference) > 1 || GetAngle(Backward_Vector,Target_Direction)<GetAngle(Forward_Vector,Target_Direction)){
 				float delta=((float)Math.Min(Math.Abs(difference/(ACCEPTABLE_ANGLE/2)), 1))*gyro_multx;
 				if(difference>0 || difference==0 && GetAngle(Forward_Vector, Target_Direction) > ACCEPTABLE_ANGLE)//Ship is too far left
-					input_yaw-=delta;
-				else //Ship is too far right
 					input_yaw+=delta;
+				else //Ship is too far right
+					input_yaw-=delta;
 			}
 		}
 	}
