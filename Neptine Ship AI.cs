@@ -1149,144 +1149,126 @@ private Gyro_Tuple Transform(Gyro_Tuple input){
 	float pitch=0, yaw=0, roll=0;
 	switch(Forward){
 		case Base6Directions.Direction.Forward:
+			roll=input.Roll;
 			switch(Up){
 				case Base6Directions.Direction.Up:
 					pitch=input.Pitch;
 					yaw=input.Yaw;
-					roll=input.Roll;
 					break;
 				case Base6Directions.Direction.Down:
 					pitch=-1*input.Pitch;
 					yaw=-1*input.Yaw;
-					roll=input.Roll;
 					break;
 				case Base6Directions.Direction.Left:
 					yaw=input.Pitch;
 					pitch=-1*input.Yaw;
-					roll=input.Roll;
 					break;
 				case Base6Directions.Direction.Right:
 					yaw=-1*input.Pitch;
 					pitch=input.Yaw;
-					roll=input.Roll;
 					break;
 			}
 			break;
 		case Base6Directions.Direction.Backward:
+			roll=-1*input.Roll;
 			switch(Up){
 				case Base6Directions.Direction.Up:
 					pitch=-1*input.Pitch;
 					yaw=input.Yaw;
-					roll=-1*input.Roll;
 					break;
 				case Base6Directions.Direction.Down:
 					pitch=input.Pitch;
-					yaw=input.Yaw;
-					roll=-1*input.Roll;
+					yaw=-1*input.Yaw;
 					break;
 				case Base6Directions.Direction.Left:
 					yaw=input.Pitch;
 					pitch=input.Yaw;
-					roll=-1*input.Roll;
 					break;
 				case Base6Directions.Direction.Right:
 					yaw=-1*input.Pitch;
 					pitch=-1*input.Yaw;
-					roll=-1*input.Roll;
 					break;
 			}
 			break;
 		case Base6Directions.Direction.Up:
+			roll=-1*input.Yaw;
 			switch(Up){
 				case Base6Directions.Direction.Forward:
 					pitch=-1*input.Pitch;
-					roll=-1*input.Yaw;
 					yaw=-1*input.Roll;
 					break;
 				case Base6Directions.Direction.Backward:
 					pitch=input.Pitch;
-					roll=-1*input.Yaw;
 					yaw=input.Roll;
 					break;
 				case Base6Directions.Direction.Left:
 					yaw=input.Pitch;
-					roll=-1*input.Yaw;
 					pitch=-1*input.Roll;
 					break;
 				case Base6Directions.Direction.Right:
 					yaw=-1*input.Pitch;
-					roll=-1*input.Yaw;
 					pitch=input.Roll;
 					break;
 			}
 			break;
 		case Base6Directions.Direction.Down:
+			roll=input.Yaw;
 			switch(Up){
 				case Base6Directions.Direction.Forward:
 					pitch=input.Pitch;
-					roll=input.Yaw;
 					yaw=-1*input.Roll;
 					break;
 				case Base6Directions.Direction.Backward:
 					pitch=-1*input.Pitch;
-					roll=input.Yaw;
 					yaw=input.Roll;
 					break;
 				case Base6Directions.Direction.Left:
 					yaw=input.Pitch;
-					roll=input.Yaw;
 					pitch=input.Roll;
 					break;
 				case Base6Directions.Direction.Right:
 					yaw=-1*input.Pitch;
-					roll=input.Yaw;
 					pitch=-1*input.Roll;
 					break;
 			}
 			break;
 		case Base6Directions.Direction.Left:
+			roll=-1*input.Pitch;
 			switch(Up){
 				case Base6Directions.Direction.Forward:
-					roll=-1*input.Pitch;
 					pitch=input.Yaw;
 					yaw=-1*input.Roll;
 					break;
 				case Base6Directions.Direction.Backward:
-					roll=-1*input.Pitch;
 					pitch=-1*input.Yaw;
 					yaw=input.Roll;
 					break;
 				case Base6Directions.Direction.Up:
-					roll=-1*input.Pitch;
 					yaw=input.Yaw;
 					pitch=input.Roll;
 					break;
 				case Base6Directions.Direction.Down:
-					roll=-1*input.Pitch;
 					yaw=-1*input.Yaw;
 					pitch=-1*input.Roll;
 					break;
 			}
 			break;
 		case Base6Directions.Direction.Right:
+			roll=input.Pitch;
 			switch(Up){
 				case Base6Directions.Direction.Forward:
-					roll=input.Pitch;
 					pitch=-1*input.Yaw;
 					yaw=-1*input.Roll;
 					break;
 				case Base6Directions.Direction.Backward:
-					roll=input.Pitch;
 					pitch=input.Yaw;
 					yaw=input.Roll;
 					break;
 				case Base6Directions.Direction.Up:
-					roll=input.Pitch;
 					yaw=input.Yaw;
 					pitch=-1*input.Roll;
 					break;
 				case Base6Directions.Direction.Down:
-					roll=input.Pitch;
 					yaw=-1*input.Yaw;
 					pitch=input.Roll;
 					break;
@@ -2688,6 +2670,15 @@ private void SetGyroscopes(){
 	float current_yaw=(float) Relative_AngularVelocity.Y;
 	float current_roll=(float) Relative_AngularVelocity.Z;
 	
+	float gyro_count = 0;
+	List<IMyGyro> AllGyros=new List<IMyGyro>();
+	GridTerminalSystem.GetBlocksOfType<IMyGyro>(AllGyros);
+	foreach(IMyGyro Gyro in AllGyros){
+		if(Gyro.IsWorking)
+			gyro_count+=Gyro.GyroPower/100.0f;
+	}
+	float gyro_multx=(float)Math.Max(0.1f, Math.Min(1, 1.5f/(Controller.CalculateShipMass().PhysicalMass/gyro_count/1000000)));
+	
 	float input_pitch=0;
 	float input_yaw=0;
 	float input_roll=0;
@@ -2702,27 +2693,27 @@ private void SetGyroscopes(){
 	input_pitch=Math.Min(Math.Max(Controller.RotationIndicator.X / 100, -1), 1);
 	if(Math.Abs(input_pitch)<0.05f){
 		input_pitch=current_pitch*0.99f*1;
-		if(Elevation<Controller.GetShipSpeed()*2 && Elevation<50 && GetAngle(Gravity, Down_Vector)<90 && Pitch_Time>=1){
-			double difference=Math.Abs(GetAngle(Gravity, Forward_Vector));
+		if(Elevation<Controller.GetShipSpeed()*2&&Elevation<50&&GetAngle(Gravity,Down_Vector)<90&&Pitch_Time>=1){
+			double difference=Math.Abs(GetAngle(Gravity,Forward_Vector));
 			if(difference<90){
-				input_pitch-=5*((float)Math.Min(Math.Abs((90-difference)/90), 1));
+				input_pitch-=5*gyro_multx*((float)Math.Min(Math.Abs((90-difference)/90), 1));
 			}
 		}
 		if(Match_Direction){
 			double difference=GetAngle(Down_Vector, Target_Direction)-GetAngle(Up_Vector, Target_Direction);
 			Echo("Pitch Difference:"+Math.Round(difference,1)+'°');
-			if(Math.Abs(difference) > 1){
-				float delta=2*((float)Math.Min(Math.Abs(difference/(ACCEPTABLE_ANGLE/2)), 1));
-				if(difference>0)
-					input_pitch -= delta;
-				else
-					input_pitch += delta;
+			if(Math.Abs(difference)>1){
+				float delta=((float)Math.Min(Math.Abs(difference/(ACCEPTABLE_ANGLE/2)), 1))*gyro_multx;
+				if(difference>0)//Ship is pitched down
+					input_pitch+=delta;
+				else//Ship is pitched up
+					input_pitch-=delta;
 			}
 		}
 	}
 	else{
 		Pitch_Time=0;
-		input_pitch *= 30;
+		input_pitch*=30;
 	}
 	input_yaw=Math.Min(Math.Max(Controller.RotationIndicator.Y / 100, -1), 1);
 	if(Math.Abs(input_yaw)<0.05f){
@@ -2731,17 +2722,17 @@ private void SetGyroscopes(){
 			double difference=GetAngle(Left_Vector, Target_Direction)-GetAngle(Right_Vector, Target_Direction);
 			Echo("Yaw Difference:"+Math.Round(difference,1)+'°');
 			if(Math.Abs(difference) > 1 || GetAngle(Backward_Vector,Target_Direction)<GetAngle(Forward_Vector,Target_Direction)){
-				float delta=2*((float)Math.Min(Math.Abs(difference/(ACCEPTABLE_ANGLE/2)), 1));
-				if(difference>0 || difference==0 && GetAngle(Forward_Vector, Target_Direction) > ACCEPTABLE_ANGLE)
-					input_yaw += delta;
-				else
-					input_yaw -= delta;
+				float delta=((float)Math.Min(Math.Abs(difference/(ACCEPTABLE_ANGLE/2)), 1))*gyro_multx;
+				if(difference>0 || difference==0 && GetAngle(Forward_Vector, Target_Direction) > ACCEPTABLE_ANGLE)//Ship is too far left
+					input_yaw-=delta;
+				else //Ship is too far right
+					input_yaw+=delta;
 			}
 		}
 	}
 	else{
 		Yaw_Time=0;
-		input_yaw *= 30;
+		input_yaw*=30;
 	}
 	input_roll=Controller.RollIndicator;
 	if(Math.Abs(input_roll)<0.05f){
@@ -2749,10 +2740,10 @@ private void SetGyroscopes(){
 		if(Gravity.Length() > 0  && Roll_Time >= 1){
 			double difference=GetAngle(Right_Vector, Gravity)-GetAngle(Left_Vector, Gravity);
 			if(Math.Abs(difference)>ACCEPTABLE_ANGLE){
-				float delta=10*((float)Math.Min(Math.Abs(difference/(ACCEPTABLE_ANGLE*2)), 1));
-				if(difference>0)
+				float delta=10*((float)Math.Min(Math.Abs(difference/(ACCEPTABLE_ANGLE*2)), 1))*gyro_multx;
+				if(difference>0) //Ship listing right
 					input_roll+=delta;
-				else
+				else //Ship listing left
 					input_roll-=delta;
 			}
 		}
