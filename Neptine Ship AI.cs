@@ -1904,7 +1904,7 @@ public bool GoTo(EntityInfo Entity){
 		Target_Direction=Entity.Position-Controller.GetPosition();
 		Target_Direction.Normalize();
 		Target_Position=GetOffsetPosition(Entity.Position, Entity.Size);
-		//Match_Position=true;
+		Match_Position=true;
 		Match_Direction=true;
 	}
 	return true;
