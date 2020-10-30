@@ -2030,8 +2030,8 @@ private bool _Lockdown=false;
 
 public bool Lockdown(object obj=null){
 	_Lockdown=!_Lockdown;
-	List<IMyAirtightHangarDoor> Seals=(new GenericMethods<IMyAirtightHangarDoor>(this)).GetAllIncluding("Air Seal");
-	foreach(IMyAirtightHangarDoor Door in Seals){
+	List<IMyDoor> Seals=(new GenericMethods<IMyDoor>(this)).GetAllIncluding("Air Seal");
+	foreach(IMyDoor Door in Seals){
 		if(_Lockdown){
 			if(CanHaveJob(Door, "Lockdown")){
 				SetBlockData(Door, "Job", "Lockdown");
@@ -2170,7 +2170,7 @@ private Menu_Submenu CharacterMenu;
 
 private bool CreateMenu(object obj=null){
 	Command_Menu=new Menu_Submenu("Command Menu");
-	Command_Menu.Add(new Menu_Command<object>("Update Menu", CreateMenu));
+	Command_Menu.Add(new Menu_Command<object>("Update Menu", CreateMenu, "Refreshes menu"));
 	Menu_Submenu ShipCommands=new Menu_Submenu("Commands");
 	ShipCommands.Add(new Menu_Command<object>("Stop", Stop, "Disables autopilot"));
 	ShipCommands.Add(new Menu_Command<object>("Lockdown", Lockdown, "Closes/Opens Air Seals"));
@@ -2721,6 +2721,7 @@ double Pitch_Time= 1.0f;
 double Yaw_Time=1.0f;
 double Roll_Time=1.0f;
 private void SetGyroscopes(){
+	Gyroscope.GyroOverride=true;
 	float current_pitch=(float) Relative_AngularVelocity.X;
 	float current_yaw=(float) Relative_AngularVelocity.Y;
 	float current_roll=(float) Relative_AngularVelocity.Z;
@@ -3238,6 +3239,8 @@ public void Main(string argument, UpdateType updateSource)
 			FactoryReset();
 			DisplayMenu();
 		}
+		
+		Echo((new GenericMethods<IMyDoor>(this)).GetAllIncluding("Air Seal").Count.ToString()+" Air Seals");
 		
 		if(!Me.CubeGrid.IsStatic){
 			SetThrusters();
