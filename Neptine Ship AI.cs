@@ -996,25 +996,42 @@ private double Time_To_Crash=double.MaxValue;
 private Menu_Submenu Command_Menu;
 
 private Base6Directions.Direction Forward;
-private Base6Directions.Direction Backward;
+private Base6Directions.Direction Backward{
+	get{
+		return Base6Directions.GetOppositeDirection(Forward);
+	}
+}
 private Base6Directions.Direction Up;
-private Base6Directions.Direction Down;
+private Base6Directions.Direction Down{
+	get{
+		return Base6Directions.GetOppositeDirection(Up);
+	}
+}
 private Base6Directions.Direction Left;
-private Base6Directions.Direction Right;
+private Base6Directions.Direction Right{
+	get{
+		return Base6Directions.GetOppositeDirection(Left);
+	}
+}
 
 private Vector3D Forward_Vector;
-private Vector3D Backward_Vector;
+private Vector3D Backward_Vector{
+	get{
+		return -1*Forward_Vector;
+	}
+}
 private Vector3D Up_Vector;
-private Vector3D Down_Vector;
+private Vector3D Down_Vector{
+	get{
+		return -1*Up_Vector;
+	}
+}
 private Vector3D Left_Vector;
-private Vector3D Right_Vector;
-
-private Vector3D Controller_Forward;
-private Vector3D Controller_Backward;
-private Vector3D Controller_Up;
-private Vector3D Controller_Down;
-private Vector3D Controller_Left;
-private Vector3D Controller_Right;
+private Vector3D Right_Vector{
+	get{
+		return -1*Left_Vector;
+	}
+}
 
 private bool Match_Direction=false;
 private Vector3D Target_Direction;
@@ -1457,11 +1474,8 @@ private void SetupAirlocks(){
 
 private void SetControllerDirections(){
 	Forward=Controller.Orientation.Forward;
-	Backward=Base6Directions.GetOppositeDirection(Forward);
 	Up=Controller.Orientation.Up;
-	Down=Base6Directions.GetOppositeDirection(Up);
 	Left=Controller.Orientation.Left;
-	Right=Base6Directions.GetOppositeDirection(Left);
 }
 
 private UpdateFrequency GetUpdateFrequency(){
@@ -2687,14 +2701,14 @@ private void SetGyroscopes(){
 	input_pitch=Math.Min(Math.Max(Controller.RotationIndicator.X / 100, -1), 1);
 	if(Math.Abs(input_pitch)<0.05f){
 		input_pitch=current_pitch*0.99f*1;
-		if(Elevation<Controller.GetShipSpeed()*2 && Elevation<50 && GetAngle(Gravity, Controller_Down)<90 && Pitch_Time>=1){
-			double difference=Math.Abs(GetAngle(Gravity, Controller_Forward));
+		if(Elevation<Controller.GetShipSpeed()*2 && Elevation<50 && GetAngle(Gravity, Down_Vector)<90 && Pitch_Time>=1){
+			double difference=Math.Abs(GetAngle(Gravity, Forward_Vector));
 			if(difference<90){
 				input_pitch-=5*((float)Math.Min(Math.Abs((90-difference)/90), 1));
 			}
 		}
 		if(Match_Direction){
-			double difference=GetAngle(Controller_Down, Target_Direction)-GetAngle(Controller_Up, Target_Direction);
+			double difference=GetAngle(Down_Vector, Target_Direction)-GetAngle(Up_Vector, Target_Direction);
 			Echo("Pitch Difference:"+Math.Round(difference,1)+'°');
 			if(Math.Abs(difference) > 1){
 				float delta=2*((float)Math.Min(Math.Abs(difference/(ACCEPTABLE_ANGLE/2)), 1));
@@ -2713,11 +2727,11 @@ private void SetGyroscopes(){
 	if(Math.Abs(input_yaw)<0.05f){
 		input_yaw=current_yaw*0.99f*1;
 		if(Match_Direction){
-			double difference=GetAngle(Controller_Right, Target_Direction)-GetAngle(Controller_Left, Target_Direction);
+			double difference=GetAngle(Right_Vector, Target_Direction)-GetAngle(Left_Vector, Target_Direction);
 			Echo("Yaw Difference:"+Math.Round(difference,1)+'°');
-			if(Math.Abs(difference) > 1 || GetAngle(Controller_Forward, Target_Direction) > ACCEPTABLE_ANGLE){
+			if(Math.Abs(difference) > 1 || GetAngle(Forward_Vector, Target_Direction) > ACCEPTABLE_ANGLE){
 				float delta=2*((float)Math.Min(Math.Abs(difference/(ACCEPTABLE_ANGLE/2)), 1));
-				if(difference>0 || difference==0 && GetAngle(Controller_Forward, Target_Direction) > ACCEPTABLE_ANGLE)
+				if(difference>0 || difference==0 && GetAngle(Forward_Vector, Target_Direction) > ACCEPTABLE_ANGLE)
 					input_yaw -= delta;
 				else
 					input_yaw += delta;
@@ -2732,9 +2746,9 @@ private void SetGyroscopes(){
 	if(Math.Abs(input_roll)<0.05f){
 		input_roll=current_roll*0.99f*1;
 		if(Gravity.Length() > 0  && Roll_Time >= 1){
-			double difference=(GetAngle(Controller_Left, Gravity)-GetAngle(Controller_Right, Gravity));
+			double difference=(GetAngle(Left_Vector, Gravity)-GetAngle(Right_Vector, Gravity));
 			if(Math.Abs(difference)>ACCEPTABLE_ANGLE){
-				float delta=9*((float)Math.Min(Math.Abs(difference/(ACCEPTABLE_ANGLE*2)), 1));
+				float delta=10*((float)Math.Min(Math.Abs(difference/(ACCEPTABLE_ANGLE*2)), 1));
 				if(difference>0)
 					input_roll+=delta;
 				else
@@ -2777,7 +2791,7 @@ private void SetThrusters(){
 		Write("Cruise Control: On");
 		Vector3D velocity_direction=CurrentVelocity;
 		velocity_direction.Normalize();
-		double angle=Math.Min(GetAngle(Controller_Forward, velocity_direction), GetAngle(Controller_Backward, velocity_direction));
+		double angle=Math.Min(GetAngle(Forward_Vector, velocity_direction), GetAngle(Backward_Vector, velocity_direction));
 		if(angle <= ACCEPTABLE_ANGLE / 2){
 			input_right -= (float) ((Relative_CurrentVelocity.X-Relative_RestingVelocity.X) * Mass_Accomodation * damp_multx);
 			input_up -= (float) ((Relative_CurrentVelocity.Y-Relative_RestingVelocity.Y) * Mass_Accomodation * damp_multx);
@@ -2805,17 +2819,17 @@ private void SetThrusters(){
 	
 	bool matched_direction=!Match_Direction;
 	if(Match_Direction){
-		matched_direction=Math.Abs(GetAngle(Target_Direction,Controller_Forward))<=ACCEPTABLE_ANGLE;
+		matched_direction=Math.Abs(GetAngle(Target_Direction,Forward_Vector))<=ACCEPTABLE_ANGLE;
 	}
 	
 	if(Math.Abs(Controller.MoveIndicator.X)>0.5f){
 		if(Controller.MoveIndicator.X > 0){
-			if((CurrentVelocity+Controller_Right-RestingVelocity).Length() <= effective_speed_limit)
+			if((CurrentVelocity+Right_Vector-RestingVelocity).Length() <= effective_speed_limit)
 				input_right=0.95f * Right_Thrust;
 			else
 				input_right=Math.Min(input_right, 0);
 		} else {
-			if((CurrentVelocity+Controller_Left-RestingVelocity).Length() <= effective_speed_limit)
+			if((CurrentVelocity+Left_Vector-RestingVelocity).Length() <= effective_speed_limit)
 				input_right=-0.95f * Left_Thrust;
 			else
 				input_right=Math.Max(input_right, 0);
@@ -2838,11 +2852,11 @@ private void SetThrusters(){
 			time=(Relative_Distance-(difference*time/2))/difference;
 			if(time > 0 && (!Match_Direction || matched_direction) && Relative_Speed-Relative_Target_Speed<=0.05){
 				if(difference > 0){
-					if((CurrentVelocity+Controller_Left-RestingVelocity).Length() <= Math.Min(Elevation, Math.Min(effective_speed_limit, Target_Distance)))
+					if((CurrentVelocity+Left_Vector-RestingVelocity).Length() <= Math.Min(Elevation, Math.Min(effective_speed_limit, Target_Distance)))
 						input_right=-0.95f * Left_Thrust;
 				}
 				else {
-					if((CurrentVelocity+Controller_Right-RestingVelocity).Length() <= Math.Min(Elevation, Math.Min(effective_speed_limit, Target_Distance)))
+					if((CurrentVelocity+Right_Vector-RestingVelocity).Length() <= Math.Min(Elevation, Math.Min(effective_speed_limit, Target_Distance)))
 						input_right=0.95f * Right_Thrust;
 				}
 			}
@@ -2851,12 +2865,12 @@ private void SetThrusters(){
 	
 	if(Math.Abs(Controller.MoveIndicator.Y)>0.5f){
 		if(Controller.MoveIndicator.Y > 0){
-			if((CurrentVelocity+Controller_Up-RestingVelocity).Length() <= effective_speed_limit)
+			if((CurrentVelocity+Up_Vector-RestingVelocity).Length() <= effective_speed_limit)
 				input_up=0.95f * Up_Thrust;
 			else
 				input_up=Math.Min(input_up, 0);
 		} else {
-			if((CurrentVelocity+Controller_Down-RestingVelocity).Length() <= effective_speed_limit)
+			if((CurrentVelocity+Down_Vector-RestingVelocity).Length() <= effective_speed_limit)
 				input_up=-0.95f * Down_Thrust;
 			else
 				input_up=Math.Max(input_up, 0);
@@ -2879,11 +2893,11 @@ private void SetThrusters(){
 			time=(Relative_Distance-(difference*time/2))/difference;
 			if(time > 0 && (!Match_Direction || matched_direction) && Relative_Speed-Relative_Target_Speed<=0.05){
 				if(difference > 0){
-					if((CurrentVelocity+Controller_Down-RestingVelocity).Length() <= Math.Min(Elevation, Math.Min(effective_speed_limit, Target_Distance)))
+					if((CurrentVelocity+Down_Vector-RestingVelocity).Length() <= Math.Min(Elevation, Math.Min(effective_speed_limit, Target_Distance)))
 						input_up=-0.95f * Down_Thrust;
 				}
 				else {
-					if((CurrentVelocity+Controller_Up-RestingVelocity).Length() <= Math.Min(Elevation, Math.Min(effective_speed_limit, Target_Distance)))
+					if((CurrentVelocity+Up_Vector-RestingVelocity).Length() <= Math.Min(Elevation, Math.Min(effective_speed_limit, Target_Distance)))
 						input_up=0.95f * Up_Thrust;
 				}
 			}
@@ -2892,12 +2906,12 @@ private void SetThrusters(){
 	
 	if(Math.Abs(Controller.MoveIndicator.Z)>0.5f){
 		if(Controller.MoveIndicator.Z<0){
-			if((CurrentVelocity+Controller_Up-RestingVelocity).Length() <= effective_speed_limit)
+			if((CurrentVelocity+Up_Vector-RestingVelocity).Length() <= effective_speed_limit)
 				input_forward=0.95f * Forward_Thrust;
 			else
 				input_forward=Math.Min(input_forward, 0);
 		} else {
-			if((CurrentVelocity+Controller_Down-RestingVelocity).Length() <= effective_speed_limit)
+			if((CurrentVelocity+Down_Vector-RestingVelocity).Length() <= effective_speed_limit)
 				input_forward=-0.95f * Backward_Thrust;
 			else
 				input_forward=Math.Max(input_forward, 0);
@@ -2920,11 +2934,11 @@ private void SetThrusters(){
 			time=(Relative_Distance-(difference*time/2))/difference;
 			if(time > 0 && (!Match_Direction || matched_direction) && Relative_Speed-Relative_Target_Speed<=0.05){
 				if(difference > 0){
-					if((CurrentVelocity+Controller_Down-RestingVelocity).Length() <= Math.Min(Elevation, Math.Min(effective_speed_limit, Target_Distance)))
+					if((CurrentVelocity+Down_Vector-RestingVelocity).Length() <= Math.Min(Elevation, Math.Min(effective_speed_limit, Target_Distance)))
 						input_forward=-0.95f * Backward_Thrust;
 				}
 				else {
-					if((CurrentVelocity+Controller_Up-RestingVelocity).Length() <= Math.Min(Elevation, Math.Min(effective_speed_limit, Target_Distance)))
+					if((CurrentVelocity+Up_Vector-RestingVelocity).Length() <= Math.Min(Elevation, Math.Min(effective_speed_limit, Target_Distance)))
 						input_forward=0.95f * Forward_Thrust;
 				}
 			}
@@ -2972,99 +2986,20 @@ private void SetThrusters(){
 
 //Sets directional vectors, Elevation, etc
 private void GetPositionData(){
-	Vector3D base_vector=new Vector3D(0,0,10);
-	Forward_Vector=GlobalToLocal(base_vector);
+	Vector3D base_vector=new Vector3D(0,0,1);
+	Forward_Vector=LocalToGlobal(base_vector);
 	Forward_Vector.Normalize();
-	Backward_Vector=-1*Forward_Vector;
+	Controller.CustomData=(new MyWaypointInfo("Forward",Me.CubeGrid.GetPosition()+10*Forward_Vector)).ToString();
 	
-	base_vector=new Vector3D(0,10,0);
-	Up_Vector=GlobalToLocal(base_vector);
+	base_vector=new Vector3D(0,1,0);
+	Up_Vector=LocalToGlobal(base_vector);
 	Up_Vector.Normalize();
-	Down_Vector=-1*Up_Vector;
+	Controller.CustomData+='\n'+(new MyWaypointInfo("Up",Me.CubeGrid.GetPosition()+10*Up_Vector)).ToString();
 	
-	base_vector=new Vector3D(10,0,0);
-	Left_Vector=GlobalToLocal(base_vector);
+	base_vector=new Vector3D(1,0,0);
+	Left_Vector=LocalToGlobal(base_vector);
 	Left_Vector.Normalize();
-	Right_Vector=-1*Left_Vector;
-	
-	switch(Forward){
-		case Base6Directions.Direction.Forward:
-			Controller_Forward=Forward_Vector;
-			Controller_Backward=Backward_Vector;
-			break;
-		case Base6Directions.Direction.Backward:
-			Controller_Forward=Backward_Vector;
-			Controller_Backward=Forward_Vector;
-			break;
-		case Base6Directions.Direction.Up:
-			Controller_Forward=Up_Vector;
-			Controller_Backward=Down_Vector;
-			break;
-		case Base6Directions.Direction.Down:
-			Controller_Forward=Down_Vector;
-			Controller_Backward=Up_Vector;
-			break;
-		case Base6Directions.Direction.Left:
-			Controller_Forward=Left_Vector;
-			Controller_Backward=Right_Vector;
-			break;
-		case Base6Directions.Direction.Right:
-			Controller_Forward=Right_Vector;
-			Controller_Backward=Left_Vector;
-			break;
-	}
-	switch(Up){
-		case Base6Directions.Direction.Forward:
-			Controller_Up=Forward_Vector;
-			Controller_Down=Backward_Vector;
-			break;
-		case Base6Directions.Direction.Backward:
-			Controller_Up=Backward_Vector;
-			Controller_Down=Forward_Vector;
-			break;
-		case Base6Directions.Direction.Up:
-			Controller_Up=Up_Vector;
-			Controller_Down=Down_Vector;
-			break;
-		case Base6Directions.Direction.Down:
-			Controller_Up=Down_Vector;
-			Controller_Down=Up_Vector;
-			break;
-		case Base6Directions.Direction.Left:
-			Controller_Up=Left_Vector;
-			Controller_Down=Right_Vector;
-			break;
-		case Base6Directions.Direction.Right:
-			Controller_Up=Right_Vector;
-			Controller_Down=Left_Vector;
-			break;
-	}
-	switch(Left){
-		case Base6Directions.Direction.Forward:
-			Controller_Left=Forward_Vector;
-			Controller_Right=Backward_Vector;
-			break;
-		case Base6Directions.Direction.Backward:
-			Controller_Left=Backward_Vector;
-			Controller_Right=Forward_Vector;
-			break;
-		case Base6Directions.Direction.Up:
-			Controller_Left=Up_Vector;
-			Controller_Right=Down_Vector;
-			break;
-		case Base6Directions.Direction.Down:
-			Controller_Left=Down_Vector;
-			Controller_Right=Up_Vector;
-			break;
-		case Base6Directions.Direction.Left:
-			Controller_Left=Left_Vector;
-			Controller_Right=Right_Vector;
-			break;
-		case Base6Directions.Direction.Right:
-			Controller_Left=Right_Vector;
-			Controller_Right=Left_Vector;
-			break;
-	}
+	Controller.CustomData+='\n'+(new MyWaypointInfo("Left",Me.CubeGrid.GetPosition()+10*Left_Vector)).ToString();
 	
 	Gravity=Controller.GetNaturalGravity();
 	CurrentVelocity=Controller.GetShipVelocities().LinearVelocity;
@@ -3152,7 +3087,7 @@ public void Main(string argument, UpdateType updateSource)
 		Echo(AirlockString);
 		
 		if(Match_Direction){
-			double angle=GetAngle(Target_Direction, Controller_Forward);
+			double angle=GetAngle(Target_Direction, Forward_Vector);
 			Write("Angle Difference: "+Math.Round(angle,1).ToString()+"°");
 		}
 		if(Match_Position){
