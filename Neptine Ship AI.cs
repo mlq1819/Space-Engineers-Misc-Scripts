@@ -1457,68 +1457,11 @@ private void SetupAirlocks(){
 
 private void SetControllerDirections(){
 	Forward=Controller.Orientation.Forward;
-	switch(Forward){
-		case Base6Directions.Direction.Forward:
-			Backward=Base6Directions.Direction.Backward;
-			break;
-		case Base6Directions.Direction.Backward:
-			Backward=Base6Directions.Direction.Forward;
-			break;
-		case Base6Directions.Direction.Up:
-			Backward=Base6Directions.Direction.Down;
-			break;
-		case Base6Directions.Direction.Down:
-			Backward=Base6Directions.Direction.Up;
-			break;
-		case Base6Directions.Direction.Left:
-			Backward=Base6Directions.Direction.Right;
-			break;
-		case Base6Directions.Direction.Right:
-			Backward=Base6Directions.Direction.Left;
-			break;
-	}
+	Backward=Base6Directions.GetOppositeDirection(Forward);
 	Up=Controller.Orientation.Up;
-	switch(Up){
-		case Base6Directions.Direction.Forward:
-			Down=Base6Directions.Direction.Backward;
-			break;
-		case Base6Directions.Direction.Backward:
-			Down=Base6Directions.Direction.Forward;
-			break;
-		case Base6Directions.Direction.Up:
-			Down=Base6Directions.Direction.Down;
-			break;
-		case Base6Directions.Direction.Down:
-			Down=Base6Directions.Direction.Up;
-			break;
-		case Base6Directions.Direction.Left:
-			Down=Base6Directions.Direction.Right;
-			break;
-		case Base6Directions.Direction.Right:
-			Down=Base6Directions.Direction.Left;
-			break;
-	}
+	Down=Base6Directions.GetOppositeDirection(Up);
 	Left=Controller.Orientation.Left;
-	switch(Left){
-		case Base6Directions.Direction.Forward:
-			Right=Base6Directions.Direction.Backward;
-			break;
-		case Base6Directions.Direction.Backward:
-			Right=Base6Directions.Direction.Forward;
-			break;
-		case Base6Directions.Direction.Up:
-			Right=Base6Directions.Direction.Down;
-			break;
-		case Base6Directions.Direction.Down:
-			Right=Base6Directions.Direction.Up;
-			break;
-		case Base6Directions.Direction.Left:
-			Right=Base6Directions.Direction.Right;
-			break;
-		case Base6Directions.Direction.Right:
-			Right=Base6Directions.Direction.Left;
-			break;
-	}
+	Right=Base6Directions.GetOppositeDirection(Left);
 }
 
 private UpdateFrequency GetUpdateFrequency(){
@@ -1668,6 +1611,8 @@ public Program(){
 		Me.GetSurface(i).Alignment=TextAlignment.CENTER;
 		Me.GetSurface(i).ContentType=ContentType.TEXT_AND_IMAGE;
 	}
+	Me.GetSurface(1).FontSize=2.2f;
+	Me.GetSurface(1).TextPadding=40.0f;
 	Echo("Beginning initialization");
 	Me.Enabled=true;
 	Rnd=new Random();
@@ -2032,15 +1977,13 @@ public bool Lockdown(object obj=null){
 	_Lockdown=!_Lockdown;
 	List<IMyDoor> Seals=(new GenericMethods<IMyDoor>(this)).GetAllIncluding("Air Seal");
 	foreach(IMyDoor Door in Seals){
-		if(_Lockdown){
-			if(CanHaveJob(Door, "Lockdown")){
+		if(CanHaveJob(Door, "Lockdown")){
+			if(_Lockdown){
 				SetBlockData(Door, "Job", "Lockdown");
 				Door.Enabled=(Door.Status!=DoorStatus.Closed);
 				Door.CloseDoor();
 			}
-		}
-		else{
-			if(CanHaveJob(Door, "Lockdown")){
+			else{
 				SetBlockData(Door, "Job", "None");
 				Door.Enabled=(Door.Status!=DoorStatus.Open);
 				Door.OpenDoor();
@@ -2201,6 +2144,7 @@ private void DisplayMenu(){
 		Panel.Alignment=TextAlignment.CENTER;
 		Panel.FontSize=1.2f;
 		Panel.ContentType=ContentType.TEXT_AND_IMAGE;
+		Panel.TextPadding=10.0f;
 		if(Panel.CustomName.ToLower().Contains("transparent")){
 			Panel.FontColor=DEFAULT_BACKGROUND_COLOR;
 			Panel.BackgroundColor=new Color(0,0,0,0);
@@ -2422,13 +2366,13 @@ private void UpdateAirlock(Airlock airlock){
 				airlock.Door1.Enabled=(airlock.Door1.Status != DoorStatus.Closed);
 				if(airlock.Door1.Status != DoorStatus.Closing)
 					airlock.Door1.CloseDoor();
-				ScanString += '\t'+"Closing Door 2"+'\n';
+				AirlockString += '\t'+"Closing Door 2"+'\n';
 			}
 			else {
 				airlock.Door1.Enabled=true;
 				if(airlock.Door1.Status != DoorStatus.Opening)
 					airlock.Door1.OpenDoor();
-				ScanString += '\t'+"Opening Door 1"+'\n';
+				AirlockString += '\t'+"Opening Door 1"+'\n';
 			}
 		}
 		else {
@@ -2439,13 +2383,13 @@ private void UpdateAirlock(Airlock airlock){
 				airlock.Door2.Enabled=(airlock.Door2.Status != DoorStatus.Closed);
 				if(airlock.Door2.Status != DoorStatus.Closing)
 					airlock.Door2.CloseDoor();
-				ScanString += '\t'+"Closing Door 1"+'\n';
+				AirlockString += '\t'+"Closing Door 1"+'\n';
 			}
 			else {
 				airlock.Door2.Enabled=true;
 				if(airlock.Door2.Status != DoorStatus.Opening)
 					airlock.Door2.OpenDoor();
-				ScanString += '\t'+"Opening Door 2"+'\n';
+				AirlockString += '\t'+"Opening Door 2"+'\n';
 			}
 		}
 	}
@@ -2458,7 +2402,7 @@ private void UpdateAirlock(Airlock airlock){
 		airlock.Door2.Enabled=(airlock.Door2.Status != DoorStatus.Closed);
 		if(airlock.Door2.Status != DoorStatus.Closing)
 			airlock.Door2.CloseDoor();
-		ScanString += '\t'+"Closing both Doors"+'\n';
+		AirlockString += '\t'+"Closing both Doors"+'\n';
 	}
 }
 
@@ -2506,9 +2450,11 @@ private double Scan_Frequency{
 }
 private double Scan_Time=10;
 private string ScanString="";
+private string AirlockString="";
 public void PerformScan(){
 	Write("Beginning Scan");
 	ScanString="";
+	AirlockString="";
 	PerformDisarm();
 	List<MyDetectedEntityInfo> DetectedEntities=new List<MyDetectedEntityInfo>();
 	List<IMySensorBlock> AllSensors=new List<IMySensorBlock>();
@@ -2608,15 +2554,16 @@ public void PerformScan(){
 	}
 	
 	foreach(IMyBroadcastListener Listener in listeners){
+		int count=0;
 		while(Listener.HasPendingMessage){
 			MyIGCMessage message=Listener.AcceptMessage();
-			ScanString += "Received message on "+Listener.Tag+'\n';
+			count++;
 			EntityInfo Entity;
-			if(EntityInfo.TryParse(message.Data.ToString(), out Entity)){
-				ScanString+="Got new data on "+Entity.Name+'\n';
+			if(EntityInfo.TryParse(message.Data.ToString(), out Entity))
 				UpdateList(Entities, Entity);
-			}
 		}
+		if(count>0)
+			ScanString += "Received "+count.ToString()+" messages on "+Listener.Tag+'\n';
 	}
 	
 	foreach(EntityInfo Entity in Entities){
@@ -2651,7 +2598,7 @@ public void PerformScan(){
 	PerformAlarm();
 	
 	for(int i=0; i<Airlocks.Count; i++){
-		ScanString += "Airlock "+(i+1).ToString()+" Status:"+'\n';
+		AirlockString += "Airlock "+(i+1).ToString()+" Status:\n";
 		UpdateAirlock(Airlocks[i]);
 	}
 	
@@ -2785,16 +2732,13 @@ private void SetGyroscopes(){
 	if(Math.Abs(input_roll)<0.05f){
 		input_roll=current_roll*0.99f*1;
 		if(Gravity.Length() > 0  && Roll_Time >= 1){
-			double difference=(GetAngle(Left_Vector, Gravity)-GetAngle(Right_Vector, Gravity));
-			if(Math.Abs(difference) > ACCEPTABLE_ANGLE){
-				if(AngularVelocity.Length()<1){
-					if(difference>0){
-						input_roll += 0.9f * 15 * ((float)Math.Min(Math.Abs(difference/(ACCEPTABLE_ANGLE*2)), 1));
-					}
-					else {
-						input_roll -= 0.9f * 15 * ((float)Math.Min(Math.Abs(difference/(ACCEPTABLE_ANGLE*2)), 1));
-					}
-				}
+			double difference=(GetAngle(Controller_Left, Gravity)-GetAngle(Controller_Right, Gravity));
+			if(Math.Abs(difference)>ACCEPTABLE_ANGLE){
+				float delta=9*((float)Math.Min(Math.Abs(difference/(ACCEPTABLE_ANGLE*2)), 1));
+				if(difference>0)
+					input_roll+=delta;
+				else
+					input_roll-=delta;
 			}
 		}
 	}
@@ -3029,19 +2973,19 @@ private void SetThrusters(){
 //Sets directional vectors, Elevation, etc
 private void GetPositionData(){
 	Vector3D base_vector=new Vector3D(0,0,10);
-	Forward_Vector=Vector3D.Transform(base_vector, Controller.WorldMatrix)-Controller.GetPosition();
+	Forward_Vector=GlobalToLocal(base_vector);
 	Forward_Vector.Normalize();
-	Backward_Vector=-1 * Forward_Vector;
+	Backward_Vector=-1*Forward_Vector;
 	
 	base_vector=new Vector3D(0,10,0);
-	Up_Vector=Vector3D.Transform(base_vector, Controller.WorldMatrix)-Controller.GetPosition();
+	Up_Vector=GlobalToLocal(base_vector);
 	Up_Vector.Normalize();
-	Down_Vector=-1 * Up_Vector;
+	Down_Vector=-1*Up_Vector;
 	
 	base_vector=new Vector3D(10,0,0);
-	Left_Vector=Vector3D.Transform(base_vector, Controller.WorldMatrix)-Controller.GetPosition();
+	Left_Vector=GlobalToLocal(base_vector);
 	Left_Vector.Normalize();
-	Right_Vector=-1 * Left_Vector;
+	Right_Vector=-1*Left_Vector;
 	
 	switch(Forward){
 		case Base6Directions.Direction.Forward:
@@ -3205,6 +3149,7 @@ public void Main(string argument, UpdateType updateSource)
 		else
 			Write("Last Scan "+Math.Round(Scan_Time,1).ToString());
 		Write(ScanString);
+		Echo(AirlockString);
 		
 		if(Match_Direction){
 			double angle=GetAngle(Target_Direction, Controller_Forward);
