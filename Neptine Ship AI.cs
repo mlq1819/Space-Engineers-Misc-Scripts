@@ -928,6 +928,7 @@ private IMyShipController Controller;
 private IMyGyro Gyroscope;
 
 private List<IMyTextPanel> StatusLCDs;
+private List<IMyTextPanel> DebugLCDs;
 
 private List<Airlock> Airlocks;
 
@@ -1331,6 +1332,12 @@ public void Write(string text, bool new_line=true, bool append=true){
 		Me.GetSurface(0).WriteText(text+'\n', append);
 	else
 		Me.GetSurface(0).WriteText(text, append);
+	foreach(IMyTextPanel Display in DebugLCDs){
+		if(new_line)
+			Display.WriteText(text+'\n', append);
+		else
+			Display.WriteText(text, append);
+	}
 }
 
 public void Reset(){
@@ -1344,6 +1351,7 @@ public void Reset(){
 	LargeShipList=new EntityList();
 	CharacterList=new EntityList();
 	StatusLCDs=new List<IMyTextPanel>();
+	DebugLCDs=new List<IMyTextPanel>();
 	List<Airlock> Airlocks=new List<Airlock>();
 	Forward_Thrusters=new List<IMyThrust>();
 	Backward_Thrusters=new List<IMyThrust>();
@@ -1520,6 +1528,22 @@ public bool Setup(){
 	
 	StatusLCDs=(new GenericMethods<IMyTextPanel>(this)).GetAllContaining("Ship Status");
 	
+	DebugLCDs=(new GenericMethods<IMyTextPanel>(this)).GetAllContaining("AI Debug Display");
+	foreach(IMyTextPanel Display in DebugLCDs){
+		if(Display.CustomName.ToLower().Contains("transparent")){
+			Display.FontColor=DEFAULT_BACKGROUND_COLOR;
+			Display.BackgroundColor=new Color(0,0,0,0);
+		}
+		else{
+			Display.FontColor=DEFAULT_TEXT_COLOR;
+			Display.BackgroundColor=DEFAULT_BACKGROUND_COLOR;
+		}
+		Display.Alignment=TextAlignment.CENTER;
+		Display.ContentType=ContentType.TEXT_AND_IMAGE;
+		Display.TextPadding=5.0f;
+		Display.FontSize=1.0f;
+	}
+	
 	SetupAirlocks();
 	
 	Controller=(new GenericMethods<IMyShipController>(this)).GetClosestFunc(ControllerFunction);
@@ -1600,6 +1624,7 @@ public bool Setup(){
 private bool Operational=false;
 
 public Program(){
+	DebugLCDs=new List<IMyTextPanel>();
     Me.CustomName=(Program_Name+" Programmable block").Trim();
 	for(int i=0;i<Me.SurfaceCount;i++){
 		Me.GetSurface(i).FontColor=DEFAULT_TEXT_COLOR;
@@ -2602,7 +2627,6 @@ public void PerformScan(){
 	if(Command_Menu.AutoRefresh())
 		DisplayMenu();
 	
-	ScanString += "Completed updating data"+'\n';
 	Scan_Time=0;
 }
 
@@ -2692,7 +2716,7 @@ private void SetGyroscopes(){
 	
 	input_pitch=Math.Min(Math.Max(Controller.RotationIndicator.X / 100, -1), 1);
 	if(Math.Abs(input_pitch)<0.05f){
-		input_pitch=current_pitch*0.99f*1;
+		input_pitch=current_pitch*0.99f;
 		if(Elevation<Controller.GetShipSpeed()*2&&Elevation<50&&GetAngle(Gravity,Down_Vector)<90&&Pitch_Time>=1){
 			double difference=Math.Abs(GetAngle(Gravity,Forward_Vector));
 			if(difference<90){
@@ -2704,10 +2728,10 @@ private void SetGyroscopes(){
 			Echo("Pitch Difference:"+Math.Round(difference,1)+'°');
 			if(Math.Abs(difference)>1){
 				float delta=((float)Math.Min(Math.Abs(difference/(ACCEPTABLE_ANGLE/2)), 1))*gyro_multx;
-				if(difference>0)//Ship is pitched down
-					input_pitch+=delta;
-				else//Ship is pitched up
+				if(difference>0)
 					input_pitch-=delta;
+				else
+					input_pitch+=delta;
 			}
 		}
 	}
@@ -2717,15 +2741,15 @@ private void SetGyroscopes(){
 	}
 	input_yaw=Math.Min(Math.Max(Controller.RotationIndicator.Y / 100, -1), 1);
 	if(Math.Abs(input_yaw)<0.05f){
-		input_yaw=current_yaw*0.99f*1;
+		input_yaw=current_yaw*0.99f;
 		if(Match_Direction){
 			double difference=GetAngle(Left_Vector, Target_Direction)-GetAngle(Right_Vector, Target_Direction);
 			Echo("Yaw Difference:"+Math.Round(difference,1)+'°');
 			if(Math.Abs(difference) > 1 || GetAngle(Backward_Vector,Target_Direction)<GetAngle(Forward_Vector,Target_Direction)){
 				float delta=((float)Math.Min(Math.Abs(difference/(ACCEPTABLE_ANGLE/2)), 1))*gyro_multx;
-				if(difference>0 || difference==0 && GetAngle(Forward_Vector, Target_Direction) > ACCEPTABLE_ANGLE)//Ship is too far left
+				if(difference>0 || difference==0 && GetAngle(Forward_Vector, Target_Direction) > ACCEPTABLE_ANGLE)
 					input_yaw+=delta;
-				else //Ship is too far right
+				else
 					input_yaw-=delta;
 			}
 		}
@@ -2736,15 +2760,15 @@ private void SetGyroscopes(){
 	}
 	input_roll=Controller.RollIndicator;
 	if(Math.Abs(input_roll)<0.05f){
-		input_roll=current_roll*0.99f*1;
+		input_roll=current_roll*0.99f;
 		if(Gravity.Length() > 0  && Roll_Time >= 1){
-			double difference=GetAngle(Right_Vector, Gravity)-GetAngle(Left_Vector, Gravity);
+			double difference=GetAngle(Left_Vector, Gravity)-GetAngle(Right_Vector, Gravity);
 			if(Math.Abs(difference)>ACCEPTABLE_ANGLE){
 				float delta=10*((float)Math.Min(Math.Abs(difference/(ACCEPTABLE_ANGLE*2)), 1))*gyro_multx;
-				if(difference>0) //Ship listing right
-					input_roll+=delta;
-				else //Ship listing left
+				if(difference>0)
 					input_roll-=delta;
+				else
+					input_roll+=delta;
 			}
 		}
 	}
@@ -2978,6 +3002,7 @@ private void SetThrusters(){
 
 //Sets directional vectors, Elevation, etc
 private void GetPositionData(){
+	Write("", false, false);
 	Vector3D base_vector=new Vector3D(0,0,-1);
 	Forward_Vector=LocalToGlobal(base_vector);
 	Forward_Vector.Normalize();
