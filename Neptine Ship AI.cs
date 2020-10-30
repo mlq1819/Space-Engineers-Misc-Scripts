@@ -2978,7 +2978,7 @@ public void Main(string argument, UpdateType updateSource)
 		}
 		
 		foreach(IMyCameraBlock Camera in GetValidCameras()){
-			Write("Camera Charge: "+Math.Round(Camera.AvailableScanRange/1000,1).ToString()+"kM");
+			Write(Camera.CustomName+" Charge: "+Math.Round(Camera.AvailableScanRange/1000,1).ToString()+"kM");
 		}
 		
 		Runtime.UpdateFrequency=GetUpdateFrequency();
