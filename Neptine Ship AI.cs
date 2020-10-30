@@ -2445,20 +2445,21 @@ private double Scan_Frequency{
 	get{
 		double output=10;
 		double MySize=Me.CubeGrid.GridSize;
+		output=Math.Max(1,Math.Min(output, 11-(CurrentVelocity.Length()/10)));
 		double distance=SmallShipList.ClosestDistance(this);
 		if(distance >= MySize){
-			output=Math.Max(1, Math.Min(10,(distance+MySize+100)/100));
+			output=Math.Min(output,Math.Max(1, Math.Min(10,(distance+MySize+100)/100)));
 		}
 		distance=SmallShipList.ClosestDistance(this, MyRelationsBetweenPlayerAndBlock.Enemies);
-		output=Math.Max(1, Math.Min(10,(distance-MySize+100)/100));
+		output=Math.Min(output,Math.Max(1, Math.Min(10,(distance-MySize+100)/100)));
 		distance=LargeShipList.ClosestDistance(this);
 		if(distance >= MySize){
-			output=Math.Max(1, Math.Min(10,(distance+MySize+100)/100));
+			output=Math.Min(output,Math.Max(1, Math.Min(10,(distance+MySize+100)/100)));
 		}
 		distance=LargeShipList.ClosestDistance(this, MyRelationsBetweenPlayerAndBlock.Enemies);
-		output=Math.Max(1, Math.Min(10,(distance-MySize+100)/100));
+		output=Math.Min(output,Math.Max(1, Math.Min(10,(distance-MySize+100)/100)));
 		distance=CharacterList.ClosestDistance(this);
-		output=Math.Max(1, Math.Min(10,(distance+MySize+100)/100));
+		output=Math.Min(output,Math.Max(1, Math.Min(10,(distance+MySize+100)/100)));
 		return output;
 	}
 }
