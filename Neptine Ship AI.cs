@@ -1456,50 +1456,18 @@
 		else {
 			Gyroscope.GyroOverride=Controller.IsUnderControl;
 			Gyro_Tuple tester=new Gyro_Tuple(1,0,0);
-			string name="Pitch";
+			Gyroscope.CustomData="Pitch:";
 			tester=Transform(tester);
-			if(tester.Pitch>0)
-				SetBlockData(Gyroscope,"Controller"+name,"+Pitch");
-			else if(tester.Pitch<0)
-				SetBlockData(Gyroscope,"Controller"+name,"-Pitch");
-			else if(tester.Yaw>0)
-				SetBlockData(Gyroscope,"Controller"+name,"+Yaw");
-			else if(tester.Yaw<0)
-				SetBlockData(Gyroscope,"Controller"+name,"-Yaw");
-			else if(tester.Roll>0)
-				SetBlockData(Gyroscope,"Controller"+name,"+Roll");
-			else if(tester.Roll<0)
-				SetBlockData(Gyroscope,"Controller"+name,"-Roll");
+			Gyroscope.CustomData+=" P:"+Math.Round(tester.Pitch,1).ToString()+" Y:"+Math.Round(tester.Yaw,1).ToString()+" R:"+Math.Round(tester.Roll,1).ToString();
 			tester=new Gyro_Tuple(0,1,0);
-			name="Yaw";
+			Gyroscope.CustomData+="\nYaw:";
 			tester=Transform(tester);
-			if(tester.Pitch>0)
-				SetBlockData(Gyroscope,"Controller"+name,"+Pitch");
-			else if(tester.Pitch<0)
-				SetBlockData(Gyroscope,"Controller"+name,"-Pitch");
-			else if(tester.Yaw>0)
-				SetBlockData(Gyroscope,"Controller"+name,"+Yaw");
-			else if(tester.Yaw<0)
-				SetBlockData(Gyroscope,"Controller"+name,"-Yaw");
-			else if(tester.Roll>0)
-				SetBlockData(Gyroscope,"Controller"+name,"+Roll");
-			else if(tester.Roll<0)
-				SetBlockData(Gyroscope,"Controller"+name,"-Roll");
+			Gyroscope.CustomData+=" P:"+Math.Round(tester.Pitch,1).ToString()+" Y:"+Math.Round(tester.Yaw,1).ToString()+" R:"+Math.Round(tester.Roll,1).ToString();
 			tester=new Gyro_Tuple(0,0,1);
-			name="Roll";
+			Gyroscope.CustomData+="\nRoll:";
 			tester=Transform(tester);
-			if(tester.Pitch>0)
-				SetBlockData(Gyroscope,"Controller"+name,"+Pitch");
-			else if(tester.Pitch<0)
-				SetBlockData(Gyroscope,"Controller"+name,"-Pitch");
-			else if(tester.Yaw>0)
-				SetBlockData(Gyroscope,"Controller"+name,"+Yaw");
-			else if(tester.Yaw<0)
-				SetBlockData(Gyroscope,"Controller"+name,"-Yaw");
-			else if(tester.Roll>0)
-				SetBlockData(Gyroscope,"Controller"+name,"+Roll");
-			else if(tester.Roll<0)
-				SetBlockData(Gyroscope,"Controller"+name,"-Roll");
+			Gyroscope.CustomData+=" P:"+Math.Round(tester.Pitch,1).ToString()+" Y:"+Math.Round(tester.Yaw,1).ToString()+" R:"+Math.Round(tester.Roll,1).ToString();
+			
 		}
 		
 		List<IMyThrust> MyThrusters=(new GenericMethods<IMyThrust>(this)).GetAllContaining("");
@@ -2395,6 +2363,8 @@
 			output=Math.Min(output,Math.Max(1, Math.Min(10,(distance-MySize+100)/100)));
 			distance=CharacterList.ClosestDistance(this);
 			output=Math.Min(output,Math.Max(1, Math.Min(10,(distance+MySize+100)/100)));
+			if(Controller.IsUnderControl)
+				output=Math.Min(output,5);
 			return output;
 		}
 	}
@@ -2657,9 +2627,9 @@
 				if(Math.Abs(difference)>1){
 					float delta=((float)Math.Min(Math.Abs(difference/(ACCEPTABLE_ANGLE/2)), 1))*gyro_multx;
 					if(difference>0)
-						input_pitch-=delta;
-					else
 						input_pitch+=delta;
+					else
+						input_pitch-=delta;
 				}
 			}
 		}
@@ -2673,7 +2643,7 @@
 			if(Match_Direction){
 				double difference=GetAngle(Left_Vector, Target_Direction)-GetAngle(Right_Vector, Target_Direction);
 				Echo("Yaw Difference:"+Math.Round(difference,1)+'°');
-				if(Math.Abs(difference) > 1 || GetAngle(Backward_Vector,Target_Direction)<GetAngle(Forward_Vector,Target_Direction)){
+				if(Math.Abs(difference) > 1){
 					float delta=((float)Math.Min(Math.Abs(difference/(ACCEPTABLE_ANGLE/2)), 1))*gyro_multx;
 					if(difference>0 || difference==0 && GetAngle(Forward_Vector, Target_Direction) > ACCEPTABLE_ANGLE)
 						input_yaw+=delta;
