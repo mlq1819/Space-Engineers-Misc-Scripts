@@ -2482,6 +2482,7 @@ private List<IMyCameraBlock> GetValidCameras(){
 }
 
 //Performs the scan function on all scanning devices
+private Vector3D Closest_Hit_Position=new Vector3D(0,0,0);
 private double Scan_Frequency{
 	get{
 		double output=10;
@@ -2532,6 +2533,7 @@ public void PerformScan(){
 	for(int i=0;i<DetectedEntities.Count;i++)
 		raycast_check.Add(false);
 	
+	double Scan_Crash_Time=double.MaxValue;
 	List<IMyCameraBlock> MyCameras=GetValidCameras();
 	foreach(IMyCameraBlock Camera in MyCameras){
 		int count=0;
@@ -2556,6 +2558,28 @@ public void PerformScan(){
 		UpdateList(DetectedEntities, Raycast_Entity);
 		
 		if(!update_me){
+			if((Time_To_Crash<60 && Elevation<500)||Target_Distance<250){
+				Vector3D Velocity_Direction=CurrentVelocity;
+				Velocity_Direction.Normalize();
+				double speed_check=15 * CurrentVelocity.Length();
+				double distance=Math.Min(speed_check, Camera.AvailableScanRange/2);
+				if(Camera.CanScan(distance,Velocity_Direction)){
+					MyDetectedEntityInfo Entity=Camera.Raycast(distance,Velocity_Direction);
+					if(Entity.Type!=MyDetectedEntityType.None&&Entity.EntityId!=Me.CubeGrid.EntityId){
+						try{
+							double new_distance=(((Vector3D)Entity.HitPosition)-Camera.GetPosition()).Length();
+							double new_time=new_distance/CurrentVelocity.Length();
+							if(new_time<Scan_Crash_Time){
+								Scan_Crash_Time=new_time;
+								Closest_Hit_Position=((Vector3D)Entity.HitPosition);
+							}
+						}
+						catch(Exception){
+							;
+						}
+					}
+				}
+			}
 			for(int i=0; i<Math.Min(raycast_check.Count,DetectedEntities.Count); i++){
 				if(raycast_check[i] && Camera.CanScan(DetectedEntities[i].Position)){
 					Raycast_Entity=Camera.Raycast(DetectedEntities[i].Position);
@@ -2742,7 +2766,7 @@ private void SetGyroscopes(){
 		if(Elevation<Controller.GetShipSpeed()*2 && Elevation<50 && GetAngle(Gravity, Controller_Down)<90 && Pitch_Time>=1){
 			double difference=Math.Abs(GetAngle(Gravity, Controller_Forward));
 			if(difference<90){
-				input_pitch-=((float)Math.Min(Math.Abs((90-difference)/90), 1));
+				input_pitch-=5*((float)Math.Min(Math.Abs((90-difference)/90), 1));
 			}
 		}
 		if(Match_Direction){
@@ -3125,7 +3149,6 @@ private void GetPositionData(){
 	CurrentVelocity=Controller.GetShipVelocities().LinearVelocity;
 	AngularVelocity=Controller.GetShipVelocities().AngularVelocity;
 	
-	bool last_under_60=Time_To_Crash<60;
 	Time_To_Crash=-1;
 	if(Controller.TryGetPlanetElevation(MyPlanetElevation.Sealevel, out Sealevel)){
 		if(Controller.TryGetPlanetPosition(out PlanetCenter)){
@@ -3150,28 +3173,12 @@ private void GetPositionData(){
 			Vector3D next_position=Me.CubeGrid.GetPosition()+1 * CurrentVelocity;
 			double Elevation_per_second=(from_center-(next_position-PlanetCenter).Length());
 			Time_To_Crash=Elevation/Elevation_per_second;
-			
-			if(((Time_To_Crash<60 || last_under_60) && Elevation<500||Target_Distance<250)){
-				List<IMyCameraBlock> Cameras=GetValidCameras();
-				Vector3D Velocity_Direction=CurrentVelocity;
-				Velocity_Direction.Normalize();
-				double speed_check=15 * CurrentVelocity.Length();
-				foreach(IMyCameraBlock Camera in Cameras){
-					double distance=Math.Min(speed_check, Camera.AvailableScanRange/2);
-					if(Camera.CanScan(distance,Velocity_Direction)){
-						MyDetectedEntityInfo Entity=Camera.Raycast(distance,Velocity_Direction);
-						if(Entity.Type!=MyDetectedEntityType.None&&Entity.EntityId!=Me.CubeGrid.EntityId){
-							try{
-								double new_distance=(((Vector3D)Entity.HitPosition)-Camera.GetPosition()).Length();
-								double new_time=new_distance/CurrentVelocity.Length();
-								Time_To_Crash=Math.Min(Time_To_Crash,new_time);
-							}
-							catch(Exception){
-								;
-							}
-						}
-					}
-				}
+			Vector3D Closest_Crash_Direction=Closest_Hit_Position;
+			Closest_Crash_Direction.Normalize();
+			Vector3D Movement_Direction=CurrentVelocity;
+			Movement_Direction.Normalize();
+			if(GetAngle(Movement_Direction,Closest_Crash_Direction)<=ACCEPTABLE_ANGLE){
+				Time_To_Crash=Math.Min(Time_To_Crash,(Closest_Hit_Position-Me.CubeGrid.GetPosition()).Length()/CurrentVelocity.Length());
 			}
 			
 			bool need_print=true;
