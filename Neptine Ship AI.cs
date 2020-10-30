@@ -1105,61 +1105,6 @@ private double Elevation;
 private double Sealevel;
 private Vector3D PlanetCenter;
 
-private struct Gyro_Tuple{
-	public float Pitch;
-	public float Yaw;
-	public float Roll;
-	
-	public Gyro_Tuple(float p, float y, float r){
-		Pitch=p;
-		Yaw=y;
-		Roll=r;
-	}
-	
-	public static Gyro_Tuple Parse(string input){
-		string[] args=input.Split(' ');
-		if(args.Count() != 3)
-			throw new ArgumentException("Invalid input for Gyro_Tuple");
-		if(args[0].IndexOf("P:")!=0)
-			throw new ArgumentException("Invalid input for Gyro_Tuple");
-		if(args[1].IndexOf("Y:")!=0)
-			throw new ArgumentException("Invalid input for Gyro_Tuple");
-		if(args[2].IndexOf("R:")!=0)
-			throw new ArgumentException("Invalid input for Gyro_Tuple");
-		try{
-			float pitch=float.Parse(args[0].Substring(args[0].IndexOf(':')+1));
-			float yaw=float.Parse(args[1].Substring(args[1].IndexOf(':')+1));
-			float roll=float.Parse(args[2].Substring(args[2].IndexOf(':')+1));
-			return new Gyro_Tuple(pitch, yaw, roll);
-		}
-		catch(Exception){
-			throw new ArgumentException("Invalid input for Gyro_Tuple");
-		}
-	}
-	
-	public override string ToString(){
-		return "P:"+Pitch.ToString()+" Y:"+Yaw.ToString()+" R:"+Roll.ToString();
-	}
-	
-	public string NiceString(){
-		return "Pitch: "+((int)Pitch).ToString()+"\nYaw: "+((int)Yaw).ToString()+"\nRoll: "+((int)Roll).ToString();
-	}
-}
-
-private Gyro_Tuple Transform(Gyro_Tuple input){
-	return input;
-	float pitch=0, yaw=0, roll=0;
-	Vector3D input_v=new Vector3D(input.Pitch,input.Yaw,input.Roll);
-	Vector3D global=Vector3D.TransformNormal(input_v,Controller.WorldMatrix);
-	Vector3D output=Vector3D.TransformNormal(global,MatrixD.Invert(Controller.CubeGrid.WorldMatrix));
-	output.Normalize();
-	output*=input_v.Length();
-	pitch=(float)output.X;
-	yaw=(float)output.Y;
-	roll=(float)output.Z;
-	return new Gyro_Tuple(pitch, yaw, roll);
-}
-
 private bool HasBlockData(IMyTerminalBlock Block, string Name){
 	if(Name.Contains(':'))
 		return false;
@@ -1456,19 +1401,6 @@ public bool Setup(){
 	}
 	else {
 		Gyroscope.GyroOverride=Controller.IsUnderControl;
-		Gyro_Tuple tester=new Gyro_Tuple(1,0,0);
-		Gyroscope.CustomData="Pitch:";
-		tester=Transform(tester);
-		Gyroscope.CustomData+=" P:"+Math.Round(tester.Pitch,1).ToString()+" Y:"+Math.Round(tester.Yaw,1).ToString()+" R:"+Math.Round(tester.Roll,1).ToString();
-		tester=new Gyro_Tuple(0,1,0);
-		Gyroscope.CustomData+="\nYaw:";
-		tester=Transform(tester);
-		Gyroscope.CustomData+=" P:"+Math.Round(tester.Pitch,1).ToString()+" Y:"+Math.Round(tester.Yaw,1).ToString()+" R:"+Math.Round(tester.Roll,1).ToString();
-		tester=new Gyro_Tuple(0,0,1);
-		Gyroscope.CustomData+="\nRoll:";
-		tester=Transform(tester);
-		Gyroscope.CustomData+=" P:"+Math.Round(tester.Pitch,1).ToString()+" Y:"+Math.Round(tester.Yaw,1).ToString()+" R:"+Math.Round(tester.Roll,1).ToString();
-		
 	}
 	
 	List<IMyThrust> MyThrusters=(new GenericMethods<IMyThrust>(this)).GetAllContaining("");
@@ -2612,7 +2544,7 @@ private void SetGyroscopes(){
 	
 	input_pitch=-1*Math.Min(Math.Max(Controller.RotationIndicator.X / 100, -1), 1);
 	if(Math.Abs(input_pitch)<0.05f){
-		input_pitch=current_pitch*0.99f;
+		input_pitch=current_pitch*-0.99f;
 		if(Elevation<Controller.GetShipSpeed()*2&&Elevation<50&&GetAngle(Gravity,Down_Vector)<90&&Pitch_Time>=1){
 			double difference=Math.Abs(GetAngle(Gravity,Forward_Vector));
 			if(difference<90){
@@ -2627,7 +2559,7 @@ private void SetGyroscopes(){
 			else if(difference<0)
 				Write("Need to Pitch DOWN");
 			if(Math.Abs(difference)>1)
-				input_pitch-=(float)Math.Min(Math.Max(difference/5,-4),4)*gyro_multx;
+				input_pitch+=(float)Math.Min(Math.Max(difference/5,-4),4)*gyro_multx;
 		}
 	}
 	else{
@@ -2645,7 +2577,7 @@ private void SetGyroscopes(){
 			else if(difference<0)
 				Write("Need to Yaw LEFT");
 			if(Math.Abs(difference) > 1){
-				input_yaw-=(float)Math.Min(Math.Max(difference/5,-1),1)*gyro_multx;
+				input_yaw+=(float)Math.Min(Math.Max(difference/5,-4),4)*gyro_multx;
 			}
 		}
 	}
@@ -2655,11 +2587,11 @@ private void SetGyroscopes(){
 	}
 	input_roll=-1*Controller.RollIndicator;
 	if(Math.Abs(input_roll)<0.05f){
-		input_roll=current_roll*0.99f;
+		input_roll=current_roll*-0.99f;
 		if(Gravity.Length() > 0  && Roll_Time >= 1){
 			double difference=GetAngle(Left_Vector, Gravity)-GetAngle(Right_Vector, Gravity);
 			if(Math.Abs(difference)>ACCEPTABLE_ANGLE){
-				input_roll+=(float)Math.Min(Math.Max(difference/5,-4),4)*gyro_multx;
+				input_roll+=(float)Math.Min(Math.Max(difference/5,-1),1)*gyro_multx;
 			}
 		}
 	}
@@ -2668,48 +2600,9 @@ private void SetGyroscopes(){
 		input_roll*=10;
 	}
 	
-	Gyro_Tuple output=Transform(new Gyro_Tuple(input_pitch, input_yaw, input_roll));
-	
-	Gyroscope.Pitch=output.Pitch;
-	Gyroscope.Yaw=output.Yaw;
-	Gyroscope.Roll=output.Roll;
-	double actual=Controller.RotationIndicator.X*.3;
-	char sign1='-';
-	char sign2='-';
-	if((actual<0)^(input_pitch<0))
-		sign1='+';
-	if((actual<0)^(output.Pitch<0))
-		sign2='+';
-	if(Math.Abs(actual)<0.05){
-		sign1='0';
-		sign2='0';
-	}
-	Write("Pitch:"+Math.Round(actual,1).ToString()+"   "+sign1+' '+sign2);
-	actual=Controller.RotationIndicator.Y*.3;
-	sign1='+';
-	sign2='+';
-	if((actual<0)^(input_yaw<0))
-		sign1='-';
-	if((actual<0)^(output.Yaw<0))
-		sign2='-';
-	if(Math.Abs(actual)<0.05){
-		sign1='0';
-		sign2='0';
-	}
-	Write("Yaw:"+Math.Round(actual,1).ToString()+"   "+sign1+' '+sign2);
-	actual=Controller.RollIndicator*10;
-	sign1='-';
-	sign2='-';
-	if((actual<0)^(input_roll<0))
-		sign1='+';
-	if((actual<0)^(output.Roll<0))
-		sign2='+';
-	if(Math.Abs(actual)<0.05){
-		sign1='0';
-		sign2='0';
-	}
-	Write("Roll:"+Math.Round(actual,1).ToString()+"   "+sign1+' '+sign2);
-	//Gyroscope.GyroOverride=false;
+	Gyroscope.Pitch=input_pitch;
+	Gyroscope.Yaw=input_yaw;
+	Gyroscope.Roll=input_roll;
 }
 
 //Sets thruster outputs from player input, dampeners, gravity, and autopilot
