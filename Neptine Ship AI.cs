@@ -1455,6 +1455,51 @@
 		}
 		else {
 			Gyroscope.GyroOverride=Controller.IsUnderControl;
+			Gyro_Tuple tester=new Gyro_Tuple(1,0,0);
+			string name="Pitch";
+			tester=Transform(tester);
+			if(tester.Pitch>0)
+				SetBlockData(Gyroscope,"Controller"+name,"+Pitch");
+			else if(tester.Pitch<0)
+				SetBlockData(Gyroscope,"Controller"+name,"-Pitch");
+			else if(tester.Yaw>0)
+				SetBlockData(Gyroscope,"Controller"+name,"+Yaw");
+			else if(tester.Yaw<0)
+				SetBlockData(Gyroscope,"Controller"+name,"-Yaw");
+			else if(tester.Roll>0)
+				SetBlockData(Gyroscope,"Controller"+name,"+Roll");
+			else if(tester.Roll<0)
+				SetBlockData(Gyroscope,"Controller"+name,"-Roll");
+			tester=new Gyro_Tuple(0,1,0);
+			name="Yaw";
+			tester=Transform(tester);
+			if(tester.Pitch>0)
+				SetBlockData(Gyroscope,"Controller"+name,"+Pitch");
+			else if(tester.Pitch<0)
+				SetBlockData(Gyroscope,"Controller"+name,"-Pitch");
+			else if(tester.Yaw>0)
+				SetBlockData(Gyroscope,"Controller"+name,"+Yaw");
+			else if(tester.Yaw<0)
+				SetBlockData(Gyroscope,"Controller"+name,"-Yaw");
+			else if(tester.Roll>0)
+				SetBlockData(Gyroscope,"Controller"+name,"+Roll");
+			else if(tester.Roll<0)
+				SetBlockData(Gyroscope,"Controller"+name,"-Roll");
+			tester=new Gyro_Tuple(0,0,1);
+			name="Roll";
+			tester=Transform(tester);
+			if(tester.Pitch>0)
+				SetBlockData(Gyroscope,"Controller"+name,"+Pitch");
+			else if(tester.Pitch<0)
+				SetBlockData(Gyroscope,"Controller"+name,"-Pitch");
+			else if(tester.Yaw>0)
+				SetBlockData(Gyroscope,"Controller"+name,"+Yaw");
+			else if(tester.Yaw<0)
+				SetBlockData(Gyroscope,"Controller"+name,"-Yaw");
+			else if(tester.Roll>0)
+				SetBlockData(Gyroscope,"Controller"+name,"+Roll");
+			else if(tester.Roll<0)
+				SetBlockData(Gyroscope,"Controller"+name,"-Roll");
 		}
 		
 		List<IMyThrust> MyThrusters=(new GenericMethods<IMyThrust>(this)).GetAllContaining("");
