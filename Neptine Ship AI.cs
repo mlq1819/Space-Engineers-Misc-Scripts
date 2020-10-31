@@ -1692,10 +1692,15 @@ private AlertStatus ShipStatus{
 				Submessage += "\n"+Math.Round(Time_To_Crash,1).ToString()+" seconds to possible impact";
 			}
 			else if(Time_To_Crash<180){
+				AlertStatus new_status=AlertStatus.Blue;
+				status=(AlertStatus) Math.Max((int)status, (int)new_status);
+				Submessage += "\n"+Math.Round(Time_To_Crash,1).ToString()+" seconds to possible impact";
+			}
+		}
+		if(_Autoland&&CurrentVelocity.Length()>1){
 			AlertStatus new_status=AlertStatus.Blue;
 			status=(AlertStatus) Math.Max((int)status, (int)new_status);
-			Submessage += "\n"+Math.Round(Time_To_Crash,1).ToString()+" seconds to possible impact";
-		}
+			Submessage += "\nAutoland Enabled";
 		}
 		
 		double ActualEnemyShipDistance=Math.Min(SmallShipList.ClosestDistance(this, MyRelationsBetweenPlayerAndBlock.Enemies), LargeShipList.ClosestDistance(this, MyRelationsBetweenPlayerAndBlock.Enemies));
@@ -1819,6 +1824,12 @@ public bool Stop(object obj=null){
 	Match_Position=false;
 	Tracking=false;
 	Target_ID=0;
+	return true;
+}
+
+private bool _Autoland=false;
+public bool Autoland(object obj=null){
+	_Autoland=!_Autoland;
 	return true;
 }
 
@@ -1969,8 +1980,9 @@ private bool CreateMenu(object obj=null){
 	Command_Menu.Add(new Menu_Command<object>("Update Menu", CreateMenu, "Refreshes menu"));
 	Menu_Submenu ShipCommands=new Menu_Submenu("Commands");
 	ShipCommands.Add(new Menu_Command<object>("Stop", Stop, "Disables autopilot"));
+	ShipCommands.Add(new Menu_Command<object>("Toggle Autoland",Autoland,"Toggles On/Off the Autoland feature"));
 	ShipCommands.Add(new Menu_Command<object>("Scan", PerformScan, "Immediately performs a scan operation"));
-	ShipCommands.Add(new Menu_Command<object>("Lockdown", Lockdown, "Closes/Opens Air Seals"));
+	ShipCommands.Add(new Menu_Command<object>("Toggle Lockdown", Lockdown, "Closes/Opens Air Seals"));
 	ShipCommands.Add(new Menu_Command<object>("Factory Reset", FactoryReset, "Resets AI memory and settings, and turns it off"));
 	Command_Menu.Add(ShipCommands);
 	AsteroidMenu=new Menu_Submenu("Asteroids");
@@ -2688,9 +2700,11 @@ private void SetThrusters(){
 	effective_speed_limit=Math.Max(effective_speed_limit, 5);
 	
 	if(Gravity.Length()>0&&Mass_Accomodation>0&&(Controller.GetShipSpeed()<100||GetAngle(CurrentVelocity,Gravity)>ACCEPTABLE_ANGLE)){
-		input_right -= (float) Adjusted_Gravity.X;
-		input_up -= (float) Adjusted_Gravity.Y;
-		input_forward += (float) Adjusted_Gravity.Z;
+		if(!(_Autoland&&Time_To_Crash>15&&Controller.GetShipSpeed()>5)){
+			input_right -= (float) Adjusted_Gravity.X;
+			input_up -= (float) Adjusted_Gravity.Y;
+			input_forward += (float) Adjusted_Gravity.Z;
+		}
 	}
 	
 	bool matched_direction=!Match_Direction;
@@ -2921,8 +2935,12 @@ private void GetPositionData(){
 				}
 				else if(Time_To_Crash*Math.Max(Elevation,1000)<1800000 && Controller.GetShipSpeed() > 1.0f){
 					Write(Math.Round(Time_To_Crash, 1).ToString()+" seconds to crash");
+					if(_Autoland && Time_To_Crash>30)
+						Controller.DampenersOverride=false;
 					need_print=false;
 				}
+				if(Elevation-MySize<5&&_Autoland)
+					_Autoland=false;
 			}
 			if(need_print)
 				Write("No crash likely at current velocity");
@@ -2994,6 +3012,8 @@ public void Main(string argument, UpdateType updateSource)
 			FactoryReset();
 			DisplayMenu();
 		}
+		if(_Autoland)
+			Write("Autoland Enabled");
 		
 		if(Tracking){
 			double distance=(Target_Position-Controller.GetPosition()).Length();
