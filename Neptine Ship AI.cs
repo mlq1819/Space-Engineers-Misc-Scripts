@@ -2366,7 +2366,7 @@ public bool PerformScan(object obj=null){
 			SetBlockData(Camera, "DoRaycast", "true");
 			update_me=true;
 		}
-		UpdateList(DetectedEntities, Raycast_Entity);
+		UpdateList(DetectedEntities,Raycast_Entity);
 		
 		if(!update_me){
 			if((Time_To_Crash<60 && Elevation<500)||Target_Distance<250){
@@ -2388,6 +2388,14 @@ public bool PerformScan(object obj=null){
 						catch(Exception){
 							;
 						}
+					}
+				}
+			}
+			if(Match_Position && RestingVelocity.Length()>0 && Target_Distance<=RAYCAST_DISTANCE){
+				if(Camera.CanScan(Target_Position)){
+					MyDetectedEntityInfo Entity=Camera.Raycast(Target_Position);
+					if(Entity.Type!=MyDetectedEntityType.None&&Entity.EntityId!=Me.CubeGrid.EntityId){
+						UpdateList(DetectedEntities,Entity);
 					}
 				}
 			}
