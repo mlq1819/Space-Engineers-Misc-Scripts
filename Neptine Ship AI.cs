@@ -2305,6 +2305,11 @@ public bool PerformScan(object obj=null){
 	Write("Beginning Scan");
 	ScanString="";
 	AirlockString="";
+	AsteroidList.UpdatePositions(Scan_Time);
+	PlanetList.UpdatePositions(Scan_Time);
+	SmallShipList.UpdatePositions(Scan_Time);
+	LargeShipList.UpdatePositions(Scan_Time);
+	CharacterList.UpdatePositions(Scan_Time);
 	PerformDisarm();
 	List<MyDetectedEntityInfo> DetectedEntities=new List<MyDetectedEntityInfo>();
 	List<IMySensorBlock> AllSensors=new List<IMySensorBlock>();
@@ -2918,11 +2923,6 @@ public void Main(string argument, UpdateType updateSource)
 		GetPositionData();
 		Write("Elevation: "+Math.Round(Elevation,1).ToString());
 		Scan_Time+=seconds_since_last_update;
-		AsteroidList.UpdatePositions(seconds_since_last_update);
-		PlanetList.UpdatePositions(seconds_since_last_update);
-		SmallShipList.UpdatePositions(seconds_since_last_update);
-		LargeShipList.UpdatePositions(seconds_since_last_update);
-		CharacterList.UpdatePositions(seconds_since_last_update);
 		if(Scan_Time >= Scan_Frequency){
 			PerformScan();
 		}
