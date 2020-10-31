@@ -2316,11 +2316,9 @@ public bool PerformScan(object obj=null){
 	List<IMyTerminalBlock> AllTerminalBlocks=new List<IMyTerminalBlock>();
 	GridTerminalSystem.GetBlocksOfType<IMyTerminalBlock>(AllTerminalBlocks);
 	MySize=0;
-	foreach(IMyTerminalBlock T1 in AllTerminalBlocks){
-		foreach(IMyTerminalBlock T2 in AllTerminalBlocks){
-			double distance = (T1.GetPosition()-T2.GetPosition()).Length();
-			MySize=Math.Max(MySize,distance);
-		}
+	foreach(IMyTerminalBlock Block in AllTerminalBlocks){
+		double distance=(Controller.GetPosition()-Block.GetPosition()).Length();
+		MySize=Math.Max(MySize,distance);
 	}
 	
 	List<MyDetectedEntityInfo> DetectedEntities=new List<MyDetectedEntityInfo>();
