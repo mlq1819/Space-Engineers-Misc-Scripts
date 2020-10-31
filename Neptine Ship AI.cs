@@ -2584,11 +2584,15 @@ private void SetGyroscopes(){
 	input_pitch=Math.Min(Math.Max(Controller.RotationIndicator.X / 100, -1), 1);
 	if(Math.Abs(input_pitch)<0.05f){
 		input_pitch=current_pitch*0.99f;
-		if((Elevation-MySize)<Controller.GetShipSpeed()*2&&(Elevation-MySize)<50&&GetAngle(Gravity,Down_Vector)<90&&Pitch_Time>=1){
+		if((((Elevation-MySize)<Controller.GetShipSpeed()*2&&(Elevation-MySize)<50)||(!Controller.IsUnderControl))&&GetAngle(Gravity,Forward_Vector)<90&&Pitch_Time>=1){
 			double difference=Math.Abs(GetAngle(Gravity,Forward_Vector));
-			if(difference<90){
-				input_pitch-=5*gyro_multx*((float)Math.Min(Math.Abs((90-difference)/90), 1));
-			}
+			if(difference<90)
+				input_pitch-=10*gyro_multx*((float)Math.Min(Math.Abs((90-difference)/90), 1));
+		}
+		if((!Controller.IsUnderControl)&&(GetAngle(Gravity,Forward_Vector)>(90+ACCEPTABLE_ANGLE/2))){
+			double difference=Math.Abs(GetAngle(Gravity,Forward_Vector));
+			if(difference>90+ACCEPTABLE_ANGLE/2)
+				input_pitch+=10*gyro_multx*((float)Math.Min(Math.Abs((difference-90)/90), 1));
 		}
 		if(Match_Direction){
 			double difference=GetAngle(Down_Vector, Target_Direction)-GetAngle(Up_Vector, Target_Direction);
