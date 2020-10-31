@@ -2391,6 +2391,14 @@ public bool PerformScan(object obj=null){
 	ScanString += "Retrieved updated data\non "+DetectedEntities.Count+" relevant entities"+'\n';
 	List<IMyBroadcastListener> listeners=new List<IMyBroadcastListener>();
 	IGC.GetBroadcastListeners(listeners);
+	MyDetectedEntityType MyType=MyDetectedEntityType.LargeGrid;
+	if(Controller.CubeGrid.GridSizeEnum==MyCubeSize.Small)
+		MyType=MyDetectedEntityType.SmallGrid;
+	EntityInfo Myself = new EntityInfo(Controller.CubeGrid.EntityId,Controller.CubeGrid.CustomName,MyType,(Vector3D?)(Controller.GetPosition()),CurrentVelocity,MyRelationsBetweenPlayerAndBlock.Owner,Controller.CubeGrid.GetPosition());
+	
+	foreach(IMyBroadcastListener Listener in listeners){
+		IGC.SendBroadcastMessage(Listener.Tag, Myself.ToString(), TransmissionDistance.TransmissionDistanceMax);
+	}
 	foreach(MyDetectedEntityInfo entity in DetectedEntities){
 		EntityInfo Entity=new EntityInfo(entity);
 		foreach(IMyBroadcastListener Listener in listeners){
