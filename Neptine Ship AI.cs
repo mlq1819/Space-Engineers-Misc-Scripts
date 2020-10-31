@@ -1388,6 +1388,7 @@ public bool Setup(){
 				Cockpit.GetSurface(i).ScriptBackgroundColor=DEFAULT_BACKGROUND_COLOR;
 			}
 		}
+		MySize=Controller.CubeGrid.GridSize;
 	}
 	Gyroscope=(new GenericMethods<IMyGyro>(this)).GetContaining("Control Gyroscope");
 	if(Gyroscope==null){
@@ -1715,23 +1716,23 @@ private AlertStatus ShipStatus{
 		}
 		
 		double EnemyCharacterDistance=CharacterList.ClosestDistance(this, MyRelationsBetweenPlayerAndBlock.Enemies);
-		if(EnemyCharacterDistance-Me.CubeGrid.GridSize<0){
+		if(EnemyCharacterDistance-MySize<0){
 			AlertStatus new_status=AlertStatus.Red;
 			status=(AlertStatus) Math.Max((int)status, (int)new_status);
 			Submessage += "\nEnemy Creature has boarded ship";
 		}
-		else if(EnemyCharacterDistance-Me.CubeGrid.GridSize<800){
+		else if(EnemyCharacterDistance-MySize<800){
 			AlertStatus new_status=AlertStatus.Orange;
 			status=(AlertStatus) Math.Max((int)status, (int)new_status);
 			Submessage += "\nEnemy Creature at "+Math.Round(EnemyCharacterDistance, 0)+" meters";
 		}
-		else if(EnemyCharacterDistance-Me.CubeGrid.GridSize<2000){
+		else if(EnemyCharacterDistance-MySize<2000){
 			AlertStatus new_status=AlertStatus.Yellow;
 			status=(AlertStatus) Math.Max((int)status, (int)new_status);
 			Submessage += "\nEnemy Creature at "+Math.Round(EnemyCharacterDistance, 0)+" meters";
 		}
 		
-		double ShipDistance=Math.Min(SmallShipList.ClosestDistance(this),LargeShipList.ClosestDistance(this))-Me.CubeGrid.GridSize;
+		double ShipDistance=Math.Min(SmallShipList.ClosestDistance(this),LargeShipList.ClosestDistance(this))-MySize;
 		if(ShipDistance<500 && ShipDistance > 0){
 			AlertStatus new_status=AlertStatus.Blue;
 			status=(AlertStatus) Math.Max((int)status, (int)new_status);
@@ -1887,7 +1888,7 @@ private Vector3D GetOffsetPosition(Vector3D Position, double Target_Size=0){
 	}
 	distance-=Target_Size;
 	double controller_offset=(Controller.GetPosition()-Controller.GetPosition()).Length();
-	distance-=Math.Max(0,Me.CubeGrid.GridSize/2-controller_offset);
+	distance-=Math.Max(0,MySize/2-controller_offset);
 	return (distance*direction)+Controller.GetPosition();
 }
 
@@ -2017,7 +2018,7 @@ private Color ColorParse(string parse){
 
 private bool last_performed_alarm=false;
 public void PerformAlarm(){
-	bool nearby_enemy=(CharacterList.ClosestDistance(this, MyRelationsBetweenPlayerAndBlock.Enemies) <= (float) Me.CubeGrid.GridSize);
+	bool nearby_enemy=(CharacterList.ClosestDistance(this, MyRelationsBetweenPlayerAndBlock.Enemies) <= (float) MySize);
 	if(!nearby_enemy && !last_performed_alarm){
 		return;
 	}
@@ -2301,6 +2302,7 @@ private double Scan_Frequency{
 private double Scan_Time=10;
 private string ScanString="";
 private string AirlockString="";
+public double MySize=0;
 public bool PerformScan(object obj=null){
 	Write("Beginning Scan");
 	ScanString="";
@@ -2311,6 +2313,16 @@ public bool PerformScan(object obj=null){
 	LargeShipList.UpdatePositions(Scan_Time);
 	CharacterList.UpdatePositions(Scan_Time);
 	PerformDisarm();
+	List<IMyTerminalBlock> AllTerminalBlocks=new List<IMyTerminalBlock>();
+	GridTerminalSystem.GetBlocksOfType<IMyTerminalBlock>(AllTerminalBlocks);
+	MySize=0;
+	foreach(IMyTerminalBlock T1 in AllTerminalBlocks){
+		foreach(IMyTerminalBlock T2 in AllTerminalBlocks){
+			double distance = (T1.GetPosition()-T2.GetPosition()).Length();
+			MySize=Math.Max(MySize,distance);
+		}
+	}
+	
 	List<MyDetectedEntityInfo> DetectedEntities=new List<MyDetectedEntityInfo>();
 	List<IMySensorBlock> AllSensors=new List<IMySensorBlock>();
 	GridTerminalSystem.GetBlocksOfType<IMySensorBlock>(AllSensors);
@@ -2649,7 +2661,7 @@ private void SetThrusters(){
 		}
 	}
 	
-	if(Target_Distance<Math.Max(1, Math.Min(10, Me.CubeGrid.GridSize/10))){
+	if(Target_Distance<Math.Max(1, Math.Min(10, MySize/10))){
 		Match_Direction=false;
 		Match_Position=false;
 	}
@@ -2936,7 +2948,7 @@ public void Main(string argument, UpdateType updateSource)
 			Write("Angle Difference: "+Math.Round(angle,1).ToString()+"°");
 		}
 		if(Match_Position){
-			double distance=(Target_Position-Controller.GetPosition()).Length()-Me.CubeGrid.GridSize/2;
+			double distance=(Target_Position-Controller.GetPosition()).Length()-MySize/2;
 			string distance_string=Math.Round(distance,0).ToString()+"M";
 			if(distance>=1000){
 				distance_string=Math.Round(distance/1000,1).ToString()+"kM";
