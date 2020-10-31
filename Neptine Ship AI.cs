@@ -2402,6 +2402,7 @@ public bool PerformScan(object obj=null){
 					MyDetectedEntityInfo Entity=Camera.Raycast(Target_Position);
 					if(Entity.Type!=MyDetectedEntityType.None&&Entity.EntityId!=Me.CubeGrid.EntityId){
 						UpdateList(DetectedEntities,Entity);
+						RestingVelocity=Entity.Velocity;
 					}
 				}
 			}
@@ -2586,7 +2587,7 @@ private void SetGyroscopes(){
 		if(Elevation<Controller.GetShipSpeed()*2&&Elevation<50&&GetAngle(Gravity,Down_Vector)<90&&Pitch_Time>=1){
 			double difference=Math.Abs(GetAngle(Gravity,Forward_Vector));
 			if(difference<90){
-				input_pitch+=5*gyro_multx*((float)Math.Min(Math.Abs((90-difference)/90), 1));
+				input_pitch-=5*gyro_multx*((float)Math.Min(Math.Abs((90-difference)/90), 1));
 			}
 		}
 		if(Match_Direction){
@@ -2910,6 +2911,7 @@ private void GetPositionData(){
 			if(Time_To_Crash>0){
 				if(Time_To_Crash<15 && Controller.GetShipSpeed() > 5){
 					Controller.DampenersOverride=true;
+					RestingVelocity=new Vector3D(0,0,0);
 					Write("Crash predicted within 15 seconds; enabling Dampeners");
 					need_print=false;
 				}
@@ -2987,6 +2989,14 @@ public void Main(string argument, UpdateType updateSource)
 		else if(argument.ToLower().Equals("factory reset")){
 			FactoryReset();
 			DisplayMenu();
+		}
+		
+		if(Tracking){
+			double distance=(Target_Position-Controller.GetPosition()).Length();
+			string distance_string=Math.Round(distance,0).ToString()+"M";
+			if(distance>=1000)
+				distance_string=Math.Round(distance/1000,1).ToString()+"kM";
+			Write("Tracking target at "+distance_string);
 		}
 		
 		Echo((new GenericMethods<IMyDoor>(this)).GetAllIncluding("Air Seal").Count.ToString()+" Air Seals");
