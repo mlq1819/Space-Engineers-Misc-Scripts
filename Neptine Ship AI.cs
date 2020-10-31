@@ -1679,6 +1679,12 @@ private AlertStatus ShipStatus{
 	get{
 		AlertStatus status=AlertStatus.Green;
 		Submessage="";
+		if(Elevation-MySize<50){
+			AlertStatus new_status=AlertStatus.Blue;
+			status=(AlertStatus) Math.Max((int)status, (int)new_status);
+			double psuedo_elevation=Math.Max(Elevation-MySize,0);
+			Submessage+="\nShip at low Altitude ("+Math.Round(psuedo_elevation,1).ToString()+"-"+Math.Round(Elevation,1).ToString()+" meters)";
+		}
 		
 		if(Time_To_Crash>0){
 			if(Time_To_Crash<15 && Controller.GetShipSpeed()>5){
@@ -1980,7 +1986,7 @@ private bool CreateMenu(object obj=null){
 	Command_Menu.Add(new Menu_Command<object>("Update Menu", CreateMenu, "Refreshes menu"));
 	Menu_Submenu ShipCommands=new Menu_Submenu("Commands");
 	ShipCommands.Add(new Menu_Command<object>("Stop", Stop, "Disables autopilot"));
-	ShipCommands.Add(new Menu_Command<object>("Toggle Autoland",Autoland,"Toggles On/Off the Autoland feature\nDo not use on ships with poor mobility!"));
+	ShipCommands.Add(new Menu_Command<object>("Toggle Autoland",Autoland,"Toggles On/Off the Autoland feature\nLands at 5 m/s\nDo not use on ships with poor mobility!"));
 	ShipCommands.Add(new Menu_Command<object>("Scan", PerformScan, "Immediately performs a scan operation"));
 	ShipCommands.Add(new Menu_Command<object>("Toggle Lockdown", Lockdown, "Closes/Opens Air Seals"));
 	ShipCommands.Add(new Menu_Command<object>("Factory Reset", FactoryReset, "Resets AI memory and settings, and turns it off"));
