@@ -2659,9 +2659,9 @@ private void SetThrusters(){
 		effective_speed_limit=Math.Min(effective_speed_limit,Time_To_Crash/60*100);
 	if(Controller.DampenersOverride){
 		Write("Cruise Control: Off");
-		input_right -= (float) ((Relative_CurrentVelocity.X-Relative_RestingVelocity.X)*Mass_Accomodation*damp_multx);
-		input_up -= (float) ((Relative_CurrentVelocity.Y-Relative_RestingVelocity.Y)*Mass_Accomodation*damp_multx);
-		input_forward += (float) ((Relative_CurrentVelocity.Z-Relative_RestingVelocity.Z)*Mass_Accomodation*damp_multx);
+		input_right-=(float)((Relative_CurrentVelocity.X-Relative_RestingVelocity.X)*Mass_Accomodation*damp_multx);
+		input_up-=(float)((Relative_CurrentVelocity.Y-Relative_RestingVelocity.Y)*Mass_Accomodation*damp_multx);
+		input_forward+=(float)((Relative_CurrentVelocity.Z-Relative_RestingVelocity.Z)*Mass_Accomodation*damp_multx);
 	}
 	else {
 		Write("Cruise Control: On");
@@ -2687,7 +2687,7 @@ private void SetThrusters(){
 	}
 	effective_speed_limit=Math.Max(effective_speed_limit, 5);
 	
-	if(Gravity.Length() > 0 && Mass_Accomodation>0){
+	if(Gravity.Length()>0&&Mass_Accomodation>0&&(Controller.GetShipSpeed()<100||GetAngle(CurrentVelocity,Gravity)>ACCEPTABLE_ANGLE)){
 		input_right -= (float) Adjusted_Gravity.X;
 		input_up -= (float) Adjusted_Gravity.Y;
 		input_forward += (float) Adjusted_Gravity.Z;
@@ -2942,7 +2942,7 @@ private void GetPositionData(){
 		Target_Direction.Normalize();
 	}
 	
-	Mass_Accomodation=(float) (Controller.CalculateShipMass().PhysicalMass*Gravity.Length());
+	Mass_Accomodation=(float)(Controller.CalculateShipMass().PhysicalMass*Gravity.Length());
 	
 }
 
