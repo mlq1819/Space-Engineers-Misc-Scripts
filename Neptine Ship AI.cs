@@ -1034,6 +1034,7 @@ private Vector3D Right_Vector{
 	}
 }
 
+private bool Tracking=false;
 private bool Match_Direction=false;
 private Vector3D Target_Direction;
 private bool Match_Position=false;
@@ -1816,6 +1817,7 @@ public bool Stop(object obj=null){
 	Target_Position=new Vector3D(0,0,0);
 	Match_Direction=false;
 	Match_Position=false;
+	Tracking=false;
 	Target_ID=0;
 	return true;
 }
@@ -1900,12 +1902,16 @@ public bool GoTo(EntityInfo Entity){
 	Controller.DampenersOverride=true;
 	RestingVelocity=Entity.Velocity;
 	Target_ID=Entity.ID;
+	Tracking=true;
 	if(Entity.Relationship!=MyRelationsBetweenPlayerAndBlock.Enemies){
 		Target_Direction=Entity.Position-Controller.GetPosition();
 		Target_Direction.Normalize();
 		Target_Position=GetOffsetPosition(Entity.Position, Entity.Size);
 		Match_Position=true;
 		Match_Direction=true;
+	}
+	else{
+		Target_Position=Entity.Position;
 	}
 	return true;
 }
@@ -2391,7 +2397,7 @@ public bool PerformScan(object obj=null){
 					}
 				}
 			}
-			if(Match_Position && RestingVelocity.Length()>0 && Target_Distance<=RAYCAST_DISTANCE){
+			if(Tracking && RestingVelocity.Length()>0 && Target_Distance<=RAYCAST_DISTANCE){
 				if(Camera.CanScan(Target_Position)){
 					MyDetectedEntityInfo Entity=Camera.Raycast(Target_Position);
 					if(Entity.Type!=MyDetectedEntityType.None&&Entity.EntityId!=Me.CubeGrid.EntityId){
@@ -2922,7 +2928,7 @@ private void GetPositionData(){
 	else{
 		Sealevel=double.MaxValue;
 	}
-	if(Match_Position){
+	if(Match_Position||Tracking){
 		Target_Position+=seconds_since_last_update*RestingVelocity;
 	}
 	if(Match_Direction){
