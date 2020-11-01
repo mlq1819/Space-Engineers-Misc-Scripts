@@ -13,8 +13,6 @@ private const double SPEED_LIMIT=100;
 private const double RAYCAST_DISTANCE=5000; //The lower the better, but whatever works for you
 //Set this to the distance you want lights, sound blocks, and doors to update when enemies are nearby
 private const double ALERT_DISTANCE=15;
-//Time between scans
-private const double SCAN_TIME=3;
 private Color DEFAULT_TEXT_COLOR=new Color(197,137,255,255);
 private Color DEFAULT_BACKGROUND_COLOR=new Color(44,0,88,255);
 
