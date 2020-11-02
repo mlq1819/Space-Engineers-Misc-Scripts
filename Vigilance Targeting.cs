@@ -10,7 +10,7 @@ private const double FIRING_DISTANCE=10000; //Recommended between 5k and 20k; wo
 //The distance the scanners will default to during AutoScan; the lower the faster it scans
 private const double AUTOSCAN_DISTANCE=5000;//Recommended between 2k and 10k
 //Sets whether the AI starts out scanning or whether it has to wait to be told to autoscan
-private const bool DEFAULT_AUTOSCAN=true;
+private const bool DEFAULT_AUTOSCAN=false;
 //Set to the maximum time you expect the cannon to take to aim and print
 private const double AIM_TIME=15;
 private Color DEFAULT_TEXT_COLOR=new Color(197,137,255,255);
@@ -903,6 +903,7 @@ private void AddTask(CannonTask Task){
 
 private void NextTask(){
 	bool remove=true;
+	CannonTask last_task=CurrentTask;
 	CurrentFireStatus=FireStatus.Idle;
 	if(CurrentTask==CannonTask.Fire){
 		Called_Next_Fire=true;
@@ -920,11 +921,15 @@ private void NextTask(){
 			}
 		}
 	}
-	if(remove){ 
+	if(remove){
 		if(TaskQueue.Count>0)
 			TaskQueue.Dequeue();
-		if(AutoScan&&TaskQueue.Count==0)
-			TaskQueue.Enqueue(CannonTask.Scan);
+		if(TaskQueue.Count==0){
+			if(AutoScan)
+				TaskQueue.Enqueue(CannonTask.Scan);
+			else if(last_task!=CannonTask.Reset)
+				TaskQueue.Enqueue(CannonTask.Reset);
+		}
 	}
 }
 
@@ -1194,6 +1199,7 @@ private void ArgumentProcessor(string argument){
 		}
 	}
 	else if(argument.ToLower().Equals("reset")){
+		TaskQueue.Clear();
 		AddTask(CannonTask.Reset);
 	}
 	else{
@@ -1417,6 +1423,10 @@ public void Main(string argument, UpdateType updateSource)
 	foreach(IMyGravityGenerator Generator in Generators){
 		Generator.Enabled=((CurrentFireStatus==FireStatus.Firing)||(Sensor.IsActive));
 	}
+	if(AutoScan)
+		Write("AutoScan:On");
+	else
+		Write("AutoScan:Off");
 	Write("Currently:"+CurrentTask.ToString());
 	if(CurrentTask==CannonTask.Fire)
 		Write("Fire_Count:"+Fire_Count.ToString());
