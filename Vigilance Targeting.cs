@@ -544,7 +544,10 @@ private double Target_Distance{
 
 private double Time_To_Hit{
 	get{
-		return (Aim_Distance-50)/104.38+(50*1.259991856)/104.38;
+		//5 meters for every 500
+		double distance=20;
+		//return (distance-((distance-500)/100))/104.38;
+		return (Aim_Distance-distance+distance*1.5657)/104.38;
 	}
 }
 private double Time_To_Position{
@@ -911,6 +914,7 @@ public void Search(){
 	
 }
 
+private List<double> ShellCountdowns=new List<double>();
 private bool Called_Next_Fire=true;
 private bool DoFire(){
 	IMySpaceBall ShellMass=(new GenericMethods<IMySpaceBall>(this)).GetFull("Shell Mass Block");
@@ -927,8 +931,10 @@ private bool DoFire(){
 	
 	
 	List<IMyWarhead> Warheads=(new GenericMethods<IMyWarhead>(this)).GetAllContaining("Shell Warhead ");
+	double DetonationTime=(Time_To_Hit+0.05);
+	ShellCountdowns.Add(DetonationTime);
 	foreach(IMyWarhead Warhead in Warheads){
-		Warhead.DetonationTime=(float)(Time_To_Hit+0.05);
+		Warhead.DetonationTime=(float)DetonationTime;
 		Warhead.StartCountdown();
 		Warhead.IsArmed=true;
 	}
@@ -1001,6 +1007,14 @@ private void TimerUpdate(){
 	if(Fire_Timer<=1){
 		Fire_Timer+=seconds_since_last_update;
 		Write("Fire_Timer:"+Math.Round(Fire_Timer,2)+" seconds");
+	}
+	for(int i=0;i<ShellCountdowns.Count;i++){
+		ShellCountdowns[i]-=seconds_since_last_update;
+		if(ShellCountdowns[i]<0){
+			ShellCountdowns.RemoveAt(i);
+			i--;
+			continue;
+		}
 	}
 }
 
@@ -1114,6 +1128,10 @@ public void Main(string argument, UpdateType updateSource)
 			Fire();
 			break;
 	}
+	if(Fire_Timer<1){
+		PitchRotor.RotorLock=true;
+		YawRotor.RotorLock=true;
+	}
 	if((!Called_Next_Fire)&&CurrentTask>=CannonTask.Fire&&CurrentFireStatus==FireStatus.Firing&&Fire_Timer>1&&!Sensor.IsActive)
 		NextTask();
 	
@@ -1130,6 +1148,9 @@ public void Main(string argument, UpdateType updateSource)
 	Write("FireStatus:"+CurrentFireStatus.ToString());
 	Write("Distance:"+Math.Round(Aim_Distance/1000,1)+"kM");
 	Write("Precision:"+Math.Round(GetAngle(Forward_Vector,Aim_Direction),3)+"°/"+Math.Round(Precision,3).ToString()+"°");
+	foreach(double countdown in ShellCountdowns){
+		Write("Time to Explosion:"+Math.Round(countdown,1)+" seconds");
+	}
 	if(((int)CurrentTask)>=((int)CannonTask.Search))
 		Runtime.UpdateFrequency=UpdateFrequency.Update10;
 	else
