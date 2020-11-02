@@ -11,6 +11,11 @@ private const double FIRING_DISTANCE=10000; //Recommended between 5k and 20k; wo
 private const double AUTOSCAN_DISTANCE=5000;//Recommended between 2k and 10k
 //Sets whether the AI starts out scanning or whether it has to wait to be told to autoscan
 private const bool DEFAULT_AUTOSCAN=true;
+//Set to the maximum time you expect the cannon to take to aim and print
+private const double AIM_TIME=15;
+private Color DEFAULT_TEXT_COLOR=new Color(197,137,255,255);
+private Color DEFAULT_BACKGROUND_COLOR=new Color(44,0,88,255);
+
 
 public class GenericMethods<T> where T : class, IMyTerminalBlock{
 	private IMyGridTerminalSystem TerminalSystem;
@@ -56,7 +61,7 @@ public class GenericMethods<T> where T : class, IMyTerminalBlock{
 		return GetFull(name, double.MaxValue);
 	}
 	
-	public T GetContaining(string name, double max_distance, Vector3D Reference){
+	public T GetContaining(string name, Vector3D Reference, double max_distance){
 		List<T> AllBlocks = new List<T>();
 		List<T> MyBlocks = new List<T>();
 		TerminalSystem.GetBlocksOfType<T>(AllBlocks);
@@ -77,7 +82,7 @@ public class GenericMethods<T> where T : class, IMyTerminalBlock{
 		return null;
 	}
 	
-	public T GetContaining(string name, double max_distance, IMyTerminalBlock Reference){
+	public T GetContaining(string name, IMyTerminalBlock Reference, double max_distance){
 		return GetContaining(name, Reference.GetPosition(), max_distance);
 	}
 	
@@ -481,10 +486,11 @@ private enum CannonTask{
 
 private enum FireStatus{
 	Idle=0,
-	Printing=1
+	Printing=1,
 	Aiming=2,
 	WaitingClear=3,
-	Firing=4
+	WaitingTarget=4,
+	Firing=5
 }
 
 private enum PrintStatus{
@@ -515,14 +521,42 @@ private List<List<IMyInteriorLight>> StatusLights;
 
 private bool AutoFire=false;
 private bool AutoScan=DEFAULT_AUTOSCAN;
+private long Target_ID=0;
 private Vector3D Target_Position=new Vector3D(0,0,0);
 private Vector3D Target_Velocity=new Vector3D(0,0,0);
 private Vector3D Aim_Position=new Vector3D(0,0,0);
+private Vector3D Aim_Direction{
+	get{
+		Vector3D output=Aim_Position-Controller.GetPosition();
+		output.Normalize();
+		return output;
+	}
+}
+private double Aim_Distance{
+	get{
+		return (Aim_Position-Controller.GetPosition()).Length();
+	}
+}
 private double Target_Distance{
 	get{
-		if(Projector==null)
-			return double.MaxValue;
-		return (Target_Position-Projector.GetPosition()).Length();
+		return (Target_Position-Controller.GetPosition()).Length();
+	}
+}
+
+private double Time_To_Hit{
+	get{
+		return (Aim_Distance-50)/100+1;
+	}
+}
+private double Time_To_Position{
+	get{
+		return (Target_Position-Aim_Position).Length()/Target_Velocity.Length();
+	}
+}
+
+private double Precision{
+	get{
+		return Math.Min(1,1000/Aim_Distance);
 	}
 }
 
@@ -688,11 +722,20 @@ private void AddTask(CannonTask Task){
 		while(TaskQueue.Count>0)
 			old.Enqueue(TaskQueue.Dequeue());
 		TaskQueue.Enqueue(Task);
+		if(Task==CannonTask.Fire1){
+			TaskQueue.Enqueue(CannonTask.Fire2);
+			TaskQueue.Enqueue(CannonTask.Fire3);
+		}
 		while(old.Count>0)
 			TaskQueue.Enqueue(old.Dequeue());
 	}
-	else
+	else{
 		TaskQueue.Enqueue(Task);
+		if(Task==CannonTask.Fire1){
+			TaskQueue.Enqueue(CannonTask.Fire2);
+			TaskQueue.Enqueue(CannonTask.Fire3);
+		}
+	}
 }
 
 private void NextTask(){
@@ -776,7 +819,8 @@ private void Print(){
 	else{
 		Welder.Enabled=true;
 		Projector.Enabled=true;
-		ShellRotor.TargetVelocityRPM=-30.0f;
+		if(Fire_Timer>1)
+			ShellRotor.TargetVelocityRPM=-30.0f;
 		else if(is_backward){
 			ShellRotor.TargetVelocityRPM=0;
 			ShellRotor.RotorLock=true;
@@ -812,6 +856,32 @@ private void Print(){
 	}
 }
 
+private void SetAimed(){
+	Aim_Position=Target_Position;
+	if(Target_Velocity.Length()<0.1)
+		return;
+	if(Target_Velocity>100){
+		Target_ID=0;
+		Target_Position=new Vector3D(0,0,0);
+		Target_Velocity=new Vector3D(0,0,0);
+		return;
+	}
+	Aim_Position+=AIM_TIME*Target_Velocity;
+	while(Time_To_Hit-AIM_TIME<Time_To_Position){
+		Aim_Position+=Target_Velocity;
+		if(Aim_Distance>FIRING_DISTANCE){
+			Target_ID=0;
+			Target_Position=new Vector3D(0,0,0);
+			Target_Velocity=new Vector3D(0,0,0);
+			return;
+		}
+	}
+}
+
+private void Aim(){
+	
+}
+
 public void Scan(){
 	
 }
@@ -820,14 +890,75 @@ public void Search(){
 	
 }
 
-public void Fire(){
+private void DoFire(){
+	Fire_Timer=0.0;
 	
+	
+	
+	
+	if(!(AutoFire&&CurrentTask==CannonTask.Fire3))
+		NextTask();
+}
+
+private double Fire_Timer=0.0;
+public void Fire(){
+	if(Aim_Distance>FIRING_DISTANCE)
+		Target_ID=0;
+	if(Target_ID==0){
+		NextTask();
+		return;
+	}
+	bool is_aimed=GetAngle(Forward_Vector,Aim_Direction)<=Precision;
+	bool is_clear=!Sensor.IsActive;
+	bool is_printed=CurrentPrintStatus==PrintStatus.Ready;
+	bool is_ready=(Target_Velocity.Length()<0.1)||(Math.Abs(Time_To_Hit-Time_To_Position)<1.2);
+	bool just_fired=(CurrentFireStatus==FireStatus.Firing);
+	if(is_aimed){
+		PitchRotor.TargetVelocityRPM=0;
+		PitchRotor.RotorLock=true;
+		YawRotor.TargetVelocityRPM=0;
+		YawRotor.RotorLock=true;
+		if(is_clear){
+			if(is_printed){
+				if(is_ready){
+					CurrentFireStatus=FireStatus.Firing;
+					DoFire();
+				}
+				else{
+					if(Time_To_Hit<Time_To_Position){
+						SetAimed();
+						Fire();
+						return;
+					}
+					else {
+						CurrentFireStatus=FireStatus.WaitingTarget;
+					}
+				}
+			}
+			else{
+				CurrentFireStatus=FireStatus.Printing;
+			}
+		}
+		else {
+			if(just_fired){
+				CurrentFireStatus=FireStatus.Firing;
+			}
+			else{
+				CurrentFireStatus=FireStatus.WaitingClear;
+			}
+		}
+	}
+	else{
+		Aim();
+		CurrentFireStatus=FireStatus.Aiming;
+	}
 }
 
 private void TimerUpdate(){
 	if(CurrentPrintStatus!=PrintStatus.Printing)
 		Print_Timer+=seconds_since_last_update;
-	
+	if(CurrentFireStatus==FireStatus.Firing)
+		Fire_Timer+=seconds_since_last_update;
 }
 
 public void Main(string argument, UpdateType updateSource)
@@ -883,6 +1014,8 @@ public void Main(string argument, UpdateType updateSource)
 		else if(argument.Equals("dumbfire")){
 			Target_Position=Forward_Vector*Math.Min(FIRING_DISTANCE,3000)+Controller.GetPosition();
 			Target_Velocity=new Vector3D(0,0,0);
+			Target_ID=-1;
+			AddTask(CannonTask.Fire1);
 			if(CurrentPrintStatus==PrintStatus.Ready)
 				CurrentFireStatus=FireStatus.Aiming;
 			else
@@ -910,6 +1043,7 @@ public void Main(string argument, UpdateType updateSource)
 					set=true;
 				if(set){
 					Target_Velocity=new Vector3D(0,0,0);
+					Target_ID=-1;
 					if(words.Count>1){
 						Vector3D.TryParse(words[1],Target_Velocity);
 					}
@@ -935,6 +1069,14 @@ public void Main(string argument, UpdateType updateSource)
 			Fire();
 			break;
 	}
+	if(CurrentTask!=CannonTask.Fire)
+		CurrentFireStatus=FireStatus.Idle;
+	foreach(IMyInteriorLight Light in FiringLights){
+		Light.Enabled=CurrentFireStatus==FireStatus.Firing;
+	}
+	Write("Currently:"+CurrentTask.ToString());
+	Write("PrintStatus:"+CurrentPrintStatus.ToString());
+	Write("FireStatus:"+CurrentFireStatus.ToString());
 	if(((int)CurrentTask)>=((int)CannonTask.Fire3))
 		Runtime.UpdateFrequency=UpdateFrequency.Update10;
 	else
