@@ -512,7 +512,6 @@ private IMyMotorStator ShellRotor;
 private IMyShipWelder Welder;
 private IMySensorBlock Sensor;
 private IMyShipMergeBlock Merge;
-private IMyAirtightSlideDoor Door;
 private List<IMyCameraBlock> Cameras;
 private List<IMyGravityGenerator> Generators;
 
@@ -545,7 +544,7 @@ private double Target_Distance{
 
 private double Time_To_Hit{
 	get{
-		return (Aim_Distance-50)/100+1;
+		return (Aim_Distance-50)/104.38+(50*1.259991856)/104.38;
 	}
 }
 private double Time_To_Position{
@@ -556,7 +555,7 @@ private double Time_To_Position{
 
 private double Precision{
 	get{
-		return Math.Min(1,1000/Aim_Distance);
+		return Math.Min(1,100/Aim_Distance);
 	}
 }
 
@@ -659,9 +658,6 @@ public Program(){
 	Merge=(new GenericMethods<IMyShipMergeBlock>(this)).GetFull("Shell Printer Merge Block");
 	if(Merge==null)
 		return;
-	Door=(new GenericMethods<IMyAirtightSlideDoor>(this)).GetFull("Cannon Door");
-	if(Door==null)
-		return;
 	Generators=(new GenericMethods<IMyGravityGenerator>(this)).GetAllContaining("Driver Generator ");
 	if(Generators.Count==0)
 		return;
@@ -745,18 +741,23 @@ private void AddTask(CannonTask Task){
 }
 
 private void NextTask(){
+	bool remove=true;
+	CurrentFireStatus=FireStatus.Idle;
 	if(CurrentTask==CannonTask.Fire){
-		if(Fire_Count>1||!AutoFire)
+		Called_Next_Fire=true;
+		if(Fire_Count>1){
 			Fire_Count--;
+			remove=false;
+		}
+		else if(AutoFire)
+			remove=false;
 	}
-	if(CurrentTask!=CannonTask.Fire||Fire_Count==0){ 
-		Fire_Count=0;
+	if(remove){ 
 		if(TaskQueue.Count>0)
 			TaskQueue.Dequeue();
 		if(AutoScan&&TaskQueue.Count==0)
 			TaskQueue.Enqueue(CannonTask.Scan);
 	}
-	CurrentFireStatus=FireStatus.Idle;
 }
 
 private void UpdateProgramInfo(){
@@ -809,6 +810,8 @@ private void UpdatePositionalInfo(){
 	base_vector=new Vector3D(-1,0,0);
 	Left_Vector=LocalToGlobal(base_vector);
 	Left_Vector.Normalize();
+	
+	Target_Position+=seconds_since_last_update*Target_Velocity;
 }
 
 private double Print_Timer=0.0;
@@ -894,7 +897,10 @@ private void SetAimed(){
 }
 
 private void Aim(){
-	
+	double Pitch_Difference=GetAngle(Up_Vector,Aim_Direction)-GetAngle(Down_Vector,Aim_Direction);
+	PitchRotor.TargetVelocityRPM=(float)(Pitch_Difference*Math.Min(1,Math.Max(Pitch_Difference/10,Precision*10)));
+	double Yaw_Difference=GetAngle(Left_Vector,Aim_Direction)-GetAngle(Right_Vector,Aim_Direction);
+	YawRotor.TargetVelocityRPM=(float)(Yaw_Difference*Math.Min(1,Math.Max(Yaw_Difference/10,Precision*10)));
 }
 
 public void Scan(){
@@ -905,13 +911,20 @@ public void Search(){
 	
 }
 
-private void DoFire(){
-	IMyShipMergeBlock ShellMerge=(new GenericMethods<IMyShipMergeBlock>(this)).GetFull("Shell Merge Block");
-	if(ShellMerge==null||!ShellMerge.IsFunctional)
-		return;
-	IMyArtificialMassBlock ShellMass=(new GenericMethods<IMyArtificialMassBlock>(this)).GetFull("Shell Mass Block");
+private bool Called_Next_Fire=true;
+private bool DoFire(){
+	IMySpaceBall ShellMass=(new GenericMethods<IMySpaceBall>(this)).GetFull("Shell Mass Block");
 	if(ShellMass==null||!ShellMass.IsFunctional)
-		return;
+		return false;
+	IMyTimerBlock ShellTimer=(new GenericMethods<IMyTimerBlock>(this)).GetFull("Shell Activation Block");
+	if(ShellTimer==null||!ShellTimer.IsFunctional)
+		return false;
+	
+	ShellMass.Enabled=true;
+	if(!ShellMass.Enabled){
+		return false;
+	}
+	
 	
 	List<IMyWarhead> Warheads=(new GenericMethods<IMyWarhead>(this)).GetAllContaining("Shell Warhead ");
 	foreach(IMyWarhead Warhead in Warheads){
@@ -919,10 +932,13 @@ private void DoFire(){
 		Warhead.StartCountdown();
 		Warhead.IsArmed=true;
 	}
-	ShellMass.Enabled=true;
-	ShellMerge.Enabled=false;
+	
+	
+	ShellTimer.Trigger();
 	Merge.Enabled=false;
+	Called_Next_Fire=false;
 	Fire_Timer=0.0;
+	return true;
 }
 
 private double Fire_Timer=1.0;
@@ -936,21 +952,19 @@ public void Fire(){
 	if(CurrentFireStatus==FireStatus.Firing)
 		return;
 	bool is_aimed=GetAngle(Forward_Vector,Aim_Direction)<=Precision;
-	bool is_clear=(!Sensor.IsActive)&&Door.Status==DoorStatus.Open;
-	bool is_printed=CurrentPrintStatus==PrintStatus.Ready;
+	bool is_clear=(!Sensor.IsActive);
+	bool is_printed=CurrentPrintStatus==PrintStatus.Ready&&Merge.Enabled&&Projector.RemainingBlocks==0;
 	bool is_ready=(Target_Velocity.Length()<0.1)||(Math.Abs(Time_To_Hit-Time_To_Position)<1.2);
 	if(is_aimed){
 		PitchRotor.TargetVelocityRPM=0;
 		PitchRotor.RotorLock=true;
 		YawRotor.TargetVelocityRPM=0;
 		YawRotor.RotorLock=true;
-		Door.Enabled=Door.Status!=DoorStatus.Open;
-		Door.OpenDoor();
-		if(is_clear){
-			if(is_printed){
+		if(is_printed){
+			if(is_clear){
 				if(is_ready){
-					CurrentFireStatus=FireStatus.Firing;
-					DoFire();
+					if(DoFire())
+						CurrentFireStatus=FireStatus.Firing;
 				}
 				else{
 					if(Time_To_Hit<Time_To_Position){
@@ -964,14 +978,16 @@ public void Fire(){
 				}
 			}
 			else{
-				CurrentFireStatus=FireStatus.Printing;
+				CurrentFireStatus=FireStatus.WaitingClear;
 			}
 		}
 		else {
-			CurrentFireStatus=FireStatus.WaitingClear;
+			CurrentFireStatus=FireStatus.Printing;
 		}
 	}
 	else{
+		PitchRotor.RotorLock=false;
+		YawRotor.RotorLock=false;
 		Aim();
 		CurrentFireStatus=FireStatus.Aiming;
 	}
@@ -1098,22 +1114,22 @@ public void Main(string argument, UpdateType updateSource)
 			Fire();
 			break;
 	}
-	if(CurrentTask>=CannonTask.Fire&&CurrentFireStatus==FireStatus.Firing&&Fire_Timer>1&&!Sensor.IsActive)
+	if((!Called_Next_Fire)&&CurrentTask>=CannonTask.Fire&&CurrentFireStatus==FireStatus.Firing&&Fire_Timer>1&&!Sensor.IsActive)
 		NextTask();
 	
-	if(CurrentFireStatus<FireStatus.WaitingClear){
-		Door.Enabled=Door.Status!=DoorStatus.Closed;
-		Door.CloseDoor();
-	}
 	foreach(IMyInteriorLight Light in FiringLights){
-		Light.Enabled=CurrentFireStatus==FireStatus.Firing;
+		Light.Enabled=CurrentTask==CannonTask.Fire;
 	}
 	foreach(IMyGravityGenerator Generator in Generators){
-		Generator.Enabled=CurrentFireStatus==FireStatus.Firing;
+		Generator.Enabled=((CurrentFireStatus==FireStatus.Firing)||(Sensor.IsActive));
 	}
 	Write("Currently:"+CurrentTask.ToString());
+	if(CurrentTask==CannonTask.Fire)
+		Write("Fire_Count:"+Fire_Count.ToString());
 	Write("PrintStatus:"+CurrentPrintStatus.ToString());
 	Write("FireStatus:"+CurrentFireStatus.ToString());
+	Write("Distance:"+Math.Round(Aim_Distance/1000,1)+"kM");
+	Write("Precision:"+Math.Round(GetAngle(Forward_Vector,Aim_Direction),3)+"°/"+Math.Round(Precision,3).ToString()+"°");
 	if(((int)CurrentTask)>=((int)CannonTask.Search))
 		Runtime.UpdateFrequency=UpdateFrequency.Update10;
 	else
