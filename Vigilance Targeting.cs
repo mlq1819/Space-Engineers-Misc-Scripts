@@ -632,6 +632,7 @@ private long cycle_long = 1;
 private long cycle = 0;
 private char loading_char = '|';
 private double seconds_since_last_update = 0;
+private Random Rnd;
 
 private IMyRemoteControl Controller;
 private IMyProjector Projector;
@@ -754,6 +755,7 @@ private double GetAngle(Vector3D v1, Vector3D v2){
 
 private bool Operational=false;
 public Program(){
+	Rnd=new Random();
     Me.CustomName=(Program_Name+" Programmable block").Trim();
 	for(int i=0;i<Me.SurfaceCount;i++){
 		Me.GetSurface(i).FontColor=DEFAULT_TEXT_COLOR;
@@ -1102,6 +1104,8 @@ private void Standard_Scan(){
 				Targets.UpdateEntry(Entity);
 				if(Target.ID==Entity.ID)
 					SetAimed(Aim_Timer);
+				if(CurrentTask!=CannonTask.Fire)
+					AddTask(CannonTask.Fire);
 			}
 		}
 	}
@@ -1226,11 +1230,34 @@ private void ArgumentProcessor(string argument){
 	}
 }
 
+private bool CanAim(Vector3D Direction){
+	double Yaw_Difference=Math.Abs(GetAngle(Left_Vector,Direction)-GetAngle(Right_Vector,Direction));
+	if(Yaw_Difference>30){
+		return true;
+	}
+	double Pitch_Difference=GetAngle(Down_Vector,Direction)-GetAngle(Up_Vector,Direction)/2;
+	double Pitch_Angle=PitchRotor.Angle/Math.PI*180;
+	if(Pitch_Angle>180)
+		Pitch_Angle-=360;
+	double From_Top=Pitch_Angle-Pitch_Difference;
+	if(Math.Abs(From_Top)>30+Yaw_Difference)
+		return false;
+	return true;
+}
+
+private void Aim(Vector3D Direction, double precision){
+	double Pitch_Difference=GetAngle(Up_Vector,Direction)-GetAngle(Down_Vector,Direction);
+	PitchRotor.TargetVelocityRPM=(float)(Pitch_Difference*Math.Min(1,Math.Max(Pitch_Difference/10,precision*10)));
+	double Yaw_Difference=GetAngle(Left_Vector,Direction)-GetAngle(Right_Vector,Direction);
+	YawRotor.TargetVelocityRPM=(float)(Yaw_Difference*Math.Min(1,Math.Max(Yaw_Difference/10,precision*10)));
+}
+
+private void Aim(Vector3D Direction){
+	Aim(Direction, Precision);
+}
+
 private void Aim(){
-	double Pitch_Difference=GetAngle(Up_Vector,Aim_Direction)-GetAngle(Down_Vector,Aim_Direction);
-	PitchRotor.TargetVelocityRPM=(float)(Pitch_Difference*Math.Min(1,Math.Max(Pitch_Difference/10,Precision*10)));
-	double Yaw_Difference=GetAngle(Left_Vector,Aim_Direction)-GetAngle(Right_Vector,Aim_Direction);
-	YawRotor.TargetVelocityRPM=(float)(Yaw_Difference*Math.Min(1,Math.Max(Yaw_Difference/10,Precision*10)));
+	Aim(Aim_Direction,Precision);
 }
 
 public void Reset(){
@@ -1267,8 +1294,64 @@ public void Reset(){
 		NextTask();
 }
 
+private Vector3D Scan_Direction=new Vector3D(0,0,0);
+private double Scan_Timer=AUTOSCAN_DISTANCE/1000;
+private bool Has_Done_Scan=false;
 public void Scan(){
-	
+	if(Scan_Timer>=AUTOSCAN_DISTANCE/1000||!CanAim(Scan_Direction)){
+		Has_Done_Scan=false;
+		do{
+			int x=Rnd.Next(-36,36);
+			int y=Rnd.Next(-36,36);
+			int z=Rnd.Next(-36,36);
+			Scan_Direction=new Vector3D(x,y,z);
+			Scan_Direction.Normalize();
+		}
+		while(!CanAim(Scan_Direction));
+	}
+	if(!Has_Done_Scan){
+		double interval=(AUTOSCAN_DISTANCE/1000)/Cameras.Count;
+		EntityList DetectedEntities=new EntityList();
+		for(int i=0;i<Cameras.Count;i++){
+			if(i==0){
+				MyDetectedEntityInfo Entity=Camera.Raycast(AUTOSCAN_DISTANCE,0,0);
+				if(Entity.Type!=MyDetectedEntityType.None&&Entity.EntityId!=Controller.CubeGrid.EntityId)
+					DetectedEntities.UpdateEntry(new EntityInfo(Entity));
+				continue;
+			}
+			double distance=AUTOSCAN_DISTANCE/(4*i);
+			int degrees=(int)(Camera.RaycastConeLimit/i);
+			for(int j=0;j<i;j++){
+				float pitch,yaw;
+				int lower=degrees*j;
+				int upper=degrees*(j+1);
+				do{
+					pitch=(float)Rnd.Next(lower*10,upper*10)/10.0f;
+					yaw=(float)Rnd.Next(lower*10,upper*10)/10.0f;
+				}
+				while(Math.Sqrt(Math.Pow(pitch,2)+Math.Pow(yaw,2))>Camera.RaycastConeLimit);
+				MyDetectedEntityInfo Entity=Camera.Raycast(distance,pitch,yaw);
+				if(Entity.Type!=MyDetectedEntityType.None&&Entity.EntityId!=Controller.CubeGrid.EntityId)
+					DetectedEntities.UpdateEntry(new EntityInfo(Entity));
+			}
+		}
+		if(AutoFire){
+			foreach(EntityInfo Entity in DetectedEntities){
+				double distance=(Controller.GetPosition()-Entity.Position).Length();
+				if(Entity.Type==MyDetectedEntityType.LargeGrid&&Entity.Relationship==MyRelationsBetweenPlayerAndBlock.Enemies&&distance<AUTOSCAN_DISTANCE&&distance>100){
+					Targets.UpdateEntry(Entity);
+					if(Target.ID==Entity.ID)
+						SetAimed(Aim_Timer);
+					if(CurrentTask!=CannonTask.Fire)
+					AddTask(CannonTask.Fire);
+				}
+			}
+		}
+		foreach(EntityInfo Entity in DetectedEntities){
+			SendAllListeners(Entity.ToString());
+		}
+		Has_Done_Scan=true;
+	}
 }
 
 public void Search(){
@@ -1310,7 +1393,7 @@ private bool DoFire(){
 
 private double Fire_Timer=1.0;
 public void Fire(){
-	if(Aim_Distance>FIRING_DISTANCE||Target.ID==0){
+	if(Aim_Distance>FIRING_DISTANCE||Target.ID==0||!CanAim(Aim_Direction)){
 		NextTask();
 		return;
 	}
@@ -1379,6 +1462,8 @@ private void TimerUpdate(){
 		Standard_Scan_Time+=seconds_since_last_update;
 	if(Aim_Timer>0)
 		Aim_Timer=Math.Max(0,Aim_Timer-seconds_since_last_update);
+	if(Scan_Timer<AUTOSCAN_DISTANCE/1000&&GetAngle(Forward_Vector,Scan_Direction)<1)
+		Scan_Timer+=seconds_since_last_update;
 }
 
 public void Main(string argument, UpdateType updateSource)
