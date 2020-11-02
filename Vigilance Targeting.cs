@@ -319,6 +319,10 @@ public class EntityInfo{
 		Age=TimeSpan.Zero;
 	}
 	
+	public EntityInfo(Vector3D position,Vector3D velocity,long id=-1):this(id,"unknown",MyDetectedEntityType.Unknown,null,velocity,MyRelationsBetweenPlayerAndBlock.Enemies,position){
+		;
+	}
+	
 	public static bool TryParse(string Parse, out EntityInfo Entity){
 		Entity=new EntityInfo(-1,"bad", MyDetectedEntityType.None, null, new Vector3D(0,0,0), MyRelationsBetweenPlayerAndBlock.NoOwnership, new Vector3D(0,0,0));
 		try{
@@ -424,12 +428,136 @@ public class EntityInfo{
 	}
 }
 
+public class EntityList : IEnumerable<EntityInfo>{
+	private List<EntityInfo> E_List;
+	public IEnumerator<EntityInfo> GetEnumerator(){
+		return E_List.GetEnumerator();
+	}
+	IEnumerator IEnumerable.GetEnumerator(){
+		return GetEnumerator();
+	}
+	
+	public int Count{
+		get{
+			return E_List.Count;
+		}
+	}
+	
+	public EntityInfo this[int key]{
+		get{
+			return E_List[key];
+		}
+		set{
+			E_List[key]=value;
+		}
+	}
+	
+	public EntityList(){
+		E_List=new List<EntityInfo>();
+	}
+	
+	public void UpdatePositions(double seconds){
+		foreach(EntityInfo entity in E_List){
+			entity.Update(seconds);
+		}
+	}
+	
+	public bool UpdateEntry(EntityInfo Entity){
+		for(int i=0; i<E_List.Count; i++){
+			if(E_List[i].ID==Entity.ID || Entity.GetDistance(E_List[i].Position)<=0.5f){
+				if(E_List[i].Age >= Entity.Age){
+					E_List[i]=Entity;
+					return true;
+				}
+				return false;
+			}
+		}
+		E_List.Add(Entity);
+		return true;
+	}
+	
+	public EntityInfo Get(long ID){
+		foreach(EntityInfo entity in E_List){
+			if(entity.ID==ID)
+				return entity;
+		}
+		return null;
+	}
+	
+	public double ClosestDistance(MyGridProgram P, MyRelationsBetweenPlayerAndBlock Relationship, double min_size=0){
+		double min_distance=double.MaxValue;
+		foreach(EntityInfo entity in E_List){
+			if(entity.Size >= min_size && entity.Relationship==Relationship){
+				min_distance=Math.Min(min_distance, (P.Me.GetPosition()-entity.Position).Length()-entity.Size);
+			}
+		}
+		return min_distance;
+	}
+	
+	public double ClosestDistance(MyGridProgram P, double min_size=0){
+		double min_distance=double.MaxValue;
+		foreach(EntityInfo entity in E_List){
+			if(entity.Size >= min_size){
+				min_distance=Math.Min(min_distance, (P.Me.GetPosition()-entity.Position).Length()-entity.Size);
+			}
+		}
+		return min_distance;
+	}
+	
+	public void Clear(){
+		E_List.Clear();
+	}
+	
+	public void RemoveAt(int index){
+		E_List.RemoveAt(index);
+	}
+	
+	public void Sort(Vector3D Reference){
+		List<EntityInfo> Sorted=new List<EntityInfo>();
+		List<EntityInfo> Unsorted=new List<EntityInfo>();
+		foreach(EntityInfo Entity in E_List){
+			double distance=Entity.GetDistance(Reference);
+			double last_distance=0;
+			if(Sorted.Count>0)
+				last_distance=Sorted[Sorted.Count-1].GetDistance(Reference);
+			if(distance>=last_distance)
+				Sorted.Add(Entity);
+			else
+				Unsorted.Add(Entity);
+		}
+		while(Unsorted.Count>0){
+			double distance=Unsorted[0].GetDistance(Reference);
+			if(distance>=Sorted[Sorted.Count-1].GetDistance(Reference)){
+				Sorted.Add(Unsorted[0]);
+				Unsorted.RemoveAt(0);
+				continue;
+			}
+			for(int i=0;i<Sorted.Count;i++){
+				if(distance<=Sorted[i].GetDistance(Reference)){
+					Sorted.Insert(i,Unsorted[0]);
+					Unsorted.RemoveAt(0);
+					break;
+				}
+			}
+		}
+		E_List=Sorted;
+	}
+}
+
 public void Write(string text, bool new_line=true, bool append=true){
 	Echo(text);
-	if(new_line)
+	if(new_line){
 		Me.GetSurface(0).WriteText(text+'\n', append);
-	else
+		foreach(IMyTextPanel Panel in StatusPanels){
+			Panel.WriteText(text+'\n', append);
+		}
+	}
+	else{
 		Me.GetSurface(0).WriteText(text, append);
+		foreach(IMyTextPanel Panel in StatusPanels){
+			Panel.WriteText(text, append);
+		}
+	}
 }
 
 private bool HasBlockData(IMyTerminalBlock Block, string Name){
@@ -478,8 +606,9 @@ private bool SetBlockData(IMyTerminalBlock Block, string Name, string Data){
 private enum CannonTask{
 	None=0,
 	Scan=1,
-	Search=2,
-	Fire=3
+	Reset=2,
+	Search=3,
+	Fire=4
 }
 
 private enum FireStatus{
@@ -515,14 +644,23 @@ private IMyShipMergeBlock Merge;
 private List<IMyCameraBlock> Cameras;
 private List<IMyGravityGenerator> Generators;
 
+
 private List<IMyInteriorLight> FiringLights;
 private List<List<IMyInteriorLight>> StatusLights;
+private List<IMyTextPanel> StatusPanels;
+
+private EntityList Targets=new EntityList();
 
 private bool AutoFire=false;
 private bool AutoScan=DEFAULT_AUTOSCAN;
-private long Target_ID=0;
-private Vector3D Target_Position=new Vector3D(0,0,0);
-private Vector3D Target_Velocity=new Vector3D(0,0,0);
+private EntityInfo Target{
+	get{
+		if(Targets.Count>0)
+			return Targets[0];
+		return new EntityInfo(0, "invalid", MyDetectedEntityType.None, null, new Vector3D(0,0,0), MyRelationsBetweenPlayerAndBlock.Neutral, new Vector3D(0,0,0), 0);
+	}
+}
+
 private Vector3D Aim_Position=new Vector3D(0,0,0);
 private Vector3D Aim_Direction{
 	get{
@@ -536,23 +674,16 @@ private double Aim_Distance{
 		return (Aim_Position-Controller.GetPosition()).Length();
 	}
 }
-private double Target_Distance{
-	get{
-		return (Target_Position-Controller.GetPosition()).Length();
-	}
-}
 
 private double Time_To_Hit{
 	get{
-		//5 meters for every 500
 		double distance=20;
-		//return (distance-((distance-500)/100))/104.38;
 		return (Aim_Distance-distance+distance*1.5657)/104.38;
 	}
 }
 private double Time_To_Position{
 	get{
-		return (Target_Position-Aim_Position).Length()/Target_Velocity.Length();
+		return (Target.Position-Aim_Position).Length()/Target.Velocity.Length();
 	}
 }
 
@@ -634,6 +765,15 @@ public Program(){
 	Me.GetSurface(1).TextPadding=40.0f;
 	Echo("Beginning initialization");
 	Me.Enabled=true;
+	StatusPanels=(new GenericMethods<IMyTextPanel>(this)).GetAllContaining("Cannon Status Panel ");
+	foreach(IMyTextPanel Panel in StatusPanels){
+		Panel.FontColor=DEFAULT_TEXT_COLOR;
+		Panel.BackgroundColor=DEFAULT_BACKGROUND_COLOR;
+		Panel.Alignment=TextAlignment.CENTER;
+		Panel.ContentType=ContentType.TEXT_AND_IMAGE;
+		Panel.FontSize=1.0f;
+		Panel.TextPadding=10.0f;
+	}
 	
 	Operational=false;
 	
@@ -684,6 +824,11 @@ public Program(){
 				if(Int32.TryParse(word,out output))
 					TaskQueue.Enqueue((CannonTask)output);
 			}
+			else if(arg.IndexOf("Target:")==0){
+				EntityInfo output;
+				if(EntityInfo.TryParse(arg.Substring("Target:".Length),out output))
+					Targets.UpdateEntry(output);
+			}
 			else if(arg.IndexOf("FireStatus:")==0){
 				string word=arg.Substring("Status:".Length);
 				int output=0;
@@ -711,6 +856,9 @@ public Program(){
 		TaskQueue.Enqueue(CannonTask.Scan);
 	
 	Operational=true;
+	IGC.RegisterBroadcastListener("Vigilance AI");
+	IGC.RegisterBroadcastListener("Entity Report");
+	IGC.RegisterBroadcastListener(Me.CubeGrid.CustomName);
 	if(((int)CurrentTask)>=((int)CannonTask.Fire))
 		Runtime.UpdateFrequency=UpdateFrequency.Update10;
 	else
@@ -724,6 +872,9 @@ public void Save(){
 	while(TaskQueue.Count>0){
 		this.Storage+="•Task:"+((int)CurrentTask).ToString();
 		TaskQueue.Dequeue();
+	}
+	foreach(EntityInfo Entity in Targets){
+		this.Storage+="•Target:"+Entity.ToString();
 	}
 	Me.CustomData=this.Storage;
 }
@@ -741,6 +892,13 @@ private void AddTask(CannonTask Task){
 	}
 	else
 		TaskQueue.Enqueue(Task);
+	if(Task==CannonTask.Fire){
+		if(CurrentPrintStatus==PrintStatus.Ready)
+			CurrentFireStatus=FireStatus.Aiming;
+		else
+			CurrentFireStatus=FireStatus.Printing;
+		Fire_Count=3;
+	}
 }
 
 private void NextTask(){
@@ -754,6 +912,13 @@ private void NextTask(){
 		}
 		else if(AutoFire)
 			remove=false;
+		else if(Targets.Count>0){
+			Targets.RemoveAt(0);
+			if(Targets.Count>0){
+				Fire_Count=3;
+				remove=false;
+			}
+		}
 	}
 	if(remove){ 
 		if(TaskQueue.Count>0)
@@ -799,6 +964,9 @@ private void UpdateProgramInfo(){
 	else {
 		Echo(Math.Round(seconds_since_last_update/60/60/24, 2).ToString() + " days\n");
 	}
+	foreach(IMyTextPanel Panel in StatusPanels){
+		Panel.WriteText("",false);
+	}
 }
 
 private void UpdatePositionalInfo(){
@@ -814,7 +982,7 @@ private void UpdatePositionalInfo(){
 	Left_Vector=LocalToGlobal(base_vector);
 	Left_Vector.Normalize();
 	
-	Target_Position+=seconds_since_last_update*Target_Velocity;
+	Targets.UpdatePositions(seconds_since_last_update);
 }
 
 private double Print_Timer=0.0;
@@ -851,6 +1019,9 @@ private void Print(){
 			}
 			else{
 				CurrentPrintStatus=PrintStatus.WaitingResources;
+				string Message="Waiting for resources";
+				IGC.SendBroadcastMessage("Vigilance AI", Message, TransmissionDistance.TransmissionDistanceMax);
+				IGC.SendBroadcastMessage(Me.CubeGrid.CustomName, Message, TransmissionDistance.TransmissionDistanceMax);
 			}
 		}
 		else {
@@ -877,24 +1048,174 @@ private void Print(){
 	}
 }
 
-private void SetAimed(){
-	Aim_Position=Target_Position;
-	if(Target_Velocity.Length()<0.1)
+private double Aim_Timer=AIM_TIME;
+private void SetAimed(double time=AIM_TIME){
+	Aim_Timer=Math.Min(Math.Max(0,time),AIM_TIME);
+	Aim_Position=Target.Position;
+	if(Target.Velocity.Length()<0.1)
 		return;
-	if(Target_Velocity.Length()>100){
-		Target_ID=0;
-		Target_Position=new Vector3D(0,0,0);
-		Target_Velocity=new Vector3D(0,0,0);
+	if(Target.Velocity.Length()>100){
+		if(Targets.Count>0)
+			Targets.RemoveAt(0);
 		return;
 	}
-	Aim_Position+=AIM_TIME*Target_Velocity;
-	while(Time_To_Hit-AIM_TIME<Time_To_Position){
-		Aim_Position+=Target_Velocity;
+	Aim_Position+=Aim_Timer*Target.Velocity;
+	while(Time_To_Hit-Aim_Timer<Time_To_Position){
+		Aim_Position+=Target.Velocity;
 		if(Aim_Distance>FIRING_DISTANCE){
-			Target_ID=0;
-			Target_Position=new Vector3D(0,0,0);
-			Target_Velocity=new Vector3D(0,0,0);
+			if(Targets.Count>0){
+				Targets.RemoveAt(0);
+			}
 			return;
+		}
+	}
+}
+
+private void SendAllListeners(string Message){
+	List<IMyBroadcastListener> listeners=new List<IMyBroadcastListener>();
+	IGC.GetBroadcastListeners(listeners);
+	foreach(IMyBroadcastListener Listener in listeners){
+		IGC.SendBroadcastMessage(Listener.Tag, Message, TransmissionDistance.TransmissionDistanceMax);
+	}
+}
+private double Standard_Scan_Time=3;
+private void Standard_Scan(){
+	EntityList DetectedEntities=new EntityList();
+	List<IMyLargeTurretBase> AllTurrets=new List<IMyLargeTurretBase>();
+	GridTerminalSystem.GetBlocksOfType<IMyLargeTurretBase>(AllTurrets);
+	foreach(IMyLargeTurretBase Turret in AllTurrets){
+		if(Turret.HasTarget){
+			MyDetectedEntityInfo Detected=Turret.GetTargetedEntity();
+			if(Detected.Type!=MyDetectedEntityType.None&&Detected.EntityId!=Controller.CubeGrid.EntityId)
+				DetectedEntities.UpdateEntry(new EntityInfo(Detected));
+		}
+	}
+	if(AutoFire){
+		foreach(EntityInfo Entity in DetectedEntities){
+			double distance=(Controller.GetPosition()-Entity.Position).Length();
+			if(Entity.Type==MyDetectedEntityType.LargeGrid&&Entity.Relationship==MyRelationsBetweenPlayerAndBlock.Enemies&&distance<AUTOSCAN_DISTANCE&&distance>100){
+				Targets.UpdateEntry(Entity);
+				if(Target.ID==Entity.ID)
+					SetAimed(Aim_Timer);
+			}
+		}
+	}
+	EntityInfo Myself = new EntityInfo(Controller.CubeGrid.EntityId,Controller.CubeGrid.CustomName,MyDetectedEntityType.LargeGrid,(Vector3D?)(Controller.GetPosition()),new Vector3D(0,0,0),MyRelationsBetweenPlayerAndBlock.Owner,Controller.CubeGrid.GetPosition());
+	SendAllListeners(Myself.ToString());
+	foreach(EntityInfo Entity in DetectedEntities){
+		SendAllListeners(Entity.ToString());
+	}
+	
+	List<IMyBroadcastListener> listeners=new List<IMyBroadcastListener>();
+	IGC.GetBroadcastListeners(listeners);
+	foreach(IMyBroadcastListener Listener in listeners){
+		while(Listener.HasPendingMessage){
+			MyIGCMessage message=Listener.AcceptMessage();
+			ArgumentProcessor(message.Data.ToString());
+		}
+	}
+	Standard_Scan_Time=0;
+}
+
+private void ArgumentProcessor(string argument){
+	if(argument.ToLower().Equals("scan")){
+		AddTask(CannonTask.Scan);
+	}
+	else if(argument.ToLower().IndexOf("autoscan")==0){
+		string word=argument.ToLower().Substring("autoscan".Length);
+		if(word.Length==0||word.Contains("toggle")||word.Contains("switch"))
+			AutoScan=!AutoScan;
+		else if(word.Contains("on")||word.Contains("enabled")||word.Contains("true"))
+			AutoScan=true;
+		else if(word.Contains("off")||word.Contains("disabled")||word.Contains("false"))
+			AutoScan=false;
+	}
+	else if(argument.ToLower().IndexOf("search:")==0){
+		string[] words=argument.ToLower().Substring("search:".Length).Split(';');
+		if(words.Length>0){
+			bool set=false;
+			Vector3D Position;
+			if(!Vector3D.TryParse(words[0],out Position)){
+				MyWaypointInfo Waypoint;
+				if(!MyWaypointInfo.TryParse(words[0],out Waypoint)){
+					if(MyWaypointInfo.TryParse(words[0].Substring(0,words[0].Length-10),out Waypoint))
+						set=true;
+				}
+				else
+					set=true;
+				if(set){
+					Position=Waypoint.Coords;
+				}
+			}
+			else
+				set=true;
+			if(set){
+				Vector3D Velocity=new Vector3D(0,0,0);
+				if(words.Length>1){
+					Vector3D.TryParse(words[1],out Velocity);
+				}
+				Targets.UpdateEntry(new EntityInfo(Position,Velocity));
+				AddTask(CannonTask.Search);
+			}
+		}
+	}
+	else if(argument.ToLower().Equals("dumbfire")){
+		Targets.UpdateEntry(new EntityInfo(Forward_Vector*Math.Min(FIRING_DISTANCE,1000)+Controller.GetPosition(),new Vector3D(0,0,0)));
+		AddTask(CannonTask.Fire);
+		SetAimed();
+	}
+	else if(argument.ToLower().IndexOf("fire:")==0){
+		string[] words=argument.ToLower().Substring("fire:".Length).Split(';');
+		if(words.Length>0){
+			bool set=false;
+			Vector3D Position;
+			if(!Vector3D.TryParse(words[0],out Position)){
+				MyWaypointInfo Waypoint;
+				if(!MyWaypointInfo.TryParse(words[0],out Waypoint)){
+					if(MyWaypointInfo.TryParse(words[0].Substring(0,words[0].Length-10),out Waypoint))
+						set=true;
+				}
+				else
+					set=true;
+				if(set)
+					Position=Waypoint.Coords;
+			}
+			else
+				set=true;
+			if(set){
+				Vector3D Velocity=new Vector3D(0,0,0);
+				if(words.Length>1){
+					Vector3D.TryParse(words[1],out Velocity);
+				}
+				Targets.UpdateEntry(new EntityInfo(Position,Velocity));
+				AddTask(CannonTask.Fire);
+				SetAimed();
+			}
+		}
+	}
+	else if(argument.ToLower().Equals("reset")){
+		AddTask(CannonTask.Reset);
+	}
+	else{
+		if(AutoFire){
+			try{
+				bool was_empty=(Targets.Count==0);
+				EntityInfo Entity;
+				if(EntityInfo.TryParse(argument,out Entity)){
+					double distance=(Controller.GetPosition()-Entity.Position).Length();
+					if(Entity.Type==MyDetectedEntityType.LargeGrid&&Entity.Relationship==MyRelationsBetweenPlayerAndBlock.Enemies&&distance<AUTOSCAN_DISTANCE&&distance>100){
+						Targets.UpdateEntry(Entity);
+						if(was_empty)
+							AddTask(CannonTask.Fire);
+						if(Target.ID==Entity.ID){
+							SetAimed(Aim_Timer);
+						}
+					}
+				}
+			}
+			catch(Exception){
+				;
+			}
 		}
 	}
 }
@@ -904,6 +1225,40 @@ private void Aim(){
 	PitchRotor.TargetVelocityRPM=(float)(Pitch_Difference*Math.Min(1,Math.Max(Pitch_Difference/10,Precision*10)));
 	double Yaw_Difference=GetAngle(Left_Vector,Aim_Direction)-GetAngle(Right_Vector,Aim_Direction);
 	YawRotor.TargetVelocityRPM=(float)(Yaw_Difference*Math.Min(1,Math.Max(Yaw_Difference/10,Precision*10)));
+}
+
+public void Reset(){
+	bool moving=false;
+	double YawAngle=YawRotor.Angle/Math.PI*180;
+	if(YawAngle>=180)
+		YawAngle=YawAngle-360;
+	Write("YawAngle:"+Math.Round(YawAngle,2).ToString()+"°");
+	if(Math.Abs(YawAngle)>0.1){
+		moving=true;
+		YawRotor.RotorLock=false;
+		float target_rpm=(float)Math.Max(-30,Math.Min(30, YawAngle*-.1));
+		YawRotor.TargetVelocityRPM=target_rpm;
+		Write("Yaw Target:"+Math.Round(target_rpm,1).ToString()+"RPM");
+	}
+	else{
+		YawRotor.TargetVelocityRPM=0;
+		YawRotor.RotorLock=true;
+	}
+	double PitchAngle=PitchRotor.Angle/Math.PI*180;
+	Write("PitchAngle:"+Math.Round(PitchAngle,2).ToString()+"°");
+	if(Math.Abs(PitchAngle)>0.1){
+		moving=true;
+		PitchRotor.RotorLock=false;
+		float target_rpm=(float)Math.Max(-30,Math.Min(30, PitchAngle*-.1));
+		PitchRotor.TargetVelocityRPM=target_rpm;
+		Write("Pitch Target:"+Math.Round(target_rpm,1).ToString()+"RPM");
+	}
+	else{
+		PitchRotor.TargetVelocityRPM=0;
+		PitchRotor.RotorLock=true;
+	}
+	if(!moving)
+		NextTask();
 }
 
 public void Scan(){
@@ -949,9 +1304,7 @@ private bool DoFire(){
 
 private double Fire_Timer=1.0;
 public void Fire(){
-	if(Aim_Distance>FIRING_DISTANCE)
-		Target_ID=0;
-	if(Target_ID==0){
+	if(Aim_Distance>FIRING_DISTANCE||Target.ID==0){
 		NextTask();
 		return;
 	}
@@ -960,7 +1313,7 @@ public void Fire(){
 	bool is_aimed=GetAngle(Forward_Vector,Aim_Direction)<=Precision;
 	bool is_clear=(!Sensor.IsActive);
 	bool is_printed=CurrentPrintStatus==PrintStatus.Ready&&Merge.Enabled&&Projector.RemainingBlocks==0;
-	bool is_ready=(Target_Velocity.Length()<0.1)||(Math.Abs(Time_To_Hit-Time_To_Position)<1.2);
+	bool is_ready=(Target.Velocity.Length()<0.1)||(Math.Abs(Time_To_Hit-Time_To_Position)<1.2);
 	if(is_aimed){
 		PitchRotor.TargetVelocityRPM=0;
 		PitchRotor.RotorLock=true;
@@ -1016,6 +1369,10 @@ private void TimerUpdate(){
 			continue;
 		}
 	}
+	if(Standard_Scan_Time<3)
+		Standard_Scan_Time+=seconds_since_last_update;
+	if(Aim_Timer>0)
+		Aim_Timer=Math.Max(0,Aim_Timer-seconds_since_last_update);
 }
 
 public void Main(string argument, UpdateType updateSource)
@@ -1028,96 +1385,15 @@ public void Main(string argument, UpdateType updateSource)
 	UpdatePositionalInfo();
 	TimerUpdate();
 	if(argument.Length>0){
-		argument=argument.ToLower();
-		if(argument.Equals("scan")){
-			AddTask(CannonTask.Scan);
-		}
-		else if(argument.IndexOf("autoscan")==0){
-			string word=argument.Substring("autoscan".Length);
-			if(word.Length==0||word.Contains("toggle")||word.Contains("switch"))
-				AutoScan=!AutoScan;
-			else if(word.Contains("on")||word.Contains("enabled")||word.Contains("true"))
-				AutoScan=true;
-			else if(word.Contains("off")||word.Contains("disabled")||word.Contains("false"))
-				AutoScan=false;
-		}
-		else if(argument.IndexOf("search:")==0){
-			string[] words=argument.Substring("search:".Length).Split(';');
-			if(words.Length>0){
-				bool set=false;
-				if(!Vector3D.TryParse(words[0],out Target_Position)){
-					MyWaypointInfo Waypoint;
-					if(!MyWaypointInfo.TryParse(words[0],out Waypoint)){
-						if(MyWaypointInfo.TryParse(words[0].Substring(0,words[0].Length-10),out Waypoint))
-							set=true;
-					}
-					else
-						set=true;
-					if(set){
-						Target_Position=Waypoint.Coords;
-					}
-				}
-				else
-					set=true;
-				if(set){
-					Target_Velocity=new Vector3D(0,0,0);
-					if(words.Length>1){
-						Vector3D.TryParse(words[1],out Target_Velocity);
-					}
-					AddTask(CannonTask.Search);
-				}
-			}
-		}
-		else if(argument.Equals("dumbfire")){
-			Target_Position=Forward_Vector*Math.Min(FIRING_DISTANCE,1000)+Controller.GetPosition();
-			Target_Velocity=new Vector3D(0,0,0);
-			Target_ID=-1;
-			AddTask(CannonTask.Fire);
-			Fire_Count=3;
-			if(CurrentPrintStatus==PrintStatus.Ready)
-				CurrentFireStatus=FireStatus.Aiming;
-			else
-				CurrentFireStatus=FireStatus.Printing;
-			SetAimed();
-		}
-		else if(argument.IndexOf("fire:")==0){
-			string[] words=argument.Substring("fire:".Length).Split(';');
-			if(words.Length>0){
-				bool set=false;
-				if(!Vector3D.TryParse(words[0],out Target_Position)){
-					MyWaypointInfo Waypoint;
-					if(!MyWaypointInfo.TryParse(words[0],out Waypoint)){
-						if(MyWaypointInfo.TryParse(words[0].Substring(0,words[0].Length-10),out Waypoint))
-							set=true;
-					}
-					else
-						set=true;
-					if(set){
-						Target_Position=Waypoint.Coords;
-						SetAimed();
-					}
-				}
-				else
-					set=true;
-				if(set){
-					Target_Velocity=new Vector3D(0,0,0);
-					Target_ID=-1;
-					if(words.Length>1){
-						Vector3D.TryParse(words[1],out Target_Velocity);
-					}
-					AddTask(CannonTask.Fire);
-					Fire_Count=3;
-					if(CurrentPrintStatus==PrintStatus.Ready)
-						CurrentFireStatus=FireStatus.Aiming;
-					else
-						CurrentFireStatus=FireStatus.Printing;
-					SetAimed();
-				}
-			}
-		}
+		ArgumentProcessor(argument);
 	}
+	if(Standard_Scan_Time>=3)
+		Standard_Scan();
 	Print();
 	switch(CurrentTask){
+		case CannonTask.Reset:
+			Reset();
+			break;
 		case CannonTask.Scan:
 			Scan();
 			break;
@@ -1148,10 +1424,15 @@ public void Main(string argument, UpdateType updateSource)
 	Write("FireStatus:"+CurrentFireStatus.ToString());
 	Write("Distance:"+Math.Round(Aim_Distance/1000,1)+"kM");
 	Write("Precision:"+Math.Round(GetAngle(Forward_Vector,Aim_Direction),3)+"°/"+Math.Round(Precision,3).ToString()+"°");
+	Write(Targets.Count.ToString()+" Targets");
+	for(int i=0;i<Targets.Count;i++){
+		double distance=(Targets[i].Position-Controller.GetPosition()).Length();
+		Write("  Target "+(i+1).ToString()+":"+Math.Round(distance/1000,2)+"kM");
+	}
 	foreach(double countdown in ShellCountdowns){
 		Write("Time to Explosion:"+Math.Round(countdown,1)+" seconds");
 	}
-	if(((int)CurrentTask)>=((int)CannonTask.Search))
+	if(((int)CurrentTask)>=((int)CannonTask.Reset))
 		Runtime.UpdateFrequency=UpdateFrequency.Update10;
 	else
 		Runtime.UpdateFrequency=UpdateFrequency.Update100;
