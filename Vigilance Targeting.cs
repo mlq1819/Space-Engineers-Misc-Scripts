@@ -479,9 +479,7 @@ private enum CannonTask{
 	None=0,
 	Scan=1,
 	Search=2,
-	Fire3=3,
-	Fire2=4,
-	Fire1=5
+	Fire=3
 }
 
 private enum FireStatus{
@@ -514,7 +512,9 @@ private IMyMotorStator ShellRotor;
 private IMyShipWelder Welder;
 private IMySensorBlock Sensor;
 private IMyShipMergeBlock Merge;
+private IMyAirtightSlideDoor Door;
 private List<IMyCameraBlock> Cameras;
+private List<IMyGravityGenerator> Generators;
 
 private List<IMyInteriorLight> FiringLights;
 private List<List<IMyInteriorLight>> StatusLights;
@@ -559,6 +559,8 @@ private double Precision{
 		return Math.Min(1,1000/Aim_Distance);
 	}
 }
+
+private int Fire_Count=0;
 
 private Vector3D Forward_Vector;
 private Vector3D Backward_Vector{
@@ -657,6 +659,12 @@ public Program(){
 	Merge=(new GenericMethods<IMyShipMergeBlock>(this)).GetFull("Shell Printer Merge Block");
 	if(Merge==null)
 		return;
+	Door=(new GenericMethods<IMyAirtightSlideDoor>(this)).GetFull("Cannon Door");
+	if(Door==null)
+		return;
+	Generators=(new GenericMethods<IMyGravityGenerator>(this)).GetAllContaining("Driver Generator ");
+	if(Generators.Count==0)
+		return;
 	Cameras=(new GenericMethods<IMyCameraBlock>(this)).GetAllContaining("Driver Camera ");
 	if(Cameras.Count==0)
 		return;
@@ -674,18 +682,24 @@ public Program(){
 			if(arg.IndexOf("Task:")==0){
 				string word=arg.Substring("Task:".Length);
 				int output=0;
-				if(Int32.TryParse(word,output))
+				if(Int32.TryParse(word,out output))
 					TaskQueue.Enqueue((CannonTask)output);
 			}
-			else if(arg.IndexOf("Status:")==0){
+			else if(arg.IndexOf("FireStatus:")==0){
 				string word=arg.Substring("Status:".Length);
 				int output=0;
-				if(Int32.TryParse(word,output))
-					CurrentStatus=(CannonStatus)output;
+				if(Int32.TryParse(word,out output))
+					CurrentFireStatus=(FireStatus)output;
+			}
+			else if(arg.IndexOf("PrintStatus:")==0){
+				string word=arg.Substring("Status:".Length);
+				int output=0;
+				if(Int32.TryParse(word,out output))
+					CurrentPrintStatus=(PrintStatus)output;
 			}
 			else if(arg.IndexOf("AutoScan:")==0){
 				string word=arg.Substring("AutoScan:".Length);
-				bool.TryParse(word,AutoScan);
+				bool.TryParse(word,out AutoScan);
 			}
 		}
 		catch(Exception){
@@ -695,18 +709,19 @@ public Program(){
 	
 	
 	if(TaskQueue.Count==0&&AutoScan)
-		TaskQueue.Add(CannonTask.Scan);
+		TaskQueue.Enqueue(CannonTask.Scan);
 	
 	Operational=true;
-	if(((int)CurrentTask)>=((int)CannonTask.Fire3))
+	if(((int)CurrentTask)>=((int)CannonTask.Fire))
 		Runtime.UpdateFrequency=UpdateFrequency.Update10;
 	else
 		Runtime.UpdateFrequency=UpdateFrequency.Update100;
 }
 
 public void Save(){
-    this.Storage="Status:"+((int)CurrentStatus).ToString();
-	this.Storage="•AutoScan:"+AutoScan.ToString();
+    this.Storage="FireStatus:"+((int)CurrentFireStatus).ToString();
+	this.Storage+="•PrintStatus:"+((int)CurrentPrintStatus).ToString();
+	this.Storage+="•AutoScan:"+AutoScan.ToString();
 	while(TaskQueue.Count>0){
 		this.Storage+="•Task:"+((int)CurrentTask).ToString();
 		TaskQueue.Dequeue();
@@ -722,27 +737,26 @@ private void AddTask(CannonTask Task){
 		while(TaskQueue.Count>0)
 			old.Enqueue(TaskQueue.Dequeue());
 		TaskQueue.Enqueue(Task);
-		if(Task==CannonTask.Fire1){
-			TaskQueue.Enqueue(CannonTask.Fire2);
-			TaskQueue.Enqueue(CannonTask.Fire3);
-		}
 		while(old.Count>0)
 			TaskQueue.Enqueue(old.Dequeue());
 	}
-	else{
+	else
 		TaskQueue.Enqueue(Task);
-		if(Task==CannonTask.Fire1){
-			TaskQueue.Enqueue(CannonTask.Fire2);
-			TaskQueue.Enqueue(CannonTask.Fire3);
-		}
-	}
 }
 
 private void NextTask(){
-	if(TaskQueue.Count>0)
-		TaskQueue.Dequeue();
-	if(AutoScan&&TaskQueue.Count==0)
-		TaskQueue.Enqueue(CannonTask.Scan);
+	if(CurrentTask==CannonTask.Fire){
+		if(Fire_Count>1||!AutoFire)
+			Fire_Count--;
+	}
+	if(CurrentTask!=CannonTask.Fire||Fire_Count==0){ 
+		Fire_Count=0;
+		if(TaskQueue.Count>0)
+			TaskQueue.Dequeue();
+		if(AutoScan&&TaskQueue.Count==0)
+			TaskQueue.Enqueue(CannonTask.Scan);
+	}
+	CurrentFireStatus=FireStatus.Idle;
 }
 
 private void UpdateProgramInfo(){
@@ -765,6 +779,7 @@ private void UpdateProgramInfo(){
 	Echo(Program_Name+" OS "+cycle_long.ToString()+'-'+cycle.ToString()+" ("+loading_char+")");
 	Me.GetSurface(1).WriteText(Program_Name+" OS "+cycle_long.ToString()+'-'+cycle.ToString()+" ("+loading_char+")", false);
 	Me.GetSurface(0).WriteText("", false);
+	seconds_since_last_update = Runtime.TimeSinceLastRun.TotalSeconds + (Runtime.LastRunTimeMs / 1000);
 	if(seconds_since_last_update<1){
 		Echo(Math.Round(seconds_since_last_update*1000, 0).ToString() + " milliseconds\n");
 	}
@@ -818,13 +833,13 @@ private void Print(){
 	}
 	else{
 		Welder.Enabled=true;
+		Merge.Enabled=true;
 		Projector.Enabled=true;
-		if(Fire_Timer>1)
+		if(Fire_Timer>=1)
 			ShellRotor.TargetVelocityRPM=-30.0f;
 		else if(is_backward){
 			ShellRotor.TargetVelocityRPM=0;
 			ShellRotor.RotorLock=true;
-			Merge.Enabled=true;
 			if(Print_Timer>30){
 				CurrentPrintStatus=PrintStatus.Printing;
 			}
@@ -860,7 +875,7 @@ private void SetAimed(){
 	Aim_Position=Target_Position;
 	if(Target_Velocity.Length()<0.1)
 		return;
-	if(Target_Velocity>100){
+	if(Target_Velocity.Length()>100){
 		Target_ID=0;
 		Target_Position=new Vector3D(0,0,0);
 		Target_Velocity=new Vector3D(0,0,0);
@@ -891,16 +906,26 @@ public void Search(){
 }
 
 private void DoFire(){
+	IMyShipMergeBlock ShellMerge=(new GenericMethods<IMyShipMergeBlock>(this)).GetFull("Shell Merge Block");
+	if(ShellMerge==null||!ShellMerge.IsFunctional)
+		return;
+	IMyArtificialMassBlock ShellMass=(new GenericMethods<IMyArtificialMassBlock>(this)).GetFull("Shell Mass Block");
+	if(ShellMass==null||!ShellMass.IsFunctional)
+		return;
+	
+	List<IMyWarhead> Warheads=(new GenericMethods<IMyWarhead>(this)).GetAllContaining("Shell Warhead ");
+	foreach(IMyWarhead Warhead in Warheads){
+		Warhead.DetonationTime=(float)(Time_To_Hit+0.05);
+		Warhead.StartCountdown();
+		Warhead.IsArmed=true;
+	}
+	ShellMass.Enabled=true;
+	ShellMerge.Enabled=false;
+	Merge.Enabled=false;
 	Fire_Timer=0.0;
-	
-	
-	
-	
-	if(!(AutoFire&&CurrentTask==CannonTask.Fire3))
-		NextTask();
 }
 
-private double Fire_Timer=0.0;
+private double Fire_Timer=1.0;
 public void Fire(){
 	if(Aim_Distance>FIRING_DISTANCE)
 		Target_ID=0;
@@ -908,16 +933,19 @@ public void Fire(){
 		NextTask();
 		return;
 	}
+	if(CurrentFireStatus==FireStatus.Firing)
+		return;
 	bool is_aimed=GetAngle(Forward_Vector,Aim_Direction)<=Precision;
-	bool is_clear=!Sensor.IsActive;
+	bool is_clear=(!Sensor.IsActive)&&Door.Status==DoorStatus.Open;
 	bool is_printed=CurrentPrintStatus==PrintStatus.Ready;
 	bool is_ready=(Target_Velocity.Length()<0.1)||(Math.Abs(Time_To_Hit-Time_To_Position)<1.2);
-	bool just_fired=(CurrentFireStatus==FireStatus.Firing);
 	if(is_aimed){
 		PitchRotor.TargetVelocityRPM=0;
 		PitchRotor.RotorLock=true;
 		YawRotor.TargetVelocityRPM=0;
 		YawRotor.RotorLock=true;
+		Door.Enabled=Door.Status!=DoorStatus.Open;
+		Door.OpenDoor();
 		if(is_clear){
 			if(is_printed){
 				if(is_ready){
@@ -940,12 +968,7 @@ public void Fire(){
 			}
 		}
 		else {
-			if(just_fired){
-				CurrentFireStatus=FireStatus.Firing;
-			}
-			else{
-				CurrentFireStatus=FireStatus.WaitingClear;
-			}
+			CurrentFireStatus=FireStatus.WaitingClear;
 		}
 	}
 	else{
@@ -955,10 +978,14 @@ public void Fire(){
 }
 
 private void TimerUpdate(){
-	if(CurrentPrintStatus!=PrintStatus.Printing)
+	if(Print_Timer<=30&&CurrentPrintStatus!=PrintStatus.Ready){
 		Print_Timer+=seconds_since_last_update;
-	if(CurrentFireStatus==FireStatus.Firing)
+		Write("Print_Timer:"+Math.Round(Print_Timer,2)+" seconds");
+	}
+	if(Fire_Timer<=1){
 		Fire_Timer+=seconds_since_last_update;
+		Write("Fire_Timer:"+Math.Round(Fire_Timer,2)+" seconds");
+	}
 }
 
 public void Main(string argument, UpdateType updateSource)
@@ -978,20 +1005,20 @@ public void Main(string argument, UpdateType updateSource)
 		else if(argument.IndexOf("autoscan")==0){
 			string word=argument.Substring("autoscan".Length);
 			if(word.Length==0||word.Contains("toggle")||word.Contains("switch"))
-				Autoscan=!Autoscan;
+				AutoScan=!AutoScan;
 			else if(word.Contains("on")||word.Contains("enabled")||word.Contains("true"))
-				Autoscan=true;
+				AutoScan=true;
 			else if(word.Contains("off")||word.Contains("disabled")||word.Contains("false"))
-				Autoscan=false;
+				AutoScan=false;
 		}
 		else if(argument.IndexOf("search:")==0){
-			string words=argument.Substring("search:".Length).Split(';');
-			if(words.Count>0){
+			string[] words=argument.Substring("search:".Length).Split(';');
+			if(words.Length>0){
 				bool set=false;
-				if(!Vector3D.TryParse(words[0],Target_Position)){
+				if(!Vector3D.TryParse(words[0],out Target_Position)){
 					MyWaypointInfo Waypoint;
-					if(!MyWaypointInfo.TryParse(words[0],Waypoint)){
-						if(MyWaypointInfo.TryParse(words[0].Substring(0,words[0].Length-10),Waypoint))
+					if(!MyWaypointInfo.TryParse(words[0],out Waypoint)){
+						if(MyWaypointInfo.TryParse(words[0].Substring(0,words[0].Length-10),out Waypoint))
 							set=true;
 					}
 					else
@@ -1004,18 +1031,19 @@ public void Main(string argument, UpdateType updateSource)
 					set=true;
 				if(set){
 					Target_Velocity=new Vector3D(0,0,0);
-					if(words.Count>1){
-						Vector3D.TryParse(words[1],Target_Velocity);
+					if(words.Length>1){
+						Vector3D.TryParse(words[1],out Target_Velocity);
 					}
 					AddTask(CannonTask.Search);
 				}
 			}
 		}
 		else if(argument.Equals("dumbfire")){
-			Target_Position=Forward_Vector*Math.Min(FIRING_DISTANCE,3000)+Controller.GetPosition();
+			Target_Position=Forward_Vector*Math.Min(FIRING_DISTANCE,1000)+Controller.GetPosition();
 			Target_Velocity=new Vector3D(0,0,0);
 			Target_ID=-1;
-			AddTask(CannonTask.Fire1);
+			AddTask(CannonTask.Fire);
+			Fire_Count=3;
 			if(CurrentPrintStatus==PrintStatus.Ready)
 				CurrentFireStatus=FireStatus.Aiming;
 			else
@@ -1023,13 +1051,13 @@ public void Main(string argument, UpdateType updateSource)
 			SetAimed();
 		}
 		else if(argument.IndexOf("fire:")==0){
-			string words=argument.Substring("fire:".Length).Split(';');
-			if(words.Count>0){
+			string[] words=argument.Substring("fire:".Length).Split(';');
+			if(words.Length>0){
 				bool set=false;
-				if(!Vector3D.TryParse(words[0],Target_Position)){
+				if(!Vector3D.TryParse(words[0],out Target_Position)){
 					MyWaypointInfo Waypoint;
-					if(!MyWaypointInfo.TryParse(words[0],Waypoint)){
-						if(MyWaypointInfo.TryParse(words[0].Substring(0,words[0].Length-10),Waypoint))
+					if(!MyWaypointInfo.TryParse(words[0],out Waypoint)){
+						if(MyWaypointInfo.TryParse(words[0].Substring(0,words[0].Length-10),out Waypoint))
 							set=true;
 					}
 					else
@@ -1044,10 +1072,11 @@ public void Main(string argument, UpdateType updateSource)
 				if(set){
 					Target_Velocity=new Vector3D(0,0,0);
 					Target_ID=-1;
-					if(words.Count>1){
-						Vector3D.TryParse(words[1],Target_Velocity);
+					if(words.Length>1){
+						Vector3D.TryParse(words[1],out Target_Velocity);
 					}
-					AddTask(CannonTask.Fire1);
+					AddTask(CannonTask.Fire);
+					Fire_Count=3;
 					if(CurrentPrintStatus==PrintStatus.Ready)
 						CurrentFireStatus=FireStatus.Aiming;
 					else
@@ -1062,22 +1091,30 @@ public void Main(string argument, UpdateType updateSource)
 		case CannonTask.Scan:
 			Scan();
 			break;
-		case CannonTask.Target:
+		case CannonTask.Search:
 			Search();
 			break;
 		case CannonTask.Fire:
 			Fire();
 			break;
 	}
-	if(CurrentTask!=CannonTask.Fire)
-		CurrentFireStatus=FireStatus.Idle;
+	if(CurrentTask>=CannonTask.Fire&&CurrentFireStatus==FireStatus.Firing&&Fire_Timer>1&&!Sensor.IsActive)
+		NextTask();
+	
+	if(CurrentFireStatus<FireStatus.WaitingClear){
+		Door.Enabled=Door.Status!=DoorStatus.Closed;
+		Door.CloseDoor();
+	}
 	foreach(IMyInteriorLight Light in FiringLights){
 		Light.Enabled=CurrentFireStatus==FireStatus.Firing;
+	}
+	foreach(IMyGravityGenerator Generator in Generators){
+		Generator.Enabled=CurrentFireStatus==FireStatus.Firing;
 	}
 	Write("Currently:"+CurrentTask.ToString());
 	Write("PrintStatus:"+CurrentPrintStatus.ToString());
 	Write("FireStatus:"+CurrentFireStatus.ToString());
-	if(((int)CurrentTask)>=((int)CannonTask.Fire3))
+	if(((int)CurrentTask)>=((int)CannonTask.Search))
 		Runtime.UpdateFrequency=UpdateFrequency.Update10;
 	else
 		Runtime.UpdateFrequency=UpdateFrequency.Update100;
