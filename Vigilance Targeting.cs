@@ -862,6 +862,7 @@ public Program(){
 	
 	if(TaskQueue.Count==0&&AutoScan)
 		TaskQueue.Enqueue(CannonTask.Scan);
+	Fire_Count=3;
 	
 	Operational=true;
 	IGC.RegisterBroadcastListener("Vigilance AI");
@@ -1255,11 +1256,12 @@ private bool CanAim(Vector3D Direction){
 	if(Yaw_Difference>30){
 		return true;
 	}
-	double Pitch_Difference=GetAngle(Down_Vector,Direction)-GetAngle(Up_Vector,Direction)/2;
+	double Pitch_Difference=GetAngle(Down_Vector,Direction)-GetAngle(Up_Vector,Direction);
 	double Pitch_Angle=PitchRotor.Angle/Math.PI*180;
 	if(Pitch_Angle>180)
 		Pitch_Angle-=360;
 	double From_Top=Pitch_Angle-Pitch_Difference;
+	can_aim_t=From_Top;
 	if(Math.Abs(From_Top)>30+Yaw_Difference)
 		return false;
 	return true;
@@ -1268,12 +1270,13 @@ private bool CanAim(Vector3D Direction){
 private void Aim(Vector3D Direction, double precision){
 	double Pitch_Difference=GetAngle(Up_Vector,Direction)-GetAngle(Down_Vector,Direction);
 	PitchRotor.TargetVelocityRPM=(float)(Pitch_Difference*Math.Min(1,Math.Max(Pitch_Difference/10,precision*10)));
-	if(Pitch_Difference/2<precision)
-		PitchRotor.TargetVelocityRPM=0;
+	
 	double Yaw_Difference=GetAngle(Left_Vector,Direction)-GetAngle(Right_Vector,Direction);
 	YawRotor.TargetVelocityRPM=(float)(Yaw_Difference*Math.Min(1,Math.Max(Yaw_Difference/10,precision*10)));
-	if(Yaw_Difference/2<precision)
+	if(GetAngle(Forward_Vector,Direction)<precision){
+		PitchRotor.TargetVelocityRPM=0;
 		YawRotor.TargetVelocityRPM=0;
+	}
 }
 
 private void Aim(Vector3D Direction){
@@ -1427,7 +1430,13 @@ private bool DoFire(){
 
 private double Fire_Timer=1.0;
 public void Fire(){
-	if(Aim_Distance>FIRING_DISTANCE||Target.ID==0||!CanAim(Aim_Direction)){
+	if(Aim_Position.Length()<1)
+		SetAimed();
+	bool can_aim=CanAim(Aim_Direction);
+	if(Aim_Distance>FIRING_DISTANCE||Target.ID==0||!can_aim){
+		Write("Aim_Distance:"+Math.Round(Aim_Distance/1000,2).ToString()+"kM");
+		Write("Target.ID:"+Target.ID);
+		Write("can_aim:"+can_aim.ToString());
 		NextTask();
 		return;
 	}
@@ -1500,6 +1509,7 @@ private void TimerUpdate(){
 		Scan_Timer+=seconds_since_last_update;
 	if(Scan_Aim_Time<5&&GetAngle(Forward_Vector,Scan_Direction)>20)
 		Scan_Aim_Time+=seconds_since_last_update;
+	Task_Switch_Timer+=seconds_since_last_update;
 }
 
 public void Main(string argument, UpdateType updateSource)
@@ -1521,6 +1531,8 @@ public void Main(string argument, UpdateType updateSource)
 		case CannonTask.None:
 			if(Targets.Count>0)
 				AddTask(CannonTask.Fire);
+			else
+				Write("No current Task");
 			break;
 		case CannonTask.Reset:
 			Reset();
@@ -1566,7 +1578,7 @@ public void Main(string argument, UpdateType updateSource)
 	Write(Targets.Count.ToString()+" Targets");
 	for(int i=0;i<Targets.Count;i++){
 		double distance=(Targets[i].Position-Controller.GetPosition()).Length();
-		Write("  Target "+(i+1).ToString()+":"+Math.Round(distance/1000,2)+"kM");
+		Write("  Target "+(i+1).ToString()+":"+Targets[i].ID.ToString()+':'+Math.Round(distance/1000,2)+"kM");
 	}
 	foreach(double countdown in ShellCountdowns){
 		Write("Time to Explosion:"+Math.Round(countdown,1)+" seconds");
