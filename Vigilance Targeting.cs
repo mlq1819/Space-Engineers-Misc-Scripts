@@ -11,6 +11,8 @@ private const double FIRING_DISTANCE=10000; //Recommended between 5k and 20k; wo
 private const double AUTOSCAN_DISTANCE=5000;//Recommended between 2k and 10k
 //Sets whether the AI starts out scanning or whether it has to wait to be told to autoscan
 private const bool DEFAULT_AUTOSCAN=false;
+//Sets whether the AI starts out automatically shooting enemies or whether it has to wait to be told to autofire
+private const bool DEFAULT_AUTOFIRE=true;
 //Set to the maximum time you expect the cannon to take to aim and print
 private const double AIM_TIME=15;
 private Color DEFAULT_TEXT_COLOR=new Color(197,137,255,255);
@@ -652,7 +654,7 @@ private List<IMyTextPanel> StatusPanels;
 
 private EntityList Targets=new EntityList();
 
-private bool AutoFire=false;
+private bool AutoFire=DEFAULT_AUTOFIRE;
 private bool AutoScan=DEFAULT_AUTOSCAN;
 private EntityInfo Target{
 	get{
@@ -847,6 +849,10 @@ public Program(){
 				string word=arg.Substring("AutoScan:".Length);
 				bool.TryParse(word,out AutoScan);
 			}
+			else if(arg.IndexOf("AutoFire:")==0){
+				string word=arg.Substring("AutoFire:".Length);
+				bool.TryParse(word,out AutoFire);
+			}
 		}
 		catch(Exception){
 			continue;
@@ -871,6 +877,7 @@ public void Save(){
     this.Storage="FireStatus:"+((int)CurrentFireStatus).ToString();
 	this.Storage+="•PrintStatus:"+((int)CurrentPrintStatus).ToString();
 	this.Storage+="•AutoScan:"+AutoScan.ToString();
+	this.Storage+="•AutoFire:"+AutoFire.ToString();
 	while(TaskQueue.Count>0){
 		this.Storage+="•Task:"+((int)CurrentTask).ToString();
 		TaskQueue.Dequeue();
@@ -932,6 +939,10 @@ private void NextTask(){
 			else if(last_task!=CannonTask.Reset)
 				TaskQueue.Enqueue(CannonTask.Reset);
 		}
+	}
+	if(TaskQueue.Count==0){
+		PitchRotor.RotorLock=true;
+		YawRotor.RotorLock=true;
 	}
 }
 
@@ -1139,6 +1150,15 @@ private void ArgumentProcessor(string argument){
 		else if(word.Contains("off")||word.Contains("disabled")||word.Contains("false"))
 			AutoScan=false;
 	}
+	else if(argument.ToLower().IndexOf("autofire")==0){
+		string word=argument.ToLower().Substring("autofire".Length);
+		if(word.Length==0||word.Contains("toggle")||word.Contains("switch"))
+			AutoFire=!AutoFire;
+		else if(word.Contains("on")||word.Contains("enabled")||word.Contains("true"))
+			AutoFire=true;
+		else if(word.Contains("off")||word.Contains("disabled")||word.Contains("false"))
+			AutoFire=false;
+	}
 	else if(argument.ToLower().IndexOf("search:")==0){
 		string[] words=argument.ToLower().Substring("search:".Length).Split(';');
 		if(words.Length>0){
@@ -1248,8 +1268,10 @@ private bool CanAim(Vector3D Direction){
 private void Aim(Vector3D Direction, double precision){
 	double Pitch_Difference=GetAngle(Up_Vector,Direction)-GetAngle(Down_Vector,Direction);
 	PitchRotor.TargetVelocityRPM=(float)(Pitch_Difference*Math.Min(1,Math.Max(Pitch_Difference/10,precision*10)));
+	PitchRotor.RotorLock=false;
 	double Yaw_Difference=GetAngle(Left_Vector,Direction)-GetAngle(Right_Vector,Direction);
 	YawRotor.TargetVelocityRPM=(float)(Yaw_Difference*Math.Min(1,Math.Max(Yaw_Difference/10,precision*10)));
+	YawRotor.RotorLock=false;
 }
 
 private void Aim(Vector3D Direction){
@@ -1296,10 +1318,14 @@ public void Reset(){
 
 private Vector3D Scan_Direction=new Vector3D(0,0,0);
 private double Scan_Timer=AUTOSCAN_DISTANCE/1000;
+private double Scan_Aim_Time=10;
 private bool Has_Done_Scan=false;
 public void Scan(){
-	if(Scan_Timer>=AUTOSCAN_DISTANCE/1000||!CanAim(Scan_Direction)){
+	Write("Scan_Timer:"+Math.Round(Scan_Timer,1)+"/"+Math.Round(AUTOSCAN_DISTANCE/1000,1)+" seconds");
+	if(Scan_Timer>=AUTOSCAN_DISTANCE/1000||!CanAim(Scan_Direction)||Scan_Aim_Time>=5){
 		Has_Done_Scan=false;
+		Scan_Aim_Time=0;
+		Scan_Timer=0;
 		do{
 			int x=Rnd.Next(-36,36);
 			int y=Rnd.Next(-36,36);
@@ -1308,11 +1334,16 @@ public void Scan(){
 			Scan_Direction.Normalize();
 		}
 		while(!CanAim(Scan_Direction));
+		Aim(Scan_Direction, 1);
 	}
-	if(!Has_Done_Scan){
+	Write("Scan_Aim_Time:"+Math.Round(Scan_Aim_Time,1)+"/10 seconds");
+	Write("Scan Direction:"+EntityInfo.NeatVector(Scan_Direction));
+	Write("Scan Angle:"+Math.Round(GetAngle(Forward_Vector,Scan_Direction),1)+"°");
+	if(!Has_Done_Scan && GetAngle(Forward_Vector,Scan_Direction)<1){
 		double interval=(AUTOSCAN_DISTANCE/1000)/Cameras.Count;
 		EntityList DetectedEntities=new EntityList();
 		for(int i=0;i<Cameras.Count;i++){
+			IMyCameraBlock Camera=Cameras[i];
 			if(i==0){
 				MyDetectedEntityInfo Entity=Camera.Raycast(AUTOSCAN_DISTANCE,0,0);
 				if(Entity.Type!=MyDetectedEntityType.None&&Entity.EntityId!=Controller.CubeGrid.EntityId)
@@ -1464,6 +1495,8 @@ private void TimerUpdate(){
 		Aim_Timer=Math.Max(0,Aim_Timer-seconds_since_last_update);
 	if(Scan_Timer<AUTOSCAN_DISTANCE/1000&&GetAngle(Forward_Vector,Scan_Direction)<1)
 		Scan_Timer+=seconds_since_last_update;
+	if(Scan_Aim_Time<5&&GetAngle(Forward_Vector,Scan_Direction)>20)
+		Scan_Aim_Time+=seconds_since_last_update;
 }
 
 public void Main(string argument, UpdateType updateSource)
@@ -1527,7 +1560,7 @@ public void Main(string argument, UpdateType updateSource)
 	foreach(double countdown in ShellCountdowns){
 		Write("Time to Explosion:"+Math.Round(countdown,1)+" seconds");
 	}
-	if(((int)CurrentTask)>=((int)CannonTask.Reset))
+	if(((int)CurrentTask)>=((int)CannonTask.Scan))
 		Runtime.UpdateFrequency=UpdateFrequency.Update10;
 	else
 		Runtime.UpdateFrequency=UpdateFrequency.Update100;
