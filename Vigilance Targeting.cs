@@ -1268,10 +1268,12 @@ private bool CanAim(Vector3D Direction){
 private void Aim(Vector3D Direction, double precision){
 	double Pitch_Difference=GetAngle(Up_Vector,Direction)-GetAngle(Down_Vector,Direction);
 	PitchRotor.TargetVelocityRPM=(float)(Pitch_Difference*Math.Min(1,Math.Max(Pitch_Difference/10,precision*10)));
-	PitchRotor.RotorLock=false;
+	if(Pitch_Difference/2<precision)
+		PitchRotor.TargetVelocityRPM=0;
 	double Yaw_Difference=GetAngle(Left_Vector,Direction)-GetAngle(Right_Vector,Direction);
 	YawRotor.TargetVelocityRPM=(float)(Yaw_Difference*Math.Min(1,Math.Max(Yaw_Difference/10,precision*10)));
-	YawRotor.RotorLock=false;
+	if(Yaw_Difference/2<precision)
+		YawRotor.TargetVelocityRPM=0;
 }
 
 private void Aim(Vector3D Direction){
@@ -1314,6 +1316,7 @@ public void Reset(){
 	}
 	if(!moving)
 		NextTask();
+	Targets.Clear();
 }
 
 private Vector3D Scan_Direction=new Vector3D(0,0,0);
@@ -1489,7 +1492,7 @@ private void TimerUpdate(){
 			continue;
 		}
 	}
-	if(Standard_Scan_Time<3)
+	if(Standard_Scan_Time<1)
 		Standard_Scan_Time+=seconds_since_last_update;
 	if(Aim_Timer>0)
 		Aim_Timer=Math.Max(0,Aim_Timer-seconds_since_last_update);
@@ -1511,10 +1514,14 @@ public void Main(string argument, UpdateType updateSource)
 	if(argument.Length>0){
 		ArgumentProcessor(argument);
 	}
-	if(Standard_Scan_Time>=3)
+	if(Standard_Scan_Time>=1)
 		Standard_Scan();
 	Print();
 	switch(CurrentTask){
+		case CannonTask.None:
+			if(Targets.Count>0)
+				AddTask(CannonTask.Fire);
+			break;
 		case CannonTask.Reset:
 			Reset();
 			break;
@@ -1545,6 +1552,10 @@ public void Main(string argument, UpdateType updateSource)
 		Write("AutoScan:On");
 	else
 		Write("AutoScan:Off");
+	if(AutoFire)
+		Write("AutoFire:On");
+	else
+		Write("AutoFire:Off");
 	Write("Currently:"+CurrentTask.ToString());
 	if(CurrentTask==CannonTask.Fire)
 		Write("Fire_Count:"+Fire_Count.ToString());
