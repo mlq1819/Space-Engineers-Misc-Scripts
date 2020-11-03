@@ -1304,7 +1304,7 @@ private bool CanAim(Vector3D Direction){
 	if(Pitch_Angle>180)
 		Pitch_Angle-=360;
 	double From_Top=Pitch_Angle-Pitch_Difference;
-	if(Math.Abs(From_Top)>30+Yaw_Difference)
+	if(Math.Abs(From_Top)>45+Yaw_Difference)
 		return false;
 	return true;
 }
@@ -1366,6 +1366,7 @@ public void Reset(){
 private double Scan_Timer=AUTOSCAN_DISTANCE/1000;
 private double Scan_Aim_Time=10;
 private bool Has_Done_Scan=false;
+private int Detection_Count=0;
 private void Perform_Search_Scan(Vector3D Direction, double Scan_Distance){
 	Aim(Direction, 1);
 	if(GetAngle(Direction,Forward_Vector)<1){
@@ -1380,9 +1381,9 @@ private void Perform_Search_Scan(Vector3D Direction, double Scan_Distance){
 	}
 	Write("Scan_Aim_Time:"+Math.Round(Scan_Aim_Time,1)+"/10 seconds");
 	if(Has_Done_Scan)
-		Write("Scan Status:Complete");
+		Write("Scan Status:Done: Found "+Detection_Count+" Entities");
 	else
-		Write("Scan Status:Incomplete");
+		Write("Scan Status:Aiming");
 	foreach(IMyCameraBlock Camera in Cameras){
 		double distance=Camera.AvailableScanRange;
 		string distance_string=Math.Round(distance,0).ToString()+"M";
@@ -1440,6 +1441,7 @@ private void Perform_Search_Scan(Vector3D Direction, double Scan_Distance){
 		foreach(EntityInfo Entity in DetectedEntities){
 			SendAllListeners(Entity.ToString());
 		}
+		Detection_Count=DetectedEntities.Count;
 		Has_Done_Scan=true;
 	}
 }
@@ -1451,6 +1453,7 @@ public void Scan(){
 		Has_Done_Scan=false;
 		Scan_Aim_Time=0;
 		Scan_Timer=0;
+		Detection_Count=0;
 		do{
 			double Pitch_Angle=PitchRotor.Angle/Math.PI*180;
 			if(Pitch_Angle>180)
@@ -1472,11 +1475,11 @@ public void Scan(){
 }
 
 private Vector3D Search_Direction=new Vector3D(0,0,0);
-private Vector3D Search_Distance=0;
+private double Search_Distance=0;
 private double Search_Timer=0;
 public void Search(){
 	Write("Scan_Timer:"+Math.Round(Scan_Timer,1)+"/"+Math.Round(AUTOSCAN_DISTANCE/1000,1)+" seconds");
-	if(!Can_Aim(Suspect_Direction)||Suspect_Distance>AUTOSCAN_DISTANCE||Search_Timer>180){
+	if(!CanAim(Suspect_Direction)||Suspect_Distance>AUTOSCAN_DISTANCE||Search_Timer>180){
 		NextTask();
 		return;
 	}
@@ -1484,6 +1487,7 @@ public void Search(){
 		Has_Done_Scan=false;
 		Scan_Aim_Time=0;
 		Scan_Timer=0;
+		Detection_Count=0;
 		do{
 			int x=Rnd.Next(-36,36);
 			int y=Rnd.Next(-36,36);
@@ -1506,6 +1510,12 @@ public void Search(){
 private List<double> ShellCountdowns=new List<double>();
 private bool Called_Next_Fire=true;
 private bool DoFire(){
+	foreach(IMyCameraBlock Camera in Cameras){
+		MyDetectedEntityInfo Entity=Camera.Raycast(Math.Max(50,Aim_Distance/10*9),0,0);
+		if(Entity.Type!=MyDetectedEntityType.None&&Entity.Relationship!=MyRelationsBetweenPlayerAndBlock.Enemies)
+			return false;
+	}
+	
 	IMySpaceBall ShellMass=(new GenericMethods<IMySpaceBall>(this)).GetFull("Shell Mass Block");
 	if(ShellMass==null||!ShellMass.IsFunctional)
 		return false;
