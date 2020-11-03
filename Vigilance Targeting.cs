@@ -1369,17 +1369,17 @@ public void Scan(){
 		Write(Camera.CustomName+":"+distance_string);
 	}
 	if(!Has_Done_Scan && GetAngle(Forward_Vector,Scan_Direction)<1){
-		double interval=(AUTOSCAN_DISTANCE/1000)/Cameras.Count;
 		EntityList DetectedEntities=new EntityList();
 		for(int i=0;i<Cameras.Count;i++){
+			Cameras[i].CustomName="Driver Camera "+(i+1).ToString();
 			IMyCameraBlock Camera=Cameras[i];
 			if(i==0){
-				MyDetectedEntityInfo Entity=Camera.Raycast(AUTOSCAN_DISTANCE,0,0);
+				MyDetectedEntityInfo Entity=Camera.Raycast(Math.Min(AUTOSCAN_DISTANCE,Camera.AvailableScanRange),0,0);
 				if(Entity.Type!=MyDetectedEntityType.None&&Entity.EntityId!=Controller.CubeGrid.EntityId)
 					DetectedEntities.UpdateEntry(new EntityInfo(Entity));
 				continue;
 			}
-			double distance=AUTOSCAN_DISTANCE/(4*i);
+			double distance=Math.Min(Camera.AvailableScanRange/(4*i),AUTOSCAN_DISTANCE);
 			int degrees=(int)(Camera.RaycastConeLimit/i);
 			for(int j=0;j<i;j++){
 				float pitch,yaw;
@@ -1390,9 +1390,17 @@ public void Scan(){
 					yaw=(float)Rnd.Next(lower*10,upper*10)/10.0f;
 				}
 				while(Math.Sqrt(Math.Pow(pitch,2)+Math.Pow(yaw,2))>Camera.RaycastConeLimit);
-				MyDetectedEntityInfo Entity=Camera.Raycast(distance,pitch,yaw);
-				if(Entity.Type!=MyDetectedEntityType.None&&Entity.EntityId!=Controller.CubeGrid.EntityId)
-					DetectedEntities.UpdateEntry(new EntityInfo(Entity));
+				for(int k=0;k<4;k++){
+					int p_x=1;
+					if(k%2==0)
+						p_x=-1;
+					int y_x=1;
+					if(k<2)
+						y_x=-1;
+					MyDetectedEntityInfo Entity=Camera.Raycast(Math.Min(distance,Camera.AvailableScanRange),pitch*p_x,yaw*y_x);
+					if(Entity.Type!=MyDetectedEntityType.None&&Entity.EntityId!=Controller.CubeGrid.EntityId)
+						DetectedEntities.UpdateEntry(new EntityInfo(Entity));
+				}
 			}
 		}
 		if(AutoFire){
