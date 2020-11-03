@@ -1509,12 +1509,25 @@ public void Search(){
 
 private List<double> ShellCountdowns=new List<double>();
 private bool Called_Next_Fire=true;
+private double Fire_Scan_Timer=AUTOSCAN_DISTANCE/1000;
 private bool DoFire(){
 	foreach(IMyCameraBlock Camera in Cameras){
-		MyDetectedEntityInfo Entity=Camera.Raycast(Math.Max(50,Aim_Distance/10*9),0,0);
-		if(Entity.Type!=MyDetectedEntityType.None&&Entity.Relationship!=MyRelationsBetweenPlayerAndBlock.Enemies)
-			return false;
+		double distance=Camera.AvailableScanRange;
+		string distance_string=Math.Round(distance,0).ToString()+"M";
+		if(distance>=1000)
+			distance_string=Math.Round(distance/1000,1).ToString()+"kM";
+		Write(Camera.CustomName+":"+distance_string);
 	}
+	if(Fire_Scan_Timer>=AUTOSCAN_DISTANCE/1000){
+		Fire_Scan_Timer=0;
+		foreach(IMyCameraBlock Camera in Cameras){
+			MyDetectedEntityInfo Entity=Camera.Raycast(Math.Min(AUTOSCAN_DISTANCE,Math.Max(50,Aim_Distance/10*9)),0,0);
+			if(Entity.Type!=MyDetectedEntityType.None&&Entity.Relationship!=MyRelationsBetweenPlayerAndBlock.Enemies&&(((Vector3D) Target.HitPosition)-Aim_Position).Length()>5)
+				return false;
+		}
+	}
+	else
+		return false;
 	
 	IMySpaceBall ShellMass=(new GenericMethods<IMySpaceBall>(this)).GetFull("Shell Mass Block");
 	if(ShellMass==null||!ShellMass.IsFunctional)
@@ -1627,6 +1640,8 @@ private void TimerUpdate(){
 		Scan_Timer+=seconds_since_last_update;
 	if(Scan_Aim_Time<5&&GetAngle(Forward_Vector,Scan_Direction)>20)
 		Scan_Aim_Time+=seconds_since_last_update;
+	if(Fire_Scan_Timer<AUTOSCAN_DISTANCE/1000)
+		Fire_Scan_Timer+=seconds_since_last_update;
 }
 
 public void Main(string argument, UpdateType updateSource)
