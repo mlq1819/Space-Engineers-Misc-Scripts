@@ -678,6 +678,21 @@ private double Aim_Distance{
 	}
 }
 
+private Vector3D Suspect_Position=new Vector3D(0,0,0);
+private Vector3D Suspect_Velocity=new Vector3D(0,0,0);
+private Vector3D Suspect_Direction{
+	get{
+		Vector3D output=Suspect_Position-Controller.GetPosition();
+		output.Normalize();
+		return output;
+	}
+}
+private double Suspect_Distance{
+	get{
+		return (Suspect_Position-Controller.GetPosition()).Length();
+	}
+}
+
 private double Time_To_Hit{
 	get{
 		double distance=20;
@@ -1002,6 +1017,7 @@ private void UpdatePositionalInfo(){
 	Left_Vector.Normalize();
 	
 	Targets.UpdatePositions(seconds_since_last_update);
+	Suspect_Position+=Suspect_Velocity*seconds_since_last_update;
 }
 
 private double Print_Timer=0.0;
@@ -1112,7 +1128,7 @@ private void Standard_Scan(){
 	if(AutoFire){
 		foreach(EntityInfo Entity in DetectedEntities){
 			double distance=(Controller.GetPosition()-Entity.Position).Length();
-			if(Entity.Type==MyDetectedEntityType.LargeGrid&&Entity.Relationship==MyRelationsBetweenPlayerAndBlock.Enemies&&distance<AUTOSCAN_DISTANCE&&distance>100){
+			if(Entity.Type==MyDetectedEntityType.LargeGrid&&Entity.Relationship==MyRelationsBetweenPlayerAndBlock.Enemies&&distance<FIRING_DISTANCE&&distance>100){
 				Targets.UpdateEntry(Entity);
 				if(Target.ID==Entity.ID)
 					SetAimed(Aim_Timer);
@@ -1227,6 +1243,33 @@ private void ArgumentProcessor(string argument){
 		TaskQueue.Clear();
 		AddTask(CannonTask.Reset);
 	}
+	else if(argument.ToLower().IndexOf("suspect:")==0){
+		string[] words=argument.ToLower().Substring("suspect:".Length).Split(';');
+		if(words.Length>0){
+			bool set=false;
+			Suspect_Position=new Vector3D(0,0,0);
+			if(!Vector3D.TryParse(words[0],out Suspect_Position)){
+				MyWaypointInfo Waypoint;
+				if(!MyWaypointInfo.TryParse(words[0],out Waypoint)){
+					if(MyWaypointInfo.TryParse(words[0].Substring(0,words[0].Length-10),out Waypoint))
+						set=true;
+				}
+				else
+					set=true;
+				if(set)
+					Suspect_Position=Waypoint.Coords;
+			}
+			else
+				set=true;
+			if(set){
+				Suspect_Velocity=new Vector3D(0,0,0);
+				if(words.Length>1){
+					Vector3D.TryParse(words[1],out Suspect_Velocity);
+				}
+				AddTask(CannonTask.Search);
+			}
+		}
+	}
 	else{
 		if(AutoFire){
 			try{
@@ -1320,33 +1363,12 @@ public void Reset(){
 	Targets.Clear();
 }
 
-private Vector3D Scan_Direction=new Vector3D(0,0,0);
 private double Scan_Timer=AUTOSCAN_DISTANCE/1000;
 private double Scan_Aim_Time=10;
 private bool Has_Done_Scan=false;
-public void Scan(){
-	Write("Scan_Timer:"+Math.Round(Scan_Timer,1)+"/"+Math.Round(AUTOSCAN_DISTANCE/1000,1)+" seconds");
-	if(Scan_Timer>=AUTOSCAN_DISTANCE/1000||!CanAim(Scan_Direction)||Scan_Aim_Time>=5){
-		Has_Done_Scan=false;
-		Scan_Aim_Time=0;
-		Scan_Timer=0;
-		do{
-			double Pitch_Angle=PitchRotor.Angle/Math.PI*180;
-			if(Pitch_Angle>180)
-				Pitch_Angle-=360;
-			Scan_Direction=new Vector3D(0,0,0);
-			Scan_Direction+=Rnd.Next(0,36)*Forward_Vector;
-			Scan_Direction+=Rnd.Next(-36,36)*Left_Vector;
-			if(Pitch_Angle>=0)
-				Scan_Direction+=Rnd.Next((int)(Pitch_Angle-30),30)*Up_Vector;
-			else
-				Scan_Direction+=Rnd.Next(-30,(int)(30+Pitch_Angle))*Up_Vector;
-			Scan_Direction.Normalize();
-		}
-		while(!CanAim(Scan_Direction));
-	}
-	Aim(Scan_Direction, 1);
-	if(GetAngle(Scan_Direction,Forward_Vector)<1){
+private void Perform_Search_Scan(Vector3D Direction, double Scan_Distance){
+	Aim(Direction, 1);
+	if(GetAngle(Direction,Forward_Vector)<1){
 		PitchRotor.TargetVelocityRPM=0;
 		PitchRotor.RotorLock=true;
 		YawRotor.TargetVelocityRPM=0;
@@ -1368,18 +1390,18 @@ public void Scan(){
 			distance_string=Math.Round(distance/1000,1).ToString()+"kM";
 		Write(Camera.CustomName+":"+distance_string);
 	}
-	if(!Has_Done_Scan && GetAngle(Forward_Vector,Scan_Direction)<1){
+	if(!Has_Done_Scan && GetAngle(Forward_Vector,Direction)<1){
 		EntityList DetectedEntities=new EntityList();
 		for(int i=0;i<Cameras.Count;i++){
 			Cameras[i].CustomName="Driver Camera "+(i+1).ToString();
 			IMyCameraBlock Camera=Cameras[i];
 			if(i==0){
-				MyDetectedEntityInfo Entity=Camera.Raycast(Math.Min(AUTOSCAN_DISTANCE,Camera.AvailableScanRange),0,0);
+				MyDetectedEntityInfo Entity=Camera.Raycast(Math.Min(Scan_Distance,Camera.AvailableScanRange),0,0);
 				if(Entity.Type!=MyDetectedEntityType.None&&Entity.EntityId!=Controller.CubeGrid.EntityId)
 					DetectedEntities.UpdateEntry(new EntityInfo(Entity));
 				continue;
 			}
-			double distance=Math.Min(Camera.AvailableScanRange/(4*i),AUTOSCAN_DISTANCE);
+			double distance=Math.Min(Camera.AvailableScanRange/(4*i),Scan_Distance);
 			int degrees=(int)(Camera.RaycastConeLimit/i);
 			for(int j=0;j<i;j++){
 				float pitch,yaw;
@@ -1406,7 +1428,7 @@ public void Scan(){
 		if(AutoFire){
 			foreach(EntityInfo Entity in DetectedEntities){
 				double distance=(Controller.GetPosition()-Entity.Position).Length();
-				if(Entity.Type==MyDetectedEntityType.LargeGrid&&Entity.Relationship==MyRelationsBetweenPlayerAndBlock.Enemies&&distance<AUTOSCAN_DISTANCE&&distance>100){
+				if(Entity.Type==MyDetectedEntityType.LargeGrid&&Entity.Relationship==MyRelationsBetweenPlayerAndBlock.Enemies&&distance<FIRING_DISTANCE&&distance>100){
 					Targets.UpdateEntry(Entity);
 					if(Target.ID==Entity.ID)
 						SetAimed(Aim_Timer);
@@ -1422,8 +1444,63 @@ public void Scan(){
 	}
 }
 
+private Vector3D Scan_Direction=new Vector3D(0,0,0);
+public void Scan(){
+	Write("Scan_Timer:"+Math.Round(Scan_Timer,1)+"/"+Math.Round(AUTOSCAN_DISTANCE/1000,1)+" seconds");
+	if(Scan_Timer>=AUTOSCAN_DISTANCE/1000||!CanAim(Scan_Direction)||Scan_Aim_Time>=5){
+		Has_Done_Scan=false;
+		Scan_Aim_Time=0;
+		Scan_Timer=0;
+		do{
+			double Pitch_Angle=PitchRotor.Angle/Math.PI*180;
+			if(Pitch_Angle>180)
+				Pitch_Angle-=360;
+			Scan_Direction=new Vector3D(0,0,0);
+			Scan_Direction+=Rnd.Next(0,36)*Forward_Vector;
+			Scan_Direction+=Rnd.Next(-36,36)*Left_Vector;
+			if(Pitch_Angle>=0)
+				Scan_Direction+=Rnd.Next((int)(Pitch_Angle-30),30)*Up_Vector;
+			else
+				Scan_Direction+=Rnd.Next(-30,(int)(30+Pitch_Angle))*Up_Vector;
+			if(Scan_Direction.Length()==0)
+				Scan_Direction=new Vector3D(1,1,1);
+			Scan_Direction.Normalize();
+		}
+		while(!CanAim(Scan_Direction));
+	}
+	Perform_Search_Scan(Scan_Direction,AUTOSCAN_DISTANCE);
+}
+
+private Vector3D Search_Direction=new Vector3D(0,0,0);
+private Vector3D Search_Distance=0;
+private double Search_Timer=0;
 public void Search(){
-	
+	Write("Scan_Timer:"+Math.Round(Scan_Timer,1)+"/"+Math.Round(AUTOSCAN_DISTANCE/1000,1)+" seconds");
+	if(!Can_Aim(Suspect_Direction)||Suspect_Distance>AUTOSCAN_DISTANCE||Search_Timer>180){
+		NextTask();
+		return;
+	}
+	if(Scan_Timer>=AUTOSCAN_DISTANCE/1000||!CanAim(Search_Direction)||Scan_Aim_Time>=5){
+		Has_Done_Scan=false;
+		Scan_Aim_Time=0;
+		Scan_Timer=0;
+		do{
+			int x=Rnd.Next(-36,36);
+			int y=Rnd.Next(-36,36);
+			int z=Rnd.Next(-36,36);
+			Vector3D Random_Direction=new Vector3D(x,y,z);
+			if(Random_Direction.Length()==0)
+				Random_Direction=new Vector3D(1,1,1);
+			Random_Direction.Normalize();
+			Random_Direction*=Rnd.Next(600,800);
+			Random_Direction+=Suspect_Position;
+			Search_Direction=Random_Direction-Controller.GetPosition();
+			Search_Distance=Search_Direction.Length();
+			Search_Direction.Normalize();
+		}
+		while(!CanAim(Search_Direction));
+	}
+	Perform_Search_Scan(Search_Direction,Search_Distance+100);
 }
 
 private List<double> ShellCountdowns=new List<double>();
