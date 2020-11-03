@@ -811,6 +811,8 @@ public Program(){
 	Cameras=(new GenericMethods<IMyCameraBlock>(this)).GetAllContaining("Driver Camera ");
 	if(Cameras.Count==0)
 		return;
+	foreach(IMyCameraBlock Camera in Cameras)
+		Camera.EnableRaycast=true;
 	
 	FiringLights=(new GenericMethods<IMyInteriorLight>(this)).GetAllContaining("Driver Firing Light ");
 	StatusLights=new List<List<IMyInteriorLight>>();
@@ -921,8 +923,6 @@ private void NextTask(){
 			Fire_Count--;
 			remove=false;
 		}
-		else if(AutoFire)
-			remove=false;
 		else if(Targets.Count>0){
 			Targets.RemoveAt(0);
 			if(Targets.Count>0){
@@ -1261,7 +1261,6 @@ private bool CanAim(Vector3D Direction){
 	if(Pitch_Angle>180)
 		Pitch_Angle-=360;
 	double From_Top=Pitch_Angle-Pitch_Difference;
-	can_aim_t=From_Top;
 	if(Math.Abs(From_Top)>30+Yaw_Difference)
 		return false;
 	return true;
@@ -1269,14 +1268,13 @@ private bool CanAim(Vector3D Direction){
 
 private void Aim(Vector3D Direction, double precision){
 	double Pitch_Difference=GetAngle(Up_Vector,Direction)-GetAngle(Down_Vector,Direction);
-	PitchRotor.TargetVelocityRPM=(float)(Pitch_Difference*Math.Min(1,Math.Max(Pitch_Difference/10,precision*10)));
-	
-	double Yaw_Difference=GetAngle(Left_Vector,Direction)-GetAngle(Right_Vector,Direction);
-	YawRotor.TargetVelocityRPM=(float)(Yaw_Difference*Math.Min(1,Math.Max(Yaw_Difference/10,precision*10)));
-	if(GetAngle(Forward_Vector,Direction)<precision){
+	PitchRotor.TargetVelocityRPM=(float)(Pitch_Difference*Math.Min(1,Math.Max(Math.Abs(Pitch_Difference)/10,precision*10)));
+	if(Math.Abs(Pitch_Difference)<precision/2)
 		PitchRotor.TargetVelocityRPM=0;
+	double Yaw_Difference=GetAngle(Left_Vector,Direction)-GetAngle(Right_Vector,Direction);
+	YawRotor.TargetVelocityRPM=(float)(Yaw_Difference*Math.Min(1,Math.Max(Math.Abs(Yaw_Difference)/10,precision*10)));
+	if(Math.Abs(Yaw_Difference)<precision/2)
 		YawRotor.TargetVelocityRPM=0;
-	}
 }
 
 private void Aim(Vector3D Direction){
@@ -1333,18 +1331,43 @@ public void Scan(){
 		Scan_Aim_Time=0;
 		Scan_Timer=0;
 		do{
-			int x=Rnd.Next(-36,36);
-			int y=Rnd.Next(-36,36);
-			int z=Rnd.Next(-36,36);
-			Scan_Direction=new Vector3D(x,y,z);
+			double Pitch_Angle=PitchRotor.Angle/Math.PI*180;
+			if(Pitch_Angle>180)
+				Pitch_Angle-=360;
+			Scan_Direction=new Vector3D(0,0,0);
+			Scan_Direction+=Rnd.Next(0,36)*Forward_Vector;
+			Scan_Direction+=Rnd.Next(-36,36)*Left_Vector;
+			if(Pitch_Angle>=0)
+				Scan_Direction+=Rnd.Next((int)(Pitch_Angle-30),30)*Up_Vector;
+			else
+				Scan_Direction+=Rnd.Next(-30,(int)(30+Pitch_Angle))*Up_Vector;
 			Scan_Direction.Normalize();
 		}
 		while(!CanAim(Scan_Direction));
-		Aim(Scan_Direction, 1);
+	}
+	Aim(Scan_Direction, 1);
+	if(GetAngle(Scan_Direction,Forward_Vector)<1){
+		PitchRotor.TargetVelocityRPM=0;
+		PitchRotor.RotorLock=true;
+		YawRotor.TargetVelocityRPM=0;
+		YawRotor.RotorLock=true;
+	}
+	else{
+		PitchRotor.RotorLock=false;
+		YawRotor.RotorLock=false;
 	}
 	Write("Scan_Aim_Time:"+Math.Round(Scan_Aim_Time,1)+"/10 seconds");
-	Write("Scan Direction:"+EntityInfo.NeatVector(Scan_Direction));
-	Write("Scan Angle:"+Math.Round(GetAngle(Forward_Vector,Scan_Direction),1)+"°");
+	if(Has_Done_Scan)
+		Write("Scan Status:Complete");
+	else
+		Write("Scan Status:Incomplete");
+	foreach(IMyCameraBlock Camera in Cameras){
+		double distance=Camera.AvailableScanRange;
+		string distance_string=Math.Round(distance,0).ToString()+"M";
+		if(distance>=1000)
+			distance_string=Math.Round(distance/1000,1).ToString()+"kM";
+		Write(Camera.CustomName+":"+distance_string);
+	}
 	if(!Has_Done_Scan && GetAngle(Forward_Vector,Scan_Direction)<1){
 		double interval=(AUTOSCAN_DISTANCE/1000)/Cameras.Count;
 		EntityList DetectedEntities=new EntityList();
@@ -1509,7 +1532,6 @@ private void TimerUpdate(){
 		Scan_Timer+=seconds_since_last_update;
 	if(Scan_Aim_Time<5&&GetAngle(Forward_Vector,Scan_Direction)>20)
 		Scan_Aim_Time+=seconds_since_last_update;
-	Task_Switch_Timer+=seconds_since_last_update;
 }
 
 public void Main(string argument, UpdateType updateSource)
@@ -1531,8 +1553,13 @@ public void Main(string argument, UpdateType updateSource)
 		case CannonTask.None:
 			if(Targets.Count>0)
 				AddTask(CannonTask.Fire);
-			else
+			else{
 				Write("No current Task");
+				PitchRotor.TargetVelocityRPM=0;
+				PitchRotor.RotorLock=true;
+				YawRotor.TargetVelocityRPM=0;
+				YawRotor.RotorLock=true;
+			}
 			break;
 		case CannonTask.Reset:
 			Reset();
@@ -1547,6 +1574,8 @@ public void Main(string argument, UpdateType updateSource)
 			Fire();
 			break;
 	}
+	PitchRotor.Enabled=(CurrentTask!=CannonTask.None);
+	YawRotor.Enabled=(CurrentTask!=CannonTask.None);
 	if(Fire_Timer<1){
 		PitchRotor.RotorLock=true;
 		YawRotor.RotorLock=true;
@@ -1568,17 +1597,19 @@ public void Main(string argument, UpdateType updateSource)
 		Write("AutoFire:On");
 	else
 		Write("AutoFire:Off");
-	Write("Currently:"+CurrentTask.ToString());
+	Write("Current Task:"+CurrentTask.ToString());
 	if(CurrentTask==CannonTask.Fire)
 		Write("Fire_Count:"+Fire_Count.ToString());
 	Write("PrintStatus:"+CurrentPrintStatus.ToString());
 	Write("FireStatus:"+CurrentFireStatus.ToString());
-	Write("Distance:"+Math.Round(Aim_Distance/1000,1)+"kM");
-	Write("Precision:"+Math.Round(GetAngle(Forward_Vector,Aim_Direction),3)+"°/"+Math.Round(Precision,3).ToString()+"°");
-	Write(Targets.Count.ToString()+" Targets");
-	for(int i=0;i<Targets.Count;i++){
-		double distance=(Targets[i].Position-Controller.GetPosition()).Length();
-		Write("  Target "+(i+1).ToString()+":"+Targets[i].ID.ToString()+':'+Math.Round(distance/1000,2)+"kM");
+	if(Targets.Count>0){
+		Write("Distance:"+Math.Round(Aim_Distance/1000,1)+"kM");
+		Write("Precision:"+Math.Round(GetAngle(Forward_Vector,Aim_Direction),3)+"°/"+Math.Round(Precision,3).ToString()+"°");
+		Write(Targets.Count.ToString()+" Targets");
+		for(int i=0;i<Targets.Count;i++){
+			double distance=(Targets[i].Position-Controller.GetPosition()).Length();
+			Write("  Target "+(i+1).ToString()+":"+Targets[i].ID.ToString()+':'+Math.Round(distance/1000,2)+"kM");
+		}
 	}
 	foreach(double countdown in ShellCountdowns){
 		Write("Time to Explosion:"+Math.Round(countdown,1)+" seconds");
