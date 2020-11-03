@@ -1064,23 +1064,6 @@ private void Print(){
 			CurrentPrintStatus=PrintStatus.StartingPrint;
 		}
 	}
-	for(int i=0;i<StatusLights.Count;i++){
-		if(i==0){
-			foreach(IMyInteriorLight Light in StatusLights[i]){
-				Light.Enabled=(CurrentPrintStatus>=PrintStatus.Printing);
-			}
-		}
-		else if(i==1){
-			foreach(IMyInteriorLight Light in StatusLights[i]){
-				Light.Enabled=(CurrentPrintStatus>=PrintStatus.WaitingResources);
-			}
-		}
-		else if(i==2){
-			foreach(IMyInteriorLight Light in StatusLights[i]){
-				Light.Enabled=(CurrentPrintStatus>=PrintStatus.Ready);
-			}
-		}
-	}
 }
 
 private double Aim_Timer=AIM_TIME;
@@ -1723,6 +1706,23 @@ public void Main(string argument, UpdateType updateSource)
 	}
 	foreach(double countdown in ShellCountdowns){
 		Write("Time to Explosion:"+Math.Round(countdown,1)+" seconds");
+	}
+	for(int i=0;i<StatusLights.Count;i++){
+		if(i==0){
+			foreach(IMyInteriorLight Light in StatusLights[i]){
+				Light.Enabled=(CurrentTask!=CannonTask.Fire||CurrentFireStatus!=FireStatus.Firing);
+			}
+		}
+		else if(i==1){
+			foreach(IMyInteriorLight Light in StatusLights[i]){
+				Light.Enabled=(CurrentPrintStatus>=PrintStatus.Printing);
+			}
+		}
+		else if(i==2){
+			foreach(IMyInteriorLight Light in StatusLights[i]){
+				Light.Enabled=(CurrentPrintStatus>=PrintStatus.Ready);
+			}
+		}
 	}
 	if(((int)CurrentTask)>=((int)CannonTask.Scan))
 		Runtime.UpdateFrequency=UpdateFrequency.Update10;
