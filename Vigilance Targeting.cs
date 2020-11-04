@@ -1077,15 +1077,17 @@ private void SetAimed(double time=AIM_TIME){
 			Targets.RemoveAt(0);
 		return;
 	}
-	Aim_Position+=Aim_Timer*Target.Velocity;
-	while(Time_To_Hit-Aim_Timer<Time_To_Position){
-		Aim_Position+=Target.Velocity;
+	double difference=(Time_To_Hit-Aim_Timer)-Time_To_Position;
+	while(difference>0){
+		Aim_Loop_Counter++;
+		Aim_Position+=Math.Max(1,difference/2)*Target.Velocity;
 		if(Aim_Distance>FIRING_DISTANCE){
 			if(Targets.Count>0){
 				Targets.RemoveAt(0);
 			}
 			return;
 		}
+		difference=(Time_To_Hit-Aim_Timer)-Time_To_Position;
 	}
 }
 
@@ -1114,7 +1116,7 @@ private void Standard_Scan(){
 			if(Entity.Type==MyDetectedEntityType.LargeGrid&&Entity.Relationship==MyRelationsBetweenPlayerAndBlock.Enemies&&distance<FIRING_DISTANCE&&distance>100){
 				Targets.UpdateEntry(Entity);
 				if(Target.ID==Entity.ID)
-					SetAimed(Aim_Timer);
+					SetAimed(Aim_Timer+0.5);
 				if(CurrentTask!=CannonTask.Fire)
 					AddTask(CannonTask.Fire);
 			}
@@ -1480,7 +1482,7 @@ public void Search(){
 				Random_Direction=new Vector3D(1,1,1);
 			Random_Direction.Normalize();
 			Random_Direction*=Rnd.Next(600,800);
-			Random_Direction+=Suspect_Position;
+			Random_Direction+=Suspect_Position+AIM_TIME*Suspect_Velocity;
 			Search_Direction=Random_Direction-Controller.GetPosition();
 			Search_Distance=Search_Direction.Length();
 			Search_Direction.Normalize();
@@ -1546,6 +1548,8 @@ private double Fire_Timer=1.0;
 public void Fire(){
 	if(Aim_Position.Length()<1)
 		SetAimed();
+	if(Time_To_Hit-Time_To_Position>1.2)
+		SetAimed(AIM_TIME/2);
 	bool can_aim=CanAim(Aim_Direction);
 	if(Aim_Distance>FIRING_DISTANCE||Target.ID==0||!can_aim){
 		Write("Aim_Distance:"+Math.Round(Aim_Distance/1000,2).ToString()+"kM");
@@ -1560,6 +1564,8 @@ public void Fire(){
 	bool is_clear=(!Sensor.IsActive);
 	bool is_printed=CurrentPrintStatus==PrintStatus.Ready&&Merge.Enabled&&Projector.RemainingBlocks==0;
 	bool is_ready=(Target.Velocity.Length()<0.1)||(Math.Abs(Time_To_Hit-Time_To_Position)<1.2);
+	Write("Time to Launch:"+Math.Round(Time_To_Position-Time_To_Hit,2).ToString()+" seconds");
+	Write("Aim vs Actual:"+Math.Round((Aim_Position-Target.Position).Length(),1)+"M");
 	if(is_aimed){
 		PitchRotor.TargetVelocityRPM=0;
 		PitchRotor.RotorLock=true;
