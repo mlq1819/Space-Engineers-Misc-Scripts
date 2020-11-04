@@ -663,6 +663,13 @@ private EntityInfo Target{
 		return new EntityInfo(0, "invalid", MyDetectedEntityType.None, null, new Vector3D(0,0,0), MyRelationsBetweenPlayerAndBlock.Neutral, new Vector3D(0,0,0), 0);
 	}
 }
+private Vector3D Target_Position{
+	get{
+		if(Target.HitPosition!=null)
+			return(Vector3D)Target.HitPosition;
+		return Target.Position;
+	}
+}
 
 private Vector3D Aim_Position=new Vector3D(0,0,0);
 private Vector3D Aim_Direction{
@@ -701,13 +708,13 @@ private double Time_To_Hit{
 }
 private double Time_To_Position{
 	get{
-		return (Target.Position-Aim_Position).Length()/Target.Velocity.Length();
+		return (Target_Position-Aim_Position).Length()/Target.Velocity.Length();
 	}
 }
 
 private double Precision{
 	get{
-		return Math.Min(1,100/Aim_Distance);
+		return Math.Min(1,50/Aim_Distance);
 	}
 }
 
@@ -1069,7 +1076,7 @@ private void Print(){
 private double Aim_Timer=AIM_TIME;
 private void SetAimed(double time=AIM_TIME){
 	Aim_Timer=Math.Min(Math.Max(0,time),AIM_TIME);
-	Aim_Position=Target.Position;
+	Aim_Position=Target_Position;
 	if(Target.Velocity.Length()<0.1)
 		return;
 	if(Target.Velocity.Length()>100){
@@ -1077,9 +1084,8 @@ private void SetAimed(double time=AIM_TIME){
 			Targets.RemoveAt(0);
 		return;
 	}
-	double difference=(Time_To_Hit-Aim_Timer)-Time_To_Position;
-	while(difference>0){
-		Aim_Loop_Counter++;
+	double difference=Time_To_Position-(Time_To_Hit+Aim_Timer);
+	while(difference<0){
 		Aim_Position+=Math.Max(1,difference/2)*Target.Velocity;
 		if(Aim_Distance>FIRING_DISTANCE){
 			if(Targets.Count>0){
@@ -1087,7 +1093,7 @@ private void SetAimed(double time=AIM_TIME){
 			}
 			return;
 		}
-		difference=(Time_To_Hit-Aim_Timer)-Time_To_Position;
+		difference=Time_To_Position-(Time_To_Hit+Aim_Timer);
 	}
 }
 
@@ -1108,6 +1114,42 @@ private void Standard_Scan(){
 			MyDetectedEntityInfo Detected=Turret.GetTargetedEntity();
 			if(Detected.Type!=MyDetectedEntityType.None&&Detected.EntityId!=Controller.CubeGrid.EntityId)
 				DetectedEntities.UpdateEntry(new EntityInfo(Detected));
+		}
+	}
+	if(Targets.Count>0){
+		bool hit=false;
+		foreach(IMyCameraBlock Camera in Cameras){
+			if(Camera.CanScan(Target_Position)){
+				MyDetectedEntityInfo Detected=Camera.Raycast(Target_Position);
+				if(Detected.Type!=MyDetectedEntityType.None&&Detected.EntityId!=Controller.CubeGrid.EntityId){
+					DetectedEntities.UpdateEntry(new EntityInfo(Detected));
+					hit=true;
+					break;
+				}
+			}
+		}
+		if(!hit){
+			foreach(IMyCameraBlock Camera in Cameras){
+				double distance=(Target_Position-Controller.GetPosition()).Length()+10;
+				if(Camera.AvailableScanRange>=distance){
+					for(int i=0;i<4;i++){
+						int p_x=1;
+						int y_x=1;
+						if(i%2==0)
+							p_x=-1;
+						if(i<2)
+							y_x=-1;
+						if(Camera.CanScan(distance)){
+							MyDetectedEntityInfo Detected=Camera.Raycast(distance,(float)(Precision*2*p_x),(float)(Precision*2*y_x));
+							if(Detected.Type!=MyDetectedEntityType.None&&Detected.EntityId!=Controller.CubeGrid.EntityId){
+								DetectedEntities.UpdateEntry(new EntityInfo(Detected));
+								hit=true;
+								break;
+							}
+						}
+					}
+				}
+			}
 		}
 	}
 	if(AutoFire){
@@ -1548,7 +1590,7 @@ private double Fire_Timer=1.0;
 public void Fire(){
 	if(Aim_Position.Length()<1)
 		SetAimed();
-	if(Time_To_Hit-Time_To_Position>1.2)
+	if(Time_To_Position<Time_To_Hit)
 		SetAimed(AIM_TIME/2);
 	bool can_aim=CanAim(Aim_Direction);
 	if(Aim_Distance>FIRING_DISTANCE||Target.ID==0||!can_aim){
@@ -1564,8 +1606,11 @@ public void Fire(){
 	bool is_clear=(!Sensor.IsActive);
 	bool is_printed=CurrentPrintStatus==PrintStatus.Ready&&Merge.Enabled&&Projector.RemainingBlocks==0;
 	bool is_ready=(Target.Velocity.Length()<0.1)||(Math.Abs(Time_To_Hit-Time_To_Position)<1.2);
+	Write("Time_To_Hit:"+Math.Round(Time_To_Hit,2).ToString()+" seconds");
+	Write("Time_To_Position:"+Math.Round(Time_To_Position,2).ToString()+" seconds");
 	Write("Time to Launch:"+Math.Round(Time_To_Position-Time_To_Hit,2).ToString()+" seconds");
-	Write("Aim vs Actual:"+Math.Round((Aim_Position-Target.Position).Length(),1)+"M");
+	Write("Aim vs Actual:"+Math.Round((Aim_Position-Target_Position).Length(),1)+"M");
+	Write("Target Position:"+EntityInfo.NeatVector(Target_Position));
 	if(is_aimed){
 		PitchRotor.TargetVelocityRPM=0;
 		PitchRotor.RotorLock=true;
@@ -1578,14 +1623,7 @@ public void Fire(){
 						CurrentFireStatus=FireStatus.Firing;
 				}
 				else{
-					if(Time_To_Hit<Time_To_Position){
-						SetAimed();
-						Fire();
-						return;
-					}
-					else {
-						CurrentFireStatus=FireStatus.WaitingTarget;
-					}
+					CurrentFireStatus=FireStatus.WaitingTarget;
 				}
 			}
 			else{
