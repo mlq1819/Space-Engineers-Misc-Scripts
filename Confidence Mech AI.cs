@@ -1,4 +1,8 @@
-public class GenericMethods<T> where T : class, IMyTerminalBlock{
+const string Program_Name = "Confidence Mech AI"; //Name me!
+private Color DEFAULT_TEXT_COLOR=new Color(197,137,255,255);
+private Color DEFAULT_BACKGROUND_COLOR=new Color(44,0,88,255);
+
+class GenericMethods<T> where T : class, IMyTerminalBlock{
 	private IMyGridTerminalSystem TerminalSystem;
 	private IMyTerminalBlock Prog;
 	private MyGridProgram Program;
@@ -226,7 +230,7 @@ public class GenericMethods<T> where T : class, IMyTerminalBlock{
 	}
 }
 
-private bool HasBlockData(IMyTerminalBlock Block, string Name){
+bool HasBlockData(IMyTerminalBlock Block, string Name){
 	if(Name.Contains(':'))
 		return false;
 	string[] args=Block.CustomData.Split('•');
@@ -238,7 +242,7 @@ private bool HasBlockData(IMyTerminalBlock Block, string Name){
 	return false;
 }
 
-private string GetBlockData(IMyTerminalBlock Block, string Name){
+string GetBlockData(IMyTerminalBlock Block, string Name){
 	if(Name.Contains(':'))
 		return "";
 	string[] args=Block.CustomData.Split('•');
@@ -250,7 +254,7 @@ private string GetBlockData(IMyTerminalBlock Block, string Name){
 	return "";
 }
 
-private bool SetBlockData(IMyTerminalBlock Block, string Name, string Data){
+bool SetBlockData(IMyTerminalBlock Block, string Name, string Data){
 	if(Name.Contains(':'))
 		return false;
 	string[] args=Block.CustomData.Split('•');
@@ -269,7 +273,33 @@ private bool SetBlockData(IMyTerminalBlock Block, string Name, string Data){
 	return true;
 }
 
-public void Write(string text, bool new_line=true, bool append=true){
+Vector3D GlobalToLocal(Vector3D Global, IMyTerminalBlock Reference){
+	Vector3D Local=Vector3D.Transform(Global+Reference.GetPosition(), MatrixD.Invert(Reference.WorldMatrix));
+	Local.Normalize();
+	return Local*Global.Length();
+}
+
+Vector3D GlobalToLocalPosition(Vector3D Global, IMyTerminalBlock Reference){
+	Vector3D Local=Vector3D.Transform(Global, MatrixD.Invert(Controller.WorldMatrix));
+	Local.Normalize();
+	return Local*(Global-Reference.GetPosition()).Length();
+}
+
+Vector3D LocalToGlobal(Vector3D Local, IMyTerminalBlock Reference){
+	Vector3D Global=Vector3D.Transform(Local, Reference.WorldMatrix)-Reference.GetPosition();
+	Global.Normalize();
+	return Global*Local.Length();
+}
+
+Vector3D LocalToGlobalPosition(Vector3D Local, IMyTerminalBlock Reference){
+	return Vector3D.Transform(Local,Reference.WorldMatrix);
+}
+
+double GetAngle(Vector3D v1, Vector3D v2){
+	return GenericMethods<IMyTerminalBlock>.GetAngle(v1,v2);
+}
+
+void Write(string text, bool new_line=true, bool append=true){
 	Echo(text);
 	if(new_line)
 		Me.GetSurface(0).WriteText(text+'\n', append);
@@ -277,15 +307,22 @@ public void Write(string text, bool new_line=true, bool append=true){
 		Me.GetSurface(0).WriteText(text, append);
 }
 
-private long cycle_long = 1;
-private long cycle = 0;
-private char loading_char = '|';
-private const string Program_Name = ""; //Name me!
+long cycle_long = 1;
+long cycle = 0;
+char loading_char = '|';
 double seconds_since_last_update = 0;
 
 public Program()
 {
-    Me.CustomName = (Program_Name + " Programmable block").Trim();
+	Me.CustomName=(Program_Name+" Programmable block").Trim();
+	for(int i=0;i<Me.SurfaceCount;i++){
+		Me.GetSurface(i).FontColor=DEFAULT_TEXT_COLOR;
+		Me.GetSurface(i).BackgroundColor=DEFAULT_BACKGROUND_COLOR;
+		Me.GetSurface(i).Alignment=TextAlignment.CENTER;
+		Me.GetSurface(i).ContentType=ContentType.TEXT_AND_IMAGE;
+	}
+	Me.GetSurface(1).FontSize=2.2f;
+	Me.GetSurface(1).TextPadding=40.0f;
 	Echo("Beginning initialization");
 	// The constructor, called only once every session and
     // always before any other method is called. Use it to
@@ -309,7 +346,7 @@ public void Save()
     // needed.
 }
 
-private void UpdateProgramInfo(){
+void UpdateProgramInfo(){
 	cycle_long += ((++cycle)/long.MaxValue)%long.MaxValue;
 	cycle = cycle % long.MaxValue;
 	switch(loading_char){
