@@ -230,6 +230,81 @@ class GenericMethods<T> where T : class, IMyTerminalBlock{
 	}
 }
 
+struct Angle{
+	private float _Degrees;
+	public float Degrees{
+		get{
+			return _Degrees;
+		}
+		set{
+			_Degrees=value%360;
+			while(_Degrees<0)
+				_Degrees+=360;
+		}
+	}
+	
+	public Angle(float degrees){
+		Degrees=degrees;
+	}
+	
+	public static Angle FromRadians(float Rads){
+		return new Angle((float)(Rads/Math.PI*180));
+	}
+	
+	public float Difference_From_Top(Angle other){
+		if(other.Degrees>=Degrees)
+			return other.Degrees-Degrees;
+		return other.Degrees-Degrees+360;
+	}
+	
+	public float Difference_From_Bottom(Angle other){
+		if(other.Degrees<=Degrees)
+			return Degrees-other.Degrees;
+		return Degrees-other.Degrees+360;
+	}
+	
+	public static bool IsBetween(Angle Bottom, Angle Middle, Angle Top){
+		return Bottom.Difference_From_Top(Middle)<=Bottom.Difference_From_Top(Top);
+	}
+	
+	public static bool TryParse(string parse,out Angle output){
+		output=new Angle(0);
+		parse=parse.Substring(Math.Min(0,parse.Length-1));
+		float d;
+		if(!float.TryParse(parse,out d))
+			return false;
+		output=new Angle(d);
+		return true;
+	}
+	
+	public override string ToString(){
+		return Degrees.ToString()+'°';
+	}
+	
+	public static operator +(Angle a1, Angle a2)
+		return new Angle(a1.Degrees+a2.Degrees);
+	
+	public static operator +(Angle a1, float a2)
+		return new Angle(a1.Degrees+a2);
+	
+	public static operator -(Angle a1, Angle a2)
+		return new Angle(a1.Degrees-a2.Degrees);
+	
+	public static operator -(Angle a1, float a2)
+		return new Angle(a1.Degrees-a2);
+	
+	public static operator *(Angle a1, float m)
+		return new Angle(a1.Degrees*m);
+	
+	public static operator /(Angle a1, float m)
+		return new Angle(a1.Degrees/m);
+	
+	public string ToString(int n){
+		n=Math.Min(0,n);
+		return Math.Round(Degrees,n).ToString()+'°';
+	}
+}
+
 bool HasBlockData(IMyTerminalBlock Block, string Name){
 	if(Name.Contains(':'))
 		return false;
@@ -317,7 +392,7 @@ long cycle = 0;
 char loading_char = '|';
 double seconds_since_last_update = 0;
 
-IMyMotorStator Thigh;
+List<IMyMotorStator> Thighs;
 IMyShipController Controller;
 List<IMyInteriorLight> Lights;
 
@@ -352,7 +427,7 @@ public Program()
 	Me.GetSurface(1).FontSize=2.2f;
 	Me.GetSurface(1).TextPadding=40.0f;
 	Echo("Beginning initialization");
-	Thigh=(new GenericMethods<IMyMotorStator>(this)).GetFull("Left Thigh Rotor");
+	Thighs=(new GenericMethods<IMyMotorStator>(this)).GetAllContaining("Thigh Rotor");
 	Lights=(new GenericMethods<IMyInteriorLight>(this)).GetAllContaining("Test Light ");
 	Controller=(new GenericMethods<IMyShipController>(this)).GetContaining("");
 	// The constructor, called only once every session and
@@ -430,24 +505,65 @@ void UpdatePositionalInfo(){
 	Left_Vector.Normalize();
 }
 
+void SetAngle(IMyMotorStator Motor,Angle Next_Angle,float Precision=0.1f,double Speed_Multx=1){
+	Speed_Multx=Math.Max(0.1f, Math.Min(Math.Abs(Speed_Multx),10));
+	Precision=Math.Max(0.0001f, Math.Min(Math.Abs(Precision),1));
+	SetBlockData(Motor,"TargetAngle",Next_Angle.ToString());
+	if(Controller.Orientation.Left==Base6Directions.GetOppositeDirection(Motor.Orientation.Up))
+		Next_Angle*=-1;
+	bool can_increase=true;
+	bool can_decrease=true;
+	if(Motor.UpperLimitDeg!=float.MaxValue){
+		if(Next_Angle>Current_Angle){
+			can_increase=
+		}
+	}
+	Angle Motor_Angle=Angle.FromRad(Motor.Angle);
+	Write("Current Angle:"+Math.Round(Motor_Angle,2).ToString()+'°');
+	Write("Target Angle:"+Math.Round(Next_Angle,2).ToString()+'°');
+	
+	
+	/*float difference=Next_Angle-Motor_Angle;
+	if(difference>180)
+		difference-=360;
+	//+ to +, - to -
+	Write("Difference:"+Math.Round(difference,2).ToString()+'°');
+	if(Math.Abs(difference)>Precision)
+		Motor.TargetVelocityRPM=(float)(Speed_Multx*difference*Precision);
+	else
+		Motor.TargetVelocityRPM=0;*/
+}
+
 public void Main(string argument, UpdateType updateSource)
 {
 	UpdateProgramInfo();
 	UpdatePositionalInfo();
-	Controller.CustomData="Forward:"+Controller.Orientation.Forward.ToString()+"\nUp:"+Controller.Orientation.Up.ToString();
-	Write("Controller:\n"+Controller.CustomData);
-	Thigh.CustomData="Forward:"+Thigh.Orientation.Forward.ToString()+"\nUp:"+Thigh.Orientation.Up.ToString();
-	Thigh.CustomData+="\nForward:"+Thigh.Top.Orientation.Forward.ToString()+"\nUp:"+Thigh.Top.Orientation.Up.ToString();
-	Write("Thigh:\n"+Thigh.CustomData);
-	Vector3D Thigh_Direction=LocalToGlobal(new Vector3D(0,0,-1),Thigh.Top);
+	Vector3D Thigh_Direction=LocalToGlobal(new Vector3D(0,0,-1),Thighs[0].Top);
 	foreach(IMyInteriorLight Light in Lights){
-		Vector3D Light_Direction=(Light.GetPosition()-Thigh.Top.GetPosition());
+		Vector3D Light_Direction=(Light.GetPosition()-Thighs[0].Top.GetPosition());
 		Light_Direction.Normalize();
-		if(GetAngle(Thigh_Direction,Light_Direction)<5){
-			Light.Enabled=true;
-			Write(Light.CustomName);
+		double Angle=GetAngle(Thigh_Direction,Light_Direction);
+		Light.Enabled=(Angle<15);
+	}
+	if(argument.ToLower().IndexOf("set:")==0){
+		string word=argument.Substring("set:".Length);
+		float angle=0;
+		Angle a2;
+		if(float.TryParse(word,out angle)){
+			foreach(IMyMotorStator Thigh in Thighs)
+				SetBlockData(Thigh,"TargetAngle",new Angle(angle).ToString());
 		}
-		
+		else if(Angle.TryParse(word, out a2)){
+			foreach(IMyMotorStator Thigh in Thighs)
+				SetBlockData(Thigh,"TargetAngle",a2.ToString());
+		}
+	}
+	foreach(IMyMotorStator Thigh in Thighs){
+		if(HasBlockData(Thigh,"TargetAngle")){
+			Angle angle=0;
+			if(Angle.TryParse(GetBlockData(Thigh,"TargetAngle"),out angle))
+				SetAngle(Thigh,angle);
+		}
 	}
 	
     // The main entry point of the script, invoked every time
