@@ -244,6 +244,7 @@ struct Angle{
 	}
 	
 	public Angle(float degrees){
+		_Degrees=degrees;
 		Degrees=degrees;
 	}
 	
@@ -263,41 +264,50 @@ struct Angle{
 		return Degrees-other.Degrees+360;
 	}
 	
+	public float Difference(Angle other){
+		return Math.Min(Difference_From_Top(other),Difference_From_Bottom(other));
+	}
+	
 	public static bool IsBetween(Angle Bottom, Angle Middle, Angle Top){
 		return Bottom.Difference_From_Top(Middle)<=Bottom.Difference_From_Top(Top);
 	}
 	
 	public static bool TryParse(string parse,out Angle output){
 		output=new Angle(0);
-		parse=parse.Substring(Math.Min(0,parse.Length-1));
 		float d;
-		if(!float.TryParse(parse,out d))
+		if(!float.TryParse(parse.Substring(0,Math.Max(0,parse.Length-1)),out d))
 			return false;
 		output=new Angle(d);
 		return true;
 	}
 	
+	public static Angle operator +(Angle a1, Angle a2){
+		return new Angle(a1.Degrees+a2.Degrees);
+	}
+	
+	public static Angle operator +(Angle a1, float a2){
+		return new Angle(a1.Degrees+a2);
+	}
+	
+	public static Angle operator -(Angle a1, Angle a2){
+		return new Angle(a1.Degrees-a2.Degrees);
+	}
+	
+	public static Angle operator -(Angle a1, float a2){
+		return new Angle(a1.Degrees-a2);
+	}
+	
+	public static Angle operator *(Angle a1, float m){
+		return new Angle(a1.Degrees*m);
+	}
+	
+	public static Angle operator /(Angle a1, float m){
+		return new Angle(a1.Degrees/m);
+	}
+	
 	public override string ToString(){
 		return Degrees.ToString()+'°';
 	}
-	
-	public static operator +(Angle a1, Angle a2)
-		return new Angle(a1.Degrees+a2.Degrees);
-	
-	public static operator +(Angle a1, float a2)
-		return new Angle(a1.Degrees+a2);
-	
-	public static operator -(Angle a1, Angle a2)
-		return new Angle(a1.Degrees-a2.Degrees);
-	
-	public static operator -(Angle a1, float a2)
-		return new Angle(a1.Degrees-a2);
-	
-	public static operator *(Angle a1, float m)
-		return new Angle(a1.Degrees*m);
-	
-	public static operator /(Angle a1, float m)
-		return new Angle(a1.Degrees/m);
 	
 	public string ToString(int n){
 		n=Math.Min(0,n);
@@ -506,6 +516,7 @@ void UpdatePositionalInfo(){
 }
 
 void SetAngle(IMyMotorStator Motor,Angle Next_Angle,float Precision=0.1f,double Speed_Multx=1){
+	Write(Motor.CustomName+":"+Next_Angle.ToString(1));
 	Speed_Multx=Math.Max(0.1f, Math.Min(Math.Abs(Speed_Multx),10));
 	Precision=Math.Max(0.0001f, Math.Min(Math.Abs(Precision),1));
 	SetBlockData(Motor,"TargetAngle",Next_Angle.ToString());
@@ -513,25 +524,36 @@ void SetAngle(IMyMotorStator Motor,Angle Next_Angle,float Precision=0.1f,double 
 		Next_Angle*=-1;
 	bool can_increase=true;
 	bool can_decrease=true;
-	if(Motor.UpperLimitDeg!=float.MaxValue){
-		if(Next_Angle>Current_Angle){
-			can_increase=
-		}
+	Angle Motor_Angle=Angle.FromRadians(Motor.Angle);
+	if(Motor.UpperLimitDeg!=float.MaxValue)
+		can_increase=Angle.IsBetween(Motor_Angle,Next_Angle,new Angle(Motor.UpperLimitDeg));
+	if(Motor.LowerLimitDeg!=float.MaxValue)
+		can_decrease=Angle.IsBetween(new Angle(Motor.LowerLimitDeg),Next_Angle,Motor_Angle);
+	
+	Write("Current Angle:"+Motor_Angle.ToString(2));
+	Write("Target Angle:"+Next_Angle.ToString(2));
+	if((!can_increase)&&(!can_decrease)){
+		Write("Target out of range");
+		Motor.TargetVelocityRPM=0;
+		return;
 	}
-	Angle Motor_Angle=Angle.FromRad(Motor.Angle);
-	Write("Current Angle:"+Math.Round(Motor_Angle,2).ToString()+'°');
-	Write("Target Angle:"+Math.Round(Next_Angle,2).ToString()+'°');
 	
-	
-	/*float difference=Next_Angle-Motor_Angle;
-	if(difference>180)
-		difference-=360;
-	//+ to +, - to -
-	Write("Difference:"+Math.Round(difference,2).ToString()+'°');
-	if(Math.Abs(difference)>Precision)
-		Motor.TargetVelocityRPM=(float)(Speed_Multx*difference*Precision);
+	float From_Bottom=Motor_Angle.Difference_From_Bottom(Next_Angle);
+	if(!can_decrease)
+		From_Bottom=float.MaxValue;
+	float From_Top=Motor_Angle.Difference_From_Top(Next_Angle);
+	if(!can_increase)
+		From_Top=float.MaxValue;
+	float difference=Math.Min(From_Bottom,From_Top);
+	Write("Difference:"+Math.Round(difference,2)+'°');
+	if(difference>Precision){
+		if(From_Bottom<From_Top)
+			Motor.TargetVelocityRPM=(float)(-1*From_Bottom*Speed_Multx*Precision);
+		else
+			Motor.TargetVelocityRPM=(float)(From_Top*Speed_Multx*Precision);
+	}
 	else
-		Motor.TargetVelocityRPM=0;*/
+		Motor.TargetVelocityRPM=0;
 }
 
 public void Main(string argument, UpdateType updateSource)
@@ -551,7 +573,7 @@ public void Main(string argument, UpdateType updateSource)
 		Angle a2;
 		if(float.TryParse(word,out angle)){
 			foreach(IMyMotorStator Thigh in Thighs)
-				SetBlockData(Thigh,"TargetAngle",new Angle(angle).ToString());
+				SetBlockData(Thigh,"TargetAngle",(new Angle(angle)).ToString());
 		}
 		else if(Angle.TryParse(word, out a2)){
 			foreach(IMyMotorStator Thigh in Thighs)
@@ -560,9 +582,12 @@ public void Main(string argument, UpdateType updateSource)
 	}
 	foreach(IMyMotorStator Thigh in Thighs){
 		if(HasBlockData(Thigh,"TargetAngle")){
-			Angle angle=0;
-			if(Angle.TryParse(GetBlockData(Thigh,"TargetAngle"),out angle))
+			Angle angle;
+			string data=GetBlockData(Thigh,"TargetAngle");
+			if(Angle.TryParse(data,out angle))
 				SetAngle(Thigh,angle);
+			else if(!data.Contains("invalid("))
+				SetBlockData(Thigh,"TargetAngle","invalid("+data+")");
 		}
 	}
 	
