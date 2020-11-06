@@ -1140,7 +1140,7 @@ private void Standard_Scan(){
 						if(i<2)
 							y_x=-1;
 						if(Camera.CanScan(distance)){
-							MyDetectedEntityInfo Detected=Camera.Raycast(distance,(float)(Precision*2*p_x),(float)(Precision*2*y_x));
+							MyDetectedEntityInfo Detected=Camera.Raycast(distance,(float)(Precision*10*p_x),(float)(Precision*10*y_x));
 							if(Detected.Type!=MyDetectedEntityType.None&&Detected.EntityId!=Controller.CubeGrid.EntityId){
 								DetectedEntities.UpdateEntry(new EntityInfo(Detected));
 								hit=true;
@@ -1193,6 +1193,8 @@ private void ArgumentProcessor(string argument){
 			AutoScan=true;
 		else if(word.Contains("off")||word.Contains("disabled")||word.Contains("false"))
 			AutoScan=false;
+		if(AutoScan&&CurrentTask==CannonTask.None)
+			AddTask(CannonTask.Scan);
 	}
 	else if(argument.ToLower().IndexOf("autofire")==0){
 		string word=argument.ToLower().Substring("autofire".Length);
