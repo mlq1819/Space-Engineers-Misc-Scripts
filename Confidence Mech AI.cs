@@ -273,26 +273,31 @@ bool SetBlockData(IMyTerminalBlock Block, string Name, string Data){
 	return true;
 }
 
-Vector3D GlobalToLocal(Vector3D Global, IMyTerminalBlock Reference){
+Vector3D GlobalToLocal(Vector3D Global, IMyCubeBlock Reference){
 	Vector3D Local=Vector3D.Transform(Global+Reference.GetPosition(), MatrixD.Invert(Reference.WorldMatrix));
 	Local.Normalize();
 	return Local*Global.Length();
 }
 
-Vector3D GlobalToLocalPosition(Vector3D Global, IMyTerminalBlock Reference){
-	Vector3D Local=Vector3D.Transform(Global, MatrixD.Invert(Controller.WorldMatrix));
+Vector3D GlobalToLocalPosition(Vector3D Global, IMyCubeBlock Reference){
+	Vector3D Local=Vector3D.Transform(Global, MatrixD.Invert(Reference.WorldMatrix));
 	Local.Normalize();
 	return Local*(Global-Reference.GetPosition()).Length();
 }
 
-Vector3D LocalToGlobal(Vector3D Local, IMyTerminalBlock Reference){
+Vector3D LocalToGlobal(Vector3D Local, IMyCubeBlock Reference){
 	Vector3D Global=Vector3D.Transform(Local, Reference.WorldMatrix)-Reference.GetPosition();
 	Global.Normalize();
 	return Global*Local.Length();
 }
 
-Vector3D LocalToGlobalPosition(Vector3D Local, IMyTerminalBlock Reference){
+Vector3D LocalToGlobalPosition(Vector3D Local, IMyCubeBlock Reference){
 	return Vector3D.Transform(Local,Reference.WorldMatrix);
+}
+
+Vector3D TransformBetweenGrids(Vector3D Input_Local, IMyCubeBlock Input_Reference, IMyCubeBlock Output_Reference){
+	Vector3D Global=Vector3D.TransformNormal(Input_Local,Input_Reference.WorldMatrix);
+	return Vector3D.TransformNormal(Global,MatrixD.Invert(Output_Reference.WorldMatrix));
 }
 
 double GetAngle(Vector3D v1, Vector3D v2){
@@ -312,6 +317,29 @@ long cycle = 0;
 char loading_char = '|';
 double seconds_since_last_update = 0;
 
+IMyMotorStator Thigh;
+IMyShipController Controller;
+List<IMyInteriorLight> Lights;
+
+Vector3D Forward_Vector;
+Vector3D Backward_Vector{
+	get{
+		return -1*Forward_Vector;
+	}
+}
+Vector3D Up_Vector;
+Vector3D Down_Vector{
+	get{
+		return -1*Up_Vector;
+	}
+}
+Vector3D Left_Vector;
+Vector3D Right_Vector{
+	get{
+		return -1*Left_Vector;
+	}
+}
+
 public Program()
 {
 	Me.CustomName=(Program_Name+" Programmable block").Trim();
@@ -324,6 +352,9 @@ public Program()
 	Me.GetSurface(1).FontSize=2.2f;
 	Me.GetSurface(1).TextPadding=40.0f;
 	Echo("Beginning initialization");
+	Thigh=(new GenericMethods<IMyMotorStator>(this)).GetFull("Left Thigh Rotor");
+	Lights=(new GenericMethods<IMyInteriorLight>(this)).GetAllContaining("Test Light ");
+	Controller=(new GenericMethods<IMyShipController>(this)).GetContaining("");
 	// The constructor, called only once every session and
     // always before any other method is called. Use it to
     // initialize your script. 
@@ -334,6 +365,7 @@ public Program()
     // It's recommended to set RuntimeInfo.UpdateFrequency 
     // here, which will allow your script to run itself without a 
     // timer block.
+	Runtime.UpdateFrequency=UpdateFrequency.Update10;
 }
 
 public void Save()
@@ -363,7 +395,9 @@ void UpdateProgramInfo(){
 			loading_char='|';
 			break;
 	}
+	Write("",false,false);
 	Echo(Program_Name + " OS " + cycle_long.ToString() + '-' + cycle.ToString() + " (" + loading_char + ")");
+	Me.GetSurface(1).WriteText(Program_Name + " OS " + cycle_long.ToString() + '-' + cycle.ToString() + " (" + loading_char + ")",false);
 	seconds_since_last_update = Runtime.TimeSinceLastRun.TotalSeconds + (Runtime.LastRunTimeMs / 1000);
 	if(seconds_since_last_update<1){
 		Echo(Math.Round(seconds_since_last_update*1000, 0).ToString() + " milliseconds\n");
@@ -382,9 +416,40 @@ void UpdateProgramInfo(){
 	}
 }
 
+void UpdatePositionalInfo(){
+	Vector3D base_vector=new Vector3D(0,0,-1);
+	Forward_Vector=LocalToGlobal(base_vector,Controller);
+	Forward_Vector.Normalize();
+	
+	base_vector=new Vector3D(0,1,0);
+	Up_Vector=LocalToGlobal(base_vector,Controller);
+	Up_Vector.Normalize();
+	
+	base_vector=new Vector3D(-1,0,0);
+	Left_Vector=LocalToGlobal(base_vector,Controller);
+	Left_Vector.Normalize();
+}
+
 public void Main(string argument, UpdateType updateSource)
 {
 	UpdateProgramInfo();
+	UpdatePositionalInfo();
+	Controller.CustomData="Forward:"+Controller.Orientation.Forward.ToString()+"\nUp:"+Controller.Orientation.Up.ToString();
+	Write("Controller:\n"+Controller.CustomData);
+	Thigh.CustomData="Forward:"+Thigh.Orientation.Forward.ToString()+"\nUp:"+Thigh.Orientation.Up.ToString();
+	Thigh.CustomData+="\nForward:"+Thigh.Top.Orientation.Forward.ToString()+"\nUp:"+Thigh.Top.Orientation.Up.ToString();
+	Write("Thigh:\n"+Thigh.CustomData);
+	Vector3D Thigh_Direction=LocalToGlobal(new Vector3D(0,0,-1),Thigh.Top);
+	foreach(IMyInteriorLight Light in Lights){
+		Vector3D Light_Direction=(Light.GetPosition()-Thigh.Top.GetPosition());
+		Light_Direction.Normalize();
+		if(GetAngle(Thigh_Direction,Light_Direction)<5){
+			Light.Enabled=true;
+			Write(Light.CustomName);
+		}
+		
+	}
+	
     // The main entry point of the script, invoked every time
     // one of the programmable block's Run actions are invoked,
     // or the script updates itself. The updateSource argument
