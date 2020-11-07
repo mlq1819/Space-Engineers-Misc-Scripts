@@ -707,6 +707,8 @@ public void Main(string argument, UpdateType updateSource)
 		}
 	}
 	if(Legs.Count>=2&&Controller.MoveIndicator.Z!=0){
+		//Forward is -1
+		//Backward is +1
 		if(Legs[0].Difference<1 && Legs[1].Difference<1){
 			Angle temp=Legs[0].Target_Angle;
 			Legs[0].Target_Angle=Legs[1].Target_Angle;
@@ -727,6 +729,12 @@ public void Main(string argument, UpdateType updateSource)
 			SetAngle(leg.Knee,leg.Target_Angle*-1);
 		else
 			SetAngle(leg.Knee,leg.Target_Angle);
+		if(leg.Foot.LockMode!=LandingGearMode.Locked){
+			SetAngle(leg.Ankle,new Angle(0));
+			leg.Ankle.Torque=448000;
+		}
+		else
+			leg.Ankle.Torque=448;
 		Write("");
 	}
 	
