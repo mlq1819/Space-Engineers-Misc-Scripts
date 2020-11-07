@@ -305,6 +305,38 @@ struct Angle{
 		return new Angle(a1.Degrees/m);
 	}
 	
+	public static bool operator ==(Angle a1, Angle a2){
+		return Math.Abs(a1.Degrees-a2.Degrees)<0.000001f;
+	}
+	
+	public static bool operator !=(Angle a1, Angle a2){
+		return Math.Abs(a1.Degrees-a2.Degrees)>=0.000001f;
+	}
+	
+	public override bool Equals(object o){
+		return (o.GetType()==this.GetType()) && this==((Angle)o);
+	}
+	
+	public override int GetHashCode(){
+		return Degrees.GetHashCode();
+	}
+	
+	public static bool operator >(Angle a1, Angle a2){
+		return a1.Difference_From_Top(a2)<a1.Difference_From_Bottom(a2);
+	}
+	
+	public static bool operator >=(Angle a1, Angle a2){
+		return a1==a2 || a1>a2;
+	}
+	
+	public static bool operator <=(Angle a1, Angle a2){
+		return a1==a2 || a1<a2;
+	}
+	
+	public static bool operator <(Angle a1, Angle a2){
+		return a1.Difference_From_Top(a2)>a1.Difference_From_Bottom(a2);
+	}
+	
 	public override string ToString(){
 		return Degrees.ToString()+'°';
 	}
@@ -398,16 +430,47 @@ void Write(string text, bool new_line=true, bool append=true){
 }
 
 class Leg{
+	public static Func<IMyTerminalBlock,string,bool> HasBlockData;
+	public static Func<IMyTerminalBlock,string,string> GetBlockData;
+	public static Func<IMyTerminalBlock,string,string,bool> SetBlockData;
+	public static IMyShipController Controller;
+	
 	public IMyMotorStator Thigh;
 	public IMyMotorStator Knee;
+	public IMyMotorStator Ankle;
+	public IMyLandingGear Foot;
+	private Angle _Target_Angle;
+	public Angle Target_Angle{
+		get{
+			return _Target_Angle;
+		}
+		set{
+			_Target_Angle=value;
+			SetBlockData(Thigh,"TargetAngle",_Target_Angle.ToString());
+		}
+	}
+	public float Difference{
+		get{
+			if(Controller.Orientation.Left==Base6Directions.GetOppositeDirection(Thigh.Orientation.Up))
+				return Angle.FromRadians(Thigh.Angle).Difference(Target_Angle*-1);
+			else
+				return Angle.FromRadians(Thigh.Angle).Difference(Target_Angle);
+		}
+	}
 	
-	private Leg(IMyMotorStator Thigh, IMyMotorStator Knee){
+	private Leg(IMyMotorStator Thigh, IMyMotorStator Knee, IMyMotorStator Ankle, IMyLandingGear Foot){
 		this.Thigh=Thigh;
 		this.Knee=Knee;
+		this.Ankle=Ankle;
+		this.Foot=Foot;
+		this._Target_Angle=new Angle(0);
+		if(HasBlockData(Thigh,"TargetAngle"))
+			Angle.TryParse(GetBlockData(Thigh,"TargetAngle"),out _Target_Angle);
 	}
 	
 	public static bool TryGet(MyGridProgram prog, IMyMotorStator Thigh, out Leg output){
 		output=null;
+		
 		List<IMyMotorStator> knees=(new GenericMethods<IMyMotorStator>(prog)).GetAllContaining("Knee Hinge");
 		List<IMyMotorStator> good_knees=new List<IMyMotorStator>();
 		foreach(IMyMotorStator knee in knees){
@@ -417,7 +480,28 @@ class Leg{
 		if(good_knees.Count==0)
 			return false;
 		good_knees=GenericMethods<IMyMotorStator>.SortByDistance(good_knees,Thigh);
-		output=new Leg(Thigh,good_knees[0]);
+		
+		List<IMyMotorStator> ankles=(new GenericMethods<IMyMotorStator>(prog)).GetAllContaining("Ankle Rotor");
+		List<IMyMotorStator> good_ankles=new List<IMyMotorStator>();
+		foreach(IMyMotorStator ankle in ankles){
+			if(ankle.CubeGrid==good_knees[0].TopGrid)
+				good_ankles.Add(ankle);
+		}
+		if(good_ankles.Count==0)
+			return false;
+		good_ankles=GenericMethods<IMyMotorStator>.SortByDistance(good_ankles,Thigh);
+		
+		List<IMyLandingGear> feet=(new GenericMethods<IMyLandingGear>(prog)).GetAllContaining("Foot Gear");
+		List<IMyLandingGear> good_feet=new List<IMyLandingGear>();
+		foreach(IMyLandingGear foot in feet){
+			if(foot.CubeGrid==good_ankles[0].TopGrid)
+				good_feet.Add(foot);
+		}
+		if(good_feet.Count==0)
+			return false;
+		good_feet=GenericMethods<IMyLandingGear>.SortByDistance(good_feet,Thigh);
+		
+		output=new Leg(Thigh,good_knees[0],good_ankles[0],good_feet[0]);
 		return true;
 	}
 }
@@ -429,7 +513,6 @@ double seconds_since_last_update = 0;
 
 List<Leg> Legs;
 IMyShipController Controller;
-List<IMyInteriorLight> Lights;
 
 Vector3D Forward_Vector;
 Vector3D Backward_Vector{
@@ -464,6 +547,9 @@ public Program()
 	Me.GetSurface(1).FontSize=2.2f;
 	Me.GetSurface(1).TextPadding=40.0f;
 	Echo("Beginning initialization");
+	Leg.HasBlockData=HasBlockData;
+	Leg.GetBlockData=GetBlockData;
+	Leg.SetBlockData=SetBlockData;
 	List<IMyMotorStator> Thighs=(new GenericMethods<IMyMotorStator>(this)).GetAllContaining("Thigh Rotor");
 	Legs=new List<Leg>();
 	foreach(IMyMotorStator Thigh in Thighs){
@@ -472,8 +558,8 @@ public Program()
 			Legs.Add(leg);
 		}
 	}
-	Lights=(new GenericMethods<IMyInteriorLight>(this)).GetAllContaining("Test Light ");
 	Controller=(new GenericMethods<IMyShipController>(this)).GetContaining("");
+	Leg.Controller=Controller;
 	// The constructor, called only once every session and
     // always before any other method is called. Use it to
     // initialize your script. 
@@ -556,7 +642,6 @@ void UpdatePositionalInfo(){
 }
 
 void SetAngle(IMyMotorStator Motor,Angle Next_Angle,float Precision=0.1f,double Speed_Multx=1){
-	Write(Motor.CustomName+":"+Next_Angle.ToString(1));
 	Speed_Multx=Math.Max(0.1f, Math.Min(Math.Abs(Speed_Multx),10));
 	Precision=Math.Max(0.0001f, Math.Min(Math.Abs(Precision),1));
 	bool can_increase=true;
@@ -567,10 +652,7 @@ void SetAngle(IMyMotorStator Motor,Angle Next_Angle,float Precision=0.1f,double 
 	if(Motor.LowerLimitDeg!=float.MinValue)
 		can_decrease=Angle.IsBetween(new Angle(Motor.LowerLimitDeg),Next_Angle,Motor_Angle);
 	
-	Write("Current Angle:"+Motor_Angle.ToString(2));
-	Write("Target Angle:"+Next_Angle.ToString(2));
 	if((!can_increase)&&(!can_decrease)){
-		Write("Target out of range");
 		Motor.TargetVelocityRPM=0;
 		return;
 	}
@@ -582,11 +664,7 @@ void SetAngle(IMyMotorStator Motor,Angle Next_Angle,float Precision=0.1f,double 
 	if(!can_increase)
 		From_Top=float.MaxValue;
 	float difference=Math.Min(From_Bottom,From_Top);
-	Write("Difference:"+Math.Round(difference,2)+'°');
-	if(can_increase)
-		Write("From_Top:"+Math.Round(From_Top,2)+'°');
-	if(can_decrease)
-		Write("From_Bottom:"+Math.Round(From_Bottom,2)+'°');
+	Write(Motor.CustomName+" Difference:"+Math.Round(difference,2)+'°');
 	if(difference>Precision){
 		if(From_Bottom<From_Top)
 			Motor.TargetVelocityRPM=(float)(-1*From_Bottom*Speed_Multx*Precision*5);
@@ -610,40 +688,45 @@ public void Main(string argument, UpdateType updateSource)
 	UpdateProgramInfo();
 	UpdatePositionalInfo();
 	Vector3D Thigh_Direction=LocalToGlobal(new Vector3D(0,0,-1),Legs[0].Thigh.Top);
-	foreach(IMyInteriorLight Light in Lights){
-		Vector3D Light_Direction=(Light.GetPosition()-Legs[0].Thigh.Top.GetPosition());
-		Light_Direction.Normalize();
-		double Angle=GetAngle(Thigh_Direction,Light_Direction);
-		Light.Enabled=(Angle<15);
-	}
-	if(argument.ToLower().IndexOf("set")==0){
-		string word=argument.Substring("set".Length).Trim();
+	if(argument.ToLower().IndexOf("set:")==0){
+		string word=argument.Substring("set:".Length).Trim();
 		float angle=0;
 		Angle a2;
+		Angle split=new Angle(15);
 		if(float.TryParse(word,out angle)){
-			foreach(Leg leg in Legs)
-				SetBlockData(leg.Thigh,"TargetAngle",(new Angle(angle)).ToString());
+			if((Legs[0].Target_Angle>=split)^(((new Angle(angle))<split)))
+				Legs[0].Target_Angle=new Angle(angle);
+			else
+				Legs[1].Target_Angle=new Angle(angle);
 		}
 		else if(Angle.TryParse(word, out a2)){
-			foreach(Leg leg in Legs)
-				SetBlockData(leg.Thigh,"TargetAngle",a2.ToString());
+			if((Legs[0].Target_Angle>=split)^(a2<split))
+				Legs[0].Target_Angle=a2;
+			else
+				Legs[1].Target_Angle=a2;
 		}
 	}
-	foreach(Leg leg in Legs){
-		if(HasBlockData(leg.Thigh,"TargetAngle")){
-			Angle angle;
-			string data=GetBlockData(leg.Thigh,"TargetAngle");
-			if(Angle.TryParse(data,out angle)){
-				if(Controller.Orientation.Left==Base6Directions.GetOppositeDirection(leg.Thigh.Orientation.Up))
-					SetAngle(leg.Thigh,angle*-1);
-				else
-					SetAngle(leg.Thigh,angle);
-				if(leg.Thigh.Orientation.Up!=leg.Knee.Orientation.Forward)
-					SetAngle(leg.Knee,angle*-1);
-				else
-					SetAngle(leg.Knee,angle);
-			}
+	if(Legs.Count>=2&&Controller.MoveIndicator.Z!=0){
+		if(Legs[0].Difference<1 && Legs[1].Difference<1){
+			Angle temp=Legs[0].Target_Angle;
+			Legs[0].Target_Angle=Legs[1].Target_Angle;
+			Legs[1].Target_Angle=temp;
 		}
+		else{
+			Write(Legs[0].Difference.ToString());
+			Write(Legs[1].Difference.ToString());
+		}
+	}
+	
+	foreach(Leg leg in Legs){
+		if(Controller.Orientation.Left==Base6Directions.GetOppositeDirection(leg.Thigh.Orientation.Up))
+			SetAngle(leg.Thigh,leg.Target_Angle*-1);
+		else
+			SetAngle(leg.Thigh,leg.Target_Angle);
+		if(leg.Thigh.Orientation.Up!=leg.Knee.Orientation.Forward)
+			SetAngle(leg.Knee,leg.Target_Angle*-1);
+		else
+			SetAngle(leg.Knee,leg.Target_Angle);
 		Write("");
 	}
 	
