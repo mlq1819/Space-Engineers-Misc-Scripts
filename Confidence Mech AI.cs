@@ -556,7 +556,7 @@ void UpdatePositionalInfo(){
 }
 
 void SetAngle(IMyMotorStator Motor,Angle Next_Angle,float Precision=0.1f,double Speed_Multx=1){
-	//Write(Motor.CustomName+":"+Next_Angle.ToString(1));
+	Write(Motor.CustomName+":"+Next_Angle.ToString(1));
 	Speed_Multx=Math.Max(0.1f, Math.Min(Math.Abs(Speed_Multx),10));
 	Precision=Math.Max(0.0001f, Math.Min(Math.Abs(Precision),1));
 	bool can_increase=true;
@@ -567,10 +567,10 @@ void SetAngle(IMyMotorStator Motor,Angle Next_Angle,float Precision=0.1f,double 
 	if(Motor.LowerLimitDeg!=float.MinValue)
 		can_decrease=Angle.IsBetween(new Angle(Motor.LowerLimitDeg),Next_Angle,Motor_Angle);
 	
-	//Write("Current Angle:"+Motor_Angle.ToString(2));
-	//Write("Target Angle:"+Next_Angle.ToString(2));
+	Write("Current Angle:"+Motor_Angle.ToString(2));
+	Write("Target Angle:"+Next_Angle.ToString(2));
 	if((!can_increase)&&(!can_decrease)){
-		//Write("Target out of range");
+		Write("Target out of range");
 		Motor.TargetVelocityRPM=0;
 		return;
 	}
@@ -582,11 +582,11 @@ void SetAngle(IMyMotorStator Motor,Angle Next_Angle,float Precision=0.1f,double 
 	if(!can_increase)
 		From_Top=float.MaxValue;
 	float difference=Math.Min(From_Bottom,From_Top);
-	//Write("Difference:"+Math.Round(difference,2)+'°');
-	/*if(can_increase)
+	Write("Difference:"+Math.Round(difference,2)+'°');
+	if(can_increase)
 		Write("From_Top:"+Math.Round(From_Top,2)+'°');
 	if(can_decrease)
-		Write("From_Bottom:"+Math.Round(From_Bottom,2)+'°');*/
+		Write("From_Bottom:"+Math.Round(From_Bottom,2)+'°');
 	if(difference>Precision){
 		if(From_Bottom<From_Top)
 			Motor.TargetVelocityRPM=(float)(-1*From_Bottom*Speed_Multx*Precision*5);
@@ -630,9 +630,6 @@ public void Main(string argument, UpdateType updateSource)
 		}
 	}
 	foreach(Leg leg in Legs){
-		Write("Thigh:"+leg.Thigh.Orientation.Up.ToString()+";"+leg.Thigh.Orientation.Left.ToString());
-		//Write("Top:"+leg.Thigh.Top.Orientation.Forward.ToString()+";"+leg.Thigh.Top.Orientation.Up.ToString()+";"+leg.Thigh.Top.Orientation.Left.ToString());
-		Write("Knee:"+leg.Knee.Orientation.Forward.ToString()+";"+leg.Knee.Orientation.Up.ToString());
 		if(HasBlockData(leg.Thigh,"TargetAngle")){
 			Angle angle;
 			string data=GetBlockData(leg.Thigh,"TargetAngle");
