@@ -452,10 +452,12 @@ class Leg{
 	public static Func<IMyTerminalBlock,string,bool> HasBlockData;
 	public static Func<IMyTerminalBlock,string,string> GetBlockData;
 	public static Func<IMyTerminalBlock,string,string,bool> SetBlockData;
+	public static Func<Vector3D,IMyCubeBlock,Vector3D> GlobalToLocalPosition;
+	
 	public static IMyShipController Controller;
 	
 	public IMyMotorStator Thigh;
-	public IMyMotorStator Knee;
+	public IMyPistonBase Knee;
 	public IMyMotorStator Ankle;
 	public IMyLandingGear Foot;
 	private Angle _Target_Angle;
@@ -484,6 +486,19 @@ class Leg{
 		}
 	}
 	
+	private float _Knee_Position;
+	public float Knee_Position{
+		get{
+			return _Knee_Position;
+		}
+		set{
+			if(value!=_Knee_Position){
+				_Knee_Position=value;
+				SetBlockData(Knee,"TargetPosition",_Knee_Position.ToString());
+			}
+		}
+	}
+	
 	private Angle _Ankle_Target;
 	public Angle Ankle_Target{
 		get{
@@ -505,9 +520,22 @@ class Leg{
 		}
 	}
 	
+	private bool _Enabled=true;
+	public bool Enabled{
+		get{
+			return _Enabled;
+		}
+		set{
+			_Enabled=value;
+			Thigh.Enabled=value;
+			Knee.Enabled=value;
+			Ankle.Enabled=value;
+		}
+	}
+	
 	public bool IsLeft{
 		get{
-			return GlobalToLocalPosition(Thigh.GetPosition(),Controller).X<1;
+			return GlobalToLocalPosition(Thigh.GetPosition(),Controller).X<0;
 		}
 	}
 	public bool IsFront{
@@ -516,23 +544,33 @@ class Leg{
 		}
 	}
 	
-	public string Side{
+	public string Side1{
 		get{
 			if(IsLeft)
 				return "Left";
 			return "Right";
 		}
 	}
+	public string Side2{
+		get{
+			if(IsFront)
+				return "Front";
+			return "Back";
+		}
+	}
 	
-	private Leg(IMyMotorStator Thigh, IMyMotorStator Knee, IMyMotorStator Ankle, IMyLandingGear Foot){
+	private Leg(IMyMotorStator Thigh, IMyPistonBase Knee, IMyMotorStator Ankle, IMyLandingGear Foot){
 		this.Thigh=Thigh;
 		this.Knee=Knee;
 		this.Ankle=Ankle;
 		this.Foot=Foot;
 		this._Target_Angle=new Angle(0);
+		this._Knee_Position=0;
 		this._Ankle_Target=new Angle(0);
 		if(HasBlockData(Thigh,"TargetAngle"))
 			Angle.TryParse(GetBlockData(Thigh,"TargetAngle"),out _Target_Angle);
+		if(HasBlockData(Knee,"TargetPosition"))
+			float.TryParse(GetBlockData(Knee,"TargetPosition"),out _Knee_Position);
 		if(HasBlockData(Ankle,"TargetAngle"))
 			Angle.TryParse(GetBlockData(Ankle,"TargetAngle"),out _Ankle_Target);
 	}
@@ -540,15 +578,15 @@ class Leg{
 	public static bool TryGet(MyGridProgram prog, IMyMotorStator Thigh, out Leg output){
 		output=null;
 		
-		List<IMyMotorStator> knees=(new GenericMethods<IMyMotorStator>(prog)).GetAllContaining("Knee Hinge");
-		List<IMyMotorStator> good_knees=new List<IMyMotorStator>();
-		foreach(IMyMotorStator knee in knees){
+		List<IMyPistonBase> knees=(new GenericMethods<IMyPistonBase>(prog)).GetAllContaining("Knee Piston");
+		List<IMyPistonBase> good_knees=new List<IMyPistonBase>();
+		foreach(IMyPistonBase knee in knees){
 			if(knee.CubeGrid==Thigh.TopGrid)
 				good_knees.Add(knee);
 		}
 		if(good_knees.Count==0)
 			return false;
-		good_knees=GenericMethods<IMyMotorStator>.SortByDistance(good_knees,Thigh);
+		good_knees=GenericMethods<IMyPistonBase>.SortByDistance(good_knees,Thigh);
 		
 		List<IMyMotorStator> ankles=(new GenericMethods<IMyMotorStator>(prog)).GetAllContaining("Ankle Rotor");
 		List<IMyMotorStator> good_ankles=new List<IMyMotorStator>();
@@ -619,6 +657,7 @@ public Program()
 	Echo("Beginning initialization");
 	Leg.HasBlockData=HasBlockData;
 	Leg.GetBlockData=GetBlockData;
+	Leg.GlobalToLocalPosition=GlobalToLocalPosition;
 	Leg.SetBlockData=SetBlockData;
 	Controller=(new GenericMethods<IMyShipController>(this)).GetContaining("");
 	Leg.Controller=Controller;
@@ -633,12 +672,13 @@ public Program()
 	}
 	
 	
-	//Runtime.UpdateFrequency=UpdateFrequency.Update10;
+	Runtime.UpdateFrequency=UpdateFrequency.Update10;
 }
 
 public void Save()
 {
-	Gyroscope.GyroOverride=false;
+	if(Gyroscope!=null)
+		Gyroscope.GyroOverride=false;
     // Called when the program needs to save its state. Use
     // this method to save your state to the Storage field
     // or some other means. 
@@ -705,6 +745,12 @@ void UpdatePositionalInfo(){
 	Target_Down.Normalize();
 }
 
+Angle GetAdjustedAngle(IMyMotorStator Motor,float Percent){
+	Angle Difference = (new Angle(Motor.UpperLimitDeg))-(new Angle(Motor.LowerLimitDeg));
+	Difference*=Percent;
+	return (new Angle(Motor.LowerLimitDeg))+Difference;
+}
+
 void SetAngle(IMyMotorStator Motor,Angle Next_Angle,float Speed_Multx=1,float Precision=0.1f){
 	Speed_Multx=Math.Max(0.1f, Math.Min(Math.Abs(Speed_Multx),10));
 	Precision=Math.Max(0.0001f, Math.Min(Math.Abs(Precision),1));
@@ -729,18 +775,26 @@ void SetAngle(IMyMotorStator Motor,Angle Next_Angle,float Speed_Multx=1,float Pr
 	if(!can_increase)
 		From_Top=float.MaxValue;
 	float difference=Math.Min(From_Bottom,From_Top);
-	//Write(Motor.CustomName+" Difference:"+Math.Round(difference,2)+'°');
+	Write(Motor.CustomName+" Difference:"+Math.Round(difference,2)+'°');
 	if(difference>Precision){
 		Motor.RotorLock=false;
+		float target_rpm=0;
 		if(From_Bottom<From_Top)
-			Motor.TargetVelocityRPM=(float)(-1*From_Bottom*Speed_Multx*Precision*5);
+			target_rpm=(float)(-1*From_Bottom*Speed_Multx*Precision*5);
 		else
-			Motor.TargetVelocityRPM=(float)(From_Top*Speed_Multx*Precision*5);
+			target_rpm=(float)(From_Top*Speed_Multx*Precision*5);
+		Motor.TargetVelocityRPM=target_rpm;
 	}
 	else{
 		Motor.TargetVelocityRPM=0;
 		//Motor.RotorLock=true;
 	}
+}
+
+float GetAdjustedPosition(IMyPistonBase Piston,float Percent){
+	float Difference=Piston.HighestPosition-Piston.LowestPosition;
+	Difference*=Percent;
+	return Piston.LowestPosition+Difference;
 }
 
 void SetPosition(IMyPistonBase Piston,float Next_Position,float Speed_Multx=1,float Precision=0.1f){
@@ -805,8 +859,96 @@ void SetGyroscopes(){
 	Gyroscope.Roll=(float)output.Z;
 }
 
+enum WalkCycle{
+	Move1=1,
+	Lock1=2,
+	Move2=3,
+	Lock2=4
+}
+WalkCycle Cycle=WalkCycle.Move1;
+float Last_Z=0;
+
+WalkCycle GetCycle(WalkCycle Prev){
+	if(Controller.MoveIndicator<0){
+		switch(Prev){
+			case WalkCycle.Move1:
+				foreach(Leg leg in Legs){
+					Angle target;
+					if(leg.IsFront ^ leg.IsLeft)
+						target=GetAdjustedAngle(leg.Thigh,1);
+					else
+						target=GetAdjustedAngle(leg.Thigh,0);
+					if(Angle.FromRadians(leg.Thigh.Angle).Difference(target)>1)
+						return Prev;
+				}
+				return WalkCycle.Lock1;
+			case WalkCycle.Lock1:
+				foreach(Leg leg in Legs){
+					bool ready=(Math.Abs(Piston.CurrentPosition-leg.Target_Position)<0.1);
+					if(leg.IsFront)
+						ready=ready&&(leg.Foot.LockMode==LandingGearMode.Locked);
+					else
+						ready=ready&&(leg.Foot.LockMode!=LandingGearMode.Locked);
+					if(!ready)
+						return Prev;
+				}
+				return WalkCycle.Walk2;
+			case WalkCycle.Walk2:
+				foreach(Leg leg in Legs){
+					Angle target;
+					if(leg.IsFront ^ leg.IsLeft)
+						target=GetAdjustedAngle(leg.Thigh,0);
+					else
+						target=GetAdjustedAngle(leg.Thigh,1);
+					if(Angle.FromRadians(leg.Thigh.Angle).Difference(target)>1)
+						return Prev;
+				}
+				return WalkCycle.Lock2;
+			case WalkCycle.Lock2:
+				foreach(Leg leg in Legs){
+					bool ready=(Math.Abs(Piston.CurrentPosition-leg.Target_Position)<0.1);
+					if(leg.IsFront)
+						ready=ready&&(leg.Foot.LockMode!=LandingGearMode.Locked);
+					else
+						ready=ready&&(leg.Foot.LockMode==LandingGearMode.Locked);
+					if(!ready)
+						return Prev;
+				}
+				return WalkCycle.Walk1;
+		}
+	}
+	else{
+		//TODO: fill this out later
+		return Prev;
+	}
+}
+
 void PerformWalk(){
+	Write(Controller.MoveIndicator.Z.ToString());
+	Cycle=GetCycle(Cycle);
+	if((Last_Z>0)^(Controller.MoveIndicator.Z>0))
+		Cycle=(WalkCycle)((((int)Cycle)+2)%4);
 	
+	if(Controller.MoveIndicator.Z<0){
+		switch(Cycle){
+			case WalkCycle
+		}
+		foreach(Leg leg in Legs){
+			if(leg.IsFront ^ leg.IsLeft)
+				leg.Target_Angle=GetAdjustedAngle(leg.Thigh,1);
+			else
+				leg.Target_Angle=GetAdjustedAngle(leg.Thigh,0);
+		}
+	}
+	else{
+		foreach(Leg leg in Legs){
+			if(leg.IsFront ^ leg.IsLeft)
+				leg.Target_Angle=GetAdjustedAngle(leg.Thigh,0);
+			else
+				leg.Target_Angle=GetAdjustedAngle(leg.Thigh,1);
+		}
+	}
+	Last_Z=Controller.MoveIndicator.Z;
 }
 
 Angle Move_Angle=new Angle(60);
@@ -826,27 +968,24 @@ public void Main(string argument, UpdateType updateSource)
 			Move_Angle=a2;
 		}
 	}
-	if(Legs.Count>=2 && Controller.MoveIndicator.Z!=0)
+	foreach(Leg leg in Legs){
+		leg.Enabled=(Legs.Count>=3)&&(Controller.MoveIndicator.Z!=0);
+	}
+	if(Legs.Count>=3 && Controller.MoveIndicator.Z!=0)
 		PerformWalk();
 	if(Gyroscope!=null)
 		SetGyroscopes();
 	
-	/*	
+	
 	foreach(Leg leg in Legs){
-		if(Controller.Orientation.Left==Base6Directions.GetOppositeDirection(leg.Thigh.Orientation.Up))
-			SetAngle(leg.Thigh,leg.Target_Angle*-1);
-		else
-			SetAngle(leg.Thigh,leg.Target_Angle);
-		if(leg.Thigh.Orientation.Up!=leg.Knee.Orientation.Forward)
-			SetAngle(leg.Knee,leg.Target_Angle*-1,0.5f);
-		else
-			SetAngle(leg.Knee,leg.Target_Angle,0.5f);
+		Write(leg.Thigh.CustomName+":"+leg.Side1+":"+leg.Side2);
+		SetAngle(leg.Thigh,leg.Target_Angle,1);
 		if(leg.Foot.LockMode!=LandingGearMode.Locked){
 			leg.Ankle_Target=new Angle(0);
 		}
 		SetAngle(leg.Ankle,leg.Ankle_Target);
 		Write("");
-	}*/
+	}
 	
     // The main entry point of the script, invoked every time
     // one of the programmable block's Run actions are invoked,
