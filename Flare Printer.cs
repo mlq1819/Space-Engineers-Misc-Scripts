@@ -463,7 +463,6 @@ public void Main(string argument, UpdateType updateSource)
 				break;
 			case PrinterStatus.Deploying:
 				deploying_count++;
-				deploying=true;
 				if(Printer.Piston.CurrentPosition>=1){
 					IMyTimerBlock FlareTimer=(new GenericMethods<IMyTimerBlock>(this)).GetFull("Flare Timer 1",5,Printer.Welder);
 					if(FlareTimer!=null){
