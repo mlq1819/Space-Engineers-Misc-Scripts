@@ -317,6 +317,7 @@ class FlarePrinter{
 	public IMyShipWelder Welder;
 	public IMyPistonBase Piston;
 	public IMyProjector Projector;
+	public bool HasLaunched=true;
 	
 	private FlarePrinter(IMyShipWelder welder,IMyPistonBase piston,IMyProjector projector){
 		Welder=welder;
@@ -377,16 +378,7 @@ public Program()
 		if(FlarePrinter.TryGet(this,Welder,out printer))
 			Printers.Add(printer);
 	}
-	// The constructor, called only once every session and
-    // always before any other method is called. Use it to
-    // initialize your script. 
-    //     
-    // The constructor is optional and can be removed if not
-    // needed.
-    // 
-    // It's recommended to set RuntimeInfo.UpdateFrequency 
-    // here, which will allow your script to run itself without a 
-    // timer block.
+	Runtime.UpdateFrequency=UpdateFrequency.Update100;
 }
 
 public void Save()
@@ -437,14 +429,51 @@ void UpdateProgramInfo(){
 	}
 }
 
+
 public void Main(string argument, UpdateType updateSource)
 {
 	UpdateProgramInfo();
-    // The main entry point of the script, invoked every time
-    // one of the programmable block's Run actions are invoked,
-    // or the script updates itself. The updateSource argument
-    // describes where the update came from.
-    // 
-    // The method itself is required, but the arguments above
-    // can be removed if not needed.
+    bool not_ready=false;
+	bool deploying=false;
+	if(argument.ToLower().Equals("deploy")){
+		foreach(FlarePrinter Printer in Printers){
+			Printer.HasLaunched=false;
+			if(Printer.Status==PrinterStatus.Ready)
+				Printer.Piston.Extend();
+		}
+	}
+	foreach(FlarePrinter Printer in Printers){
+		if(Printer.Status!=PrinterStatus.Ready){
+			not_ready=true;
+		}
+		switch(Printer.Status){
+			case PrinterStatus.Returning:
+				Printer.Piston.Retract();
+				break;
+			case PrinterStatus.Printing:
+				Printer.Welder.Enabled=true;
+				break;
+			case PrinterStatus.Ready:
+				Printer.Welder.Enabled=false;
+				if(!Printer.HasLaunched)
+					Printer.Piston.Extend();
+				break;
+			case PrinterStatus.Deploying:
+				deploying=true;
+				if(Printer.Piston.CurrentPosition>=1){
+					IMyTimerBlock FlareTimer=(new GenericMethods<IMyTimerBlock>(this)).GetFull("Flare Timer 1",5,Printer.Welder);
+					if(FlareTimer!=null){
+						FlareTimer.Trigger();
+						Printer.HasLaunched=true;
+					}
+				}
+				break;
+		}
+	}
+	if(deploying)
+		Runtime.UpdateFrequency=UpdateFrequency.Update10;
+	else if(not_ready)
+		Runtime.UpdateFrequency=UpdateFrequency.Update100;
+	else
+		Runtime.UpdateFrequency=UpdateFrequency.None;
 }
