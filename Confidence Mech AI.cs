@@ -618,6 +618,8 @@ long cycle = 0;
 char loading_char = '|';
 double seconds_since_last_update = 0;
 
+bool Require_Lock=false;
+
 List<Leg> Legs;
 IMyShipController Controller;
 IMyGyro Gyroscope;
@@ -775,7 +777,7 @@ void SetAngle(IMyMotorStator Motor,Angle Next_Angle,float Speed_Multx=1,float Pr
 	if(!can_increase)
 		From_Top=float.MaxValue;
 	float difference=Math.Min(From_Bottom,From_Top);
-	Write(Motor.CustomName+" Difference:"+Math.Round(difference,2)+'°');
+	//Write(Motor.CustomName+" Difference:"+Math.Round(difference,2)+'°');
 	if(difference>Precision){
 		Motor.RotorLock=false;
 		float target_rpm=0;
@@ -801,6 +803,7 @@ void SetPosition(IMyPistonBase Piston,float Next_Position,float Speed_Multx=1,fl
 	if(Piston.CurrentPosition<Next_Position-Precision){
 		if(Next_Position>Piston.HighestPosition){
 			Piston.Velocity=0;
+			Write("Invalid Position");
 			return;
 		}
 		Piston.Velocity=(Next_Position-Piston.CurrentPosition)*Speed_Multx;
@@ -808,6 +811,7 @@ void SetPosition(IMyPistonBase Piston,float Next_Position,float Speed_Multx=1,fl
 	else if(Piston.CurrentPosition>Next_Position+Precision){
 		if(Next_Position<Piston.LowestPosition){
 			Piston.Velocity=0;
+			Write("Invalid Position");
 			return;
 		}
 		Piston.Velocity=(Piston.CurrentPosition-Next_Position)*Speed_Multx;
@@ -886,11 +890,15 @@ WalkCycle GetCycle(WalkCycle Prev){
 				foreach(Leg leg in Legs){
 					bool ready=(Math.Abs(leg.Knee.CurrentPosition-leg.Target_Position)<0.1);
 					if(leg.IsFront)
-						ready=ready&&(leg.Foot.LockMode==LandingGearMode.Locked);
+						ready=ready&&((!Require_Lock)||(leg.Foot.LockMode==LandingGearMode.Locked));
 					else
 						ready=ready&&(leg.Foot.LockMode!=LandingGearMode.Locked);
-					if(!ready)
+					if(!ready){
+						Write("Not Ready "+leg.Knee.CustomName+":"+Math.Round(Math.Abs(leg.Knee.CurrentPosition-leg.Target_Position),1).ToString());
+						Write(Math.Round(leg.Target_Position,1).ToString());
+						Write(Math.Round(leg.Knee.CurrentPosition,1).ToString());
 						return Prev;
+					}
 				}
 				return WalkCycle.Move2;
 			case WalkCycle.Move2:
@@ -908,7 +916,7 @@ WalkCycle GetCycle(WalkCycle Prev){
 				foreach(Leg leg in Legs){
 					bool ready=(Math.Abs(leg.Knee.CurrentPosition-leg.Target_Position)<0.1);
 					if(leg.IsFront)
-						ready=ready&&(leg.Foot.LockMode!=LandingGearMode.Locked);
+						ready=ready&&((!Require_Lock)||(leg.Foot.LockMode!=LandingGearMode.Locked));
 					else
 						ready=ready&&(leg.Foot.LockMode==LandingGearMode.Locked);
 					if(!ready)
@@ -936,7 +944,7 @@ WalkCycle GetCycle(WalkCycle Prev){
 					if(leg.IsFront)
 						ready=ready&&(leg.Foot.LockMode!=LandingGearMode.Locked);
 					else
-						ready=ready&&(leg.Foot.LockMode==LandingGearMode.Locked);
+						ready=ready&&((!Require_Lock)||(leg.Foot.LockMode==LandingGearMode.Locked));
 					if(!ready)
 						return Prev;
 				}
@@ -956,7 +964,7 @@ WalkCycle GetCycle(WalkCycle Prev){
 				foreach(Leg leg in Legs){
 					bool ready=(Math.Abs(leg.Knee.CurrentPosition-leg.Target_Position)<0.1);
 					if(leg.IsFront)
-						ready=ready&&(leg.Foot.LockMode==LandingGearMode.Locked);
+						ready=ready&&((!Require_Lock)||(leg.Foot.LockMode==LandingGearMode.Locked));
 					else
 						ready=ready&&(leg.Foot.LockMode!=LandingGearMode.Locked);
 					if(!ready)
@@ -973,7 +981,7 @@ void PerformWalk(){
 	WalkCycle Prev=Cycle;
 	Cycle=GetCycle(Cycle);
 	bool changed=(Prev!=Cycle);
-	
+	Write(Cycle.ToString());
 	if((Last_Z>0)^(Controller.MoveIndicator.Z>0))
 		Cycle=(WalkCycle)((((int)Cycle)+2)%4);
 	
@@ -997,6 +1005,10 @@ void PerformWalk(){
 				break;
 			case WalkCycle.Lock1:
 				foreach(Leg leg in Legs){
+					if(leg.IsFront ^ leg.IsLeft)
+						leg.Target_Angle=GetAdjustedAngle(leg.Thigh,1);
+					else
+						leg.Target_Angle=GetAdjustedAngle(leg.Thigh,0);
 					if(changed){
 						if(leg.IsFront)
 							leg.Target_Position=GetAdjustedPosition(leg.Knee,1);
@@ -1025,6 +1037,10 @@ void PerformWalk(){
 				break;
 			case WalkCycle.Lock2:
 				foreach(Leg leg in Legs){
+					if(leg.IsFront ^ leg.IsLeft)
+						leg.Target_Angle=GetAdjustedAngle(leg.Thigh,0);
+					else
+						leg.Target_Angle=GetAdjustedAngle(leg.Thigh,1);
 					if(changed){
 						if(leg.IsFront)
 							leg.Target_Position=GetAdjustedPosition(leg.Knee,0);
@@ -1058,6 +1074,10 @@ void PerformWalk(){
 				break;
 			case WalkCycle.Lock1:
 				foreach(Leg leg in Legs){
+					if(leg.IsFront ^ leg.IsLeft)
+						leg.Target_Angle=GetAdjustedAngle(leg.Thigh,1);
+					else
+						leg.Target_Angle=GetAdjustedAngle(leg.Thigh,0);
 					if(changed){
 						if(leg.IsFront)
 							leg.Target_Position=GetAdjustedPosition(leg.Knee,0);
@@ -1086,6 +1106,10 @@ void PerformWalk(){
 				break;
 			case WalkCycle.Lock2:
 				foreach(Leg leg in Legs){
+					if(leg.IsFront ^ leg.IsLeft)
+						leg.Target_Angle=GetAdjustedAngle(leg.Thigh,0);
+					else
+						leg.Target_Angle=GetAdjustedAngle(leg.Thigh,1);
 					if(changed){
 						if(leg.IsFront)
 							leg.Target_Position=GetAdjustedPosition(leg.Knee,1);
@@ -1132,9 +1156,13 @@ public void Main(string argument, UpdateType updateSource)
 		SetAngle(leg.Thigh,leg.Target_Angle);
 		SetPosition(leg.Knee,leg.Target_Position);
 		if(leg.Foot.LockMode!=LandingGearMode.Locked){
-			leg.Ankle_Target=new Angle(0);
+			leg.Ankle.Torque=448000;
+			SetAngle(leg.Ankle,new Angle(0));
 		}
-		SetAngle(leg.Ankle,leg.Ankle_Target);
+		else{
+			leg.Ankle.Torque=448;
+		}
+		
 		Write("");
 	}
 	
