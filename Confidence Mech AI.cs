@@ -892,8 +892,8 @@ WalkCycle GetCycle(WalkCycle Prev){
 					if(!ready)
 						return Prev;
 				}
-				return WalkCycle.Walk2;
-			case WalkCycle.Walk2:
+				return WalkCycle.Move2;
+			case WalkCycle.Move2:
 				foreach(Leg leg in Legs){
 					Angle target;
 					if(leg.IsFront ^ leg.IsLeft)
@@ -914,7 +914,7 @@ WalkCycle GetCycle(WalkCycle Prev){
 					if(!ready)
 						return Prev;
 				}
-				return WalkCycle.Walk1;
+				return WalkCycle.Move1;
 		}
 	}
 	else{
@@ -925,20 +925,73 @@ WalkCycle GetCycle(WalkCycle Prev){
 
 void PerformWalk(){
 	Write(Controller.MoveIndicator.Z.ToString());
+	WalkCycle Prev=Cycle;
 	Cycle=GetCycle(Cycle);
+	bool changed=(Prev!=Cycle);
+	
 	if((Last_Z>0)^(Controller.MoveIndicator.Z>0))
 		Cycle=(WalkCycle)((((int)Cycle)+2)%4);
 	
 	if(Controller.MoveIndicator.Z<0){
 		switch(Cycle){
-			case WalkCycle
+			case WalkCycle.Move1:
+				foreach(Leg leg in Legs){
+					if(leg.IsFront ^ leg.IsLeft)
+						leg.Target_Angle=GetAdjustedAngle(leg.Thigh,1);
+					else
+						leg.Target_Angle=GetAdjustedAngle(leg.Thigh,0);
+					if(!leg.IsFront)
+						leg.Foot.Unlock();
+					if(changed){
+						if(leg.IsFront)
+							leg.Target_Position=GetAdjustedPosition(leg.Knee,0);
+						else
+							leg.Target_Position=GetAdjustedPosition(leg.Knee,1);
+					}
+				}
+				break;
+			case WalkCycle.Lock1:
+				foreach(Leg leg in Legs){
+					if(changed){
+						if(leg.IsFront)
+							leg.Target_Position=GetAdjustedPosition(leg.Knee,1);
+						else
+							leg.Target_Position=GetAdjustedPosition(leg.Knee,0);
+					}
+					if(leg.IsFront)
+						leg.Foot.Lock();
+				}
+				break;
+			case WalkCycle.Move2:
+				foreach(Leg leg in Legs){
+					if(leg.IsFront ^ leg.IsLeft)
+						leg.Target_Angle=GetAdjustedAngle(leg.Thigh,0);
+					else
+						leg.Target_Angle=GetAdjustedAngle(leg.Thigh,1);
+					if(leg.IsFront)
+						leg.Foot.Unlock();
+					if(changed){
+						if(leg.IsFront)
+							leg.Target_Position=GetAdjustedPosition(leg.Knee,1);
+						else
+							leg.Target_Position=GetAdjustedPosition(leg.Knee,0);
+					}
+				}
+				break;
+			case WalkCycle.Lock2:
+				foreach(Leg leg in Legs){
+					if(changed){
+						if(leg.IsFront)
+							leg.Target_Position=GetAdjustedPosition(leg.Knee,0);
+						else
+							leg.Target_Position=GetAdjustedPosition(leg.Knee,1);
+					}
+					if(!leg.IsFront)
+						leg.Foot.Lock();
+				}
+				break;
 		}
-		foreach(Leg leg in Legs){
-			if(leg.IsFront ^ leg.IsLeft)
-				leg.Target_Angle=GetAdjustedAngle(leg.Thigh,1);
-			else
-				leg.Target_Angle=GetAdjustedAngle(leg.Thigh,0);
-		}
+		
 	}
 	else{
 		foreach(Leg leg in Legs){
@@ -979,7 +1032,8 @@ public void Main(string argument, UpdateType updateSource)
 	
 	foreach(Leg leg in Legs){
 		Write(leg.Thigh.CustomName+":"+leg.Side1+":"+leg.Side2);
-		SetAngle(leg.Thigh,leg.Target_Angle,1);
+		SetAngle(leg.Thigh,leg.Target_Angle);
+		SetPosition(leg.Knee,leg.Target_Position);
 		if(leg.Foot.LockMode!=LandingGearMode.Locked){
 			leg.Ankle_Target=new Angle(0);
 		}
