@@ -445,8 +445,10 @@ class Leg{
 			return _Target_Angle;
 		}
 		set{
-			_Target_Angle=value;
-			SetBlockData(Thigh,"TargetAngle",_Target_Angle.ToString());
+			if(value!=_Target_Angle){
+				_Target_Angle=value;
+				SetBlockData(Thigh,"TargetAngle",_Target_Angle.ToString());
+			}
 		}
 	}
 	public float Difference{
@@ -455,6 +457,27 @@ class Leg{
 				return Angle.FromRadians(Thigh.Angle).Difference(Target_Angle*-1);
 			else
 				return Angle.FromRadians(Thigh.Angle).Difference(Target_Angle);
+		}
+	}
+	
+	private Angle _Ankle_Target;
+	public Angle Ankle_Target{
+		get{
+			return _Ankle_Target;
+		}
+		set{
+			if(value!=_Ankle_Target){
+				_Ankle_Target=value;
+				SetBlockData(Ankle,"TargetAngle",_Ankle_Target.ToString());
+			}
+		}
+	}
+	public float Ankle_Difference{
+		get{
+			if(!IsLeft)
+				return Angle.FromRadians(Ankle.Angle).Difference(Target_Angle*-1);
+			else
+				return Angle.FromRadians(Ankle.Angle).Difference(Target_Angle);
 		}
 	}
 	
@@ -470,8 +493,11 @@ class Leg{
 		this.Ankle=Ankle;
 		this.Foot=Foot;
 		this._Target_Angle=new Angle(0);
+		this._Ankle_Target=new Angle(0);
 		if(HasBlockData(Thigh,"TargetAngle"))
 			Angle.TryParse(GetBlockData(Thigh,"TargetAngle"),out _Target_Angle);
+		if(HasBlockData(Ankle,"TargetAngle"))
+			Angle.TryParse(GetBlockData(Ankle,"TargetAngle"),out _Ankle_Target);
 	}
 	
 	public static bool TryGet(MyGridProgram prog, IMyMotorStator Thigh, out Leg output){
@@ -660,6 +686,7 @@ void SetAngle(IMyMotorStator Motor,Angle Next_Angle,float Precision=0.1f,double 
 	
 	if((!can_increase)&&(!can_decrease)){
 		Motor.TargetVelocityRPM=0;
+		Write(Motor.CustomName+": Invalid Angle");
 		return;
 	}
 	
@@ -689,6 +716,7 @@ Vector3D GetForward_Hinge(IMyMotorStator Hinge){
 	return LocalToGlobalPosition(new Vector3D(0,1,0),Hinge.Top);
 }
 
+Angle Move_Angle=new Angle(60);
 public void Main(string argument, UpdateType updateSource)
 {
 	UpdateProgramInfo();
@@ -698,23 +726,18 @@ public void Main(string argument, UpdateType updateSource)
 		string word=argument.Substring("set:".Length).Trim();
 		float angle=0;
 		Angle a2;
-		Angle split=new Angle(15);
 		if(float.TryParse(word,out angle)){
-			if((Legs[0].Target_Angle>=split)^(((new Angle(angle))<split)))
-				Legs[0].Target_Angle=new Angle(angle);
-			else
-				Legs[1].Target_Angle=new Angle(angle);
+			Move_Angle=new Angle(angle);
 		}
 		else if(Angle.TryParse(word, out a2)){
-			if((Legs[0].Target_Angle>=split)^(a2<split))
-				Legs[0].Target_Angle=a2;
-			else
-				Legs[1].Target_Angle=a2;
+			Move_Angle=a2;
 		}
 	}
 	if(Legs.Count>=2&&Controller.MoveIndicator.Z!=0){
 		//Forward is -1
 		//Backward is +1
+		Write("Z:"+Controller.MoveIndicator.Z);
+		Write("X:"+Controller.MoveIndicator.X);
 		Leg Forward;
 		Leg Backward;
 		if(Legs[0].Target_Angle>Legs[1].Target_Angle){
@@ -725,33 +748,36 @@ public void Main(string argument, UpdateType updateSource)
 			Forward=Legs[1];
 			Backward=Legs[0];
 		}
-		Leg Moving;
-		Leg Locked;
-		if(MoveIndicator.Z>0){
-			Moving=Forward;
-			Locked=Backward;
+		Leg Leading;
+		Leg Holding;
+		if(Controller.MoveIndicator.Z>0){
+			Leading=Forward;
+			Holding=Backward;
 		}
 		else{
-			Moving=Backward;
-			Locked=Forward;
+			Leading=Backward;
+			Holding=Forward;
 		}
-		if(Angle.FromRadians(Moving.Thigh.Angle).Difference(Locked.Target_Angle)>10){
-			Moving.Foot.Lock();
+		Holding.Ankle.Displacement=-0.11f;
+		if(Leading.Foot.LockMode==LandingGearMode.ReadyToLock&&Leading.Difference<(Leading.Target_Angle.Difference(Leading.Target_Angle*-1)/2)){
+			Leading.Ankle.Displacement=0.11f;
+			Leading.Foot.Lock();
 		}
-		if(Locked.Difference<1&&(true||Moving.Foot.LockMode==LandingGearMode.Locked)){
-			Locked.Unlock();
-			bool do_swap=true;
+		if(Leading.Foot.LockMode==LandingGearMode.Locked){
+			Holding.Foot.Unlock();
 			if(Controller.MoveIndicator.X!=0){
-				Angle target=new Angle((float)(30*Math.Max(Math.Min(Controller.MoveIndicator.X,1),-1)));
-				if(Moving.IsLeft)
-					target*=-1;
-				SetAngle(Moving.Ankle,target);
-				do_swap=(Angle.FromRadians(Moving.Ankle.Angle).Difference(target)<1);
+				if(Controller.MoveIndicator.Z<0^Leading.IsLeft)
+					Leading.Ankle_Target=new Angle(-30);
+				else
+					Leading.Ankle_Target=new Angle(30);
 			}
-			if(do_swap){
-				Angle temp=Moving.Target_Angle;
-				Moving.Target_Angle=Locked.Target_Angle;
-				Locked.Target_Angle=temp;
+			Write("Ankle Difference:"+Math.Round(Leading.Ankle_Difference,1).ToString());
+			if(Leading.Ankle_Difference<1){
+				Angle target=Move_Angle;
+				if(Controller.MoveIndicator.Z>1)
+					target*=-1;
+				Leading.Target_Angle=target*-5/6;
+				Holding.Target_Angle=target;
 			}
 		}
 	}
@@ -766,11 +792,9 @@ public void Main(string argument, UpdateType updateSource)
 		else
 			SetAngle(leg.Knee,leg.Target_Angle);
 		if(leg.Foot.LockMode!=LandingGearMode.Locked){
-			SetAngle(leg.Ankle,new Angle(0));
-			leg.Ankle.Torque=448000;
+			leg.Ankle_Target=new Angle(0);
 		}
-		else
-			leg.Ankle.Torque=448;
+		SetAngle(leg.Ankle,leg.Ankle_Target);
 		Write("");
 	}
 	
