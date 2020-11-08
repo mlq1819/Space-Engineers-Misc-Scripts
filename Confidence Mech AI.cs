@@ -289,6 +289,10 @@ struct Angle{
 		return new Angle(a1.Degrees+a2);
 	}
 	
+	public static Angle operator +(float a1, Angle a2){
+		return a2 + a1;
+	}
+	
 	public static Angle operator -(Angle a1, Angle a2){
 		return new Angle(a1.Degrees-a2.Degrees);
 	}
@@ -297,8 +301,16 @@ struct Angle{
 		return new Angle(a1.Degrees-a2);
 	}
 	
+	public static Angle operator -(float a1, Angle a2){
+		return new Angle(a1-a2.Degrees);
+	}
+	
 	public static Angle operator *(Angle a1, float m){
 		return new Angle(a1.Degrees*m);
+	}
+	
+	public static Angle operator *(float m, Angle a2){
+		return a2*m;
 	}
 	
 	public static Angle operator /(Angle a1, float m){
@@ -451,12 +463,17 @@ class Leg{
 			}
 		}
 	}
+	public Angle Current_Angle{
+		get{
+			if(IsLeft)
+				return Angle.FromRadians(Thigh.Angle);
+			else
+				return Angle.FromRadians(Thigh.Angle)*-1;
+		}
+	}
 	public float Difference{
 		get{
-			if(!IsLeft)
-				return Angle.FromRadians(Thigh.Angle).Difference(Target_Angle*-1);
-			else
-				return Angle.FromRadians(Thigh.Angle).Difference(Target_Angle);
+			return Current_Angle.Difference(Target_Angle);
 		}
 	}
 	
@@ -475,15 +492,15 @@ class Leg{
 	public float Ankle_Difference{
 		get{
 			if(!IsLeft)
-				return Angle.FromRadians(Ankle.Angle).Difference(Target_Angle*-1);
+				return Angle.FromRadians(Ankle.Angle).Difference(Ankle_Target);
 			else
-				return Angle.FromRadians(Ankle.Angle).Difference(Target_Angle);
+				return Angle.FromRadians(Ankle.Angle).Difference(Ankle_Target*-1);
 		}
 	}
 	
 	public bool IsLeft{
 		get{
-			return !(Controller.Orientation.Left==Base6Directions.GetOppositeDirection(Thigh.Orientation.Up));
+			return Controller.Orientation.Left==Thigh.Orientation.Up;
 		}
 	}
 	
@@ -686,7 +703,7 @@ void SetAngle(IMyMotorStator Motor,Angle Next_Angle,float Precision=0.1f,double 
 	
 	if((!can_increase)&&(!can_decrease)){
 		Motor.TargetVelocityRPM=0;
-		Write(Motor.CustomName+": Invalid Angle");
+		//Write(Motor.CustomName+": Invalid Angle");
 		return;
 	}
 	
@@ -697,7 +714,7 @@ void SetAngle(IMyMotorStator Motor,Angle Next_Angle,float Precision=0.1f,double 
 	if(!can_increase)
 		From_Top=float.MaxValue;
 	float difference=Math.Min(From_Bottom,From_Top);
-	Write(Motor.CustomName+" Difference:"+Math.Round(difference,2)+'°');
+	//Write(Motor.CustomName+" Difference:"+Math.Round(difference,2)+'°');
 	if(difference>Precision){
 		if(From_Bottom<From_Top)
 			Motor.TargetVelocityRPM=(float)(-1*From_Bottom*Speed_Multx*Precision*5);
@@ -714,6 +731,82 @@ Vector3D GetForward_Rotor(IMyMotorStator Rotor){
 
 Vector3D GetForward_Hinge(IMyMotorStator Hinge){
 	return LocalToGlobalPosition(new Vector3D(0,1,0),Hinge.Top);
+}
+
+float Last_Z=0;
+void PerformWalk(){
+	Leg Forward;
+	Leg Backward;
+	if((Last_Z>0)^(Controller.MoveIndicator.Z>0)){
+		if(Legs[0].Current_Angle>Legs[1].Current_Angle){
+			Forward=Legs[0];
+			Backward=Legs[1];
+		}
+		else{
+			Forward=Legs[1];
+			Backward=Legs[0];
+		}
+		Forward.Target_Angle=Move_Angle;
+		Backward.Target_Angle=-1*Move_Angle;
+	}
+	else{
+		if(Legs[0].Target_Angle>Legs[1].Target_Angle){
+			Forward=Legs[0];
+			Backward=Legs[1];
+		}
+		else{
+			Forward=Legs[1];
+			Backward=Legs[0];
+		}
+	}
+	Leg Leading;
+	Leg Holding;
+	if(Controller.MoveIndicator.Z>0){
+		Leading=Forward;
+		Holding=Backward;
+		if(Leading.Foot.LockMode==LandingGearMode.Locked)
+			Write("Leading:Forward:Locked");
+		else
+			Write("Leading:Forward:Unlocked");
+		if(Holding.Foot.LockMode==LandingGearMode.Locked)
+			Write("Holding:Backward:Locked");
+		else
+			Write("Holding:Backward:Unlocked");
+	}
+	else{
+		Leading=Backward;
+		Holding=Forward;
+		if(Leading.Foot.LockMode==LandingGearMode.Locked)
+			Write("Leading:Backward:Locked");
+		else
+			Write("Leading:Backward:Unlocked");
+		if(Holding.Foot.LockMode==LandingGearMode.Locked)
+			Write("Holding:Forward:Locked");
+		else
+			Write("Holding:Forward:Unlocked");
+	}
+	Holding.Ankle.Displacement=-0.11f;
+	if(Leading.Foot.LockMode==LandingGearMode.ReadyToLock&&Leading.Difference<(Leading.Target_Angle.Difference(Leading.Target_Angle*-1)/2)){
+		Leading.Ankle.Displacement=0.11f;
+		Leading.Foot.Lock();
+	}
+	if(Leading.Foot.LockMode==LandingGearMode.Locked){
+		Holding.Foot.Unlock();
+		if(Controller.MoveIndicator.X!=0){
+			if(Controller.MoveIndicator.X>0^Leading.IsLeft)
+				Leading.Ankle_Target=new Angle(-15);
+			else
+				Leading.Ankle_Target=new Angle(15);
+		}
+		if(Leading.Ankle_Difference<1){
+			Angle target=Move_Angle;
+			if(Controller.MoveIndicator.Z>1)
+				target*=-1;
+			Leading.Target_Angle=target*-5/6;
+			Holding.Target_Angle=target;
+		}
+	}
+	Last_Z=Controller.MoveIndicator.Z;
 }
 
 Angle Move_Angle=new Angle(60);
@@ -733,54 +826,8 @@ public void Main(string argument, UpdateType updateSource)
 			Move_Angle=a2;
 		}
 	}
-	if(Legs.Count>=2&&Controller.MoveIndicator.Z!=0){
-		//Forward is -1
-		//Backward is +1
-		Write("Z:"+Controller.MoveIndicator.Z);
-		Write("X:"+Controller.MoveIndicator.X);
-		Leg Forward;
-		Leg Backward;
-		if(Legs[0].Target_Angle>Legs[1].Target_Angle){
-			Forward=Legs[0];
-			Backward=Legs[1];
-		}
-		else{
-			Forward=Legs[1];
-			Backward=Legs[0];
-		}
-		Leg Leading;
-		Leg Holding;
-		if(Controller.MoveIndicator.Z>0){
-			Leading=Forward;
-			Holding=Backward;
-		}
-		else{
-			Leading=Backward;
-			Holding=Forward;
-		}
-		Holding.Ankle.Displacement=-0.11f;
-		if(Leading.Foot.LockMode==LandingGearMode.ReadyToLock&&Leading.Difference<(Leading.Target_Angle.Difference(Leading.Target_Angle*-1)/2)){
-			Leading.Ankle.Displacement=0.11f;
-			Leading.Foot.Lock();
-		}
-		if(Leading.Foot.LockMode==LandingGearMode.Locked){
-			Holding.Foot.Unlock();
-			if(Controller.MoveIndicator.X!=0){
-				if(Controller.MoveIndicator.Z<0^Leading.IsLeft)
-					Leading.Ankle_Target=new Angle(-30);
-				else
-					Leading.Ankle_Target=new Angle(30);
-			}
-			Write("Ankle Difference:"+Math.Round(Leading.Ankle_Difference,1).ToString());
-			if(Leading.Ankle_Difference<1){
-				Angle target=Move_Angle;
-				if(Controller.MoveIndicator.Z>1)
-					target*=-1;
-				Leading.Target_Angle=target*-5/6;
-				Holding.Target_Angle=target;
-			}
-		}
-	}
+	if(Legs.Count>=2 && Controller.MoveIndcator.Z!=0)
+		PerformWalk();
 	
 	foreach(Leg leg in Legs){
 		if(Controller.Orientation.Left==Base6Directions.GetOppositeDirection(leg.Thigh.Orientation.Up))
