@@ -507,9 +507,15 @@ class Leg{
 	
 	public bool IsLeft{
 		get{
-			return Controller.Orientation.Left==Thigh.Orientation.Up;
+			return GlobalToLocalPosition(Thigh.GetPosition(),Controller).X<1;
 		}
 	}
+	public bool IsFront{
+		get{
+			return (GlobalToLocalPosition(Thigh.GetPosition(),Controller)-GlobalToLocalPosition(Controller.CenterOfMass,Controller)).Z<0;
+		}
+	}
+	
 	public string Side{
 		get{
 			if(IsLeft)
@@ -614,6 +620,9 @@ public Program()
 	Leg.HasBlockData=HasBlockData;
 	Leg.GetBlockData=GetBlockData;
 	Leg.SetBlockData=SetBlockData;
+	Controller=(new GenericMethods<IMyShipController>(this)).GetContaining("");
+	Leg.Controller=Controller;
+	Gyroscope=(new GenericMethods<IMyGyro>(this)).GetContaining("");
 	List<IMyMotorStator> Thighs=(new GenericMethods<IMyMotorStator>(this)).GetAllContaining("Thigh Rotor");
 	Legs=new List<Leg>();
 	foreach(IMyMotorStator Thigh in Thighs){
@@ -622,20 +631,9 @@ public Program()
 			Legs.Add(leg);
 		}
 	}
-	Controller=(new GenericMethods<IMyShipController>(this)).GetContaining("");
-	Leg.Controller=Controller;
-	Gyroscope=(new GenericMethods<IMyGyro>(this)).GetContaining("");
-	// The constructor, called only once every session and
-    // always before any other method is called. Use it to
-    // initialize your script. 
-    //     
-    // The constructor is optional and can be removed if not
-    // needed.
-    // 
-    // It's recommended to set RuntimeInfo.UpdateFrequency 
-    // here, which will allow your script to run itself without a 
-    // timer block.
-	Runtime.UpdateFrequency=UpdateFrequency.Update10;
+	
+	
+	//Runtime.UpdateFrequency=UpdateFrequency.Update10;
 }
 
 public void Save()
@@ -707,7 +705,7 @@ void UpdatePositionalInfo(){
 	Target_Down.Normalize();
 }
 
-void SetAngle(IMyMotorStator Motor,Angle Next_Angle,double Speed_Multx=1,float Precision=0.1f){
+void SetAngle(IMyMotorStator Motor,Angle Next_Angle,float Speed_Multx=1,float Precision=0.1f){
 	Speed_Multx=Math.Max(0.1f, Math.Min(Math.Abs(Speed_Multx),10));
 	Precision=Math.Max(0.0001f, Math.Min(Math.Abs(Precision),1));
 	bool can_increase=true;
@@ -742,6 +740,26 @@ void SetAngle(IMyMotorStator Motor,Angle Next_Angle,double Speed_Multx=1,float P
 	else{
 		Motor.TargetVelocityRPM=0;
 		//Motor.RotorLock=true;
+	}
+}
+
+void SetPosition(IMyPistonBase Piston,float Next_Position,float Speed_Multx=1,float Precision=0.1f){
+	if(Piston.CurrentPosition<Next_Position-Precision){
+		if(Next_Position>Piston.HighestPosition){
+			Piston.Velocity=0;
+			return;
+		}
+		Piston.Velocity=(Next_Position-Piston.CurrentPosition)*Speed_Multx;
+	}
+	else if(Piston.CurrentPosition>Next_Position+Precision){
+		if(Next_Position<Piston.LowestPosition){
+			Piston.Velocity=0;
+			return;
+		}
+		Piston.Velocity=(Piston.CurrentPosition-Next_Position)*Speed_Multx;
+	}
+	else{
+		Piston.Velocity=0;
 	}
 }
 
@@ -788,86 +806,7 @@ void SetGyroscopes(){
 }
 
 void PerformWalk(){
-	Leg Forward;
-	Leg Backward;
-	if(Legs[0].Target_Angle>Legs[1].Target_Angle){
-		Forward=Legs[0];
-		Backward=Legs[1];
-	}
-	else{
-		Forward=Legs[1];
-		Backward=Legs[0];
-	}
-	Leg Leading;
-	Leg Holding;
-	if(Controller.MoveIndicator.Z>0){
-		Leading=Forward;
-		Holding=Backward;
-		if(Leading.Foot.LockMode==LandingGearMode.Locked)
-			Write("Leading:"+Leading.Side+":Forward:Locked");
-		else
-			Write("Leading:"+Leading.Side+":Forward:Unlocked");
-		if(Holding.Foot.LockMode==LandingGearMode.Locked)
-			Write("Holding:"+Holding.Side+":Backward:Locked");
-		else
-			Write("Holding:"+Holding.Side+":Backward:Unlocked");
-	}
-	else{
-		Leading=Backward;
-		Holding=Forward;
-		if(Leading.Foot.LockMode==LandingGearMode.Locked)
-			Write("Leading:"+Leading.Side+":Backward:Locked");
-		else
-			Write("Leading:"+Leading.Side+":Backward:Unlocked");
-		if(Holding.Foot.LockMode==LandingGearMode.Locked)
-			Write("Holding:"+Holding.Side+":Forward:Locked");
-		else
-			Write("Holding:"+Holding.Side+":Forward:Unlocked");
-	}
-	Holding.Ankle.Displacement=-0.11f;
-	Leading.Foot.AutoLock=(Leading.Difference<Math.Abs(Move_Angle.Degrees));
 	
-	if(Leading.Foot.LockMode==LandingGearMode.ReadyToLock||Leading.Foot.AutoLock){
-		Write("Locking Leading...");
-		Leading.Ankle.Displacement=0.11f;
-		Leading.Foot.Lock();
-	}
-	else{
-		Write("Waiting to Lock Leading...");
-	}
-	
-	if(Leading.Foot.LockMode==LandingGearMode.Locked||(Leading.Difference<1&&Holding.Difference<1)){
-		Write("Leading Locked");
-		Holding.Foot.AutoLock=false;
-		Holding.Foot.Unlock();
-		/*if(GetAngle(Down_Vector,Target_Down)>5){
-			Write("Adjusting to Target Direction");
-			Leading.Foot.AutoLock=false;
-			Holding.Foot.AutoLock=false;
-			Leading.Foot.Unlock();
-			Holding.Foot.Unlock();
-		}*/
-		if(Controller.MoveIndicator.X!=0){
-			if(Controller.MoveIndicator.X>0^Leading.IsLeft)
-				Leading.Ankle_Target=new Angle(-30);
-			else
-				Leading.Ankle_Target=new Angle(30);
-		}
-		if(Leading.Ankle_Difference<1){
-			Write("Swapping");
-			Angle target=Move_Angle;
-			if(Controller.MoveIndicator.Z>1)
-				target*=-1;
-			Leading.Target_Angle=target*-1;
-			Holding.Target_Angle=target;
-		}
-		else{
-			Write("Waiting Ankle");
-		}
-	}
-	else{
-		Write("Leading Unlocked\n");
-	}
 }
 
 Angle Move_Angle=new Angle(60);
@@ -892,6 +831,7 @@ public void Main(string argument, UpdateType updateSource)
 	if(Gyroscope!=null)
 		SetGyroscopes();
 	
+	/*	
 	foreach(Leg leg in Legs){
 		if(Controller.Orientation.Left==Base6Directions.GetOppositeDirection(leg.Thigh.Orientation.Up))
 			SetAngle(leg.Thigh,leg.Target_Angle*-1);
@@ -906,7 +846,7 @@ public void Main(string argument, UpdateType updateSource)
 		}
 		SetAngle(leg.Ankle,leg.Ankle_Target);
 		Write("");
-	}
+	}*/
 	
     // The main entry point of the script, invoked every time
     // one of the programmable block's Run actions are invoked,
