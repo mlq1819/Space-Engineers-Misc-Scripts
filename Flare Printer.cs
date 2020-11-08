@@ -433,8 +433,11 @@ void UpdateProgramInfo(){
 public void Main(string argument, UpdateType updateSource)
 {
 	UpdateProgramInfo();
-    bool not_ready=false;
-	bool deploying=false;
+	int returning_count=0;
+	int printing_count=0;
+    int ready_count=0;
+	int deploying_count=0;
+	Write(Printers.Count.ToString() + " Flare Printers");
 	if(argument.ToLower().Equals("deploy")){
 		foreach(FlarePrinter Printer in Printers){
 			Printer.HasLaunched=false;
@@ -443,22 +446,23 @@ public void Main(string argument, UpdateType updateSource)
 		}
 	}
 	foreach(FlarePrinter Printer in Printers){
-		if(Printer.Status!=PrinterStatus.Ready){
-			not_ready=true;
-		}
 		switch(Printer.Status){
 			case PrinterStatus.Returning:
+				returning_count++;
 				Printer.Piston.Retract();
 				break;
 			case PrinterStatus.Printing:
+				printing_count++;
 				Printer.Welder.Enabled=true;
 				break;
 			case PrinterStatus.Ready:
+				ready_count++;
 				Printer.Welder.Enabled=false;
 				if(!Printer.HasLaunched)
 					Printer.Piston.Extend();
 				break;
 			case PrinterStatus.Deploying:
+				deploying_count++;
 				deploying=true;
 				if(Printer.Piston.CurrentPosition>=1){
 					IMyTimerBlock FlareTimer=(new GenericMethods<IMyTimerBlock>(this)).GetFull("Flare Timer 1",5,Printer.Welder);
@@ -470,9 +474,18 @@ public void Main(string argument, UpdateType updateSource)
 				break;
 		}
 	}
-	if(deploying)
+	if(returning_count>0)
+		Write("Returning:"+returning_count);
+	if(printing_count>0)
+		Write("Printing:"+printing_count);
+	if(ready_count>0)
+		Write("Ready:"+ready_count);
+	if(deploying_count>0)
+		Write("Deploying:"+deploying_count);
+	
+	if(deploying_count>0)
 		Runtime.UpdateFrequency=UpdateFrequency.Update10;
-	else if(not_ready)
+	else if(ready_count<Printers.Count)
 		Runtime.UpdateFrequency=UpdateFrequency.Update100;
 	else
 		Runtime.UpdateFrequency=UpdateFrequency.None;
