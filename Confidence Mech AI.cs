@@ -457,7 +457,6 @@ class Leg{
 	public IMyMotorStator Thigh;
 	public IMyMotorStator Knee;
 	public IMyMotorStator Ankle;
-	public IMyLandingGear Foot;
 	private Angle _Target_Angle;
 	public Angle Target_Angle{
 		get{
@@ -518,11 +517,10 @@ class Leg{
 		}
 	}
 	
-	private Leg(IMyMotorStator Thigh, IMyMotorStator Knee, IMyMotorStator Ankle, IMyLandingGear Foot){
+	private Leg(IMyMotorStator Thigh, IMyMotorStator Knee, IMyMotorStator Ankle){
 		this.Thigh=Thigh;
 		this.Knee=Knee;
 		this.Ankle=Ankle;
-		this.Foot=Foot;
 		this._Target_Angle=new Angle(0);
 		this._Ankle_Target=new Angle(0);
 		if(HasBlockData(Thigh,"TargetAngle"))
@@ -554,17 +552,7 @@ class Leg{
 			return false;
 		good_ankles=GenericMethods<IMyMotorStator>.SortByDistance(good_ankles,Thigh);
 		
-		List<IMyLandingGear> feet=(new GenericMethods<IMyLandingGear>(prog)).GetAllContaining("Foot Gear");
-		List<IMyLandingGear> good_feet=new List<IMyLandingGear>();
-		foreach(IMyLandingGear foot in feet){
-			if(foot.CubeGrid==good_ankles[0].TopGrid)
-				good_feet.Add(foot);
-		}
-		if(good_feet.Count==0)
-			return false;
-		good_feet=GenericMethods<IMyLandingGear>.SortByDistance(good_feet,Thigh);
-		
-		output=new Leg(Thigh,good_knees[0],good_ankles[0],good_feet[0]);
+		output=new Leg(Thigh,good_knees[0],good_ankles[0]);
 		return true;
 	}
 }
@@ -640,6 +628,7 @@ public Program()
 
 public void Save()
 {
+	Gyroscope.GyroOverride=false;
     // Called when the program needs to save its state. Use
     // this method to save your state to the Storage field
     // or some other means. 
@@ -756,7 +745,7 @@ void SetGyroscopes(){
 	float current_yaw=(float) Relative_AngularVelocity.Y;
 	float current_roll=(float) Relative_AngularVelocity.Z;
 	
-	float gyro_multx=1;
+	float gyro_multx=5;
 	
 	float input_pitch=current_pitch*0.99f;
 	float input_yaw=current_yaw*0.99f;
@@ -765,12 +754,10 @@ void SetGyroscopes(){
 	if(GetAngle(Target_Down,Down_Vector)>2.5){
 		double Pitch_Difference=GetAngle(Backward_Vector,Target_Down)-GetAngle(Forward_Vector,Target_Down);
 		double Roll_Difference=GetAngle(Left_Vector,Target_Down)-GetAngle(Right_Vector,Target_Down);
-		if(Math.Abs(Pitch_Difference)>1){
-			input_pitch-=(float)Math.Min(Math.Max(Pitch_Difference/5,-1),1)*gyro_multx;
-		}
-		if(Math.Abs(Roll_Difference)>1){
+		if(Math.Abs(Pitch_Difference)>1)
+			input_pitch-=(float)Pitch_Difference/5*gyro_multx*5;
+		if(Math.Abs(Roll_Difference)>1)
 			input_roll-=(float)Math.Min(Math.Max(Roll_Difference/5,-1),1)*gyro_multx;
-		}
 	}
 	Vector3D input=new Vector3D(input_pitch,input_yaw,input_roll);
 	Vector3D output=TransformBetweenGrids(input,Controller,Gyroscope);
@@ -799,61 +786,41 @@ void PerformWalk(){
 	if(Controller.MoveIndicator.Z>0){
 		Leading=Forward;
 		Holding=Backward;
-		if(Leading.Foot.LockMode==LandingGearMode.Locked)
-			Write("Leading:"+Leading.Side+":Forward:Locked");
-		else
-			Write("Leading:"+Leading.Side+":Forward:Unlocked");
-		if(Holding.Foot.LockMode==LandingGearMode.Locked)
-			Write("Holding:"+Holding.Side+":Backward:Locked");
-		else
-			Write("Holding:"+Holding.Side+":Backward:Unlocked");
+		Write("Leading:"+Leading.Side+":Forward:"+Leading.Target_Angle.ToString(1));
+		Write("Holding:"+Holding.Side+":Backward:"+Holding.Target_Angle.ToString(1));
 	}
 	else{
 		Leading=Backward;
 		Holding=Forward;
-		if(Leading.Foot.LockMode==LandingGearMode.Locked)
-			Write("Leading:"+Leading.Side+":Backward:Locked");
-		else
-			Write("Leading:"+Leading.Side+":Backward:Unlocked");
-		if(Holding.Foot.LockMode==LandingGearMode.Locked)
-			Write("Holding:"+Holding.Side+":Forward:Locked");
-		else
-			Write("Holding:"+Holding.Side+":Forward:Unlocked");
+		Write("Leading:"+Leading.Side+":Backward:"+Leading.Target_Angle.ToString(1));
+		Write("Holding:"+Holding.Side+":Forward:"+Holding.Target_Angle.ToString(1));
 	}
 	Holding.Ankle.Displacement=-0.11f;
-	Leading.Foot.AutoLock=(Leading.Difference<Math.Abs(Move_Angle.Degrees));
-	if(Leading.Foot.LockMode==LandingGearMode.ReadyToLock||Leading.Foot.AutoLock){
-		Write("Locking Leading...");
-		Leading.Ankle.Displacement=0.11f;
-		Leading.Foot.Lock();
-	}
-	else{
-		Write("Waiting to Lock Leading...");
-	}
-	if(Leading.Foot.LockMode==LandingGearMode.Locked||(Leading.Difference<1&&Holding.Difference<1)){
-		Write("Leading Locked");
-		Holding.Foot.AutoLock=false;
-		Holding.Foot.Unlock();
+	if(Leading.Difference<1&&Holding.Difference<1){
+		Write("Position ready");
 		if(Controller.MoveIndicator.X!=0){
 			if(Controller.MoveIndicator.X>0^Leading.IsLeft)
-				Leading.Ankle_Target=new Angle(-15);
+				Leading.Ankle_Target=new Angle(-30);
 			else
-				Leading.Ankle_Target=new Angle(15);
+				Leading.Ankle_Target=new Angle(30);
 		}
+		else
+			Leading.Ankle_Target=new Angle(0);
 		if(Leading.Ankle_Difference<1){
 			Write("Swapping");
 			Angle target=Move_Angle;
 			if(Controller.MoveIndicator.Z>1)
 				target*=-1;
-			Leading.Target_Angle=target*-5/6;
+			Leading.Target_Angle=target*-1;
 			Holding.Target_Angle=target;
+			Holding.Ankle_Target=new Angle(0);
 		}
 		else{
 			Write("Waiting Ankle");
 		}
 	}
 	else{
-		Write("Leading Unlocked\n");
+		Write("Waiting position\n");
 	}
 }
 
@@ -888,9 +855,7 @@ public void Main(string argument, UpdateType updateSource)
 			SetAngle(leg.Knee,leg.Target_Angle*-1);
 		else
 			SetAngle(leg.Knee,leg.Target_Angle);
-		if(leg.Foot.LockMode!=LandingGearMode.Locked){
-			leg.Ankle_Target=new Angle(0);
-		}
+		//leg.Ankle_Target=new Angle(0);
 		SetAngle(leg.Ankle,leg.Ankle_Target);
 		Write("");
 	}
