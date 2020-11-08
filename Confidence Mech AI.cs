@@ -707,7 +707,7 @@ void UpdatePositionalInfo(){
 	Target_Down.Normalize();
 }
 
-void SetAngle(IMyMotorStator Motor,Angle Next_Angle,float Precision=0.1f,double Speed_Multx=1){
+void SetAngle(IMyMotorStator Motor,Angle Next_Angle,double Speed_Multx=1,float Precision=0.1f){
 	Speed_Multx=Math.Max(0.1f, Math.Min(Math.Abs(Speed_Multx),10));
 	Precision=Math.Max(0.0001f, Math.Min(Math.Abs(Precision),1));
 	bool can_increase=true;
@@ -733,13 +733,16 @@ void SetAngle(IMyMotorStator Motor,Angle Next_Angle,float Precision=0.1f,double 
 	float difference=Math.Min(From_Bottom,From_Top);
 	//Write(Motor.CustomName+" Difference:"+Math.Round(difference,2)+'°');
 	if(difference>Precision){
+		Motor.RotorLock=false;
 		if(From_Bottom<From_Top)
 			Motor.TargetVelocityRPM=(float)(-1*From_Bottom*Speed_Multx*Precision*5);
 		else
 			Motor.TargetVelocityRPM=(float)(From_Top*Speed_Multx*Precision*5);
 	}
-	else
+	else{
 		Motor.TargetVelocityRPM=0;
+		//Motor.RotorLock=true;
+	}
 }
 
 Vector3D GetForward_Rotor(IMyMotorStator Rotor){
@@ -823,6 +826,7 @@ void PerformWalk(){
 	}
 	Holding.Ankle.Displacement=-0.11f;
 	Leading.Foot.AutoLock=(Leading.Difference<Math.Abs(Move_Angle.Degrees));
+	
 	if(Leading.Foot.LockMode==LandingGearMode.ReadyToLock||Leading.Foot.AutoLock){
 		Write("Locking Leading...");
 		Leading.Ankle.Displacement=0.11f;
@@ -831,10 +835,18 @@ void PerformWalk(){
 	else{
 		Write("Waiting to Lock Leading...");
 	}
+	
 	if(Leading.Foot.LockMode==LandingGearMode.Locked||(Leading.Difference<1&&Holding.Difference<1)){
 		Write("Leading Locked");
 		Holding.Foot.AutoLock=false;
 		Holding.Foot.Unlock();
+		/*if(GetAngle(Down_Vector,Target_Down)>5){
+			Write("Adjusting to Target Direction");
+			Leading.Foot.AutoLock=false;
+			Holding.Foot.AutoLock=false;
+			Leading.Foot.Unlock();
+			Holding.Foot.Unlock();
+		}*/
 		if(Controller.MoveIndicator.X!=0){
 			if(Controller.MoveIndicator.X>0^Leading.IsLeft)
 				Leading.Ankle_Target=new Angle(-30);
@@ -886,9 +898,9 @@ public void Main(string argument, UpdateType updateSource)
 		else
 			SetAngle(leg.Thigh,leg.Target_Angle);
 		if(leg.Thigh.Orientation.Up!=leg.Knee.Orientation.Forward)
-			SetAngle(leg.Knee,leg.Target_Angle*-1);
+			SetAngle(leg.Knee,leg.Target_Angle*-1,0.5f);
 		else
-			SetAngle(leg.Knee,leg.Target_Angle);
+			SetAngle(leg.Knee,leg.Target_Angle,0.5f);
 		if(leg.Foot.LockMode!=LandingGearMode.Locked){
 			leg.Ankle_Target=new Angle(0);
 		}
