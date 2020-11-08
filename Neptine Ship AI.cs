@@ -1931,6 +1931,10 @@ public bool GoTo(EntityInfo Entity){
 	return true;
 }
 
+public bool DeployFlares(IMyProgrammableBlock FlareBlock){
+	return FlareBlock.TryRun("Deploy");
+}
+
 public bool UpdateEntityListing(Menu_Submenu Menu){
 	EntityList list=null;
 	bool do_goto=false;
@@ -1986,6 +1990,9 @@ private bool CreateMenu(object obj=null){
 	ShipCommands.Add(new Menu_Command<object>("Stop", Stop, "Disables autopilot"));
 	ShipCommands.Add(new Menu_Command<object>("Toggle Autoland",Autoland,"Toggles On/Off the Autoland feature\nLands at 5 m/s\nDo not use on ships with poor mobility!"));
 	ShipCommands.Add(new Menu_Command<object>("Scan", PerformScan, "Immediately performs a scan operation"));
+	IMyProgrammableBlock FlareBlock=(new GenericMethods<IMyProgrammableBlock>(this)).GetFull("Flare Printer Programmable block");
+	if(FlareBlock!=null)
+		ShipCommands.Add(new Menu_Command<IMyProgrammableBlock>("Deploy Flares",DeployFlares,"Deploys flares made using Flare Printers",FlareBlock));
 	ShipCommands.Add(new Menu_Command<object>("Toggle Lockdown", Lockdown, "Closes/Opens Air Seals"));
 	ShipCommands.Add(new Menu_Command<object>("Factory Reset", FactoryReset, "Resets AI memory and settings, and turns it off"));
 	Command_Menu.Add(ShipCommands);
@@ -2898,6 +2905,7 @@ private void GetPositionData(){
 	AngularVelocity=Controller.GetShipVelocities().AngularVelocity;
 	
 	Time_To_Crash=-1;
+	Elevation=double.MaxValue;
 	if(Controller.TryGetPlanetElevation(MyPlanetElevation.Sealevel, out Sealevel)){
 		if(Controller.TryGetPlanetPosition(out PlanetCenter)){
 			if(Sealevel<6000 && Controller.TryGetPlanetElevation(MyPlanetElevation.Surface, out Elevation)){

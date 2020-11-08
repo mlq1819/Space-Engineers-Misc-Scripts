@@ -437,7 +437,11 @@ public void Main(string argument, UpdateType updateSource)
 	int printing_count=0;
     int ready_count=0;
 	int deploying_count=0;
-	Write(Printers.Count.ToString() + " Flare Printers");
+	Write("Send \"Deploy\" to Deploy Flares");
+	if(Printers.Count==1)
+		Write(Printers.Count.ToString() + " Flare Printer");
+	else
+		Write(Printers.Count.ToString() + " Flare Printers");
 	if(argument.ToLower().Equals("deploy")){
 		foreach(FlarePrinter Printer in Printers){
 			Printer.HasLaunched=false;
@@ -456,10 +460,13 @@ public void Main(string argument, UpdateType updateSource)
 				Printer.Welder.Enabled=true;
 				break;
 			case PrinterStatus.Ready:
-				ready_count++;
 				Printer.Welder.Enabled=false;
-				if(!Printer.HasLaunched)
+				if(!Printer.HasLaunched){
 					Printer.Piston.Extend();
+					deploying_count++;
+				}
+				else
+					ready_count++;
 				break;
 			case PrinterStatus.Deploying:
 				deploying_count++;
