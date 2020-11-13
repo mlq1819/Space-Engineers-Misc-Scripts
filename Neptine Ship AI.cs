@@ -13,8 +13,13 @@ private const double SPEED_LIMIT=100;
 private const double RAYCAST_DISTANCE=5000; //The lower the better, but whatever works for you
 //Set this to the distance you want lights, sound blocks, and doors to update when enemies are nearby
 private const double ALERT_DISTANCE=15;
+//Set this to a string contained in the name of lights you want to change the color of during a lockdown
+private const string LOCKDOWN_LIGHT_NAME="";
+//Set this to a string contained in the name of doors you want to automatically open when a player gets near
+private const string AUTODOOR_NAME="AutoDoor";
 private Color DEFAULT_TEXT_COLOR=new Color(197,137,255,255);
 private Color DEFAULT_BACKGROUND_COLOR=new Color(44,0,88,255);
+private Color LOCKDOWN_COLOR=new Color(255,255,125,255);
 
 public class GenericMethods<T> where T : class, IMyTerminalBlock{
 	private IMyGridTerminalSystem TerminalSystem;
@@ -928,6 +933,8 @@ private IMyGyro Gyroscope;
 private List<IMyTextPanel> StatusLCDs;
 private List<IMyTextPanel> DebugLCDs;
 
+private List<IMyDoor> AutoDoors;
+
 private List<Airlock> Airlocks;
 
 private EntityList AsteroidList;
@@ -1178,6 +1185,7 @@ public void Reset(){
 	StatusLCDs=new List<IMyTextPanel>();
 	DebugLCDs=new List<IMyTextPanel>();
 	List<Airlock> Airlocks=new List<Airlock>();
+	AutoDoors=new List<IMyDoor>();
 	Forward_Thrusters=new List<IMyThrust>();
 	Backward_Thrusters=new List<IMyThrust>();
 	Up_Thrusters=new List<IMyThrust>();
@@ -1364,6 +1372,7 @@ public bool Setup(){
 	}
 	
 	SetupAirlocks();
+	AutoDoors=(new GenericMethods<IMyDoor>(this)).GetAllContaining(AUTODOOR_NAME);
 	
 	Controller=(new GenericMethods<IMyShipController>(this)).GetClosestFunc(ControllerFunction);
 	if(Controller==null){
@@ -1622,7 +1631,8 @@ public void Save(){
 	}
 	Me.CustomData=this.Storage;
 	
-	Gyroscope.GyroOverride=false;
+	if(Gyroscope!=null)
+		Gyroscope.GyroOverride=false;
 	foreach(IMyThrust Thruster in Forward_Thrusters){
 		ResetThruster(Thruster);
 	}
@@ -1677,34 +1687,36 @@ private AlertStatus ShipStatus{
 	get{
 		AlertStatus status=AlertStatus.Green;
 		Submessage="";
-		if(Elevation-MySize<50){
-			AlertStatus new_status=AlertStatus.Blue;
-			status=(AlertStatus) Math.Max((int)status, (int)new_status);
-			double psuedo_elevation=Math.Max(Elevation-MySize,0);
-			Submessage+="\nShip at low Altitude ("+Math.Round(psuedo_elevation,1).ToString()+"-"+Math.Round(Elevation,1).ToString()+" meters)";
-		}
-		
-		if(Time_To_Crash>0){
-			if(Time_To_Crash<15 && Controller.GetShipSpeed()>5){
-				AlertStatus new_status=AlertStatus.Orange;
-				status=(AlertStatus) Math.Max((int)status, (int)new_status);
-				Submessage += "\n"+Math.Round(Time_To_Crash,1).ToString()+" seconds to possible impact";
-			}
-			else if(Time_To_Crash<60 && Controller.GetShipSpeed()>15){
-				AlertStatus new_status=AlertStatus.Yellow;
-				status=(AlertStatus) Math.Max((int)status, (int)new_status);
-				Submessage += "\n"+Math.Round(Time_To_Crash,1).ToString()+" seconds to possible impact";
-			}
-			else if(Time_To_Crash<180){
+		if(!Me.CubeGrid.IsStatic){
+			if(Elevation-MySize<50){
 				AlertStatus new_status=AlertStatus.Blue;
 				status=(AlertStatus) Math.Max((int)status, (int)new_status);
-				Submessage += "\n"+Math.Round(Time_To_Crash,1).ToString()+" seconds to possible impact";
+				double psuedo_elevation=Math.Max(Elevation-MySize,0);
+				Submessage+="\nShip at low Altitude ("+Math.Round(psuedo_elevation,1).ToString()+"-"+Math.Round(Elevation,1).ToString()+" meters)";
 			}
-		}
-		if(_Autoland&&CurrentVelocity.Length()>1){
-			AlertStatus new_status=AlertStatus.Blue;
-			status=(AlertStatus) Math.Max((int)status, (int)new_status);
-			Submessage += "\nAutoland Enabled";
+			
+			if(Time_To_Crash>0){
+				if(Time_To_Crash<15 && Controller.GetShipSpeed()>5){
+					AlertStatus new_status=AlertStatus.Orange;
+					status=(AlertStatus) Math.Max((int)status, (int)new_status);
+					Submessage += "\n"+Math.Round(Time_To_Crash,1).ToString()+" seconds to possible impact";
+				}
+				else if(Time_To_Crash<60 && Controller.GetShipSpeed()>15){
+					AlertStatus new_status=AlertStatus.Yellow;
+					status=(AlertStatus) Math.Max((int)status, (int)new_status);
+					Submessage += "\n"+Math.Round(Time_To_Crash,1).ToString()+" seconds to possible impact";
+				}
+				else if(Time_To_Crash<180){
+					AlertStatus new_status=AlertStatus.Blue;
+					status=(AlertStatus) Math.Max((int)status, (int)new_status);
+					Submessage += "\n"+Math.Round(Time_To_Crash,1).ToString()+" seconds to possible impact";
+				}
+			}
+			if(_Autoland&&CurrentVelocity.Length()>1){
+				AlertStatus new_status=AlertStatus.Blue;
+				status=(AlertStatus) Math.Max((int)status, (int)new_status);
+				Submessage += "\nAutoland Enabled";
+			}
 		}
 		
 		double ActualEnemyShipDistance=Math.Min(SmallShipList.ClosestDistance(this, MyRelationsBetweenPlayerAndBlock.Enemies), LargeShipList.ClosestDistance(this, MyRelationsBetweenPlayerAndBlock.Enemies));
@@ -1845,13 +1857,37 @@ public bool Lockdown(object obj=null){
 		if(CanHaveJob(Door, "Lockdown")){
 			if(_Lockdown){
 				SetBlockData(Door, "Job", "Lockdown");
-				Door.Enabled=(Door.Status!=DoorStatus.Closed);
+				Door.Enabled=true;
 				Door.CloseDoor();
 			}
 			else{
 				SetBlockData(Door, "Job", "None");
-				Door.Enabled=(Door.Status!=DoorStatus.Open);
+				Door.Enabled=true;
 				Door.OpenDoor();
+			}
+		}
+	}
+	if(LOCKDOWN_LIGHT_NAME.Length>0){
+		List<IMyInteriorLight> Lights=(new GenericMethods<IMyInteriorLight>(this)).GetAllIncluding(LOCKDOWN_LIGHT_NAME);
+		foreach(IMyInteriorLight Light in Lights){
+			if(CanHaveJob(Light, "Lockdown")){
+				if(_Lockdown){
+					SetBlockData(Light,"Job","Lockdown");
+					if(!HasBlockData(Light,"DefaultColor"))
+						SetBlockData(Light,"DefaultColor",Light.Color.ToString());
+					Light.Color=LOCKDOWN_COLOR;
+				}
+				else{
+					SetBlockData(Light,"Job","None");
+					if(HasBlockData(Light, "DefaultColor")){
+						try{
+							Light.Color=ColorParse(GetBlockData(Light,"DefaultColor"));
+						}
+						catch(Exception){
+							Echo("Failed to parse color");
+						}
+					}
+				}
 			}
 		}
 	}
@@ -1966,7 +2002,7 @@ public bool UpdateEntityListing(Menu_Submenu Menu){
 	Menu.Add(new Menu_Command<Menu_Submenu>("Refresh", UpdateEntityListing, "Updates "+Menu.Name(), Menu));
 	list.Sort(Controller.GetPosition());
 	for(int i=0;i<list.Count;i++){
-		if(do_goto)
+		if(do_goto&&!Me.CubeGrid.IsStatic)
 			Menu.Add(new Menu_Display(list[i], this, GoTo));
 		else
 			Menu.Add(new Menu_Display(list[i], this));
@@ -1987,8 +2023,10 @@ private bool CreateMenu(object obj=null){
 	Command_Menu=new Menu_Submenu("Command Menu");
 	Command_Menu.Add(new Menu_Command<object>("Update Menu", CreateMenu, "Refreshes menu"));
 	Menu_Submenu ShipCommands=new Menu_Submenu("Commands");
-	ShipCommands.Add(new Menu_Command<object>("Stop", Stop, "Disables autopilot"));
-	ShipCommands.Add(new Menu_Command<object>("Toggle Autoland",Autoland,"Toggles On/Off the Autoland feature\nLands at 5 m/s\nDo not use on ships with poor mobility!"));
+	if(!Me.CubeGrid.IsStatic){
+		ShipCommands.Add(new Menu_Command<object>("Stop", Stop, "Disables autopilot"));
+		ShipCommands.Add(new Menu_Command<object>("Toggle Autoland",Autoland,"Toggles On/Off the Autoland feature\nLands at 5 m/s\nDo not use on ships with poor mobility!"));
+	}
 	ShipCommands.Add(new Menu_Command<object>("Scan", PerformScan, "Immediately performs a scan operation"));
 	IMyProgrammableBlock FlareBlock=(new GenericMethods<IMyProgrammableBlock>(this)).GetFull("Flare Printer Programmable block");
 	if(FlareBlock!=null)
@@ -2157,11 +2195,16 @@ public void PerformAlarm(){
 		if(!CanHaveJob(Door, "PlayerAlert"))
 			continue;
 		double distance=double.MaxValue;
+		double friendly=double.MaxValue;
 		foreach(EntityInfo Entity in CharacterList){
-			if((Entity.Relationship == MyRelationsBetweenPlayerAndBlock.Enemies) && Entity.Age.TotalSeconds <= 60)
+			if(Entity.Age.TotalSeconds<=60){
+			if(Entity.Relationship == MyRelationsBetweenPlayerAndBlock.Enemies)
 				distance=Math.Min(distance, Entity.GetDistance(Door.GetPosition()));
+			else if(Entity.Relationship != MyRelationsBetweenPlayerAndBlock.Neutral)
+				friendly=Math.Min(friendly, Entity.GetDistance(Door.GetPosition()));
+			}
 		}
-		if(distance <= ALERT_DISTANCE){
+		if(distance <= ALERT_DISTANCE && distance < friendly){
 			if(!HasBlockData(Door, "DefaultState")){
 				if(Door.Status.ToString().Contains("Open")){
 					SetBlockData(Door, "DefaultState", "Open");
@@ -2511,6 +2554,24 @@ public bool PerformScan(object obj=null){
 	for(int i=0; i<Airlocks.Count; i++){
 		AirlockString += "Airlock "+(i+1).ToString()+" Status:\n";
 		UpdateAirlock(Airlocks[i]);
+	}
+	foreach(IMyDoor AutoDoor in AutoDoors){
+		bool found_entity=false;
+		double min_distance_check=3.75*(1+(Controller.GetShipSpeed() / 200));
+		foreach(EntityInfo Entity in CharacterList){
+			if(Entity.Relationship != MyRelationsBetweenPlayerAndBlock.Enemies && Entity.Relationship != MyRelationsBetweenPlayerAndBlock.Neutral){
+				Vector3D position=Entity.Position+CurrentVelocity/100;
+				double distance=(AutoDoor.GetPosition()-Entity.Position).Length();
+				bool is_closest_to_this_airlock=distance <= min_distance_check;
+				if(distance<min_distance_check){
+					found_entity=true;
+					AutoDoor.OpenDoor();
+					break;
+				}
+			}
+		}
+		if(!found_entity)
+			AutoDoor.CloseDoor();
 	}
 	
 	if(Command_Menu.AutoRefresh())
@@ -2925,37 +2986,39 @@ private void GetPositionData(){
 			else {
 				Elevation=Sealevel;
 			}
-			double from_center=(Controller.GetPosition()-PlanetCenter).Length();
-			Vector3D next_position=Controller.GetPosition()+1*CurrentVelocity;
-			double Elevation_per_second=(from_center-(next_position-PlanetCenter).Length());
-			Time_To_Crash=Elevation/Elevation_per_second;
-			Vector3D Closest_Crash_Direction=Closest_Hit_Position;
-			Closest_Crash_Direction.Normalize();
-			Vector3D Movement_Direction=CurrentVelocity;
-			Movement_Direction.Normalize();
-			if(GetAngle(Movement_Direction,Closest_Crash_Direction)<=ACCEPTABLE_ANGLE){
-				Time_To_Crash=Math.Min(Time_To_Crash,(Closest_Hit_Position-Controller.GetPosition()).Length()/CurrentVelocity.Length());
-			}
-			
-			bool need_print=true;
-			if(Time_To_Crash>0){
-				if(Time_To_Crash<15 && Controller.GetShipSpeed() > 5){
-					Controller.DampenersOverride=true;
-					RestingVelocity=new Vector3D(0,0,0);
-					Write("Crash predicted within 15 seconds; enabling Dampeners");
-					need_print=false;
+			if(!Me.CubeGrid.IsStatic){
+				double from_center=(Controller.GetPosition()-PlanetCenter).Length();
+				Vector3D next_position=Controller.GetPosition()+1*CurrentVelocity;
+				double Elevation_per_second=(from_center-(next_position-PlanetCenter).Length());
+				Time_To_Crash=Elevation/Elevation_per_second;
+				Vector3D Closest_Crash_Direction=Closest_Hit_Position;
+				Closest_Crash_Direction.Normalize();
+				Vector3D Movement_Direction=CurrentVelocity;
+				Movement_Direction.Normalize();
+				if(GetAngle(Movement_Direction,Closest_Crash_Direction)<=ACCEPTABLE_ANGLE){
+					Time_To_Crash=Math.Min(Time_To_Crash,(Closest_Hit_Position-Controller.GetPosition()).Length()/CurrentVelocity.Length());
 				}
-				else if(Time_To_Crash*Math.Max(Elevation,1000)<1800000 && Controller.GetShipSpeed() > 1.0f){
-					Write(Math.Round(Time_To_Crash, 1).ToString()+" seconds to crash");
-					if(_Autoland && Time_To_Crash>30)
-						Controller.DampenersOverride=false;
-					need_print=false;
+				
+				bool need_print=true;
+				if(Time_To_Crash>0){
+					if(Time_To_Crash<15 && Controller.GetShipSpeed() > 5){
+						Controller.DampenersOverride=true;
+						RestingVelocity=new Vector3D(0,0,0);
+						Write("Crash predicted within 15 seconds; enabling Dampeners");
+						need_print=false;
+					}
+					else if(Time_To_Crash*Math.Max(Elevation,1000)<1800000 && Controller.GetShipSpeed() > 1.0f){
+						Write(Math.Round(Time_To_Crash, 1).ToString()+" seconds to crash");
+						if(_Autoland && Time_To_Crash>30)
+							Controller.DampenersOverride=false;
+						need_print=false;
+					}
+					if(Elevation-MySize<5&&_Autoland)
+						_Autoland=false;
 				}
-				if(Elevation-MySize<5&&_Autoland)
-					_Autoland=false;
+				if(need_print)
+					Write("No crash likely at current velocity");
 			}
-			if(need_print)
-				Write("No crash likely at current velocity");
 		}
 		else {
 			PlanetCenter=new Vector3D(0,0,0);
@@ -2981,7 +3044,8 @@ public void Main(string argument, UpdateType updateSource)
 	try{
 		UpdateProgramInfo();
 		GetPositionData();
-		Write("Elevation: "+Math.Round(Elevation,1).ToString());
+		if(!Me.CubeGrid.IsStatic)
+			Write("Elevation: "+Math.Round(Elevation,1).ToString());
 		Scan_Time+=seconds_since_last_update;
 		if(Scan_Time >= Scan_Frequency){
 			PerformScan();
