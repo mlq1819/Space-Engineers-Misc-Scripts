@@ -462,8 +462,10 @@ class Arm{
 	public static Func<IMyTerminalBlock,string,string> GetBlockData;
 	public static Func<IMyTerminalBlock,string,string,bool> SetBlockData;
 	public static Func<Vector3D,IMyCubeBlock,Vector3D> GlobalToLocalPosition;
+	public static Func<Vector3D,IMyCubeBlock,Vector3D> LocalToGlobal;
 	public static Func<IMyMotorStator,bool> IsHinge;
 	public static Func<IMyMotorStator,bool> IsRotor;
+	public static Func<Vector3D,Vector3D,double> GetAngle;
 	
 	public List<IMyMotorStator> Motors;
 	public IMyInteriorLight Light;
@@ -525,6 +527,43 @@ class Arm{
 			Light=null;
 	}
 	
+	public Vector3D GetTargetingDirection(int MotorNum){
+		IMyMotorStator Motor=Motors[MotorNum];
+		Vector3D output;
+		Vector3D o1,o2;
+		if(IsHinge(Motor)){
+			o1=LocalToGlobal(new Vector3D(-1,0,0),Motor.Top);
+			o2=LocalToGlobal(new Vector3D(1,0,0),Motor.Top);
+			o1.Normalize();
+			o2.Normalize();
+			if(MotorNum<Motors.Count-1){
+				Vector3D direction=(Motors[MotorNum+1].GetPosition()-Motor.Top.GetPosition());
+				direction.Normalize();
+				if(GetAngle(o1,direction)<=GetAngle(o2,direction))
+					output=o1;
+				else
+					output=o2;
+			}
+			else if(Light!=null){
+				Vector3D direction=(Light.GetPosition()-Motor.Top.GetPosition());
+				direction.Normalize();
+				if(GetAngle(o1,direction)<=GetAngle(o2,direction))
+					output=o1;
+				else
+					output=o2;
+			}
+			else
+				output=o1;
+		}
+		else if(IsRotor(Motor))
+			output=LocalToGlobal(new Vector3D(0,0,-1),Motor.Top);
+		else
+			throw new ArgumentException("Invalid Stator:"+Motor.CustomName);
+		output.Normalize();
+		Motor.CustomData=(new MyWaypointInfo(Motor.CustomName,output+Motor.GetPosition()).ToString());
+		return output;
+	}
+	
 	public override string ToString(){
 		string output="Arm";
 		foreach(IMyMotorStator Motor in Motors)
@@ -570,6 +609,8 @@ public Program()
 	Arm.SetBlockData=SetBlockData;
 	Arm.IsHinge=IsHinge;
 	Arm.IsRotor=IsRotor;
+	Arm.GetAngle=GetAngle;
+	Arm.LocalToGlobal=LocalToGlobal;
 	List<IMyMotorStator> Motors=(new GenericMethods<IMyMotorStator>(this)).GetAllFunc(ArmFunction);
 	Write(Motors.Count.ToString()+" Motors");
 	Arms=new List<Arm>();
@@ -598,18 +639,6 @@ public void Save()
     // needed.
 }
 
-Vector3D GetTargetingDirection(IMyMotorStator Motor){
-	Vector3D output;
-	if(IsHinge(Motor))
-		output=LocalToGlobal(new Vector3D(-1,0,0),Motor.Top);
-	else if(IsRotor(Motor))
-		output=LocalToGlobal(new Vector3D(0,0,-1),Motor.Top);
-	else
-		throw new ArgumentException("Invalid Stator:"+Motor.CustomName);
-	output.Normalize();
-	return output;
-}
-
 double LightTimer=0;
 int LightMultx=1;
 bool last_positive=true;
@@ -627,16 +656,15 @@ bool SetPosition(Arm arm,Vector3D position){
 	double distance=(position-arm.Motors[0].GetPosition()).Length();
 	Write("Distance:"+Math.Round(distance,1).ToString()+"M");
 	float speed=(float)(distance/arm.MaxLength)/2;
-	int i=0;
-	foreach(IMyMotorStator Motor in arm.Motors){
-		i++;
-		float speed_multx=(1+((float)i)/arm.Motors.Count);
+	for(int i=0;i<arm.Motors.Count;i++){
+		IMyMotorStator Motor=arm.Motors[i];
+		float speed_multx=(1+((float)(i+1))/arm.Motors.Count);
 		if(arm.Light!=null)
 			speed_multx*=(float)Math.Max(0.1,Math.Min(1,(position-arm.Light.GetPosition()).Length()/2));
 		speed=(float)(distance/arm.MaxLength*speed_multx)/2;
 		Vector3D Direction=(Motor.GetPosition()-position);
 		Direction.Normalize();
-		Vector3D Target_Direction=GetTargetingDirection(Motor);
+		Vector3D Target_Direction=arm.GetTargetingDirection(i);
 		if(IsHinge(Motor)){
 			//Positive Angle is closer to front
 			Vector3D Front=LocalToGlobal(new Vector3D(0,0,-1),Motor.Top);
@@ -649,14 +677,16 @@ bool SetPosition(Arm arm,Vector3D position){
 				if((arm.Motors[0].GetPosition()-position).Length()<arm.MaxLength){
 					Write("Hinge1:"+Motor.CustomName);
 					float percent=(float)Math.Min(180,180*((arm.MaxLength-(distance))/arm.MaxLength));
-					Write("Percent:"+Math.Round(percent,1).ToString()+'°');
-					Write("H1 Current:"+Angle.FromRadians(Motor.Angle).ToString(1));
-					Write("H1 \"Target\":"+Target.ToString(1));
+					Write("Percent: "+Math.Round(percent,1).ToString()+'°');
+					Write("H1 Current: "+Angle.FromRadians(Motor.Angle).ToString(1));
+					Write("H1 Original Target: "+Target.ToString(1));
 					float percent_plus=percent,percent_minus=percent;
 					while(percent_plus>0&&!CanSetAngle(Motor,Target+percent_plus))
 						percent_plus--;
 					while(percent_minus>0&&!CanSetAngle(Motor,Target-percent_minus))
 						percent_minus--;
+					Write("Percent_Plus: "+(new Angle(percent_plus)).ToString(1));
+					Write("Percent_Minus: "+(new Angle(percent_minus)).ToString(1));
 					if((!last_positive)&&percent_plus-30>percent_minus)
 						last_positive=true;
 					else if(last_positive&&percent_minus-30>percent_plus)
@@ -664,14 +694,14 @@ bool SetPosition(Arm arm,Vector3D position){
 					if(last_positive){
 						if(CanSetAngle(Motor,Target+percent)){
 							moving=true;
-							Write("H1 Target:"+(Target+percent_plus).ToString(1));
+							Write("H1 Target: "+(Target+percent_plus).ToString(1));
 							SetAngle(Motor,Target+percent_plus,speed*1.5f);
 							last_positive=true;
 							continue;
 						}
 						else if(CanSetAngle(Motor,Target-percent)){
 							moving=true;
-							Write("H1 Target:"+(Target-percent_minus).ToString(1));
+							Write("H1 Target: "+(Target-percent_minus).ToString(1));
 							SetAngle(Motor,Target-percent_minus,speed*1.5f);
 							last_positive=false;
 							continue;
@@ -680,19 +710,20 @@ bool SetPosition(Arm arm,Vector3D position){
 					else{
 						if(CanSetAngle(Motor,Target-percent)){
 							moving=true;
-							Write("H1 Target:"+(Target-percent_minus).ToString(1));
+							Write("H1 Target: "+(Target-percent_minus).ToString(1));
 							SetAngle(Motor,Target-percent_minus,speed*1.5f);
 							last_positive=false;
 							continue;
 						}
 						else if(CanSetAngle(Motor,Target+percent)){
 							moving=true;
-							Write("H1 Target:"+(Target+percent_plus).ToString(1));
+							Write("H1 Target: "+(Target+percent_plus).ToString(1));
 							SetAngle(Motor,Target+percent_plus,speed*1.5f);
 							last_positive=true;
 							continue;
 						}
 					}
+					Write("Ignoring adjustments");
 				}
 			}
 			if(CanSetAngle(Motor,Target)&&Math.Abs(Difference)>1){
@@ -791,7 +822,7 @@ void SetAngle(IMyMotorStator Motor,Angle Next_Angle,float Speed_Multx=1,float Pr
 	if(!can_increase)
 		From_Top=float.MaxValue;
 	float difference=Math.Min(From_Bottom,From_Top);
-	Write(Motor.CustomName+" Difference:"+Math.Round(difference,2)+'°');
+	//Write(Motor.CustomName+" Difference:"+Math.Round(difference,2)+'°');
 	if(difference>Precision){
 		Motor.RotorLock=false;
 		float target_rpm=0;
@@ -877,8 +908,9 @@ public void Main(string argument, UpdateType updateSource)
 		SetPosition(Arms[0],Last_Input);
 	}
 	else{
-		foreach(IMyMotorStator Motor in Arms[0].Motors){
-			Motor.CustomData=(new MyWaypointInfo(Motor.CustomName,GetTargetingDirection(Motor)+Motor.GetPosition())).ToString();
+		for(int i=0;i<Arms[0].Motors.Count;i++){
+			IMyMotorStator Motor=Arms[0].Motors[i];
+			Motor.CustomData=(new MyWaypointInfo(Motor.CustomName,Arms[0].GetTargetingDirection(i)+Motor.GetPosition())).ToString();
 			Motor.TargetVelocityRPM=0;
 		}
 		if(Arms[0].Light!=null){
