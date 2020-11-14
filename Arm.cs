@@ -534,6 +534,7 @@ char loading_char = '|';
 double seconds_since_last_update = 0;
 IMyShipController Controller;
 List<Arm> Arms;
+IMySensorBlock Sensor;
 
 bool ArmFunction(IMyMotorStator Motor){
 	return Motor.CubeGrid==Controller.CubeGrid;
@@ -569,11 +570,17 @@ public Program()
 		Arms.Add(arm);
 		Write('\t'+arm.ToString()+':'+Math.Round(arm.MaxLength,1).ToString()+"M");
 	}
+	Sensor=(new GenericMethods<IMySensorBlock>(this)).GetContaining("");
 	Runtime.UpdateFrequency=UpdateFrequency.Update1;
 }
 
 public void Save()
 {
+	foreach(Arm arm in Arms){
+		foreach(IMyMotorStator Motor in arm.Motors){
+			Motor.TargetVelocityRPM=0;
+		}
+	}
     // Called when the program needs to save its state. Use
     // this method to save your state to the Storage field
     // or some other means. 
@@ -595,8 +602,8 @@ Vector3D GetTargetingDirection(IMyMotorStator Motor){
 }
 
 bool SetPosition(Arm arm,Vector3D position){
-	if((arm.Motors[0].GetPosition()-position).Length()>=arm.MaxLength)
-		return false;
+	//if((arm.Motors[0].GetPosition()-position).Length()>=arm.MaxLength)
+		//return false;
 	bool moving=false;
 	bool hinge_1=false;
 	double distance=(position-arm.Motors[0].GetPosition()).Length();
@@ -612,16 +619,24 @@ bool SetPosition(Arm arm,Vector3D position){
 			float Difference=(float)(GetAngle(Back,Direction)-GetAngle(Front,Direction));
 			Angle Target=Angle.FromRadians(Motor.Angle)-Difference;
 			if(!hinge_1){
-				float percent=(float)(90*(distance/arm.MaxLength));
-				if(CanSetAngle(motor,Target+percent)){
-					moving=true;
-					SetAngle(Motor,Target+percent);
-				}
-				else if(CanSetAngle(motor.Target-percent)){
-					moving=true;
-					SetAngle(Motor,Target-percent);
-				}
 				hinge_1=true;
+				if((arm.Motors[0].GetPosition()-position).Length()<arm.MaxLength){
+					Write("Hinge1:"+Motor.CustomName);
+					float percent=(float)Math.Min(45,45*((arm.MaxLength-(distance-1))/arm.MaxLength));
+					Write("Percent:"+Math.Round(percent,1).ToString()+'°');
+					Write("H1 Current:"+Angle.FromRadians(Motor.Angle).ToString(1));
+					if(CanSetAngle(Motor,Target+percent)){
+						moving=true;
+						Write("H1 Target:"+(Target+percent).ToString(1));
+						SetAngle(Motor,Target+percent);
+					}
+					/*else if(CanSetAngle(Motor,Target-percent)){
+						moving=true;
+						Write("H1 Target:"+(Target-percent).ToString(1));
+						SetAngle(Motor,Target-percent);
+					}*/
+					continue;
+				}
 			}
 			if(CanSetAngle(Motor,Target)&&Math.Abs(Difference)>1){
 				moving=true;
@@ -739,8 +754,6 @@ void UpdateProgramInfo(){
 }
 
 Vector3D Last_Input=new Vector3D(0,0,0);
-Vector3D input_2=new Vector3D(0,0,0);
-bool next_1=true;
 bool moving=false;
 public void Main(string argument, UpdateType updateSource)
 {
@@ -760,27 +773,22 @@ public void Main(string argument, UpdateType updateSource)
 		else
 			moving=Vector3D.TryParse(argument,out coords);
 		if(moving){
-			if(next_1)
-				Last_Input=coords;
-			else
-				input_2=coords;
-			next_1=!next_1;
+			Last_Input=coords;
 		}
 	}
-	Write(Last_Input.ToString());
-	Write(input_2.ToString());
+	moving=Sensor.IsActive;
+	Last_Input=Sensor.LastDetectedEntity.Position;
 	
-	if(moving){
+	Write(Last_Input.ToString());
+	
+	if(Sensor.IsActive){
 		moving=SetPosition(Arms[0],Last_Input);
-		if(!moving){
-			Vector3D temp=Last_Input;
-			Last_Input=input_2;
-			input_2=temp;
-			next_1=!next_1;
-			moving=true;
+	}
+	else{
+		foreach(IMyMotorStator Motor in Arms[0].Motors){
+			Motor.CustomData=(new MyWaypointInfo(Motor.CustomName,GetTargetingDirection(Motor)+Motor.GetPosition())).ToString();
+			Motor.TargetVelocityRPM=0;
 		}
 	}
-    foreach(IMyMotorStator Motor in Arms[0].Motors){
-		Motor.CustomData=(new MyWaypointInfo(Motor.CustomName,GetTargetingDirection(Motor)+Motor.GetPosition())).ToString();
-	}
+    
 }
