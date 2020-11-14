@@ -641,7 +641,6 @@ public void Save()
 
 double LightTimer=0;
 int LightMultx=1;
-bool last_positive=true;
 bool SetPosition(Arm arm,Vector3D position){
 	//if((arm.Motors[0].GetPosition()-position).Length()>=arm.MaxLength)
 		//return false;
@@ -656,6 +655,7 @@ bool SetPosition(Arm arm,Vector3D position){
 	double distance=(position-arm.Motors[0].GetPosition()).Length();
 	Write("Distance:"+Math.Round(distance,1).ToString()+"M");
 	float speed=(float)(distance/arm.MaxLength)/2;
+	
 	for(int i=0;i<arm.Motors.Count;i++){
 		IMyMotorStator Motor=arm.Motors[i];
 		float speed_multx=(1+((float)(i+1))/arm.Motors.Count);
@@ -676,54 +676,26 @@ bool SetPosition(Arm arm,Vector3D position){
 				hinge_1=true;
 				if((arm.Motors[0].GetPosition()-position).Length()<arm.MaxLength){
 					Write("Hinge1:"+Motor.CustomName);
-					float percent=(float)Math.Min(180,180*((arm.MaxLength-(distance))/arm.MaxLength));
-					Write("Percent: "+Math.Round(percent,1).ToString()+'°');
-					Write("H1 Current: "+Angle.FromRadians(Motor.Angle).ToString(1));
-					Write("H1 Original Target: "+Target.ToString(1));
-					float percent_plus=percent,percent_minus=percent;
-					while(percent_plus>0&&!CanSetAngle(Motor,Target+percent_plus))
-						percent_plus--;
-					while(percent_minus>0&&!CanSetAngle(Motor,Target-percent_minus))
-						percent_minus--;
-					Write("Percent_Plus: "+(new Angle(percent_plus)).ToString(1));
-					Write("Percent_Minus: "+(new Angle(percent_minus)).ToString(1));
-					if((!last_positive)&&percent_plus-30>percent_minus)
-						last_positive=true;
-					else if(last_positive&&percent_minus-30>percent_plus)
-						last_positive=false;
-					if(last_positive){
-						if(CanSetAngle(Motor,Target+percent)){
-							moving=true;
-							Write("H1 Target: "+(Target+percent_plus).ToString(1));
-							SetAngle(Motor,Target+percent_plus,speed*1.5f);
-							last_positive=true;
-							continue;
-						}
-						else if(CanSetAngle(Motor,Target-percent)){
-							moving=true;
-							Write("H1 Target: "+(Target-percent_minus).ToString(1));
-							SetAngle(Motor,Target-percent_minus,speed*1.5f);
-							last_positive=false;
-							continue;
-						}
+					float percent=(float)Math.Min(180,180*((arm.MaxLength-(distance/3))/arm.MaxLength));
+					Write("Percent:"+Math.Round(percent,1).ToString()+'°');
+					Write("H1 Current:"+Angle.FromRadians(Motor.Angle).ToString(1));
+					Write("H1 \"Target\":"+Target.ToString(1));
+					while(percent>0&&!(CanSetAngle(Motor,Target-percent)||CanSetAngle(Motor,Target+percent))){
+						percent--;
 					}
-					else{
+					if(percent>0){
 						if(CanSetAngle(Motor,Target-percent)){
 							moving=true;
-							Write("H1 Target: "+(Target-percent_minus).ToString(1));
-							SetAngle(Motor,Target-percent_minus,speed*1.5f);
-							last_positive=false;
-							continue;
+							Write("H1 Target:"+(Target-percent).ToString(1));
+							SetAngle(Motor,Target-percent,speed*1.5f);
 						}
 						else if(CanSetAngle(Motor,Target+percent)){
 							moving=true;
-							Write("H1 Target: "+(Target+percent_plus).ToString(1));
-							SetAngle(Motor,Target+percent_plus,speed*1.5f);
-							last_positive=true;
-							continue;
+							Write("H1 Target:"+(Target+percent).ToString(1));
+							SetAngle(Motor,Target+percent,speed*1.5f);
 						}
 					}
-					Write("Ignoring adjustments");
+					continue;
 				}
 			}
 			if(CanSetAngle(Motor,Target)&&Math.Abs(Difference)>1){
@@ -778,7 +750,7 @@ bool SetPosition(Arm arm,Vector3D position){
 				LightMultx=Rnd.Next(-1,1);
 			} while(LightMultx==0);
 			arm.Light.Intensity=(float)Math.Max(1,Math.Min(10,(distance/(arm.MaxLength*2))*5));
-			arm.Light.Radius=20;
+			arm.Light.Radius=10;
 			arm.Light.Color=DEFAULT_TEXT_COLOR;
 		}
 		
@@ -822,7 +794,7 @@ void SetAngle(IMyMotorStator Motor,Angle Next_Angle,float Speed_Multx=1,float Pr
 	if(!can_increase)
 		From_Top=float.MaxValue;
 	float difference=Math.Min(From_Bottom,From_Top);
-	//Write(Motor.CustomName+" Difference:"+Math.Round(difference,2)+'°');
+	Write(Motor.CustomName+" Difference:"+Math.Round(difference,2)+'°');
 	if(difference>Precision){
 		Motor.RotorLock=false;
 		float target_rpm=0;
