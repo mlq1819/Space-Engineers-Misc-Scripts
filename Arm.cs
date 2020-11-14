@@ -585,9 +585,9 @@ public void Save()
 Vector3D GetTargetingDirection(IMyMotorStator Motor){
 	Vector3D output;
 	if(IsHinge(Motor))
-		output=LocalToGlobal(new Vector3D(-1,0,0),Motor);
+		output=LocalToGlobal(new Vector3D(-1,0,0),Motor.Top);
 	else if(IsRotor(Motor))
-		output=LocalToGlobal(new Vector3D(0,0,-1),Motor);
+		output=LocalToGlobal(new Vector3D(0,0,-1),Motor.Top);
 	else
 		throw new ArgumentException("Invalid Stator:"+Motor.CustomName);
 	output.Normalize();
@@ -605,11 +605,11 @@ bool SetPosition(Arm arm,Vector3D position){
 		if(GetAngle(Target_Direction,Direction)>1){
 			if(IsHinge(Motor)){
 				//Positive Angle is closer to front
-				Vector3D Front=LocalToGlobal(new Vector3D(0,0,-1),Motor);
+				Vector3D Front=LocalToGlobal(new Vector3D(0,0,-1),Motor.Top);
 				Front.Normalize();
 				Vector3D Back=-1*Front;
 				float Difference=(float)(GetAngle(Back,Direction)-GetAngle(Front,Direction));
-				Angle Target=Angle.FromRadians(Motor.Angle)+Difference;
+				Angle Target=Angle.FromRadians(Motor.Angle)-Difference;
 				if(CanSetAngle(Motor,Target)){
 					moving=true;
 					SetAngle(Motor,Target);
@@ -619,11 +619,11 @@ bool SetPosition(Arm arm,Vector3D position){
 			}
 			else if(IsRotor(Motor)){
 				//Positive angle is closer to right
-				Vector3D Left=LocalToGlobal(new Vector3D(-1,0,0),Motor);
+				Vector3D Left=LocalToGlobal(new Vector3D(-1,0,0),Motor.Top);
 				Left.Normalize();
 				Vector3D Right=-1*Left;
 				float Difference=(float)(GetAngle(Left,Direction)-GetAngle(Right,Direction));
-				Angle Target=Angle.FromRadians(Motor.Angle)+Difference;
+				Angle Target=Angle.FromRadians(Motor.Angle)-Difference;
 				if(CanSetAngle(Motor,Target)){
 					moving=true;
 					SetAngle(Motor,Target);
@@ -675,7 +675,7 @@ void SetAngle(IMyMotorStator Motor,Angle Next_Angle,float Speed_Multx=1,float Pr
 	if(!can_increase)
 		From_Top=float.MaxValue;
 	float difference=Math.Min(From_Bottom,From_Top);
-	//Write(Motor.CustomName+" Difference:"+Math.Round(difference,2)+'°');
+	Write(Motor.CustomName+" Difference:"+Math.Round(difference,2)+'°');
 	if(difference>Precision){
 		Motor.RotorLock=false;
 		float target_rpm=0;
@@ -741,7 +741,7 @@ public void Main(string argument, UpdateType updateSource)
 			moving=true;
 			Last_Input=waypoint.Coords;
 		}
-		else if(MyWaypointInfo.TryParse(argument.Substring(0,argument.Length-10),out waypoint)){
+		else if(argument.Length>10&&MyWaypointInfo.TryParse(argument.Substring(0,argument.Length-10),out waypoint)){
 			moving=true;
 			Last_Input=waypoint.Coords;
 		}
