@@ -1,6 +1,7 @@
 const string Program_Name = "Arm"; //Name me!
 Color DEFAULT_TEXT_COLOR=new Color(197,137,255,255);
 Color DEFAULT_BACKGROUND_COLOR=new Color(44,0,88,255);
+const double BLINK_TIMER_LIMIT=2;
 
 class GenericMethods<T> where T : class, IMyTerminalBlock{
 	private IMyGridTerminalSystem TerminalSystem;
@@ -535,6 +536,7 @@ double seconds_since_last_update = 0;
 IMyShipController Controller;
 List<Arm> Arms;
 IMySensorBlock Sensor;
+Random Rnd;
 
 bool ArmFunction(IMyMotorStator Motor){
 	return Motor.CubeGrid==Controller.CubeGrid;
@@ -556,6 +558,7 @@ public Program()
 		Me.GetSurface(i).Alignment=TextAlignment.CENTER;
 		Me.GetSurface(i).ContentType=ContentType.TEXT_AND_IMAGE;
 	}
+	Rnd=new Random();
 	Me.GetSurface(1).FontSize=2.2f;
 	Me.GetSurface(1).TextPadding=40.0f;
 	Echo("Beginning initialization");
@@ -601,6 +604,8 @@ Vector3D GetTargetingDirection(IMyMotorStator Motor){
 	return output;
 }
 
+double LightTimer=0;
+int LightMultx=1;
 bool SetPosition(Arm arm,Vector3D position){
 	//if((arm.Motors[0].GetPosition()-position).Length()>=arm.MaxLength)
 		//return false;
@@ -613,8 +618,15 @@ bool SetPosition(Arm arm,Vector3D position){
 	bool moving=false;
 	bool hinge_1=false;
 	double distance=(position-arm.Motors[0].GetPosition()).Length();
+	Write("Distance:"+Math.Round(distance,1).ToString()+"M");
 	float speed=(float)(distance/arm.MaxLength)/2;
+	int i=0;
 	foreach(IMyMotorStator Motor in arm.Motors){
+		i++;
+		float speed_multx=(1+((float)i)/arm.Motors.Count);
+		if(arm.Light!=null)
+			speed_multx*=(float)Math.Max(0.1,Math.Min(1,(position-arm.Light.GetPosition()).Length()/2));
+		speed=(float)(distance/arm.MaxLength*speed_multx)/2;
 		Vector3D Direction=(Motor.GetPosition()-position);
 		Direction.Normalize();
 		Vector3D Target_Direction=GetTargetingDirection(Motor);
@@ -629,19 +641,15 @@ bool SetPosition(Arm arm,Vector3D position){
 				hinge_1=true;
 				if((arm.Motors[0].GetPosition()-position).Length()<arm.MaxLength){
 					Write("Hinge1:"+Motor.CustomName);
-					float percent=(float)Math.Min(45,45*((arm.MaxLength-(distance-1))/arm.MaxLength));
+					float percent=(float)Math.Min(90,90*((arm.MaxLength-(distance/2))/arm.MaxLength));
 					Write("Percent:"+Math.Round(percent,1).ToString()+'°');
 					Write("H1 Current:"+Angle.FromRadians(Motor.Angle).ToString(1));
-					if(CanSetAngle(Motor,Target+percent)){
-						moving=true;
-						Write("H1 Target:"+(Target+percent).ToString(1));
-						SetAngle(Motor,Target+percent,speed);
-					}
-					/*else if(CanSetAngle(Motor,Target-percent)){
+					Write("H1 \"Target\":"+Target.ToString(1));
+					if(CanSetAngle(Motor,Target-percent)){
 						moving=true;
 						Write("H1 Target:"+(Target-percent).ToString(1));
-						SetAngle(Motor,Target-percent);
-					}*/
+						SetAngle(Motor,Target-percent,speed);
+					}
 					continue;
 				}
 			}
@@ -668,10 +676,38 @@ bool SetPosition(Arm arm,Vector3D position){
 		}
 	}
 	if(arm.Light!=null){
-		float light_interval=(float)Math.Min(10,Math.Max(3,(distance/(arm.MaxLength*2))*3f));
-		arm.Light.BlinkIntervalSeconds=light_interval;
-		arm.Light.BlinkLength=(light_interval-0.05f)/light_interval*100;
-		arm.Light.Intensity=(float)Math.Max(1,Math.Min(10,(distance/(arm.MaxLength*2))*5));
+		if(LightTimer<BLINK_TIMER_LIMIT){
+			int r=arm.Light.Color.R;
+			int g=arm.Light.Color.G;
+			int b=arm.Light.Color.B;
+			switch(Rnd.Next(0,3)){
+				case 1:
+					if(Sensor.LastDetectedEntity.Relationship>=MyRelationsBetweenPlayerAndBlock.Neutral)
+						r+=Rnd.Next(0,5);
+					else
+						r+=Rnd.Next(0,3)*LightMultx;
+					break;
+				case 2:
+					g+=Rnd.Next(0,3)*LightMultx;
+					break;
+				case 3:
+					if(Sensor.LastDetectedEntity.Relationship==MyRelationsBetweenPlayerAndBlock.Owner)
+						b+=Rnd.Next(0,5);
+					else
+						b+=Rnd.Next(0,3)*LightMultx;
+					break;
+			}
+			arm.Light.Color=new Color(r,g,b,255);
+		}
+		else{
+			LightTimer=0;
+			do{
+				LightMultx=Rnd.Next(-1,1);
+			} while(LightMultx==0);
+			arm.Light.Intensity=(float)Math.Max(1,Math.Min(10,(distance/(arm.MaxLength*2))*5));
+			arm.Light.Radius=10;
+			arm.Light.Color=DEFAULT_TEXT_COLOR;
+		}
 		
 	}
 	return moving;
@@ -750,6 +786,8 @@ void UpdateProgramInfo(){
 	Echo(Program_Name + " OS " + cycle_long.ToString() + '-' + cycle.ToString() + " (" + loading_char + ")");
 	Me.GetSurface(1).WriteText(Program_Name + " OS " + cycle_long.ToString() + '-' + cycle.ToString() + " (" + loading_char + ")",false);
 	seconds_since_last_update = Runtime.TimeSinceLastRun.TotalSeconds + (Runtime.LastRunTimeMs / 1000);
+	if(LightTimer<BLINK_TIMER_LIMIT)
+		LightTimer+=seconds_since_last_update;
 	if(seconds_since_last_update<1){
 		Echo(Math.Round(seconds_since_last_update*1000, 0).ToString() + " milliseconds\n");
 	}
@@ -795,8 +833,6 @@ public void Main(string argument, UpdateType updateSource)
 	
 	if(Sensor.IsActive){
 		SetPosition(Arms[0],Last_Input);
-		if(Arms[0].Light!=null)
-			Arms[0].Light.Radius=10;
 	}
 	else{
 		foreach(IMyMotorStator Motor in Arms[0].Motors){
@@ -806,8 +842,6 @@ public void Main(string argument, UpdateType updateSource)
 		if(Arms[0].Light!=null){
 			Arms[0].Light.Intensity=2.5f;
 			Arms[0].Light.Radius=5;
-			Arms[0].Light.BlinkIntervalSeconds=10;
-			Arms[0].Light.BlinkLength=(10-0.05f)/10*100;
 		}
 	}
     
