@@ -641,14 +641,24 @@ bool SetPosition(Arm arm,Vector3D position){
 				hinge_1=true;
 				if((arm.Motors[0].GetPosition()-position).Length()<arm.MaxLength){
 					Write("Hinge1:"+Motor.CustomName);
-					float percent=(float)Math.Min(90,90*((arm.MaxLength-(distance/2))/arm.MaxLength));
+					float percent=(float)Math.Min(180,180*((arm.MaxLength-(distance/3))/arm.MaxLength));
 					Write("Percent:"+Math.Round(percent,1).ToString()+'°');
 					Write("H1 Current:"+Angle.FromRadians(Motor.Angle).ToString(1));
 					Write("H1 \"Target\":"+Target.ToString(1));
-					if(CanSetAngle(Motor,Target-percent)){
-						moving=true;
-						Write("H1 Target:"+(Target-percent).ToString(1));
-						SetAngle(Motor,Target-percent,speed);
+					while(percent>0&&!(CanSetAngle(Motor,Target-percent)||CanSetAngle(Motor,Target+percent))){
+						percent--;
+					}
+					if(percent>0){
+						if(CanSetAngle(Motor,Target-percent)){
+							moving=true;
+							Write("H1 Target:"+(Target-percent).ToString(1));
+							SetAngle(Motor,Target-percent,speed*1.5f);
+						}
+						else if(CanSetAngle(Motor,Target+percent)){
+							moving=true;
+							Write("H1 Target:"+(Target+percent).ToString(1));
+							SetAngle(Motor,Target+percent,speed*1.5f);
+						}
 					}
 					continue;
 				}
