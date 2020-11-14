@@ -1,4 +1,4 @@
-const string Program_Name = ""; //Name me!
+const string Program_Name = "Arm"; //Name me!
 Color DEFAULT_TEXT_COLOR=new Color(197,137,255,255);
 Color DEFAULT_BACKGROUND_COLOR=new Color(44,0,88,255);
 
@@ -424,6 +424,11 @@ Vector3D LocalToGlobalPosition(Vector3D Local, IMyCubeBlock Reference){
 	return Vector3D.Transform(Local,Reference.WorldMatrix);
 }
 
+Vector3D TransformBetweenGrids(Vector3D Input_Local, IMyCubeBlock Input_Reference, IMyCubeBlock Output_Reference){
+	Vector3D Global=Vector3D.TransformNormal(Input_Local,Input_Reference.WorldMatrix);
+	return Vector3D.TransformNormal(Global,MatrixD.Invert(Output_Reference.WorldMatrix));
+}
+
 double GetAngle(Vector3D v1, Vector3D v2){
 	return GenericMethods<IMyTerminalBlock>.GetAngle(v1,v2);
 }
@@ -454,16 +459,18 @@ class Arm{
 	public static Func<IMyMotorStator,bool> IsRotor;
 	
 	public List<IMyMotorStator> Motors;
+	public IMyInteriorLight Light;
 	
 	public double MaxLength{
 		get{
 			double output=0;
 			for(int i=0;i<Motors.Count;i++){
-				if(IsHinge(Motors[i]))
-					output+=(Motors[i].GetPosition()-Motors[i].Top.GetPosition()).Length();
 				if(i>0)
 					output+=(Motors[i-1].Top.GetPosition()-Motors[i].GetPosition()).Length();
+				output+=(Motors[i].GetPosition()-Motors[i].Top.GetPosition()).Length();
 			}
+			if(Light!=null)
+				output+=(Motors[Motors.Count-1].Top.GetPosition()-Light.GetPosition()).Length();
 			return output;
 		}
 	}
@@ -473,6 +480,14 @@ class Arm{
 		foreach(IMyMotorStator Motor in input){
 			if(Motor.CubeGrid==Grid)
 				output.Add(Motor);
+		}
+		return output;
+	}
+	List<IMyInteriorLight> FilterByGrid(List<IMyInteriorLight> input,IMyCubeGrid Grid){
+		List<IMyInteriorLight> output=new List<IMyInteriorLight>();
+		foreach(IMyInteriorLight light in input){
+			if(light.CubeGrid==Grid)
+				output.Add(light);
 		}
 		return output;
 	}
@@ -487,13 +502,28 @@ class Arm{
 			if(gridmotors.Count==1)
 				Motors.Add(gridmotors[0]);
 		} while(gridmotors.Count==1);
+		for(int i=0;i<Motors.Count;i++){
+			if(IsHinge(Motors[i]))
+				Motors[i].CustomName="Arm Stator "+(i+1).ToString()+" (Hinge)";
+			else if(IsRotor(Motors[i]))
+				Motors[i].CustomName="Arm Stator "+(i+1).ToString()+" (Rotor)";
+			else
+				Motors[i].CustomName="Arm Stator "+(i+1).ToString();
+		}
+		List<IMyInteriorLight> lights=(new GenericMethods<IMyInteriorLight>(P)).GetAllIncluding("");
+		lights=FilterByGrid(lights,Motors[Motors.Count-1].TopGrid);
+		if(lights.Count>0)
+			Light=lights[0];
+		else
+			Light=null;
 	}
 	
 	public override string ToString(){
 		string output="Arm";
-		foreach(IMyMotorStator Motor in Motors){
+		foreach(IMyMotorStator Motor in Motors)
 			output+=":"+Motor.CustomName;
-		}
+		if(Light!=null)
+			output+=':'+Light.CustomName;
 		return output;
 	}
 }
@@ -537,19 +567,9 @@ public Program()
 		Write('\t'+Motor.CustomName+":"+Motor.BlockDefinition.SubtypeName);
 		Arm arm = new Arm(Motor);
 		Arms.Add(arm);
-		Write('\t'+arm.ToString());
+		Write('\t'+arm.ToString()+':'+Math.Round(arm.MaxLength,1).ToString()+"M");
 	}
-	
-	// The constructor, called only once every session and
-    // always before any other method is called. Use it to
-    // initialize your script. 
-    //     
-    // The constructor is optional and can be removed if not
-    // needed.
-    // 
-    // It's recommended to set RuntimeInfo.UpdateFrequency 
-    // here, which will allow your script to run itself without a 
-    // timer block.
+	Runtime.UpdateFrequency=UpdateFrequency.Update10;
 }
 
 public void Save()
@@ -560,6 +580,63 @@ public void Save()
     // 
     // This method is optional and can be removed if not
     // needed.
+}
+
+Vector3D GetTargetingDirection(IMyMotorStator Motor){
+	Vector3D output;
+	if(IsHinge(Motor))
+		output=LocalToGlobal(new Vector3D(-1,0,0),Motor);
+	else if(IsRotor(Motor))
+		output=LocalToGlobal(new Vector3D(0,0,-1),Motor);
+	else
+		throw new ArgumentException("Invalid Stator:"+Motor.CustomName);
+	output.Normalize();
+	return output;
+}
+
+bool SetPosition(Arm arm,Vector3D position){
+	if((arm.Motors[0].GetPosition()-position).Length()>=arm.MaxLength)
+		return false;
+	bool moving=false;
+	foreach(IMyMotorStator Motor in arm.Motors){
+		Vector3D Direction=(Motor.GetPosition()-position);
+		Direction.Normalize();
+		Vector3D Target_Direction=GetTargetingDirection(Motor);
+		if(GetAngle(Target_Direction,Direction)>1){
+			if(IsHinge(Motor)){
+				//Positive Angle is closer to front
+				Vector3D Front=LocalToGlobal(new Vector3D(0,0,-1),Motor);
+				Front.Normalize();
+				Vector3D Back=-1*Front;
+				float Difference=(float)(GetAngle(Back,Direction)-GetAngle(Front,Direction));
+				Angle Target=Angle.FromRadians(Motor.Angle)+Difference;
+				if(CanSetAngle(Motor,Target)){
+					moving=true;
+					SetAngle(Motor,Target);
+				}
+				else
+					Motor.TargetVelocityRPM=0;
+			}
+			else if(IsRotor(Motor)){
+				//Positive angle is closer to right
+				Vector3D Left=LocalToGlobal(new Vector3D(-1,0,0),Motor);
+				Left.Normalize();
+				Vector3D Right=-1*Left;
+				float Difference=(float)(GetAngle(Left,Direction)-GetAngle(Right,Direction));
+				Angle Target=Angle.FromRadians(Motor.Angle)+Difference;
+				if(CanSetAngle(Motor,Target)){
+					moving=true;
+					SetAngle(Motor,Target);
+				}
+				else
+					Motor.TargetVelocityRPM=0;
+			}
+		}
+		else{
+			Motor.TargetVelocityRPM=0;
+		}
+	}
+	return moving;
 }
 
 //Checks whether a particular Motor can move to the given angle
@@ -652,14 +729,29 @@ void UpdateProgramInfo(){
 	}
 }
 
+Vector3D Last_Input=new Vector3D(0,0,0);
+bool moving=false;
 public void Main(string argument, UpdateType updateSource)
 {
 	UpdateProgramInfo();
-    // The main entry point of the script, invoked every time
-    // one of the programmable block's Run actions are invoked,
-    // or the script updates itself. The updateSource argument
-    // describes where the update came from.
-    // 
-    // The method itself is required, but the arguments above
-    // can be removed if not needed.
+	if(argument.Length>0){
+		MyWaypointInfo waypoint;
+		moving=false;
+		if(MyWaypointInfo.TryParse(argument,out waypoint)){
+			moving=true;
+			Last_Input=waypoint.Coords;
+		}
+		else if(MyWaypointInfo.TryParse(argument.Substring(0,argument.Length-10),out waypoint)){
+			moving=true;
+			Last_Input=waypoint.Coords;
+		}
+		else
+			moving=Vector3D.TryParse(argument,out Last_Input);
+	}
+	
+	if(moving)
+		moving=SetPosition(Arms[0],Last_Input);
+    foreach(IMyMotorStator Motor in Arms[0].Motors){
+		Motor.CustomData=(new MyWaypointInfo(Motor.CustomName,GetTargetingDirection(Motor)+Motor.GetPosition())).ToString();
+	}
 }
