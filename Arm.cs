@@ -598,6 +598,8 @@ bool SetPosition(Arm arm,Vector3D position){
 	if((arm.Motors[0].GetPosition()-position).Length()>=arm.MaxLength)
 		return false;
 	bool moving=false;
+	bool hinge_1=false;
+	double distance=(position-arm.Motors[0].GetPosition()).Length();
 	foreach(IMyMotorStator Motor in arm.Motors){
 		Vector3D Direction=(Motor.GetPosition()-position);
 		Direction.Normalize();
@@ -609,6 +611,18 @@ bool SetPosition(Arm arm,Vector3D position){
 			Vector3D Back=-1*Front;
 			float Difference=(float)(GetAngle(Back,Direction)-GetAngle(Front,Direction));
 			Angle Target=Angle.FromRadians(Motor.Angle)-Difference;
+			if(!hinge_1){
+				float percent=(float)(90*(distance/arm.MaxLength));
+				if(CanSetAngle(motor,Target+percent)){
+					moving=true;
+					SetAngle(Motor,Target+percent);
+				}
+				else if(CanSetAngle(motor.Target-percent)){
+					moving=true;
+					SetAngle(Motor,Target-percent);
+				}
+				hinge_1=true;
+			}
 			if(CanSetAngle(Motor,Target)&&Math.Abs(Difference)>1){
 				moving=true;
 				SetAngle(Motor,Target);
