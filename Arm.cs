@@ -569,7 +569,7 @@ public Program()
 		Arms.Add(arm);
 		Write('\t'+arm.ToString()+':'+Math.Round(arm.MaxLength,1).ToString()+"M");
 	}
-	Runtime.UpdateFrequency=UpdateFrequency.Update10;
+	Runtime.UpdateFrequency=UpdateFrequency.Update1;
 }
 
 public void Save()
@@ -602,38 +602,33 @@ bool SetPosition(Arm arm,Vector3D position){
 		Vector3D Direction=(Motor.GetPosition()-position);
 		Direction.Normalize();
 		Vector3D Target_Direction=GetTargetingDirection(Motor);
-		if(GetAngle(Target_Direction,Direction)>1){
-			if(IsHinge(Motor)){
-				//Positive Angle is closer to front
-				Vector3D Front=LocalToGlobal(new Vector3D(0,0,-1),Motor.Top);
-				Front.Normalize();
-				Vector3D Back=-1*Front;
-				float Difference=(float)(GetAngle(Back,Direction)-GetAngle(Front,Direction));
-				Angle Target=Angle.FromRadians(Motor.Angle)-Difference;
-				if(CanSetAngle(Motor,Target)){
-					moving=true;
-					SetAngle(Motor,Target);
-				}
-				else
-					Motor.TargetVelocityRPM=0;
+		if(IsHinge(Motor)){
+			//Positive Angle is closer to front
+			Vector3D Front=LocalToGlobal(new Vector3D(0,0,-1),Motor.Top);
+			Front.Normalize();
+			Vector3D Back=-1*Front;
+			float Difference=(float)(GetAngle(Back,Direction)-GetAngle(Front,Direction));
+			Angle Target=Angle.FromRadians(Motor.Angle)-Difference;
+			if(CanSetAngle(Motor,Target)&&Math.Abs(Difference)>1){
+				moving=true;
+				SetAngle(Motor,Target);
 			}
-			else if(IsRotor(Motor)){
-				//Positive angle is closer to right
-				Vector3D Left=LocalToGlobal(new Vector3D(-1,0,0),Motor.Top);
-				Left.Normalize();
-				Vector3D Right=-1*Left;
-				float Difference=(float)(GetAngle(Left,Direction)-GetAngle(Right,Direction));
-				Angle Target=Angle.FromRadians(Motor.Angle)-Difference;
-				if(CanSetAngle(Motor,Target)){
-					moving=true;
-					SetAngle(Motor,Target);
-				}
-				else
-					Motor.TargetVelocityRPM=0;
-			}
+			else
+				Motor.TargetVelocityRPM=0;
 		}
-		else{
-			Motor.TargetVelocityRPM=0;
+		else if(IsRotor(Motor)){
+			//Positive angle is closer to right
+			Vector3D Left=LocalToGlobal(new Vector3D(-1,0,0),Motor.Top);
+			Left.Normalize();
+			Vector3D Right=-1*Left;
+			float Difference=(float)(GetAngle(Left,Direction)-GetAngle(Right,Direction));
+			Angle Target=Angle.FromRadians(Motor.Angle)+Difference;
+			if(CanSetAngle(Motor,Target)&&Math.Abs(Difference)>1){
+				moving=true;
+				SetAngle(Motor,Target);
+			}
+			else
+				Motor.TargetVelocityRPM=0;
 		}
 	}
 	return moving;
@@ -730,27 +725,47 @@ void UpdateProgramInfo(){
 }
 
 Vector3D Last_Input=new Vector3D(0,0,0);
+Vector3D input_2=new Vector3D(0,0,0);
+bool next_1=true;
 bool moving=false;
 public void Main(string argument, UpdateType updateSource)
 {
 	UpdateProgramInfo();
 	if(argument.Length>0){
 		MyWaypointInfo waypoint;
+		Vector3D coords;
 		moving=false;
 		if(MyWaypointInfo.TryParse(argument,out waypoint)){
 			moving=true;
-			Last_Input=waypoint.Coords;
+			coords=waypoint.Coords;
 		}
 		else if(argument.Length>10&&MyWaypointInfo.TryParse(argument.Substring(0,argument.Length-10),out waypoint)){
 			moving=true;
-			Last_Input=waypoint.Coords;
+			coords=waypoint.Coords;
 		}
 		else
-			moving=Vector3D.TryParse(argument,out Last_Input);
+			moving=Vector3D.TryParse(argument,out coords);
+		if(moving){
+			if(next_1)
+				Last_Input=coords;
+			else
+				input_2=coords;
+			next_1=!next_1;
+		}
 	}
+	Write(Last_Input.ToString());
+	Write(input_2.ToString());
 	
-	if(moving)
+	if(moving){
 		moving=SetPosition(Arms[0],Last_Input);
+		if(!moving){
+			Vector3D temp=Last_Input;
+			Last_Input=input_2;
+			input_2=temp;
+			next_1=!next_1;
+			moving=true;
+		}
+	}
     foreach(IMyMotorStator Motor in Arms[0].Motors){
 		Motor.CustomData=(new MyWaypointInfo(Motor.CustomName,GetTargetingDirection(Motor)+Motor.GetPosition())).ToString();
 	}
