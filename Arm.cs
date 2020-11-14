@@ -604,9 +604,16 @@ Vector3D GetTargetingDirection(IMyMotorStator Motor){
 bool SetPosition(Arm arm,Vector3D position){
 	//if((arm.Motors[0].GetPosition()-position).Length()>=arm.MaxLength)
 		//return false;
+	Vector3D Gravity=Controller.GetTotalGravity();
+	if(Gravity.Length()!=0){
+		Gravity.Normalize();
+		position-=Gravity*0.5f;
+	}
+	
 	bool moving=false;
 	bool hinge_1=false;
 	double distance=(position-arm.Motors[0].GetPosition()).Length();
+	float speed=(float)(distance/arm.MaxLength)/2;
 	foreach(IMyMotorStator Motor in arm.Motors){
 		Vector3D Direction=(Motor.GetPosition()-position);
 		Direction.Normalize();
@@ -628,7 +635,7 @@ bool SetPosition(Arm arm,Vector3D position){
 					if(CanSetAngle(Motor,Target+percent)){
 						moving=true;
 						Write("H1 Target:"+(Target+percent).ToString(1));
-						SetAngle(Motor,Target+percent);
+						SetAngle(Motor,Target+percent,speed);
 					}
 					/*else if(CanSetAngle(Motor,Target-percent)){
 						moving=true;
@@ -640,7 +647,7 @@ bool SetPosition(Arm arm,Vector3D position){
 			}
 			if(CanSetAngle(Motor,Target)&&Math.Abs(Difference)>1){
 				moving=true;
-				SetAngle(Motor,Target);
+				SetAngle(Motor,Target,speed);
 			}
 			else
 				Motor.TargetVelocityRPM=0;
@@ -654,11 +661,18 @@ bool SetPosition(Arm arm,Vector3D position){
 			Angle Target=Angle.FromRadians(Motor.Angle)+Difference;
 			if(CanSetAngle(Motor,Target)&&Math.Abs(Difference)>1){
 				moving=true;
-				SetAngle(Motor,Target);
+				SetAngle(Motor,Target,speed);
 			}
 			else
 				Motor.TargetVelocityRPM=0;
 		}
+	}
+	if(arm.Light!=null){
+		float light_interval=(float)Math.Min(10,Math.Max(3,(distance/(arm.MaxLength*2))*3f));
+		arm.Light.BlinkIntervalSeconds=light_interval;
+		arm.Light.BlinkLength=(light_interval-0.05f)/light_interval*100;
+		arm.Light.Intensity=(float)Math.Max(1,Math.Min(10,(distance/(arm.MaxLength*2))*5));
+		
 	}
 	return moving;
 }
@@ -754,14 +768,13 @@ void UpdateProgramInfo(){
 }
 
 Vector3D Last_Input=new Vector3D(0,0,0);
-bool moving=false;
 public void Main(string argument, UpdateType updateSource)
 {
 	UpdateProgramInfo();
 	if(argument.Length>0){
 		MyWaypointInfo waypoint;
 		Vector3D coords;
-		moving=false;
+		bool moving=false;
 		if(MyWaypointInfo.TryParse(argument,out waypoint)){
 			moving=true;
 			coords=waypoint.Coords;
@@ -776,18 +789,25 @@ public void Main(string argument, UpdateType updateSource)
 			Last_Input=coords;
 		}
 	}
-	moving=Sensor.IsActive;
 	Last_Input=Sensor.LastDetectedEntity.Position;
 	
 	Write(Last_Input.ToString());
 	
 	if(Sensor.IsActive){
-		moving=SetPosition(Arms[0],Last_Input);
+		SetPosition(Arms[0],Last_Input);
+		if(Arms[0].Light!=null)
+			Arms[0].Light.Radius=10;
 	}
 	else{
 		foreach(IMyMotorStator Motor in Arms[0].Motors){
 			Motor.CustomData=(new MyWaypointInfo(Motor.CustomName,GetTargetingDirection(Motor)+Motor.GetPosition())).ToString();
 			Motor.TargetVelocityRPM=0;
+		}
+		if(Arms[0].Light!=null){
+			Arms[0].Light.Intensity=2.5f;
+			Arms[0].Light.Radius=5;
+			Arms[0].Light.BlinkIntervalSeconds=10;
+			Arms[0].Light.BlinkLength=(10-0.05f)/10*100;
 		}
 	}
     
