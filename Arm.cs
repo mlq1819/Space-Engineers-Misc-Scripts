@@ -650,7 +650,8 @@ public void Save()
 
 double LightTimer=0;
 int LightMultx=1;
-
+float Hinge_Adjustment_Avg=0;
+float Rotor_Random_Adjustment_Avg=0;
 bool SetPosition(Arm arm,Vector3D position){
 	//if((arm.Motors[0].GetPosition()-position).Length()>=arm.MaxLength)
 		//return false;
@@ -662,8 +663,9 @@ bool SetPosition(Arm arm,Vector3D position){
 	
 	bool moving=false;
 	double distance=(position-arm.Motors[0].GetPosition()).Length();
-	double adjusted_distance=distance/2;
+	double adjusted_distance=0.9*distance-2.5;
 	bool hinge_1=adjusted_distance>=arm.MaxLength;
+	bool rotor_1=false;
 	Write("Distance:"+Math.Round(distance,1).ToString()+"M");
 	float speed=(float)(distance/arm.MaxLength)/2;
 	
@@ -692,27 +694,34 @@ bool SetPosition(Arm arm,Vector3D position){
 				if(Target>=(new Angle(0))){
 					while(adjustment>0&&!CanSetAngle(Motor,Target-adjustment))
 						adjustment--;
-					Adjusted_Target=Target-adjustment;
+					adjustment*=-1;
 				}
 				else{
 					while(adjustment>0&&!CanSetAngle(Motor,Target+adjustment))
 						adjustment--;
-					Adjusted_Target=Target+adjustment;
 				}
-				if(Math.Abs(Adjusted_Target.Difference(Current))<1){
-					moving=SetClosest(Motor,Adjusted_Target,speed*1.5f);
+				if(Runtime.UpdateFrequency==UpdateFrequency.Update1){
+					Hinge_Adjustment_Avg=((99*Hinge_Adjustment_Avg)+adjustment)/100;
+				}
+				else{
+					Hinge_Adjustment_Avg=((9*Hinge_Adjustment_Avg)+adjustment)/10;
+				}
+				Adjusted_Target=Target+Hinge_Adjustment_Avg;
+				if(Math.Abs(Adjusted_Target.Difference(Current))>1){
+					moving=SetClosest(Motor,Adjusted_Target,speed);
 				}
 				else
 					Motor.TargetVelocityRPM=0;
 				Write("Percent:"+Math.Round(percent*100,1).ToString()+'%');
 				Write("Adjustment:"+Math.Round(adjustment,1).ToString()+'°');
+				Write("Avg Adjustment:"+Math.Round(Hinge_Adjustment_Avg,1).ToString()+'°');
 				Write("Current:"+Angle.FromRadians(Motor.Angle).ToString(1));
 				Write("Original Target:"+Target.ToString(1)+":"+(Target-Current).ToString(1)+":"+CanSetAngle(Motor,Target).ToString());
 				Write("Adjusted Target:"+Adjusted_Target.ToString(1)+":"+(Adjusted_Target-Current).ToString(1)+":"+CanSetAngle(Motor,Adjusted_Target).ToString());
 				Write("Current:\n"+Target.LinedString(5));
 				Write("Original Target:\n"+Target.LinedString(Current));
 				Write("Adjusted Target:\n"+Adjusted_Target.LinedString(Current));
-				
+				Write("Velocity:"+Math.Round(Motor.TargetVelocityRPM,1).ToString());
 				
 			}
 			else{
@@ -735,6 +744,15 @@ bool SetPosition(Arm arm,Vector3D position){
 			}
 			else
 				Motor.TargetVelocityRPM=0;
+			if(!rotor_1){
+				rotor_1=true;
+				float r=(float)Math.Sqrt(Rnd.Next(-100,100));
+				if(Runtime.UpdateFrequency==UpdateFrequency.Update1)
+					Rotor_Random_Adjustment_Avg=(Rotor_Random_Adjustment_Avg*99+r)/100;
+				else
+					Rotor_Random_Adjustment_Avg=(Rotor_Random_Adjustment_Avg*9+r)/10;
+				Motor.TargetVelocityRPM+=Rotor_Random_Adjustment_Avg;
+			}
 		}
 	}
 	if(arm.Light!=null){
@@ -841,7 +859,7 @@ void SetAngle(IMyMotorStator Motor,Angle Next_Angle,float Speed_Multx=1,float Pr
 			target_rpm=(float)(-1*From_Bottom*Speed_Multx*Precision*5);
 		else
 			target_rpm=(float)(From_Top*Speed_Multx*Precision*5);
-		Motor.TargetVelocityRPM=target_rpm;
+		Motor.TargetVelocityRPM=Math.Max(-20,Math.Min(20,target_rpm));
 	}
 	else{
 		Motor.TargetVelocityRPM=0;
