@@ -368,11 +368,11 @@ struct Angle{
 			return Math.Round(Degrees,n).ToString()+'°';
 	}
 	
-	public static string LinedFloat(float deg){
+	public static string LinedFloat(float deg, int sections=10){
 		string output="[";
-		for(int i=-180/10;i<0;i++){
+		for(int i=-180/sections;i<0;i++){
 			if(deg<0){
-				if(deg/10<=i+1)
+				if(deg/sections<=i+1)
 					output+='|';
 				else
 					output+=' ';
@@ -380,11 +380,11 @@ struct Angle{
 			else
 				output+=' ';
 		}
-		for(int i=0;i<180/10;i++){
+		for(int i=0;i<180/sections;i++){
 			if(deg<0)
 				output+=' ';
 			else{
-				if(deg/10>=(i+1))
+				if(deg/sections>=(i+1))
 					output+='|';
 				else
 					output+=' ';
@@ -394,10 +394,10 @@ struct Angle{
 		return output;
 	}
 	
-	public string LinedString(){
+	public string LinedString(int sections=10){
 		if(Degrees>=180)
-			return LinedFloat(Degrees-360);
-		return LinedFloat(Degrees);
+			return LinedFloat(Degrees-360,sections);
+		return LinedFloat(Degrees,sections);
 	}
 	
 	public string LinedString(Angle Comparison){
@@ -688,6 +688,7 @@ bool SetPosition(Arm arm,Vector3D position){
 				float percent=(float)Math.Min(1,((arm.MaxLength-adjusted_distance)/arm.MaxLength));
 				float adjustment=percent*180;
 				Angle Adjusted_Target;
+				Angle Current=Angle.FromRadians(Motor.Angle);
 				if(Target>=(new Angle(0))){
 					while(adjustment>0&&!CanSetAngle(Motor,Target-adjustment))
 						adjustment--;
@@ -698,19 +699,18 @@ bool SetPosition(Arm arm,Vector3D position){
 						adjustment--;
 					Adjusted_Target=Target+adjustment;
 				}
-				if(CanSetAngle(Motor,Adjusted_Target)){
+				if(Math.Abs(Adjusted_Target.Difference(Current))<1){
 					moving=true;
-					SetAngle(Motor,Adjusted_Target,speed*1.5f);
+					SetClosest(Motor,Adjusted_Target,speed*1.5f);
 				}
 				else
 					Motor.TargetVelocityRPM=0;
-				Angle Current=Angle.FromRadians(Motor.Angle);
 				Write("Percent:"+Math.Round(percent*100,1).ToString()+'%');
 				Write("Adjustment:"+Math.Round(adjustment,1).ToString()+'°');
 				Write("Current:"+Angle.FromRadians(Motor.Angle).ToString(1));
-				Write("Original Target:"+Target.ToString(1)+":"+(Target-Current).ToString(1));
-				Write("Adjusted Target:"+Adjusted_Target.ToString(1)+":"+(Adjusted_Target-Current).ToString(1));
-				Write("Current:\n"+Target.LinedString());
+				Write("Original Target:"+Target.ToString(1)+":"+(Target-Current).ToString(1)+":"+CanSetAngle(Motor,Target).ToString());
+				Write("Adjusted Target:"+Adjusted_Target.ToString(1)+":"+(Adjusted_Target-Current).ToString(1)+":"+CanSetAngle(Motor,Adjusted_Target).ToString());
+				Write("Current:\n"+Target.LinedString(5));
 				Write("Original Target:\n"+Target.LinedString(Current));
 				Write("Adjusted Target:\n"+Adjusted_Target.LinedString(Current));
 				
@@ -732,9 +732,9 @@ bool SetPosition(Arm arm,Vector3D position){
 			Vector3D Right=-1*Left;
 			float Difference=(float)(GetAngle(Left,Direction)-GetAngle(Right,Direction));
 			Angle Target=Angle.FromRadians(Motor.Angle)+Difference;
-			if(CanSetAngle(Motor,Target)&&Math.Abs(Difference)>1){
+			if(Math.Abs(Difference)>1){
 				moving=true;
-				SetAngle(Motor,Target,speed);
+				SetClosest(Motor,Target,speed);
 			}
 			else
 				Motor.TargetVelocityRPM=0;
@@ -788,6 +788,28 @@ bool CanSetAngle(IMyMotorStator Motor,Angle Next_Angle){
 	if(Motor.LowerLimitDeg!=float.MinValue)
 		can_decrease=Angle.IsBetween(new Angle(Motor.LowerLimitDeg),Next_Angle,Motor_Angle);
 	return can_increase||can_decrease;
+}
+
+void SetClosest(IMyMotorStator Motor,Angle Next_Angle,float Speed_Multx=1,float Precision=0.1f){
+	bool can_increase=true;
+	bool can_decrease=true;
+	Angle Motor_Angle=Angle.FromRadians(Motor.Angle);
+	if(Motor.UpperLimitDeg!=float.MaxValue)
+		can_increase=Angle.IsBetween(Motor_Angle,Next_Angle,new Angle(Motor.UpperLimitDeg));
+	if(Motor.LowerLimitDeg!=float.MinValue)
+		can_decrease=Angle.IsBetween(new Angle(Motor.LowerLimitDeg),Next_Angle,Motor_Angle);
+	if(Motor_Angle.Difference_From_Top(Next_Angle)<Motor_Angle.Difference_From_Bottom(Next_Angle)){
+		if(can_increase)
+			SetAngle(Motor,Next_Angle,Speed_Multx,Precision);
+		else
+			SetAngle(Motor,new Angle(Motor.UpperLimitDeg),Speed_Multx,Precision);
+	}
+	else{
+		if(can_decrease)
+			SetAngle(Motor,Next_Angle,Speed_Multx,Precision);
+		else
+			SetAngle(Motor,new Angle(Motor.LowerLimitDeg),Speed_Multx,Precision);
+	}
 }
 
 //Updates the velocity of a particular motor to move to the given angle. Call on every run.
