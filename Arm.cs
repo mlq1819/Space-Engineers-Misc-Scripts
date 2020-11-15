@@ -607,6 +607,7 @@ public void Save()
 
 double LightTimer=0;
 int LightMultx=1;
+
 bool SetPosition(Arm arm,Vector3D position){
 	//if((arm.Motors[0].GetPosition()-position).Length()>=arm.MaxLength)
 		//return false;
@@ -617,8 +618,9 @@ bool SetPosition(Arm arm,Vector3D position){
 	}
 	
 	bool moving=false;
-	bool hinge_1=false;
 	double distance=(position-arm.Motors[0].GetPosition()).Length();
+	double adjusted_distance=distance/2;
+	bool hinge_1=adjusted_distance>=arm.MaxLength;
 	Write("Distance:"+Math.Round(distance,1).ToString()+"M");
 	float speed=(float)(distance/arm.MaxLength)/2;
 	
@@ -630,7 +632,6 @@ bool SetPosition(Arm arm,Vector3D position){
 		speed=(float)(distance/arm.MaxLength*speed_multx)/2;
 		Vector3D Direction=(Motor.GetPosition()-position);
 		Direction.Normalize();
-		//Vector3D Target_Direction=arm.GetTargetingDirection(i);
 		if(IsHinge(Motor)){
 			//Positive Angle is closer to front
 			Vector3D Front=LocalToGlobal(new Vector3D(0,0,-1),Motor.Top);
@@ -640,42 +641,43 @@ bool SetPosition(Arm arm,Vector3D position){
 			Angle Target=Angle.FromRadians(Motor.Angle)-Difference;
 			if(!hinge_1){
 				hinge_1=true;
-				double adjusted_distance=distance/2;
-				if(adjusted_distance<arm.MaxLength){
-					Write("Hinge1:"+Motor.CustomName);
-					float percent=(float)Math.Min(180,180*((arm.MaxLength-adjusted_distance)/arm.MaxLength));
-					Write("Percent:"+Math.Round(percent,1).ToString()+'°');
-					Write("H1 Current:"+Angle.FromRadians(Motor.Angle).ToString(1));
-					Write("H1 Original Target:"+Target.ToString(1));
-					if(Target>=(new Angle(0))){
-						Write("Positive Target");
-						while(percent>0&&!CanSetAngle(Motor,Target-percent))
-							percent--;
-						if(CanSetAngle(Motor,Target-percent)){
-							moving=true;
-							Write("H1 Target:"+(Target-percent).ToString(1));
-							SetAngle(Motor,Target-percent,speed*1.5f);
-						}
-					}
-					else{
-						Write("Negative Target");
-						while(percent>0&&!CanSetAngle(Motor,Target+percent))
-							percent--;
-						if(CanSetAngle(Motor,Target+percent)){
-							moving=true;
-							Write("H1 Target:"+(Target+percent).ToString(1));
-							SetAngle(Motor,Target+percent,speed*1.5f);
-						}
-					}
-					continue;
+				Write("Hinge1:"+Motor.CustomName);
+				float percent=(float)Math.Min(180,180*((arm.MaxLength-adjusted_distance)/arm.MaxLength));
+				Write("Percent:"+Math.Round(percent/180*100,1).ToString()+'%');
+				Angle Adjusted_Target;
+				if(Target>=(new Angle(0))){
+					Write("Positive Target");
+					while(percent>0&&!CanSetAngle(Motor,Target-percent))
+						percent--;
+					Adjusted_Target=Target-percent;
 				}
+				else{
+					Write("Negative Target");
+					while(percent>0&&!CanSetAngle(Motor,Target+percent))
+						percent--;
+					Adjusted_Target=Target+percent;
+				}
+				if(CanSetAngle(Motor,Adjusted_Target)){
+					moving=true;
+					SetAngle(Motor,Adjusted_Target,speed*1.5f);
+				}
+				else
+					Motor.TargetVelocityRPM=0;
+				Write("Adjustment:"+Math.Round(percent,1).ToString()+'°');
+				Write("Current:"+Angle.FromRadians(Motor.Angle).ToString(1));
+				Write("Original Target:"+Target.ToString(1)+":"+(Target-Angle.FromRadians(Motor.Angle)).ToString(1));
+				Write("Adjusted_Target:"+Adjusted_Target.ToString(1)+":"+(Adjusted_Target-Angle.FromRadians(Motor.Angle)).ToString(1)));
+				
+				
 			}
-			if(CanSetAngle(Motor,Target)&&Math.Abs(Difference)>1){
-				moving=true;
-				SetAngle(Motor,Target,speed);
+			else{
+				if(CanSetAngle(Motor,Target)&&Math.Abs(Difference)>1){
+					moving=true;
+					SetAngle(Motor,Target,speed);
+				}
+				else
+					Motor.TargetVelocityRPM=0;
 			}
-			else
-				Motor.TargetVelocityRPM=0;
 		}
 		else if(IsRotor(Motor)){
 			//Positive angle is closer to right
