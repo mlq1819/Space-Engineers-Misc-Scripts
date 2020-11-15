@@ -319,7 +319,10 @@ struct Angle{
 	}
 	
 	public static bool operator ==(Angle a1, Angle a2){
-		return Math.Abs(a1.Degrees-a2.Degrees)<0.000001f;
+		float degrees=(a1-a2).Degrees;
+		if(degrees>180)
+			degrees-=360;
+		return Math.Abs(degrees)<0.000001f;
 	}
 	
 	public static bool operator !=(Angle a1, Angle a2){
@@ -335,19 +338,19 @@ struct Angle{
 	}
 	
 	public static bool operator >(Angle a1, Angle a2){
-		return a1.Difference_From_Top(a2)<a1.Difference_From_Bottom(a2);
+		return a1.Difference_From_Top(a2)>a1.Difference_From_Bottom(a2);
 	}
 	
 	public static bool operator >=(Angle a1, Angle a2){
-		return a1==a2 || a1>a2;
+		return (a1==a2)||(a1>a2);
 	}
 	
 	public static bool operator <=(Angle a1, Angle a2){
-		return a1==a2 || a1<a2;
+		return (a1==a2)||(a1<a2);
 	}
 	
 	public static bool operator <(Angle a1, Angle a2){
-		return a1.Difference_From_Top(a2)>a1.Difference_From_Bottom(a2);
+		return a1.Difference_From_Top(a2)<a1.Difference_From_Bottom(a2);
 	}
 	
 	public override string ToString(){
@@ -676,20 +679,27 @@ bool SetPosition(Arm arm,Vector3D position){
 				hinge_1=true;
 				if((arm.Motors[0].GetPosition()-position).Length()<arm.MaxLength){
 					Write("Hinge1:"+Motor.CustomName);
-					float percent=(float)Math.Min(180,180*((arm.MaxLength-(distance/3))/arm.MaxLength));
+					float percent=(float)Math.Min(180,180*((arm.MaxLength-(distance))/arm.MaxLength));
 					Write("Percent:"+Math.Round(percent,1).ToString()+'°');
 					Write("H1 Current:"+Angle.FromRadians(Motor.Angle).ToString(1));
-					Write("H1 \"Target\":"+Target.ToString(1));
-					while(percent>0&&!(CanSetAngle(Motor,Target-percent)||CanSetAngle(Motor,Target+percent))){
-						percent--;
-					}
-					if(percent>0){
+					Write("H1 Original Target:"+Target.ToString(1));
+					Write("From_Top:"+Math.Round(Target.Difference_From_Top(new Angle(0)),1).ToString()+'°');
+					Write("From_Bottom:"+Math.Round(Target.Difference_From_Bottom(new Angle(0)),1).ToString()+'°');
+					if(Target>=(new Angle(0))){
+						Write("Positive Target");
+						while(percent>0&&!CanSetAngle(Motor,Target-percent))
+							percent--;
 						if(CanSetAngle(Motor,Target-percent)){
 							moving=true;
 							Write("H1 Target:"+(Target-percent).ToString(1));
 							SetAngle(Motor,Target-percent,speed*1.5f);
 						}
-						else if(CanSetAngle(Motor,Target+percent)){
+					}
+					else{
+						Write("Negative Target");
+						while(percent>0&&!CanSetAngle(Motor,Target+percent))
+							percent--;
+						if(CanSetAngle(Motor,Target+percent)){
 							moving=true;
 							Write("H1 Target:"+(Target+percent).ToString(1));
 							SetAngle(Motor,Target+percent,speed*1.5f);
@@ -794,7 +804,7 @@ void SetAngle(IMyMotorStator Motor,Angle Next_Angle,float Speed_Multx=1,float Pr
 	if(!can_increase)
 		From_Top=float.MaxValue;
 	float difference=Math.Min(From_Bottom,From_Top);
-	Write(Motor.CustomName+" Difference:"+Math.Round(difference,2)+'°');
+	//Write(Motor.CustomName+" Difference:"+Math.Round(difference,2)+'°');
 	if(difference>Precision){
 		Motor.RotorLock=false;
 		float target_rpm=0;
@@ -874,7 +884,7 @@ public void Main(string argument, UpdateType updateSource)
 	}
 	Last_Input=Sensor.LastDetectedEntity.Position;
 	
-	Write(Last_Input.ToString());
+	//Write(Last_Input.ToString());
 	
 	if(Sensor.IsActive){
 		SetPosition(Arms[0],Last_Input);
