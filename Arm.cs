@@ -484,6 +484,30 @@ class Arm{
 		}
 	}
 	
+	public bool Rotates(int MotorNum){
+		IMyMotorStator Motor=Motors[MotorNum];
+		if(IsHinge(Motor))
+			return false;
+		if(IsRotor(Motor)){
+			if(MotorNum==0)
+				return true;
+			Vector3D motor_direction=(Motor.GetPosition()-Motors[MotorNum-1].GetPosition());
+			Vector3D top_direction=(Motor.Top.GetPosition()-Motor.GetPosition());
+			motor_direction.Normalize();
+			top_direction.Normalize();
+			return GetAngle(motor_direction,top_direction)<5;
+		}
+		throw new ArgumentException(Motor.CustomName+" is an invalid Stator");
+	}
+	
+	public bool Rotates(IMyMotorStator Motor){
+		for(int i=0;i<Motors.Count;i++){
+			if(Motor==Motors[i])
+				return Rotates(i);
+		}
+		throw new ArgumentException(Motor.CustomName+" not in arm");
+	}
+	
 	List<IMyMotorStator> FilterByGrid(List<IMyMotorStator> input,IMyCubeGrid Grid){
 		List<IMyMotorStator> output=new List<IMyMotorStator>();
 		foreach(IMyMotorStator Motor in input){
@@ -562,6 +586,14 @@ class Arm{
 		output.Normalize();
 		Motor.CustomData=(new MyWaypointInfo(Motor.CustomName,output+Motor.GetPosition()).ToString());
 		return output;
+	}
+	
+	public Vector3D GetTargetingDirection(IMyMotorStator Motor){
+		for(int i=0;i<Motors.Count;i++){
+			if(Motor==Motors[i])
+				return GetTargetingDirection(i);
+		}
+		throw new ArgumentException(Motor.CustomName+" not in arm");
 	}
 	
 	public override string ToString(){
@@ -714,7 +746,10 @@ bool SetPosition(Arm arm,Vector3D position){
 			Angle Target=Angle.FromRadians(Motor.Angle)+Difference;
 			if(CanSetAngle(Motor,Target)&&Math.Abs(Difference)>1){
 				moving=true;
-				SetAngle(Motor,Target,speed);
+				if(arm.Rotates(i))
+					SetAngle(Motor,Target,speed*5);
+				else
+					SetAngle(Motor,Target,speed);
 			}
 			else
 				Motor.TargetVelocityRPM=0;
