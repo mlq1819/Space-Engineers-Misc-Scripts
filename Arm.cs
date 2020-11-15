@@ -367,6 +367,49 @@ struct Angle{
 		else
 			return Math.Round(Degrees,n).ToString()+'°';
 	}
+	
+	public static string LinedFloat(float deg){
+		string output="[";
+		for(int i=-180/10;i<0;i++){
+			if(deg<0){
+				if(deg/10<=i+1)
+					output+='|';
+				else
+					output+=' ';
+			}
+			else
+				output+=' ';
+		}
+		for(int i=0;i<180/10;i++){
+			if(deg<0)
+				output+=' ';
+			else{
+				if(deg/10>=(i+1))
+					output+='|';
+				else
+					output+=' ';
+			}
+		}
+		output+=']';
+		return output;
+	}
+	
+	public string LinedString(){
+		if(Degrees>=180)
+			return LinedFloat(Degrees-360);
+		return LinedFloat(Degrees);
+	}
+	
+	public string LinedString(Angle Comparison){
+		string output="Actual: "+LinedString();
+		output+="\nComparison: ";
+		float deg=Difference(Comparison);
+		if(deg>=180)
+			output+=LinedFloat(deg-360);
+		else
+			output+=LinedFloat(deg);
+		return output;
+	}
 }
 
 bool HasBlockData(IMyTerminalBlock Block, string Name){
@@ -642,20 +685,18 @@ bool SetPosition(Arm arm,Vector3D position){
 			if(!hinge_1){
 				hinge_1=true;
 				Write("Hinge1:"+Motor.CustomName);
-				float percent=(float)Math.Min(180,180*((arm.MaxLength-adjusted_distance)/arm.MaxLength));
-				Write("Percent:"+Math.Round(percent/180*100,1).ToString()+'%');
+				float percent=(float)Math.Min(1,((arm.MaxLength-adjusted_distance)/arm.MaxLength));
+				float adjustment=percent*180;
 				Angle Adjusted_Target;
 				if(Target>=(new Angle(0))){
-					Write("Positive Target");
-					while(percent>0&&!CanSetAngle(Motor,Target-percent))
-						percent--;
-					Adjusted_Target=Target-percent;
+					while(adjustment>0&&!CanSetAngle(Motor,Target-adjustment))
+						adjustment--;
+					Adjusted_Target=Target-adjustment;
 				}
 				else{
-					Write("Negative Target");
-					while(percent>0&&!CanSetAngle(Motor,Target+percent))
-						percent--;
-					Adjusted_Target=Target+percent;
+					while(adjustment>0&&!CanSetAngle(Motor,Target+adjustment))
+						adjustment--;
+					Adjusted_Target=Target+adjustment;
 				}
 				if(CanSetAngle(Motor,Adjusted_Target)){
 					moving=true;
@@ -663,10 +704,15 @@ bool SetPosition(Arm arm,Vector3D position){
 				}
 				else
 					Motor.TargetVelocityRPM=0;
-				Write("Adjustment:"+Math.Round(percent,1).ToString()+'°');
+				Angle Current=Angle.FromRadians(Motor.Angle);
+				Write("Percent:"+Math.Round(percent*100,1).ToString()+'%');
+				Write("Adjustment:"+Math.Round(adjustment,1).ToString()+'°');
 				Write("Current:"+Angle.FromRadians(Motor.Angle).ToString(1));
-				Write("Original Target:"+Target.ToString(1)+":"+(Target-Angle.FromRadians(Motor.Angle)).ToString(1));
-				Write("Adjusted_Target:"+Adjusted_Target.ToString(1)+":"+(Adjusted_Target-Angle.FromRadians(Motor.Angle)).ToString(1)));
+				Write("Original Target:"+Target.ToString(1)+":"+(Target-Current).ToString(1));
+				Write("Adjusted Target:"+Adjusted_Target.ToString(1)+":"+(Adjusted_Target-Current).ToString(1));
+				Write("Current:\n"+Target.LinedString());
+				Write("Original Target:\n"+Target.LinedString(Current));
+				Write("Adjusted Target:\n"+Adjusted_Target.LinedString(Current));
 				
 				
 			}
