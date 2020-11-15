@@ -530,92 +530,6 @@ class Arm{
 			Light=null;
 	}
 	
-	public Vector3D GetTargetingDirection(int MotorNum){
-		IMyMotorStator Motor=Motors[MotorNum];
-		Vector3D output=new Vector3D(-1,0,0);
-		Vector3D o1,o2;
-		if(IsHinge(Motor)){
-			bool found_output=false;
-			if(MotorNum<Motors.Count-1||Light!=null){
-				Vector3D target;
-				if(MotorNum<Motors.Count-1)
-					target=(Motors[MotorNum+1].GetPosition()-Motor.Top.GetPosition());
-				else
-					target=(Light.GetPosition()-Motor.Top.GetPosition());
-				target.Normalize();
-				List<Vector3D> angles=new List<Vector3D>();
-				double MinAngle=double.MaxValue;
-				for(int i=0;i<6;i++){
-					Vector3D direction=new Vector3D(-1,0,0);
-					switch(i){
-						case 0:
-							direction=new Vector3D(-1,0,0);
-							break;
-						case 1:
-							direction=new Vector3D(1,0,0);
-							break;
-						case 2:
-							direction=new Vector3D(0,-1,0);
-							break;
-						case 3:
-							direction=new Vector3D(0,1,0);
-							break;
-						case 4:
-							direction=new Vector3D(0,0,-1);
-							break;
-						case 5:
-							direction=new Vector3D(0,0,1);
-							break;
-					}
-					direction=LocalToGlobal(direction,Motor.Top);
-					direction.Normalize();
-					double angle=GetAngle(direction,target);
-					if(angle<MinAngle)
-						angles.Add(direction);
-				}
-				foreach(Vector3D direction in angles){
-					double angle=GetAngle(direction,target);
-					if(angle<=MinAngle+0.5){
-						output=direction;
-						found_output=true;
-						break;
-					}
-				}
-			}
-			if(!found_output){
-				o1=LocalToGlobal(new Vector3D(-1,0,0),Motor.Top);
-				o2=LocalToGlobal(new Vector3D(1,0,0),Motor.Top);
-				o1.Normalize();
-				o2.Normalize();
-				if(MotorNum<Motors.Count-1){
-					Vector3D direction=(Motors[MotorNum+1].GetPosition()-Motor.Top.GetPosition());
-					direction.Normalize();
-					if(GetAngle(o1,direction)<=GetAngle(o2,direction))
-						output=o1;
-					else
-						output=o2;
-				}
-				else if(Light!=null){
-					Vector3D direction=(Light.GetPosition()-Motor.Top.GetPosition());
-					direction.Normalize();
-					if(GetAngle(o1,direction)<=GetAngle(o2,direction))
-						output=o1;
-					else
-						output=o2;
-				}
-				else
-					output=o1;
-			}
-		}
-		else if(IsRotor(Motor))
-			output=LocalToGlobal(new Vector3D(0,0,-1),Motor.Top);
-		else
-			throw new ArgumentException("Invalid Stator:"+Motor.CustomName);
-		output.Normalize();
-		Motor.CustomData=(new MyWaypointInfo(Motor.CustomName,output+Motor.GetPosition()).ToString());
-		return output;
-	}
-	
 	public override string ToString(){
 		string output="Arm";
 		foreach(IMyMotorStator Motor in Motors)
@@ -716,7 +630,7 @@ bool SetPosition(Arm arm,Vector3D position){
 		speed=(float)(distance/arm.MaxLength*speed_multx)/2;
 		Vector3D Direction=(Motor.GetPosition()-position);
 		Direction.Normalize();
-		Vector3D Target_Direction=arm.GetTargetingDirection(i);
+		//Vector3D Target_Direction=arm.GetTargetingDirection(i);
 		if(IsHinge(Motor)){
 			//Positive Angle is closer to front
 			Vector3D Front=LocalToGlobal(new Vector3D(0,0,-1),Motor.Top);
@@ -733,7 +647,6 @@ bool SetPosition(Arm arm,Vector3D position){
 					Write("Percent:"+Math.Round(percent,1).ToString()+'°');
 					Write("H1 Current:"+Angle.FromRadians(Motor.Angle).ToString(1));
 					Write("H1 Original Target:"+Target.ToString(1));
-					Write("Target_Direction:"+"X:"+Math.Round(Target_Direction.X,1).ToString()+" Y:"+Math.Round(Target_Direction.Y,1).ToString()+" Z:"+Math.Round(Target_Direction.Z,1).ToString());
 					if(Target>=(new Angle(0))){
 						Write("Positive Target");
 						while(percent>0&&!CanSetAngle(Motor,Target-percent))
@@ -941,7 +854,6 @@ public void Main(string argument, UpdateType updateSource)
 	else{
 		for(int i=0;i<Arms[0].Motors.Count;i++){
 			IMyMotorStator Motor=Arms[0].Motors[i];
-			Motor.CustomData=(new MyWaypointInfo(Motor.CustomName,Arms[0].GetTargetingDirection(i)+Motor.GetPosition())).ToString();
 			Motor.TargetVelocityRPM=0;
 		}
 		if(Arms[0].Light!=null){
