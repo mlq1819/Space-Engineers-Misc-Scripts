@@ -519,8 +519,8 @@ class Arm{
 	public double MaxLength{
 		get{
 			double output=0;
-			for(int i=0;i<Motors.Count;i++){
-				if(i>0)
+			for(int i=1;i<Motors.Count;i++){
+				if(i>1)
 					output+=(Motors[i-1].Top.GetPosition()-Motors[i].GetPosition()).Length();
 				output+=(Motors[i].GetPosition()-Motors[i].Top.GetPosition()).Length();
 			}
@@ -630,6 +630,9 @@ public Program()
 		Write('\t'+arm.ToString()+':'+Math.Round(arm.MaxLength,1).ToString()+"M");
 	}
 	Sensor=(new GenericMethods<IMySensorBlock>(this)).GetContaining("");
+	rndarr=new float[10];
+	for(int i=0;i<10;i++)
+		rndarr[i]=10;
 	Runtime.UpdateFrequency=UpdateFrequency.Update1;
 }
 
@@ -651,7 +654,6 @@ public void Save()
 double LightTimer=0;
 int LightMultx=1;
 float Hinge_Adjustment_Avg=0;
-float Rotor_Random_Adjustment_Avg=0;
 bool SetPosition(Arm arm,Vector3D position){
 	//if((arm.Motors[0].GetPosition()-position).Length()>=arm.MaxLength)
 		//return false;
@@ -665,7 +667,6 @@ bool SetPosition(Arm arm,Vector3D position){
 	double distance=(position-arm.Motors[0].GetPosition()).Length();
 	double adjusted_distance=0.9*distance-2.5;
 	bool hinge_1=adjusted_distance>=arm.MaxLength;
-	bool rotor_1=false;
 	Write("Distance:"+Math.Round(distance,1).ToString()+"M");
 	float speed=(float)(distance/arm.MaxLength)/2;
 	
@@ -686,7 +687,6 @@ bool SetPosition(Arm arm,Vector3D position){
 			Angle Target=Angle.FromRadians(Motor.Angle)-Difference;
 			if(!hinge_1){
 				hinge_1=true;
-				Write("Hinge1:"+Motor.CustomName);
 				float percent=(float)Math.Min(1,((arm.MaxLength-adjusted_distance)/arm.MaxLength));
 				float adjustment=percent*180;
 				Angle Adjusted_Target;
@@ -712,7 +712,7 @@ bool SetPosition(Arm arm,Vector3D position){
 				}
 				else
 					Motor.TargetVelocityRPM=0;
-				Write("Percent:"+Math.Round(percent*100,1).ToString()+'%');
+				/*Write("Percent:"+Math.Round(percent*100,1).ToString()+'%');
 				Write("Adjustment:"+Math.Round(adjustment,1).ToString()+'°');
 				Write("Avg Adjustment:"+Math.Round(Hinge_Adjustment_Avg,1).ToString()+'°');
 				Write("Current:"+Angle.FromRadians(Motor.Angle).ToString(1));
@@ -721,8 +721,7 @@ bool SetPosition(Arm arm,Vector3D position){
 				Write("Current:\n"+Target.LinedString(5));
 				Write("Original Target:\n"+Target.LinedString(Current));
 				Write("Adjusted Target:\n"+Adjusted_Target.LinedString(Current));
-				Write("Velocity:"+Math.Round(Motor.TargetVelocityRPM,1).ToString());
-				
+				Write("Velocity:"+Math.Round(Motor.TargetVelocityRPM,1).ToString());*/
 			}
 			else{
 				if(CanSetAngle(Motor,Target)&&Math.Abs(Difference)>1){
@@ -738,21 +737,14 @@ bool SetPosition(Arm arm,Vector3D position){
 			Left.Normalize();
 			Vector3D Right=-1*Left;
 			float Difference=(float)(GetAngle(Left,Direction)-GetAngle(Right,Direction));
+			if(i==arm.Motors.Count-1&&Gravity.Length()!=0)
+				Difference=(float)(GetAngle(Left,Gravity)-GetAngle(Right,Gravity));
 			Angle Target=Angle.FromRadians(Motor.Angle)+Difference;
 			if(Math.Abs(Difference)>1){
 				moving=SetClosest(Motor,Target,speed);
 			}
 			else
 				Motor.TargetVelocityRPM=0;
-			if(!rotor_1){
-				rotor_1=true;
-				float r=(float)Math.Sqrt(Rnd.Next(-100,100));
-				if(Runtime.UpdateFrequency==UpdateFrequency.Update1)
-					Rotor_Random_Adjustment_Avg=(Rotor_Random_Adjustment_Avg*99+r)/100;
-				else
-					Rotor_Random_Adjustment_Avg=(Rotor_Random_Adjustment_Avg*9+r)/10;
-				Motor.TargetVelocityRPM+=Rotor_Random_Adjustment_Avg;
-			}
 		}
 	}
 	if(arm.Light!=null){
@@ -782,7 +774,7 @@ bool SetPosition(Arm arm,Vector3D position){
 		else{
 			LightTimer=0;
 			do{
-				LightMultx=Rnd.Next(-1,1);
+				LightMultx=Rnd.Next(-1,2);
 			} while(LightMultx==0);
 			arm.Light.Intensity=(float)Math.Max(1,Math.Min(10,(distance/(arm.MaxLength*2))*5));
 			arm.Light.Radius=10;
@@ -907,10 +899,39 @@ void UpdateProgramInfo(){
 	}
 }
 
+Queue<int> rndqueue=new Queue<int>();
+float[] rndarr;
+void RndQueue(){
+	if(cycle%10==0||Runtime.UpdateFrequency!=UpdateFrequency.Update1){
+		int n=Rnd.Next(0,10);
+		for(int i=0;i<10;i++){
+			rndarr[i]*=.999f;
+			if(i==n)
+				rndarr[i]+=0.1f;
+		}
+		rndqueue.Enqueue(n);
+		if(rndqueue.Count>20)
+			rndqueue.Dequeue();
+	}
+	
+	
+	string rndstr="[";
+	for(int i=rndqueue.Count;i<20;i++)
+		rndstr+=' ';
+	foreach(int n in rndqueue)
+		rndstr+=n.ToString();
+	Write(rndstr+']');
+	for(int i=0;i<10;i++){
+		Echo(i.ToString()+":"+Math.Round(rndarr[i],1).ToString()+'%');
+	}
+}
+
 Vector3D Last_Input=new Vector3D(0,0,0);
 public void Main(string argument, UpdateType updateSource)
 {
 	UpdateProgramInfo();
+	RndQueue();
+	
 	if(argument.Length>0){
 		MyWaypointInfo waypoint;
 		Vector3D coords;
