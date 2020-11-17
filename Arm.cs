@@ -674,6 +674,8 @@ public void Save()
 Angle GetTargetAngle(Arm arm, int MotorNum, Vector3D position){
 	IMyMotorStator Motor=arm.Motors[MotorNum];
 	float Difference=0;
+	Vector3D Direction=position-Motor.Top.GetPosition();
+	Direction.Normalize();
 	if(IsHinge(Motor)){
 		Vector3D Front=LocalToGlobal(new Vector3D(0,0,-1),Motor.Top);
 		Front.Normalize();
@@ -710,7 +712,7 @@ Angle GetWindTarget(Arm arm, int MotorNum, Vector3D position){
 		return Target+angle;
 	else if(CanSetAngle(Motor,Target-angle))
 		return Target-angle;
-	return Target+angle;
+	return Target;
 }
 
 double LightTimer=0;
@@ -738,7 +740,17 @@ bool SetPosition(Arm arm,Vector3D position){
 		if(arm.Light!=null)
 			speed_multx*=(float)Math.Max(0.1,Math.Min(1,(position-arm.Light.GetPosition()).Length()/2));
 		speed=(float)(distance/arm.MaxLength*speed_multx)/2;
-		Vector3D Direction=(Motor.GetPosition()-position);
+		Angle Target=GetTargetAngle(arm,i,position);
+		if((!hinge1)&&IsHinge(Motor))
+			Target=GetWindTarget(arm,i,position);
+		if(i==arm.Motors.Count-1&&IsRotor(Motor)&&Gravity.Length()!=0){
+			Vector3D Left=LocalToGlobal(new Vector3D(-1,0,0),Motor.Top);
+			Difference=(float)(GetAngle(Left,Gravity)-GetAngle(-1*Left,Gravity));
+			Target=Angle.FromRadians(Motor.Angle)+Difference;
+		}
+		moving=SetClosest(Motor,Target,speed);
+		
+		/*Vector3D Direction=(Motor.GetPosition()-position);
 		Direction.Normalize();
 		if(IsHinge(Motor)){
 			//Positive Angle is closer to front
@@ -774,16 +786,6 @@ bool SetPosition(Arm arm,Vector3D position){
 				}
 				else
 					Motor.TargetVelocityRPM=0;
-				/*Write("Percent:"+Math.Round(percent*100,1).ToString()+'%');
-				Write("Adjustment:"+Math.Round(adjustment,1).ToString()+'°');
-				Write("Avg Adjustment:"+Math.Round(Hinge_Adjustment_Avg,1).ToString()+'°');
-				Write("Current:"+Angle.FromRadians(Motor.Angle).ToString(1));
-				Write("Original Target:"+Target.ToString(1)+":"+(Target-Current).ToString(1)+":"+CanSetAngle(Motor,Target).ToString());
-				Write("Adjusted Target:"+Adjusted_Target.ToString(1)+":"+(Adjusted_Target-Current).ToString(1)+":"+CanSetAngle(Motor,Adjusted_Target).ToString());
-				Write("Current:\n"+Target.LinedString(5));
-				Write("Original Target:\n"+Target.LinedString(Current));
-				Write("Adjusted Target:\n"+Adjusted_Target.LinedString(Current));
-				Write("Velocity:"+Math.Round(Motor.TargetVelocityRPM,1).ToString());*/
 			}
 			else{
 				if(CanSetAngle(Motor,Target)&&Math.Abs(Difference)>1){
@@ -808,6 +810,7 @@ bool SetPosition(Arm arm,Vector3D position){
 			else
 				Motor.TargetVelocityRPM=0;
 		}
+		*/
 	}
 	if(arm.Light!=null){
 		if(LightTimer<BLINK_TIMER_LIMIT){
