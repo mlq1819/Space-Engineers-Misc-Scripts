@@ -679,13 +679,13 @@ Angle GetTargetAngle(Arm arm, int MotorNum, Vector3D position){
 	if(IsHinge(Motor)){
 		Vector3D Front=LocalToGlobal(new Vector3D(0,0,-1),Motor.Top);
 		Front.Normalize();
-		Difference=(float)(GetAngle(Front,Direction)-GetAngle(-1*Front,Direction));
+		Difference=(float)(GetAngle(Front,Direction)+GetAngle(-1*Front,Direction));
 		
 	}
 	else if(IsRotor(Motor)){
 		Vector3D Left=LocalToGlobal(new Vector3D(-1,0,0),Motor.Top);
 		Left.Normalize();
-		Difference=(float)(GetAngle(Left,Direction)-GetAngle(-1*Left,Direction));
+		Difference=(float)(GetAngle(Left,Direction)+GetAngle(-1*Left,Direction));
 	}
 	else
 		throw new ArgumentException("Invalid Stator:"+Motor.CustomName);
@@ -708,10 +708,20 @@ Angle GetWindTarget(Arm arm, int MotorNum, Vector3D position){
 	float angle=0;
 	while(angle<180&&(CanSetAngle(Motor,Target+angle+1)||CanSetAngle(Motor,Target-angle-1)))
 		Covered_Length=Motor_Length-Math.Cos(++angle)*Motor_Length;
-	if(CanSetAngle(Motor,Target+angle))
-		return Target+angle;
-	else if(CanSetAngle(Motor,Target-angle))
-		return Target-angle;
+	if(CanSetAngle(Motor,Target+angle)){
+		if(Runtime.UpdateFrequency==UpdateFrequency.Update1)
+			Hinge_Adjustment_Avg=((99*Hinge_Adjustment_Avg)+angle)/100;
+		else
+			Hinge_Adjustment_Avg=((9*Hinge_Adjustment_Avg)+angle)/10;
+		return Target+Hinge_Adjustment_Avg;
+	}
+	else if(CanSetAngle(Motor,Target-angle)){
+		if(Runtime.UpdateFrequency==UpdateFrequency.Update1)
+			Hinge_Adjustment_Avg=((99*Hinge_Adjustment_Avg)-angle)/100;
+		else
+			Hinge_Adjustment_Avg=((9*Hinge_Adjustment_Avg)-angle)/10;
+		return Target-Hinge_Adjustment_Avg;
+	}
 	return Target;
 }
 
@@ -741,11 +751,13 @@ bool SetPosition(Arm arm,Vector3D position){
 			speed_multx*=(float)Math.Max(0.1,Math.Min(1,(position-arm.Light.GetPosition()).Length()/2));
 		speed=(float)(distance/arm.MaxLength*speed_multx)/2;
 		Angle Target=GetTargetAngle(arm,i,position);
-		if((!hinge1)&&IsHinge(Motor))
+		if((!hinge_1)&&IsHinge(Motor)){
 			Target=GetWindTarget(arm,i,position);
+			hinge_1=true;
+		}
 		if(i==arm.Motors.Count-1&&IsRotor(Motor)&&Gravity.Length()!=0){
 			Vector3D Left=LocalToGlobal(new Vector3D(-1,0,0),Motor.Top);
-			Difference=(float)(GetAngle(Left,Gravity)-GetAngle(-1*Left,Gravity));
+			float Difference=(float)(GetAngle(Left,Gravity)-GetAngle(-1*Left,Gravity));
 			Target=Angle.FromRadians(Motor.Angle)+Difference;
 		}
 		moving=SetClosest(Motor,Target,speed);
