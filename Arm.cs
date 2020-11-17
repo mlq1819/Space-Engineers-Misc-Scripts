@@ -547,6 +547,32 @@ class Arm{
 		return output;
 	}
 	
+	public double MotorLength(int MotorNum){
+		IMyMotorStator Motor=Motors[MotorNum];
+		if(MotorNum<Motors.Count-1)
+			return (Motor.Top.GetPosition()-Motors[MotorNum+1].GetPosition()).Length();
+		else if(MotorNum==Motors.Count-1&&Light!=null)
+			return (Motor.Top.GetPosition()-Light.GetPosition()).Length();
+		return 0;
+	}
+	
+	public double MotorLength(IMyMotorStator Motor){
+		for(int i=0;i<Motors.Count;i++){
+			if(Motor==Motors[i])
+				return MotorLength(i);
+		}
+		return 0;
+	}
+	
+	public double SumLength(int MotorNum){
+		double sum=0;
+		for(int i=MotorNum;i<Motors.Count;i++){
+			sum+=MotorLength(i);
+			sum+=(Motors[i].GetPosition()-Motors[i].Top.GetPosition()).Length();
+		}
+		return sum;
+	}
+	
 	public Arm(IMyMotorStator BaseMotor){
 		Motors=new List<IMyMotorStator>();
 		Motors.Add(BaseMotor);
@@ -643,12 +669,48 @@ public void Save()
 			Motor.TargetVelocityRPM=0;
 		}
 	}
-    // Called when the program needs to save its state. Use
-    // this method to save your state to the Storage field
-    // or some other means. 
-    // 
-    // This method is optional and can be removed if not
-    // needed.
+}
+
+Angle GetTargetAngle(Arm arm, int MotorNum, Vector3D position){
+	IMyMotorStator Motor=arm.Motors[MotorNum];
+	float Difference=0;
+	if(IsHinge(Motor)){
+		Vector3D Front=LocalToGlobal(new Vector3D(0,0,-1),Motor.Top);
+		Front.Normalize();
+		Difference=(float)(GetAngle(Front,Direction)-GetAngle(-1*Front,Direction));
+		
+	}
+	else if(IsRotor(Motor)){
+		Vector3D Left=LocalToGlobal(new Vector3D(-1,0,0),Motor.Top);
+		Left.Normalize();
+		Difference=(float)(GetAngle(Left,Direction)-GetAngle(-1*Left,Direction));
+	}
+	else
+		throw new ArgumentException("Invalid Stator:"+Motor.CustomName);
+	return Angle.FromRadians(Motor.Angle)+Difference;
+}
+
+Angle GetWindTarget(Arm arm, int MotorNum, Vector3D position){
+	IMyMotorStator Motor=arm.Motors[MotorNum];
+	Angle Target=GetTargetAngle(arm,MotorNum,position);
+	double Distance=(position-arm.Motors[0].GetPosition()).Length();
+	if(Distance>=arm.MaxLength)
+		return Target;
+	double Motor_Length=arm.MotorLength(MotorNum); //Length of adjustable arm segment
+	double Arm_Length=arm.SumLength(MotorNum+1); //Length of non-adjustable arm segments after the adjustable one
+	double Cover_Length=(arm.Motors[MotorNum+1].Top.GetPosition()-position).Length(); //Length of distance to cover with arm
+	Angle Degrees=new Angle(0);
+	if(Cover_Length>=Motor_Length)
+		return new Angle(180);
+	double Covered_Length=0;
+	float angle=0;
+	while(angle<180&&(CanSetAngle(Motor,Target+angle+1)||CanSetAngle(Motor,Target-angle-1)))
+		Covered_Length=Motor_Length-Math.Cos(++angle)*Motor_Length;
+	if(CanSetAngle(Motor,Target+angle))
+		return Target+angle;
+	else if(CanSetAngle(Motor,Target-angle))
+		return Target-angle;
+	return Target+angle;
 }
 
 double LightTimer=0;
