@@ -1089,7 +1089,7 @@ void Toggle(){
 						toggling=true;
 						arm.AllMotors[i].Enabled=false;
 						SetBlockData(arm.AllMotors[i],"DefaultBrakingTorque",arm.AllMotors[i].BrakingTorque.ToString());
-						arm.AllMotors[i].BrakingTorque=0;
+						arm.AllMotors[i].BrakingTorque=1;
 						break;
 					}
 				}
