@@ -513,6 +513,50 @@ class Arm{
 	public static Func<IMyMotorStator,bool> IsRotor;
 	public static Func<Vector3D,Vector3D,double> GetAngle;
 	
+	public int MaxDepth{
+		get{
+			int max=0;
+			foreach(Arm Finger in Hand)
+				max=Math.Max(max,Finger.MaxDepth);
+			return max+Motors.Count;
+		}
+	}
+	
+	public int MotorCount{
+		get{
+			int sum=Motors.Count;
+			foreach(Arm Finger in Hand)
+				sum+=Finger.MotorCount;
+			return sum;
+		}
+	}
+	
+	public List<IMyMotorStator> AllMotors{
+		get{
+			List<IMyMotorStator> output=new List<IMyMotorStator>();
+			foreach(IMyMotorStator Motor in Motors)
+				output.Add(Motor);
+			foreach(Arm Finger in Hand){
+				foreach(IMyMotorStator Motor in Finger.Motors)
+					output.Add(Motor);
+			}
+			return output;
+		}
+	}
+	
+	public List<IMyInteriorLight> AllLights{
+		get{
+			List<IMyInteriorLight> output=new List<IMyInteriorLight>();
+			if(Light!=null)
+				output.Add(Light);
+			foreach(Arm Finger in Hand){
+				foreach(IMyInteriorLight light in Finger.AllLights)
+					output.Add(light);
+			}
+			return output;
+		}
+	}
+	
 	public List<IMyMotorStator> Motors;
 	public IMyInteriorLight Light;
 	public List<Arm> Hand;
@@ -577,7 +621,7 @@ class Arm{
 	public Arm(IMyMotorStator BaseMotor){
 		Motors=new List<IMyMotorStator>();
 		Motors.Add(BaseMotor);
-		List<IMyMotorStator> allmotors=(new GenericMethods<IMyMotorStator>(P)).GetAllIncluding("");
+		List<IMyMotorStator> allmotors=(new GenericMethods<IMyMotorStator>(P)).GetAllIncluding("",50);
 		List<IMyMotorStator> gridmotors;
 		do{
 			gridmotors=FilterByGrid(allmotors,Motors[Motors.Count-1].TopGrid);
@@ -602,7 +646,7 @@ class Arm{
 			else
 				Motors[i].CustomName="Arm Stator "+(i+1).ToString();
 		}
-		List<IMyInteriorLight> lights=(new GenericMethods<IMyInteriorLight>(P)).GetAllIncluding("");
+		List<IMyInteriorLight> lights=(new GenericMethods<IMyInteriorLight>(P)).GetAllIncluding("",50);
 		lights=FilterByGrid(lights,Motors[Motors.Count-1].TopGrid);
 		if(lights.Count>0){
 			Light=lights[0];
@@ -637,10 +681,14 @@ bool ArmFunction(IMyMotorStator Motor){
 
 public Program()
 {
+	bool.TryParse(this.Storage,out toggle);
 	Me.CustomName=(Program_Name+" Programmable block").Trim();
 	for(int i=0;i<Me.SurfaceCount;i++){
 		Me.GetSurface(i).FontColor=DEFAULT_TEXT_COLOR;
-		Me.GetSurface(i).BackgroundColor=DEFAULT_BACKGROUND_COLOR;
+		if(toggle)
+			Me.GetSurface(i).BackgroundColor=DEFAULT_BACKGROUND_COLOR;
+		else
+			Me.GetSurface(i).BackgroundColor=new Color(0,0,0,255);
 		Me.GetSurface(i).Alignment=TextAlignment.CENTER;
 		Me.GetSurface(i).ContentType=ContentType.TEXT_AND_IMAGE;
 	}
@@ -682,6 +730,7 @@ public void Save()
 			Motor.TargetVelocityRPM=0;
 		}
 	}
+	this.Storage=toggle.ToString();
 }
 
 Angle GetTargetAngle(Arm arm, int MotorNum, Vector3D position){
@@ -708,7 +757,6 @@ Angle GetWindTarget(Arm arm, int MotorNum, Vector3D position){
 	IMyMotorStator Motor=arm.Motors[MotorNum];
 	Angle Target=GetTargetAngle(arm,MotorNum,position);
 	double Distance=(position-arm.Motors[0].GetPosition()).Length();
-	Write("Test");
 	if(Distance>=arm.MaxLength)
 		return Target;
 	double Motor_Length=arm.MotorLength(MotorNum); //Length of adjustable arm segment
@@ -759,7 +807,7 @@ bool SetPosition(Arm arm,Vector3D position,float percent=1){
 	for(int i=0;i<arm.Motors.Count;i++){
 		IMyMotorStator Motor=arm.Motors[i];
 		Angle Current=Angle.FromRadians(Motor.Angle);
-		float speed_multx=(1+((float)(i+1))/arm.Motors.Count);
+		float speed_multx=1+(((float)(i+1))/arm.Motors.Count);
 		if(arm.Light!=null)
 			speed_multx*=(float)Math.Max(0.1,Math.Min(1,(position-arm.Light.GetPosition()).Length()/2));
 		speed=(float)(distance/arm.MaxLength*speed_multx)/2;
@@ -999,6 +1047,83 @@ void RndQueue(){
 	}
 }
 
+double Toggle_Timer=0;
+void Toggle(){
+	Toggle_Timer+=seconds_since_last_update;
+	int max_length=0;
+	foreach(Arm arm in Arms)
+		max_length=Math.Max(max_length,arm.MotorCount);
+	double arm_timer_count=15.0/max_length;
+	Write("Toggling:"+Math.Round(Toggle_Timer,3).ToString()+"s / "+Math.Round(arm_timer_count,3).ToString()+"s");
+	if(Toggle_Timer>=arm_timer_count){
+		Toggle_Timer=0;
+		toggling=false;
+		foreach(Arm arm in Arms){
+			if(toggle){
+				for(int i=0;i<arm.AllMotors.Count;i++){
+					if(arm.AllMotors[i].Enabled!=toggle){
+						toggling=true;
+						arm.AllMotors[i].Enabled=true;
+						if(HasBlockData(arm.AllMotors[i],"DefaultBrakingTorque")){
+							float temp;
+							if(float.TryParse(GetBlockData(arm.AllMotors[i],"DefaultBrakingTorque"),out temp))
+								arm.AllMotors[i].BrakingTorque=temp;
+						}
+						break;
+					}
+				}
+			}
+			else{
+				foreach(IMyInteriorLight Light in arm.AllLights)
+					Light.Enabled=false;
+				for(int i=arm.AllMotors.Count-1;i>=0;i--){
+					if(arm.AllMotors[i].Enabled!=toggle){
+						toggling=true;
+						arm.AllMotors[i].Enabled=false;
+						SetBlockData(arm.AllMotors[i],"DefaultBrakingTorque",arm.AllMotors[i].BrakingTorque.ToString());
+						arm.AllMotors[i].BrakingTorque=0;
+						break;
+					}
+				}
+			}
+		}
+	}
+	foreach(Arm arm in Arms){
+		if(toggle){
+			if(!toggling){
+				foreach(IMyInteriorLight Light in arm.AllLights)
+					arm.Light.Enabled=true;
+			}
+			for(int i=0;i<arm.AllMotors.Count;i++){
+				if(!arm.AllMotors[i].Enabled){
+					Write(Math.Round((i*100.0f)/arm.AllMotors.Count,1).ToString()+"% complete");
+					break;
+				}
+			}
+		}
+		else{
+			for(int i=arm.Motors.Count-1;i>=0;i--){
+				if(arm.AllMotors[i].Enabled){
+					Write(Math.Round(((arm.AllMotors.Count-i)*100.0f)/arm.AllMotors.Count,1).ToString()+"% complete");
+					break;
+				}
+			}
+		}
+	}	
+	if(toggle^(!toggling)){
+		if(toggle){
+			Me.GetSurface(0).BackgroundColor=DEFAULT_BACKGROUND_COLOR;
+			Me.GetSurface(1).BackgroundColor=DEFAULT_BACKGROUND_COLOR;
+		}
+		else{
+			Me.GetSurface(0).BackgroundColor=new Color(0,0,0,255);
+			Me.GetSurface(1).BackgroundColor=new Color(0,0,0,255);
+		}
+	}
+}
+
+bool toggle=true;
+bool toggling=false;
 Vector3D Last_Input=new Vector3D(0,0,0);
 double rnd_timer=0;
 public void Main(string argument, UpdateType updateSource)
@@ -1007,21 +1132,28 @@ public void Main(string argument, UpdateType updateSource)
 	RndQueue();
 	
 	if(argument.Length>0){
-		MyWaypointInfo waypoint;
-		Vector3D coords;
-		bool moving=false;
-		if(MyWaypointInfo.TryParse(argument,out waypoint)){
-			moving=true;
-			coords=waypoint.Coords;
+		if(argument.ToLower().Equals("toggle")){
+			toggling=true;
+			toggle=!toggle;
+			Toggle_Timer=0;
 		}
-		else if(argument.Length>10&&MyWaypointInfo.TryParse(argument.Substring(0,argument.Length-10),out waypoint)){
-			moving=true;
-			coords=waypoint.Coords;
-		}
-		else
-			moving=Vector3D.TryParse(argument,out coords);
-		if(moving){
-			Last_Input=coords;
+		else{
+			MyWaypointInfo waypoint;
+			Vector3D coords;
+			bool moving=false;
+			if(MyWaypointInfo.TryParse(argument,out waypoint)){
+				moving=true;
+				coords=waypoint.Coords;
+			}
+			else if(argument.Length>10&&MyWaypointInfo.TryParse(argument.Substring(0,argument.Length-10),out waypoint)){
+				moving=true;
+				coords=waypoint.Coords;
+			}
+			else
+				moving=Vector3D.TryParse(argument,out coords);
+			if(moving){
+				Last_Input=coords;
+			}
 		}
 	}
 	bool run_it=false;
@@ -1034,6 +1166,17 @@ public void Main(string argument, UpdateType updateSource)
 	catch(Exception){
 		run_it=false;
 	}
+	if(toggling){
+		Toggle();
+		if(toggle)
+			Write("Powering Up");
+		else
+			Write("Powering Down");
+	}
+	else if(toggle)
+		Write("Powered Up");
+	else
+		Write("Powered Down");
 	
 	//Write(Last_Input.ToString());
 	
