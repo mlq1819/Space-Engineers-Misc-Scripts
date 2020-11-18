@@ -739,9 +739,10 @@ Angle GetWindTarget(Arm arm, int MotorNum, Vector3D position){
 double LightTimer=0;
 int LightMultx=1;
 float Hinge_Adjustment_Avg=0;
-bool SetPosition(Arm arm,Vector3D position){
+bool SetPosition(Arm arm,Vector3D position,float percent=1){
 	//if((arm.Motors[0].GetPosition()-position).Length()>=arm.MaxLength)
 		//return false;
+	Vector3D actual_position=position;
 	Vector3D Gravity=Controller.GetTotalGravity();
 	if(Gravity.Length()!=0){
 		Gravity.Normalize();
@@ -771,54 +772,79 @@ bool SetPosition(Arm arm,Vector3D position){
 			Vector3D Left=LocalToGlobal(new Vector3D(-1,0,0),Motor.Top);
 			float Difference=(float)(GetAngle(Left,Gravity)-GetAngle(-1*Left,Gravity));
 			Target=Angle.FromRadians(Motor.Angle)+Difference;
+			speed*=5;
 		}
-		if(Current.Difference(Target)>1)
+		if(percent<1){
+			float deg=Target.Degrees;
+			if(deg>=180)
+				deg-=360;
+			deg*=percent;
+			Target=new Angle(deg);
+		}
+		if(Current.Difference(Target)>1){
 			moving=SetClosest(Motor,Target,speed);
+		}
 		else
 			Motor.TargetVelocityRPM=0;
 	}
 	if(arm.Light!=null){
-		if(LightTimer<BLINK_TIMER_LIMIT){
+		if(LightTimer>=BLINK_TIMER_LIMIT||LightTimer==0){
+			if(LightTimer!=0){
+				LightTimer=0;
+				do{
+					LightMultx=Rnd.Next(-1,2);
+				} while(LightMultx==0);
+			}
+			arm.Light.Intensity=(float)Math.Max(1,Math.Min(10,(distance/(arm.MaxLength*2))*5));
+			arm.Light.Radius=10;
+			arm.Light.Color=DEFAULT_TEXT_COLOR;
+		}
+		else{
 			int r=arm.Light.Color.R;
 			int g=arm.Light.Color.G;
 			int b=arm.Light.Color.B;
 			switch(Rnd.Next(0,3)){
 				case 1:
-					if(Sensor.LastDetectedEntity.Relationship>=MyRelationsBetweenPlayerAndBlock.Neutral)
-						r+=Rnd.Next(0,5);
-					else
+					try{
+						if(Sensor.LastDetectedEntity.Relationship>=MyRelationsBetweenPlayerAndBlock.Neutral)
+							r+=Rnd.Next(0,5);
+						else
+							r+=Rnd.Next(0,3)*LightMultx;
+					}
+					catch(Exception){
 						r+=Rnd.Next(0,3)*LightMultx;
+					}
 					break;
 				case 2:
 					g+=Rnd.Next(0,3)*LightMultx;
 					break;
 				case 3:
-					if(Sensor.LastDetectedEntity.Relationship==MyRelationsBetweenPlayerAndBlock.Owner)
-						b+=Rnd.Next(0,5);
-					else
+					try{
+						if(Sensor.LastDetectedEntity.Relationship==MyRelationsBetweenPlayerAndBlock.Owner)
+							b+=Rnd.Next(0,5);
+						else
+							b+=Rnd.Next(0,3)*LightMultx;
+					}
+					catch(Exception){
 						b+=Rnd.Next(0,3)*LightMultx;
+					}
 					break;
 			}
 			arm.Light.Color=new Color(r,g,b,255);
 		}
-		else{
-			LightTimer=0;
-			do{
-				LightMultx=Rnd.Next(-1,2);
-			} while(LightMultx==0);
-			arm.Light.Intensity=(float)Math.Max(1,Math.Min(10,(distance/(arm.MaxLength*2))*5));
-			arm.Light.Radius=10;
-			arm.Light.Color=DEFAULT_TEXT_COLOR;
-		}
+		
 		if(arm.Hand.Count>0){
-			if((arm.Light.GetPosition()-position).Length()<2){
+			Vector3D hand_target=(arm.Light.GetPosition()-arm.Motors[arm.Motors.Count-1].Top.GetPosition());
+			hand_target.Normalize();
+			hand_target=actual_position+1*hand_target;
+			double grab_distance=(arm.Light.GetPosition()-hand_target).Length();
+			if(grab_distance<1){
 				foreach(Arm Finger in arm.Hand)
-					SetPosition(Finger,position);
+					SetPosition(Finger,hand_target);
 			}
 			else{
 				foreach(Arm Finger in arm.Hand){
-					foreach(IMyMotorStator Motor in Finger.Motors)
-						SetClosest(Motor,new Angle(0),speed);
+					SetPosition(Finger,hand_target,.5f);
 				}
 			}
 			
@@ -826,8 +852,7 @@ bool SetPosition(Arm arm,Vector3D position){
 	}
 	else if(arm.Hand.Count>0){
 		foreach(Arm Finger in arm.Hand){
-			foreach(IMyMotorStator Motor in Finger.Motors)
-				SetClosest(Motor,new Angle(0),speed);
+			SetPosition(Finger,position);
 		}
 	}
 	return moving;
@@ -899,7 +924,7 @@ void SetAngle(IMyMotorStator Motor,Angle Next_Angle,float Speed_Multx=1,float Pr
 			target_rpm=(float)(-1*From_Bottom*Speed_Multx*Precision*5);
 		else
 			target_rpm=(float)(From_Top*Speed_Multx*Precision*5);
-		Motor.TargetVelocityRPM=Math.Max(-20,Math.Min(20,target_rpm));
+		Motor.TargetVelocityRPM=Math.Max(-10,Math.Min(10,target_rpm));
 	}
 	else{
 		Motor.TargetVelocityRPM=0;
@@ -999,13 +1024,22 @@ public void Main(string argument, UpdateType updateSource)
 			Last_Input=coords;
 		}
 	}
-	if(Sensor.IsActive)
-		Last_Input=Sensor.LastDetectedEntity.Position;
+	bool run_it=false;
+	try{
+		if(Sensor.IsActive&&Sensor.LastDetectedEntity.Type!=MyDetectedEntityType.None){
+			Last_Input=Sensor.LastDetectedEntity.Position;
+			run_it=true;
+		}
+	}
+	catch(Exception){
+		run_it=false;
+	}
 	
 	//Write(Last_Input.ToString());
 	
-	if(Sensor.IsActive){
-		SetPosition(Arms[0],Last_Input);
+	if(run_it){
+		foreach(Arm arm in Arms)
+			SetPosition(arm,Last_Input);
 		rnd_timer=0;
 	}
 	else{
@@ -1023,16 +1057,19 @@ public void Main(string argument, UpdateType updateSource)
 				Last_Input*=Rnd.Next((int)(Arms[0].MaxLength/2),20);
 				Last_Input+=Arms[0].Motors[0].GetPosition();
 			}
-			SetPosition(Arms[0],Last_Input);
+			foreach(Arm arm in Arms)
+				SetPosition(arm,Last_Input);
 		}
 		else{
-			for(int i=0;i<Arms[0].Motors.Count;i++){
-				IMyMotorStator Motor=Arms[0].Motors[i];
-				Motor.TargetVelocityRPM=0;
-			}
-			if(Arms[0].Light!=null){
-				Arms[0].Light.Intensity=2.5f;
-				Arms[0].Light.Radius=5;
+			foreach(Arm arm in Arms){
+				for(int i=0;i<arm.Motors.Count;i++){
+					IMyMotorStator Motor=arm.Motors[i];
+					Motor.TargetVelocityRPM=0;
+				}
+				if(arm.Light!=null){
+					arm.Light.Intensity=2.5f;
+					arm.Light.Radius=5;
+				}
 			}
 		}
 	}
