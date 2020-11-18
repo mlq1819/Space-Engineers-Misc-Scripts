@@ -785,7 +785,9 @@ Angle GetWindTarget(Arm arm, int MotorNum, Vector3D position){
 }
 
 double LightTimer=0;
-int LightMultx=1;
+int LightMultx_R=1;
+int LightMultx_G=1;
+int LightMultx_B=1;
 float Hinge_Adjustment_Avg=0;
 bool SetPosition(Arm arm,Vector3D position,float percent=1){
 	//if((arm.Motors[0].GetPosition()-position).Length()>=arm.MaxLength)
@@ -840,8 +842,14 @@ bool SetPosition(Arm arm,Vector3D position,float percent=1){
 			if(LightTimer!=0){
 				LightTimer=0;
 				do{
-					LightMultx=Rnd.Next(-1,2);
-				} while(LightMultx==0);
+					LightMultx_R=Rnd.Next(-1,2);
+				} while(LightMultx_R==0);
+				do{
+					LightMultx_G=Rnd.Next(-1,2);
+				} while(LightMultx_G==0);
+				do{
+					LightMultx_B=Rnd.Next(-1,2);
+				} while(LightMultx_B==0);
 			}
 			arm.Light.Intensity=(float)Math.Max(1,Math.Min(10,(distance/(arm.MaxLength*2))*5));
 			arm.Light.Radius=10;
@@ -857,24 +865,24 @@ bool SetPosition(Arm arm,Vector3D position,float percent=1){
 						if(Sensor.LastDetectedEntity.Relationship>=MyRelationsBetweenPlayerAndBlock.Neutral)
 							r+=Rnd.Next(0,5);
 						else
-							r+=Rnd.Next(0,3)*LightMultx;
+							r+=Rnd.Next(0,3)*LightMultx_R;
 					}
 					catch(Exception){
-						r+=Rnd.Next(0,3)*LightMultx;
+						r+=Rnd.Next(0,3)*LightMultx_R;
 					}
 					break;
 				case 2:
-					g+=Rnd.Next(0,3)*LightMultx;
+					g+=Rnd.Next(0,3)*LightMultx_G;
 					break;
 				case 3:
 					try{
 						if(Sensor.LastDetectedEntity.Relationship==MyRelationsBetweenPlayerAndBlock.Owner)
 							b+=Rnd.Next(0,5);
 						else
-							b+=Rnd.Next(0,3)*LightMultx;
+							b+=Rnd.Next(0,3)*LightMultx_B;
 					}
 					catch(Exception){
-						b+=Rnd.Next(0,3)*LightMultx;
+						b+=Rnd.Next(0,3)*LightMultx_B;
 					}
 					break;
 			}
@@ -1053,7 +1061,7 @@ void Toggle(){
 	int max_length=0;
 	foreach(Arm arm in Arms)
 		max_length=Math.Max(max_length,arm.MotorCount);
-	double arm_timer_count=15.0/max_length;
+	double arm_timer_count=25.0/max_length;
 	Write("Toggling:"+Math.Round(Toggle_Timer,3).ToString()+"s / "+Math.Round(arm_timer_count,3).ToString()+"s");
 	if(Toggle_Timer>=arm_timer_count){
 		Toggle_Timer=0;
