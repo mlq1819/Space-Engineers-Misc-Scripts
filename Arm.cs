@@ -1092,7 +1092,7 @@ void Toggle(){
 		if(toggle){
 			if(!toggling){
 				foreach(IMyInteriorLight Light in arm.AllLights)
-					arm.Light.Enabled=true;
+					Light.Enabled=true;
 			}
 			for(int i=0;i<arm.AllMotors.Count;i++){
 				if(!arm.AllMotors[i].Enabled){
