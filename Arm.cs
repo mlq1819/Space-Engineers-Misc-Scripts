@@ -515,6 +515,7 @@ class Arm{
 	
 	public List<IMyMotorStator> Motors;
 	public IMyInteriorLight Light;
+	public List<Arm> Hand;
 	
 	public double MaxLength{
 		get{
@@ -583,6 +584,16 @@ class Arm{
 			if(gridmotors.Count==1)
 				Motors.Add(gridmotors[0]);
 		} while(gridmotors.Count==1);
+		Hand=new List<Arm>();
+		if(gridmotors.Count>0){
+			for(int i=0;i<gridmotors.Count;i++){
+				Hand.Add(new Arm(gridmotors[i]));
+				foreach(IMyMotorStator Motor in Hand[Hand.Count-1].Motors)
+					Motor.CustomName="Finger "+(i+1).ToString()+Motor.CustomName.Substring(3);
+				if(Hand[Hand.Count-1].Light!=null)
+					Hand[Hand.Count-1].Light.CustomName="Finger "+(i+1).ToString()+" Light";
+			}
+		}
 		for(int i=0;i<Motors.Count;i++){
 			if(IsHinge(Motors[i]))
 				Motors[i].CustomName="Arm Stator "+(i+1).ToString()+" (Hinge)";
@@ -593,8 +604,10 @@ class Arm{
 		}
 		List<IMyInteriorLight> lights=(new GenericMethods<IMyInteriorLight>(P)).GetAllIncluding("");
 		lights=FilterByGrid(lights,Motors[Motors.Count-1].TopGrid);
-		if(lights.Count>0)
+		if(lights.Count>0){
 			Light=lights[0];
+			Light.CustomName="Arm Light";
+		}
 		else
 			Light=null;
 	}
@@ -706,23 +719,18 @@ Angle GetWindTarget(Arm arm, int MotorNum, Vector3D position){
 	float angle=0;
 	while(angle<180&&(CanSetAngle(Motor,Target+angle+1)||CanSetAngle(Motor,Target-angle-1)))
 		Covered_Length=Motor_Length-Math.Cos(++angle)*Motor_Length;
-	Write("Angle:"+Math.Round(angle,0).ToString()+'°');
 	if(CanSetAngle(Motor,Target+angle)){
-		Write("+"+Math.Round(angle,0)+'°');
 		if(Runtime.UpdateFrequency==UpdateFrequency.Update1)
 			Hinge_Adjustment_Avg=((99*Hinge_Adjustment_Avg)+angle)/100;
 		else
 			Hinge_Adjustment_Avg=((9*Hinge_Adjustment_Avg)+angle)/10;
-		Write("Avg:"+Math.Round(Hinge_Adjustment_Avg,1).ToString()+'°');
 		return Target+Hinge_Adjustment_Avg;
 	}
 	else if(CanSetAngle(Motor,Target-angle)){
-		Write("-"+Math.Round(angle,0)+'°');
 		if(Runtime.UpdateFrequency==UpdateFrequency.Update1)
 			Hinge_Adjustment_Avg=((99*Hinge_Adjustment_Avg)-angle)/100;
 		else
 			Hinge_Adjustment_Avg=((9*Hinge_Adjustment_Avg)-angle)/10;
-		Write("Avg:"+Math.Round(Hinge_Adjustment_Avg,1).ToString()+'°');
 		return Target-Hinge_Adjustment_Avg;
 	}
 	return Target;
@@ -802,7 +810,25 @@ bool SetPosition(Arm arm,Vector3D position){
 			arm.Light.Radius=10;
 			arm.Light.Color=DEFAULT_TEXT_COLOR;
 		}
-		
+		if(arm.Hand.Count>0){
+			if((arm.Light.GetPosition()-position).Length()<2){
+				foreach(Arm Finger in arm.Hand)
+					SetPosition(Finger,position);
+			}
+			else{
+				foreach(Arm Finger in arm.Hand){
+					foreach(IMyMotorStator Motor in Finger.Motors)
+						SetClosest(Motor,new Angle(0),speed);
+				}
+			}
+			
+		}
+	}
+	else if(arm.Hand.Count>0){
+		foreach(Arm Finger in arm.Hand){
+			foreach(IMyMotorStator Motor in Finger.Motors)
+				SetClosest(Motor,new Angle(0),speed);
+		}
 	}
 	return moving;
 }
@@ -949,6 +975,7 @@ void RndQueue(){
 }
 
 Vector3D Last_Input=new Vector3D(0,0,0);
+double rnd_timer=0;
 public void Main(string argument, UpdateType updateSource)
 {
 	UpdateProgramInfo();
@@ -972,21 +999,41 @@ public void Main(string argument, UpdateType updateSource)
 			Last_Input=coords;
 		}
 	}
-	Last_Input=Sensor.LastDetectedEntity.Position;
+	if(Sensor.IsActive)
+		Last_Input=Sensor.LastDetectedEntity.Position;
 	
 	//Write(Last_Input.ToString());
 	
 	if(Sensor.IsActive){
 		SetPosition(Arms[0],Last_Input);
+		rnd_timer=0;
 	}
 	else{
-		for(int i=0;i<Arms[0].Motors.Count;i++){
-			IMyMotorStator Motor=Arms[0].Motors[i];
-			Motor.TargetVelocityRPM=0;
+		if(true){
+			rnd_timer+=seconds_since_last_update;
+			if(rnd_timer>=5||Last_Input.Length()==0){
+				rnd_timer=0;
+				do{
+					int x=Rnd.Next(-10,11);
+					int y=Rnd.Next(-10,11);
+					int z=Rnd.Next(-10,11);
+					Last_Input=new Vector3D(x,y,z);
+				} while(Last_Input.Length()==0);
+				Last_Input.Normalize();
+				Last_Input*=Rnd.Next((int)(Arms[0].MaxLength/2),20);
+				Last_Input+=Arms[0].Motors[0].GetPosition();
+			}
+			SetPosition(Arms[0],Last_Input);
 		}
-		if(Arms[0].Light!=null){
-			Arms[0].Light.Intensity=2.5f;
-			Arms[0].Light.Radius=5;
+		else{
+			for(int i=0;i<Arms[0].Motors.Count;i++){
+				IMyMotorStator Motor=Arms[0].Motors[i];
+				Motor.TargetVelocityRPM=0;
+			}
+			if(Arms[0].Light!=null){
+				Arms[0].Light.Intensity=2.5f;
+				Arms[0].Light.Radius=5;
+			}
 		}
 	}
     
