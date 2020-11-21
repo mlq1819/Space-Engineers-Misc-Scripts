@@ -790,7 +790,7 @@ int LightMultx_R=1;
 int LightMultx_G=1;
 int LightMultx_B=1;
 float Hinge_Adjustment_Avg=0;
-bool SetPosition(Arm arm,Vector3D position,float percent=1){
+bool SetPosition(Arm arm,Vector3D position,float percent=1,bool worry_reset=true){
 	//if((arm.Motors[0].GetPosition()-position).Length()>=arm.MaxLength)
 		//return false;
 	Vector3D actual_position=position;
@@ -810,57 +810,100 @@ bool SetPosition(Arm arm,Vector3D position,float percent=1){
 	Write("Distance:"+Math.Round(distance,1).ToString()+"M");
 	float speed=(float)(distance/arm.MaxLength)/2;
 	float max_difference=0;
-	
-	for(int i=0;i<arm.Motors.Count;i++){
-		IMyMotorStator Motor=arm.Motors[i];
-		Angle Current=Angle.FromRadians(Motor.Angle);
-		float speed_multx=(float)Math.Pow(1+((i+1.0)/arm.Motors.Count),2);
-		if(arm.Light!=null)
-			speed_multx*=(float)Math.Max(0.1,Math.Min(1,(position-arm.Light.GetPosition()).Length()/2));
-		speed=(float)(distance/arm.MaxLength*speed_multx)/2;
-		Angle Target=GetTargetAngle(arm,i,position);
-		float RPM=GetRPM(Motor);
-		
-		if((!hinge_1)&&IsHinge(Motor)){
-			Target=GetWindTarget(arm,i,position);
-			hinge_1=true;
-		}
-		
-		float angle_difference=Math.Abs(Current.Difference(Target));
-		
-		if(i==arm.Motors.Count-1&&IsRotor(Motor)&&Gravity.Length()!=0){
-			Vector3D Left=LocalToGlobal(new Vector3D(-1,0,0),Motor.Top);
-			float Difference=(float)(GetAngle(Left,Gravity)-GetAngle(-1*Left,Gravity));
-			Target=Angle.FromRadians(Motor.Angle)+Difference;
-			speed*=5;
-			Motor.RotorLock=false;
+	float Max_RPM=0;
+	float Max_Speed=0;
+	double ResetTimer=0;
+	bool Resetting=false;
+	bool do_main_loop=true;
+	if(HasBlockData(arm.Motors[0],"ResetTimer"))
+		double.TryParse(GetBlockData(arm.Motors[0],"ResetTimer"),out ResetTimer);
+	if(HasBlockData(arm.Motors[0],"Resetting"))
+		bool.TryParse(GetBlockData(arm.Motors[0],"Resetting"),out Resetting);
+	if(worry_reset&&Resetting){
+		ResetTimer+=seconds_since_last_update;
+		Write("Resetting Arm... ("+Math.Round(ResetTimer,3)+"s)");
+		if(ResetTimer>=5){
+			ResetTimer=0;
+			Resetting=false;
 		}
 		else{
-			max_difference=Math.Max(max_difference,angle_difference);
-			Motor.RotorLock=(angle_difference<1);
+			foreach(IMyMotorStator Motor in arm.AllMotors)
+				SetAngle(Motor,new Angle(0));
+			do_main_loop=false;
 		}
-		
-		if((RPM>0)^(Current>=Target))
-			speed*=2;
-		else if(Math.Abs(RPM)>Math.Abs(Current.Difference(Target)))
-			speed/=2;
-		if(distance_from_target<2)
-			speed*=Math.Max(0.05f,(float)(distance_from_target)/2);
-		speed*=(float)Math.Min(1,Math.Abs(((max_difference-angle_difference)/max_difference)/RPM));
-		
-		if(percent<1){
-			float deg=Target.Degrees;
-			if(deg>=180)
-				deg-=360;
-			deg*=percent;
-			Target=new Angle(deg);
-		}
-		if(Current.Difference(Target)>1){
-			moving=SetClosest(Motor,Target,speed);
-		}
-		else
-			Motor.TargetVelocityRPM=0;
 	}
+	
+	if(do_main_loop){
+		for(int i=0;i<arm.Motors.Count;i++){
+			IMyMotorStator Motor=arm.Motors[i];
+			Angle Current=Angle.FromRadians(Motor.Angle);
+			float speed_multx=(float)Math.Pow(1+((i+1.0)/arm.Motors.Count),2);
+			if(arm.Light!=null)
+				speed_multx*=(float)Math.Max(0.1,Math.Min(1,(position-arm.Light.GetPosition()).Length()/2));
+			speed=(float)(distance/arm.MaxLength*speed_multx)/2;
+			Angle Target=GetTargetAngle(arm,i,position);
+			float RPM=GetRPM(Motor);
+			Vector3D Velocity=GetVelocity(Motor);
+			Max_RPM=Math.Max(Max_RPM,Math.Abs(RPM));
+			Max_Speed=(float)Math.Max(Max_Speed,Velocity.Length());
+			
+			if((!hinge_1)&&IsHinge(Motor)){
+				Target=GetWindTarget(arm,i,position);
+				hinge_1=true;
+			}
+			
+			float angle_difference=Math.Abs(Current.Difference(Target));
+			
+			if(i==arm.Motors.Count-1&&IsRotor(Motor)&&Gravity.Length()!=0){
+				Vector3D Left=LocalToGlobal(new Vector3D(-1,0,0),Motor.Top);
+				float Difference=(float)(GetAngle(Left,Gravity)-GetAngle(-1*Left,Gravity));
+				Target=Angle.FromRadians(Motor.Angle)+Difference;
+				speed*=5;
+				Motor.RotorLock=false;
+			}
+			else{
+				max_difference=Math.Max(max_difference,angle_difference);
+				Motor.RotorLock=(angle_difference<1);
+			}
+			
+			if((RPM>0)^(Current>=Target))
+				speed*=2;
+			else if(Math.Abs(RPM)>Math.Abs(Current.Difference(Target)))
+				speed/=2;
+			if(distance_from_target<2)
+				speed*=Math.Max(0.05f,(float)(distance_from_target)/2);
+			speed*=(float)Math.Min(1.5,Math.Abs(((max_difference+angle_difference)/2)/RPM));
+			
+			if(percent<1){
+				float deg=Target.Degrees;
+				if(deg>=180)
+					deg-=360;
+				deg*=percent;
+				Target=new Angle(deg);
+			}
+			if(Current.Difference(Target)>1){
+				moving=SetClosest(Motor,Target,speed);
+			}
+			else
+				Motor.TargetVelocityRPM=0;
+		}
+		if(worry_reset){
+			if((Max_RPM<2.5||Max_Speed<0.5f||Max_RPM*Max_Speed<2.5)&&distance_from_target>2){
+				ResetTimer+=seconds_since_last_update;
+				if(ResetTimer>=5){
+					ResetTimer=0;
+					Resetting=true;
+				}
+			}
+			else
+				ResetTimer=Math.Max(0,ResetTimer-seconds_since_last_update);
+			Write("Testing Reset:\n"+Math.Round(Max_RPM,1)+"RPM; "+Math.Round(Max_Speed,1)+"mps; "+Math.Round(ResetTimer,3)+"s");
+		}
+	}
+	
+	SetBlockData(arm.Motors[0],"ResetTimer",ResetTimer.ToString());
+	SetBlockData(arm.Motors[0],"Resetting",Resetting.ToString());
+	
 	if(arm.Light!=null){
 		if(LightTimer>=BLINK_TIMER_LIMIT||LightTimer==0){
 			if(LightTimer!=0){
@@ -918,15 +961,15 @@ bool SetPosition(Arm arm,Vector3D position,float percent=1){
 			hand_target.Normalize();
 			hand_target=actual_position+1*hand_target;
 			double grab_distance=(arm.Light.GetPosition()-hand_target).Length();
-			if(grab_distance<1||(grabbed&&grab_distance<1.5)){
+			if(grab_distance<1||(grabbed&&grab_distance<2)){
 				grabbed=true;
 				foreach(Arm Finger in arm.Hand)
-					SetPosition(Finger,hand_target);
+					SetPosition(Finger,hand_target,1,false);
 			}
 			else{
 				grabbed=false;
 				foreach(Arm Finger in arm.Hand){
-					SetPosition(Finger,hand_target,.5f);
+					SetPosition(Finger,hand_target,.5f,false);
 				}
 			}
 			
@@ -934,7 +977,7 @@ bool SetPosition(Arm arm,Vector3D position,float percent=1){
 	}
 	else if(arm.Hand.Count>0){
 		foreach(Arm Finger in arm.Hand){
-			SetPosition(Finger,position);
+			SetPosition(Finger,position,1,false);
 		}
 	}
 	return moving;
@@ -1016,6 +1059,13 @@ void SetAngle(IMyMotorStator Motor,Angle Next_Angle,float Speed_Multx=1,float Pr
 	}
 }
 
+Vector3D GetVelocity(IMyMotorStator Motor){
+	Vector3D Last_Velocity=new Vector3D(0,0,0);
+	if(HasBlockData(Motor,"LastVelocity"))
+		Vector3D.TryParse(GetBlockData(Motor,"LastVelocity"),out Last_Velocity);
+	return Last_Velocity;
+}
+
 float GetRPM(IMyMotorStator Motor){
 	float Last_RPM=0;
 	if(HasBlockData(Motor,"LastRPM"))
@@ -1023,7 +1073,7 @@ float GetRPM(IMyMotorStator Motor){
 	return Last_RPM;
 }
 
-void UpdateMotorVelocity(IMyMotorStator Motor){
+void UpdateMotor(IMyMotorStator Motor){
 	Angle Current_Angle=Angle.FromRadians(Motor.Angle);
 	Angle Last_Angle=Current_Angle;
 	if(HasBlockData(Motor,"LastAngle"))
@@ -1033,11 +1083,24 @@ void UpdateMotorVelocity(IMyMotorStator Motor){
 	float Last_RPM=GetRPM(Motor);
 	float Difference=Current_Angle.Difference(Last_Angle);
 	float Current_RPM=(float)(Difference/seconds_since_last_update/6);
-	if(Runtime.UpdateFrequency==UpdateFrequency.Update1)
+	
+	Vector3D Current_Position=Motor.GetPosition()-Controller.GetPosition();
+	Vector3D Last_Position=Current_Position;
+	if(HasBlockData(Motor,"LastPosition"))
+		Vector3D.TryParse(GetBlockData(Motor,"LastPosition"),out Last_Position);
+	SetBlockData(Motor,"LastPosition",Current_Position.ToString());
+	Vector3D Current_Velocity=(Current_Position-Last_Position)/seconds_since_last_update;
+	Vector3D Last_Velocity=GetVelocity(Motor);
+	if(Runtime.UpdateFrequency==UpdateFrequency.Update1){
 		Last_RPM=((Last_RPM*99)+Current_RPM)/100;
-	else
+		Last_Velocity=((Last_Velocity*99)+Current_Velocity)/100;
+	}
+	else{
 		Last_RPM=((Last_RPM*9)+Current_RPM)/10;
+		Last_Velocity=((Last_Velocity*9)+Current_Velocity)/10;
+	}
 	SetBlockData(Motor,"LastRPM",Last_RPM.ToString());
+	SetBlockData(Motor,"LastVelocity",Last_Velocity.ToString());
 }
 
 void UpdateProgramInfo(){
@@ -1193,7 +1256,7 @@ public void Main(string argument, UpdateType updateSource)
 	List<IMyMotorStator> all_motors=new List<IMyMotorStator>();
 	GridTerminalSystem.GetBlocksOfType<IMyMotorStator>(all_motors);
 	foreach(IMyMotorStator Motor in all_motors)
-		UpdateMotorVelocity(Motor);
+		UpdateMotor(Motor);
 	
 	if(argument.Length>0){
 		if(argument.ToLower().Equals("toggle")){
