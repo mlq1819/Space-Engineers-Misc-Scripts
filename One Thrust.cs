@@ -195,6 +195,31 @@ class GenericMethods<T> where T : class, IMyTerminalBlock{
 		return GetClosestFunc(f, double.MaxValue);
 	}
 	
+	public T GetGrid(string name, IMyCubeGrid Grid, double max_distance=double.MaxValue, IMyTerminalBlock Reference){
+		List<T> input=GetAllGrid(name,Grid,max_distance,Reference);
+		if(input.Count>0)
+			return input[0];
+		return null;
+	}
+	
+	public T GetGrid(string name, IMyCubeGrid Grid,double max_distance=double.MaxValue){
+		return GetGrid(name,Grid,max_distance,Prog);
+	}
+	
+	public List<T> GetAllGrid(string name, IMyCubeGrid Grid, double max_distance=double.MaxValue,IMyTerminalBlock Reference){
+		List<T> output=new List<T>();
+		List<T> input=GetAllContaining(name,max_distance,Reference);
+		foreach(T Block in input){
+			if(Block.CubeGrid==Grid)
+				output.Add(CubeGrid);
+		}
+		return output;
+	}
+	
+	public List<T> GetAllGrid(string name, IMyCubeGrid Grid, double max_distance=double.MaxValue){
+		return GetAllGrid(name,Grid,max_distance,Prog);
+	}
+	
 	public static List<T> SortByDistance(List<T> unsorted, Vector3D Reference){
 		List<T> output = new List<T>();
 		while(unsorted.Count > 0){
@@ -312,6 +337,35 @@ long cycle = 0;
 char loading_char = '|';
 double seconds_since_last_update = 0;
 
+IMyShipController Controller;
+IMyThrust Main_Thruster;
+IMyMotorStator Main_Rotor;
+IMyMotorStator Main_Hinge;
+
+Vector3D Forward_Vector;
+Vector3D Backward_Vector{
+	get{
+		return -1*Forward_Vector;
+	}
+}
+Vector3D Up_Vector;
+Vector3D Down_Vector{
+	get{
+		return -1*Up_Vector;
+	}
+}
+Vector3D Left_Vector;
+Vector3D Right_Vector{
+	get{
+		return -1*Left_Vector;
+	}
+}
+
+Vector3D Gravity;
+Vector3D Current_LinearVelocity;
+Vector3D Current_AngularVelocity;
+float Mass_Accomodation;
+
 public Program()
 {
 	Me.CustomName=(Program_Name+" Programmable block").Trim();
@@ -324,16 +378,19 @@ public Program()
 	Me.GetSurface(1).FontSize=2.2f;
 	Me.GetSurface(1).TextPadding=40.0f;
 	Echo("Beginning initialization");
-	// The constructor, called only once every session and
-    // always before any other method is called. Use it to
-    // initialize your script. 
-    //     
-    // The constructor is optional and can be removed if not
-    // needed.
-    // 
-    // It's recommended to set RuntimeInfo.UpdateFrequency 
-    // here, which will allow your script to run itself without a 
-    // timer block.
+	Controller=(new GenericMethods<IMyShipController>(this)).GetContaining("");
+	Main_Rotor=(new GenericMethods<IMyMotorStator>(this)).GetContaining("One-Thrust Rotor");
+	if(Main_Rotor==null)
+		return;
+	Main_Hinge=(new GenericMethods<IMyMotorStator>(this)).GetContaining("One-Thrust Hinge");
+	if(Main_Hinge==null)
+		return;
+	Main_Thruster=(new GenericMethods<IMyThrust>(this)).GetContaining("One-Thrust Thruster");
+	if(Main_Thruster==null)
+		return;
+	
+	
+	Runtime.UpdateFrequency=UpdateFrequency.Update1;
 }
 
 public void Save()
@@ -344,6 +401,50 @@ public void Save()
     // 
     // This method is optional and can be removed if not
     // needed.
+}
+
+Vector3D GetVelocity(IMyMotorStator Motor){
+	Vector3D Last_Velocity=new Vector3D(0,0,0);
+	if(HasBlockData(Motor,"LastVelocity"))
+		Vector3D.TryParse(GetBlockData(Motor,"LastVelocity"),out Last_Velocity);
+	return Last_Velocity;
+}
+
+float GetRPM(IMyMotorStator Motor){
+	float Last_RPM=0;
+	if(HasBlockData(Motor,"LastRPM"))
+		float.TryParse(GetBlockData(Motor,"LastRPM"),out Last_RPM);
+	return Last_RPM;
+}
+
+void UpdateMotor(IMyMotorStator Motor){
+	Angle Current_Angle=Angle.FromRadians(Motor.Angle);
+	Angle Last_Angle=Current_Angle;
+	if(HasBlockData(Motor,"LastAngle"))
+		Angle.TryParse(GetBlockData(Motor,"LastAngle"),out Last_Angle);
+	SetBlockData(Motor,"LastAngle",Current_Angle.ToString());
+	
+	float Last_RPM=GetRPM(Motor);
+	float Difference=Current_Angle.Difference(Last_Angle);
+	float Current_RPM=(float)(Difference/seconds_since_last_update/6);
+	
+	Vector3D Current_Position=Motor.GetPosition()-Controller.GetPosition();
+	Vector3D Last_Position=Current_Position;
+	if(HasBlockData(Motor,"LastPosition"))
+		Vector3D.TryParse(GetBlockData(Motor,"LastPosition"),out Last_Position);
+	SetBlockData(Motor,"LastPosition",Current_Position.ToString());
+	Vector3D Current_Velocity=(Current_Position-Last_Position)/seconds_since_last_update;
+	Vector3D Last_Velocity=GetVelocity(Motor);
+	if(Runtime.UpdateFrequency==UpdateFrequency.Update1){
+		Last_RPM=((Last_RPM*99)+Current_RPM)/100;
+		Last_Velocity=((Last_Velocity*99)+Current_Velocity)/100;
+	}
+	else{
+		Last_RPM=((Last_RPM*9)+Current_RPM)/10;
+		Last_Velocity=((Last_Velocity*9)+Current_Velocity)/10;
+	}
+	SetBlockData(Motor,"LastRPM",Last_RPM.ToString());
+	SetBlockData(Motor,"LastVelocity",Last_Velocity.ToString());
 }
 
 void UpdateProgramInfo(){
@@ -367,21 +468,36 @@ void UpdateProgramInfo(){
 	Echo(Program_Name + " OS " + cycle_long.ToString() + '-' + cycle.ToString() + " (" + loading_char + ")");
 	Me.GetSurface(1).WriteText(Program_Name + " OS " + cycle_long.ToString() + '-' + cycle.ToString() + " (" + loading_char + ")",false);
 	seconds_since_last_update = Runtime.TimeSinceLastRun.TotalSeconds + (Runtime.LastRunTimeMs / 1000);
-	if(seconds_since_last_update<1){
+	if(seconds_since_last_update<1)
 		Echo(Math.Round(seconds_since_last_update*1000, 0).ToString() + " milliseconds\n");
-	}
-	else if(seconds_since_last_update<60){
+	else if(seconds_since_last_update<60)
 		Echo(Math.Round(seconds_since_last_update, 3).ToString() + " seconds\n");
-	}
-	else if(seconds_since_last_update/60<60){
+	else if(seconds_since_last_update/60<60)
 		Echo(Math.Round(seconds_since_last_update/60, 2).ToString() + " minutes\n");
-	}
-	else if(seconds_since_last_update/60/60<24){
+	else if(seconds_since_last_update/60/60<24)
 		Echo(Math.Round(seconds_since_last_update/60/60, 2).ToString() + " hours\n");
-	}
-	else {
+	else 
 		Echo(Math.Round(seconds_since_last_update/60/60/24, 2).ToString() + " days\n");
-	}
+	List<IMyMotorStator> All_Motors=new List<IMyMotorStator>();
+	GridTerminalSystem.GetBlocksOfType<IMyMotorStator>(All_Motors);
+	foreach(IMyMotorStator Motor in All_Motors)
+		UpdateMotor(Motor);
+		
+	Vector3D base_vector=new Vector3D(0,0,-1);
+	Forward_Vector=LocalToGlobal(base_vector,Controller);
+	Forward_Vector.Normalize();
+	base_vector=new Vector3D(0,1,0);
+	Up_Vector=LocalToGlobal(base_vector,Controller);
+	Up_Vector.Normalize();
+	base_vector=new Vector3D(-1,0,0);
+	Left_Vector=LocalToGlobal(base_vector,Controller);
+	Left_Vector.Normalize();
+	
+	Gravity=Controller.GetNaturalGravity();
+	Current_LinearVelocity=Controller.GetShipVelocities().LinearVelocity;
+	Current_AngularVelocity=Controller.GetShipVelocities().AngularVelocity;
+	
+	Mass_Accomodation=(float)(Controller.CalculateShipMass().PhysicalMass*Gravity.Length());
 }
 
 public void Main(string argument, UpdateType updateSource)
