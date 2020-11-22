@@ -255,6 +255,187 @@ class GenericMethods<T> where T : class, IMyTerminalBlock{
 	}
 }
 
+struct Angle{
+	private float _Degrees;
+	public float Degrees{
+		get{
+			return _Degrees;
+		}
+		set{
+			_Degrees=value%360;
+			while(_Degrees<0)
+				_Degrees+=360;
+		}
+	}
+	
+	public Angle(float degrees){
+		_Degrees=degrees;
+		Degrees=degrees;
+	}
+	
+	public static Angle FromRadians(float Rads){
+		return new Angle((float)(Rads/Math.PI*180));
+	}
+	
+	public float Difference_From_Top(Angle other){
+		if(other.Degrees>=Degrees)
+			return other.Degrees-Degrees;
+		return other.Degrees-Degrees+360;
+	}
+	
+	public float Difference_From_Bottom(Angle other){
+		if(other.Degrees<=Degrees)
+			return Degrees-other.Degrees;
+		return Degrees-other.Degrees+360;
+	}
+	
+	public float Difference(Angle other){
+		return Math.Min(Difference_From_Top(other),Difference_From_Bottom(other));
+	}
+	
+	public static bool IsBetween(Angle Bottom, Angle Middle, Angle Top){
+		return Bottom.Difference_From_Top(Middle)<=Bottom.Difference_From_Top(Top);
+	}
+	
+	public static bool TryParse(string parse,out Angle output){
+		output=new Angle(0);
+		float d;
+		if(!float.TryParse(parse.Substring(0,Math.Max(0,parse.Length-1)),out d))
+			return false;
+		output=new Angle(d);
+		return true;
+	}
+	
+	public static Angle operator +(Angle a1, Angle a2){
+		return new Angle(a1.Degrees+a2.Degrees);
+	}
+	
+	public static Angle operator +(Angle a1, float a2){
+		return new Angle(a1.Degrees+a2);
+	}
+	
+	public static Angle operator +(float a1, Angle a2){
+		return a2 + a1;
+	}
+	
+	public static Angle operator -(Angle a1, Angle a2){
+		return new Angle(a1.Degrees-a2.Degrees);
+	}
+	
+	public static Angle operator -(Angle a1, float a2){
+		return new Angle(a1.Degrees-a2);
+	}
+	
+	public static Angle operator -(float a1, Angle a2){
+		return new Angle(a1-a2.Degrees);
+	}
+	
+	public static Angle operator *(Angle a1, float m){
+		return new Angle(a1.Degrees*m);
+	}
+	
+	public static Angle operator *(float m, Angle a2){
+		return a2*m;
+	}
+	
+	public static Angle operator /(Angle a1, float m){
+		return new Angle(a1.Degrees/m);
+	}
+	
+	public static bool operator ==(Angle a1, Angle a2){
+		float degrees=(a1-a2).Degrees;
+		if(degrees>180)
+			degrees-=360;
+		return Math.Abs(degrees)<0.000001f;
+	}
+	
+	public static bool operator !=(Angle a1, Angle a2){
+		return Math.Abs(a1.Degrees-a2.Degrees)>=0.000001f;
+	}
+	
+	public override bool Equals(object o){
+		return (o.GetType()==this.GetType()) && this==((Angle)o);
+	}
+	
+	public override int GetHashCode(){
+		return Degrees.GetHashCode();
+	}
+	
+	public static bool operator >(Angle a1, Angle a2){
+		return a1.Difference_From_Top(a2)>a1.Difference_From_Bottom(a2);
+	}
+	
+	public static bool operator >=(Angle a1, Angle a2){
+		return (a1==a2)||(a1>a2);
+	}
+	
+	public static bool operator <=(Angle a1, Angle a2){
+		return (a1==a2)||(a1<a2);
+	}
+	
+	public static bool operator <(Angle a1, Angle a2){
+		return a1.Difference_From_Top(a2)<a1.Difference_From_Bottom(a2);
+	}
+	
+	public override string ToString(){
+		if(Degrees>=180)
+			return (Degrees-360).ToString()+'°';
+		else
+			return Degrees.ToString()+'°';
+	}
+	
+	public string ToString(int n){
+		n=Math.Min(0,n);
+		if(Degrees>=180)
+			return Math.Round(Degrees-360,n).ToString()+'°';
+		else
+			return Math.Round(Degrees,n).ToString()+'°';
+	}
+	
+	public static string LinedFloat(float deg, int sections=10){
+		string output="[";
+		for(int i=-180/sections;i<0;i++){
+			if(deg<0){
+				if(deg/sections<=i+1)
+					output+='|';
+				else
+					output+=' ';
+			}
+			else
+				output+=' ';
+		}
+		for(int i=0;i<180/sections;i++){
+			if(deg<0)
+				output+=' ';
+			else{
+				if(deg/sections>=(i+1))
+					output+='|';
+				else
+					output+=' ';
+			}
+		}
+		output+=']';
+		return output;
+	}
+	
+	public string LinedString(int sections=10){
+		if(Degrees>=180)
+			return LinedFloat(Degrees-360,sections);
+		return LinedFloat(Degrees,sections);
+	}
+	
+	public string LinedString(Angle Comparison){
+		string output="Actual: "+LinedString();
+		output+="\nComparison: ";
+		float deg=Difference(Comparison);
+		if(deg>=180)
+			output+=LinedFloat(deg-360);
+		else
+			output+=LinedFloat(deg);
+		return output;
+	}
+}
+
 bool HasBlockData(IMyTerminalBlock Block, string Name){
 	if(Name.Contains(':'))
 		return false;
@@ -401,6 +582,61 @@ public void Save()
     // 
     // This method is optional and can be removed if not
     // needed.
+}
+
+bool SetDirection(Vector3D Direction){
+	Vector3D Rotor_Left=LocalToGlobal(new Vector3D(-1,0,0),Main_Rotor.Top);
+	Angle Rotor_Current=Angle.FromRadians(Main_Rotor.Angle);
+	Angle Rotor_Target=Rotor_Current+(float)(GetAngle(-1*Rotor_Left,Direction)-GetAngle(Rotor_Left,Direction));
+	if(Math.Abs(Rotor_Current.Difference(Rotor_Target))>90)
+		Rotor_Target+=180;
+	
+	Vector3D Hinge_Forward=LocalToGlobal(new Vector3D(0,0,-1),Main_Hinge.Top);
+	Angle Hinge_Current=Angle.FromRadians(Main_Hinge.Angle);
+	Angle Hinge_Target=Hinge_Current+(float)(GetAngle(-1*Hinge_Forward,Direction)-GetAngle(Hinge_Forward,Direction));
+	
+	SetAngle(Main_Rotor,Rotor_Target);
+	SetAngle(Main_Hinge,Hinge_Target);
+}
+
+bool SetAngle(IMyMotorStator Motor,Angle Target,float Speed_Multx=1){
+	Speed_Multx=Math.Max(0.05f, Math.Min(Math.Abs(Speed_Multx),50));
+	bool can_increase=true;
+	bool can_decrease=true;
+	Angle Motor_Angle=Angle.FromRadians(Motor.Angle);
+	if(Motor.UpperLimitDeg!=float.MaxValue)
+		can_increase=Angle.IsBetween(Motor_Angle,Target,new Angle(Motor.UpperLimitDeg));
+	if(Motor.LowerLimitDeg!=float.MinValue)
+		can_decrease=Angle.IsBetween(new Angle(Motor.LowerLimitDeg),Target,Motor_Angle);
+	if(Motor_Angle.Difference_From_Top(Target)<Motor_Angle.Difference_From_Bottom(Target)){
+		if(!can_increase)
+			Target=new Angle(Motor.UpperLimitDeg);
+	}
+	else{
+		if(!can_decrease)
+			Target=new Angle(Motor.LowerLimitDeg);
+	}
+	float From_Bottom=Motor_Angle.Difference_From_Bottom(Target);
+	if(!can_decrease)
+		From_Bottom=float.MaxValue;
+	float From_Top=Motor_Angle.Difference_From_Top(Target);
+	if(!can_increase)
+		From_Top=float.MaxValue;
+	float difference=Math.Min(From_Bottom,From_Top);
+	if(difference>1){
+		Motor.RotorLock=false;
+		float target_rpm=0;
+		float current_rpm=GetRPM(Motor);
+		Speed_Multx*=Math.Max(0.1f,(20-Math.Abs(current_rpm))/10);
+		if(From_Bottom<From_Top)
+			target_rpm=(float)(-1*From_Bottom*Speed_Multx*.5f);
+		else
+			target_rpm=(float)(From_Top*Speed_Multx*.5f);
+		Motor.TargetVelocityRPM=Math.Max(-10,Math.Min(10,target_rpm));
+	}
+	else
+		Motor.TargetVelocityRPM=0;
+	return true;
 }
 
 Vector3D GetVelocity(IMyMotorStator Motor){
