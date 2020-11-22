@@ -542,9 +542,19 @@ Vector3D Right_Vector{
 	}
 }
 
+Vector3D Thruster_Direction;
+
 Vector3D Gravity;
+Vector3D Gravity_Direction{
+	get{
+		Vector3D Direction=Gravity;
+		Direction.Normalize();
+		return Direction;
+	}
+}
 Vector3D Current_LinearVelocity;
 Vector3D Current_AngularVelocity;
+
 float Mass_Accomodation;
 
 public Program()
@@ -560,7 +570,7 @@ public Program()
 	Me.GetSurface(1).TextPadding=40.0f;
 	Echo("Beginning initialization");
 	Controller=(new GenericMethods<IMyShipController>(this)).GetContaining("");
-	Main_Rotor=(new GenericMethods<IMyMotorStator>(this)).GetGrid("One-Thrust Rotor",Controller.CubeGrid);
+	Main_Rotor=(new GenericMethods<IMyMotorStator>(this)).GetContaining("One-Thrust Rotor");
 	if(Main_Rotor==null)
 		return;
 	Main_Hinge=(new GenericMethods<IMyMotorStator>(this)).GetGrid("One-Thrust Hinge",Main_Rotor.TopGrid);
@@ -576,6 +586,8 @@ public Program()
 
 public void Save()
 {
+	Main_Hinge.TargetVelocityRPM=0;
+	Main_Rotor.TargetVelocityRPM=0;
     // Called when the program needs to save its state. Use
     // this method to save your state to the Storage field
     // or some other means. 
@@ -584,19 +596,33 @@ public void Save()
     // needed.
 }
 
+void SetThrust(){
+	float Override=0;
+	Vector3D Direction=Current_LinearVelocity*2;
+	if(Gravity.Length()>0&&Mass_Accomodation!=0){
+		double Grav_Angle=GetAngle(Gravity_Direction,Thruster_Direction);
+		Override+=(float)Math.Abs((Mass_Accomodation/Math.Cos(Grav_Angle)));
+		Direction+=Gravity;
+	}
+	Direction.Normalize();
+	SetDirection(Direction);
+	Main_Thruster.ThrustOverride=Override;
+	Write("Override: "+Math.Round(Override/1000,1).ToString()+"kN");
+}
+
 bool SetDirection(Vector3D Direction){
 	Vector3D Rotor_Left=LocalToGlobal(new Vector3D(-1,0,0),Main_Rotor.Top);
 	Angle Rotor_Current=Angle.FromRadians(Main_Rotor.Angle);
 	Angle Rotor_Target=Rotor_Current+(float)(GetAngle(-1*Rotor_Left,Direction)-GetAngle(Rotor_Left,Direction));
-	if(Math.Abs(Rotor_Current.Difference(Rotor_Target))>90)
-		Rotor_Target+=180;
+	Write("Main Rotor:\nCurrent:"+Rotor_Current.ToString(1)+"\nTarget:"+Rotor_Target.ToString(1));
 	
 	Vector3D Hinge_Forward=LocalToGlobal(new Vector3D(0,0,-1),Main_Hinge.Top);
 	Angle Hinge_Current=Angle.FromRadians(Main_Hinge.Angle);
 	Angle Hinge_Target=Hinge_Current+(float)(GetAngle(-1*Hinge_Forward,Direction)-GetAngle(Hinge_Forward,Direction));
+	Write("Main Hinge:\nCurrent:"+Hinge_Current.ToString(1)+"\nTarget:"+Hinge_Target.ToString(1));
 	
-	SetAngle(Main_Rotor,Rotor_Target);
-	SetAngle(Main_Hinge,Hinge_Target);
+	SetAngle(Main_Rotor,Rotor_Target,10);
+	SetAngle(Main_Hinge,Hinge_Target,2);
 	return true;
 }
 
@@ -604,7 +630,14 @@ bool SetAngle(IMyMotorStator Motor,Angle Target,float Speed_Multx=1){
 	Speed_Multx=Math.Max(0.05f, Math.Min(Math.Abs(Speed_Multx),50));
 	bool can_increase=true;
 	bool can_decrease=true;
+	Vector3D Velocity=GetVelocity(Motor);
+	double Speed=Velocity.Length();
+	float RPM=GetRPM(Motor);
+	float overall_speed=(float)Speed+RPM;
+	Speed_Multx*=(float)Math.Min(1,(10*Speed_Multx)/overall_speed);
+	
 	Angle Motor_Angle=Angle.FromRadians(Motor.Angle);
+	Speed_Multx*=Math.Min(1,10/Math.Abs(Motor_Angle.Difference(Target)));
 	if(Motor.UpperLimitDeg!=float.MaxValue)
 		can_increase=Angle.IsBetween(Motor_Angle,Target,new Angle(Motor.UpperLimitDeg));
 	if(Motor.LowerLimitDeg!=float.MinValue)
@@ -633,7 +666,7 @@ bool SetAngle(IMyMotorStator Motor,Angle Target,float Speed_Multx=1){
 			target_rpm=(float)(-1*From_Bottom*Speed_Multx*.5f);
 		else
 			target_rpm=(float)(From_Top*Speed_Multx*.5f);
-		Motor.TargetVelocityRPM=Math.Max(-10,Math.Min(10,target_rpm));
+		Motor.TargetVelocityRPM=target_rpm;
 	}
 	else
 		Motor.TargetVelocityRPM=0;
@@ -730,16 +763,20 @@ void UpdateProgramInfo(){
 	Left_Vector=LocalToGlobal(base_vector,Controller);
 	Left_Vector.Normalize();
 	
+	Thruster_Direction=LocalToGlobal(new Vector3D(0,0,-1),Main_Thruster);
+	Thruster_Direction.Normalize();
+	
 	Gravity=Controller.GetNaturalGravity();
 	Current_LinearVelocity=Controller.GetShipVelocities().LinearVelocity;
 	Current_AngularVelocity=Controller.GetShipVelocities().AngularVelocity;
 	
-	Mass_Accomodation=(float)(Controller.CalculateShipMass().PhysicalMass*Gravity.Length());
+	Mass_Accomodation=(float)(Controller.CalculateShipMass().PhysicalMass/Gravity.Length());
 }
 
 public void Main(string argument, UpdateType updateSource)
 {
 	UpdateProgramInfo();
+	SetThrust();
     // The main entry point of the script, invoked every time
     // one of the programmable block's Run actions are invoked,
     // or the script updates itself. The updateSource argument
