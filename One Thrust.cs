@@ -187,7 +187,7 @@ class GenericMethods<T> where T : class, IMyTerminalBlock{
 		return GetClosestFunc(f, max_distance, Reference.GetPosition());
 	}
 	
-	public T GetClosestFunc(Func<T, bool> f, double max_distance){
+	public T GetClosestFunc(Func<T, bool> f, double max_distance=double.MaxValue){
 		return GetClosestFunc(f, max_distance, Program.Me);
 	}
 	
@@ -195,23 +195,23 @@ class GenericMethods<T> where T : class, IMyTerminalBlock{
 		return GetClosestFunc(f, double.MaxValue);
 	}
 	
-	public T GetGrid(string name, IMyCubeGrid Grid, double max_distance=double.MaxValue, IMyTerminalBlock Reference){
+	public T GetGrid(string name, IMyCubeGrid Grid, double max_distance, IMyTerminalBlock Reference){
 		List<T> input=GetAllGrid(name,Grid,max_distance,Reference);
 		if(input.Count>0)
 			return input[0];
 		return null;
 	}
 	
-	public T GetGrid(string name, IMyCubeGrid Grid,double max_distance=double.MaxValue){
+	public T GetGrid(string name,IMyCubeGrid Grid,double max_distance=double.MaxValue){
 		return GetGrid(name,Grid,max_distance,Prog);
 	}
 	
-	public List<T> GetAllGrid(string name, IMyCubeGrid Grid, double max_distance=double.MaxValue,IMyTerminalBlock Reference){
+	public List<T> GetAllGrid(string name, IMyCubeGrid Grid, double max_distance,IMyTerminalBlock Reference){
 		List<T> output=new List<T>();
 		List<T> input=GetAllContaining(name,max_distance,Reference);
 		foreach(T Block in input){
 			if(Block.CubeGrid==Grid)
-				output.Add(CubeGrid);
+				output.Add(Block);
 		}
 		return output;
 	}
@@ -560,13 +560,13 @@ public Program()
 	Me.GetSurface(1).TextPadding=40.0f;
 	Echo("Beginning initialization");
 	Controller=(new GenericMethods<IMyShipController>(this)).GetContaining("");
-	Main_Rotor=(new GenericMethods<IMyMotorStator>(this)).GetContaining("One-Thrust Rotor");
+	Main_Rotor=(new GenericMethods<IMyMotorStator>(this)).GetGrid("One-Thrust Rotor",Controller.CubeGrid);
 	if(Main_Rotor==null)
 		return;
-	Main_Hinge=(new GenericMethods<IMyMotorStator>(this)).GetContaining("One-Thrust Hinge");
+	Main_Hinge=(new GenericMethods<IMyMotorStator>(this)).GetGrid("One-Thrust Hinge",Main_Rotor.TopGrid);
 	if(Main_Hinge==null)
 		return;
-	Main_Thruster=(new GenericMethods<IMyThrust>(this)).GetContaining("One-Thrust Thruster");
+	Main_Thruster=(new GenericMethods<IMyThrust>(this)).GetGrid("One-Thrust Thruster",Main_Hinge.TopGrid);
 	if(Main_Thruster==null)
 		return;
 	
@@ -597,6 +597,7 @@ bool SetDirection(Vector3D Direction){
 	
 	SetAngle(Main_Rotor,Rotor_Target);
 	SetAngle(Main_Hinge,Hinge_Target);
+	return true;
 }
 
 bool SetAngle(IMyMotorStator Motor,Angle Target,float Speed_Multx=1){
