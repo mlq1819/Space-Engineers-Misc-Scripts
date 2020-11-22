@@ -681,11 +681,15 @@ bool ArmFunction(IMyMotorStator Motor){
 
 public Program()
 {
-	bool.TryParse(this.Storage,out toggle);
+	string[] strs=this.Storage.Split('\n');
+	if(strs.Length>0)
+		bool.TryParse(strs[0],out toggle);
+	if(strs.Length>1)
+		bool.TryParse(strs[1],out toggling);
 	Me.CustomName=(Program_Name+" Programmable block").Trim();
 	for(int i=0;i<Me.SurfaceCount;i++){
 		Me.GetSurface(i).FontColor=DEFAULT_TEXT_COLOR;
-		if(toggle)
+		if(toggle||toggling)
 			Me.GetSurface(i).BackgroundColor=DEFAULT_BACKGROUND_COLOR;
 		else
 			Me.GetSurface(i).BackgroundColor=new Color(0,0,0,255);
@@ -714,6 +718,8 @@ public Program()
 		Write('\t'+Motor.CustomName+":"+Motor.BlockDefinition.SubtypeName);
 		Arm arm = new Arm(Motor);
 		Arms.Add(arm);
+		foreach(IMyInteriorLight Light in arm.AllLights)
+			Light.Enabled=toggle&&(!toggling);
 		Write('\t'+arm.ToString()+':'+Math.Round(arm.MaxLength,1).ToString()+"M");
 	}
 	Sensor=(new GenericMethods<IMySensorBlock>(this)).GetContaining("");
@@ -726,11 +732,13 @@ public Program()
 public void Save()
 {
 	foreach(Arm arm in Arms){
-		foreach(IMyMotorStator Motor in arm.Motors){
+		foreach(IMyMotorStator Motor in arm.AllMotors){
 			Motor.TargetVelocityRPM=0;
 		}
+		foreach(IMyInteriorLight Light in arm.AllLights)
+			Light.Enabled=false;
 	}
-	this.Storage=toggle.ToString();
+	this.Storage=toggle.ToString()+'\n'+toggling.ToString();
 }
 
 Angle GetTargetAngle(Arm arm, int MotorNum, Vector3D position){
@@ -819,7 +827,7 @@ bool SetPosition(Arm arm,Vector3D position,float percent=1,bool worry_reset=true
 		double.TryParse(GetBlockData(arm.Motors[0],"ResetTimer"),out ResetTimer);
 	if(HasBlockData(arm.Motors[0],"Resetting"))
 		bool.TryParse(GetBlockData(arm.Motors[0],"Resetting"),out Resetting);
-	if(worry_reset&&Resetting){
+	if(worry_reset&&Resetting&&(!toggling)&&toggle){
 		ResetTimer+=seconds_since_last_update;
 		Write("Resetting Arm... ("+Math.Round(ResetTimer,3)+"s)");
 		if(ResetTimer>=5){
@@ -830,6 +838,17 @@ bool SetPosition(Arm arm,Vector3D position,float percent=1,bool worry_reset=true
 			foreach(IMyMotorStator Motor in arm.AllMotors)
 				SetAngle(Motor,new Angle(0));
 			do_main_loop=false;
+		}
+		if(Resetting){
+			foreach(IMyInteriorLight Light in arm.AllLights){
+				Light.Color=new Color(255,255,255,255);
+				Light.Radius=10;
+				Light.Intensity=5;
+			}
+		}
+		else{
+			foreach(IMyInteriorLight Light in arm.AllLights)
+				Light.Color=DEFAULT_TEXT_COLOR;
 		}
 	}
 	
@@ -887,7 +906,7 @@ bool SetPosition(Arm arm,Vector3D position,float percent=1,bool worry_reset=true
 			else
 				Motor.TargetVelocityRPM=0;
 		}
-		if(worry_reset){
+		if(worry_reset&&(!toggling)&&toggle){
 			if((Max_RPM<2.5||Max_Speed<0.5f||Max_RPM*Max_Speed<2.5)&&distance_from_target>2){
 				ResetTimer+=seconds_since_last_update;
 				if(ResetTimer>=5){
@@ -905,55 +924,57 @@ bool SetPosition(Arm arm,Vector3D position,float percent=1,bool worry_reset=true
 	SetBlockData(arm.Motors[0],"Resetting",Resetting.ToString());
 	
 	if(arm.Light!=null){
-		if(LightTimer>=BLINK_TIMER_LIMIT||LightTimer==0){
-			if(LightTimer!=0){
-				LightTimer=0;
-				do{
-					LightMultx_R=Rnd.Next(-1,2);
-				} while(LightMultx_R==0);
-				do{
-					LightMultx_G=Rnd.Next(-1,2);
-				} while(LightMultx_G==0);
-				do{
-					LightMultx_B=Rnd.Next(-1,2);
-				} while(LightMultx_B==0);
+		if(!Resetting){
+			if(LightTimer>=BLINK_TIMER_LIMIT||LightTimer==0){
+				if(LightTimer!=0){
+					LightTimer=0;
+					do{
+						LightMultx_R=Rnd.Next(-1,2);
+					} while(LightMultx_R==0);
+					do{
+						LightMultx_G=Rnd.Next(-1,2);
+					} while(LightMultx_G==0);
+					do{
+						LightMultx_B=Rnd.Next(-1,2);
+					} while(LightMultx_B==0);
+				}
+				arm.Light.Intensity=(float)Math.Max(1,Math.Min(10,(distance/(arm.MaxLength*2))*5));
+				arm.Light.Radius=10;
+				arm.Light.Color=DEFAULT_TEXT_COLOR;
 			}
-			arm.Light.Intensity=(float)Math.Max(1,Math.Min(10,(distance/(arm.MaxLength*2))*5));
-			arm.Light.Radius=10;
-			arm.Light.Color=DEFAULT_TEXT_COLOR;
-		}
-		else{
-			int r=arm.Light.Color.R;
-			int g=arm.Light.Color.G;
-			int b=arm.Light.Color.B;
-			switch(Rnd.Next(0,3)){
-				case 1:
-					try{
-						if(Sensor.LastDetectedEntity.Relationship>=MyRelationsBetweenPlayerAndBlock.Neutral)
-							r+=Rnd.Next(0,5);
-						else
+			else{
+				int r=arm.Light.Color.R;
+				int g=arm.Light.Color.G;
+				int b=arm.Light.Color.B;
+				switch(Rnd.Next(0,3)){
+					case 1:
+						try{
+							if(Sensor.LastDetectedEntity.Relationship>=MyRelationsBetweenPlayerAndBlock.Neutral)
+								r+=Rnd.Next(0,5);
+							else
+								r+=Rnd.Next(0,3)*LightMultx_R;
+						}
+						catch(Exception){
 							r+=Rnd.Next(0,3)*LightMultx_R;
-					}
-					catch(Exception){
-						r+=Rnd.Next(0,3)*LightMultx_R;
-					}
-					break;
-				case 2:
-					g+=Rnd.Next(0,3)*LightMultx_G;
-					break;
-				case 3:
-					try{
-						if(Sensor.LastDetectedEntity.Relationship==MyRelationsBetweenPlayerAndBlock.Owner)
-							b+=Rnd.Next(0,5);
-						else
+						}
+						break;
+					case 2:
+						g+=Rnd.Next(0,3)*LightMultx_G;
+						break;
+					case 3:
+						try{
+							if(Sensor.LastDetectedEntity.Relationship==MyRelationsBetweenPlayerAndBlock.Owner)
+								b+=Rnd.Next(0,5);
+							else
+								b+=Rnd.Next(0,3)*LightMultx_B;
+						}
+						catch(Exception){
 							b+=Rnd.Next(0,3)*LightMultx_B;
-					}
-					catch(Exception){
-						b+=Rnd.Next(0,3)*LightMultx_B;
-					}
-					break;
+						}
+						break;
+				}
+				arm.Light.Color=new Color(r,g,b,255);
 			}
-			arm.Light.Color=new Color(r,g,b,255);
 		}
 		
 		if(arm.Hand.Count>0){
@@ -1192,6 +1213,8 @@ void Toggle(){
 							if(float.TryParse(GetBlockData(arm.AllMotors[i],"DefaultBrakingTorque"),out temp))
 								arm.AllMotors[i].BrakingTorque=temp;
 						}
+						SetAngle(arm.AllMotors[i],new Angle(0),10,10);
+						arm.AllMotors[i].TargetVelocityRPM*=6;
 						break;
 					}
 				}
@@ -1257,6 +1280,14 @@ public void Main(string argument, UpdateType updateSource)
 	GridTerminalSystem.GetBlocksOfType<IMyMotorStator>(all_motors);
 	foreach(IMyMotorStator Motor in all_motors)
 		UpdateMotor(Motor);
+	foreach(Arm arm in Arms){
+		foreach(IMyInteriorLight Light in arm.AllLights)
+			Light.Enabled=toggle&&(!toggling);
+	}
+	if(toggle||toggling)
+		Runtime.UpdateFrequency=UpdateFrequency.Update1;
+	else
+		Runtime.UpdateFrequency=UpdateFrequency.Update100;
 	
 	if(argument.Length>0){
 		if(argument.ToLower().Equals("toggle")){
