@@ -648,6 +648,8 @@ public Program()
 	Arm.IsRotor=IsRotor;
 	Arm.GetAngle=GetAngle;
 	Arm.LocalToGlobal=LocalToGlobal;
+	
+	
 	// The constructor, called only once every session and
     // always before any other method is called. Use it to
     // initialize your script. 
@@ -685,8 +687,8 @@ bool SetDirection(IMyMotorStator Motor,Vector3D Direction,float Speed_Multx=1){
 		Write("Invalid Stator: "+Motor.CustomName);
 		return false;
 	}
-	Target=Current+Difference;
-	SetAngle(Motor,Rotor_Target,Speed_Multx);
+	Angle Target=Current+Difference;
+	SetAngle(Motor,Target,Speed_Multx);
 	return true;
 }
 
@@ -762,7 +764,7 @@ void UpdateMotor(IMyMotorStator Motor){
 	float Difference=Current_Angle.Difference(Last_Angle);
 	float Current_RPM=(float)(Difference/seconds_since_last_update/6);
 	
-	Vector3D Current_Position=Motor.GetPosition()-Controller.GetPosition();
+	Vector3D Current_Position=Motor.GetPosition()-Me.GetPosition();
 	Vector3D Last_Position=Current_Position;
 	if(HasBlockData(Motor,"LastPosition"))
 		Vector3D.TryParse(GetBlockData(Motor,"LastPosition"),out Last_Position);
