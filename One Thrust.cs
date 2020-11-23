@@ -555,7 +555,7 @@ Vector3D Gravity_Direction{
 Vector3D Current_LinearVelocity;
 Vector3D Current_AngularVelocity;
 
-float Mass_Accomodation;
+float Mass_Accommodation;
 
 public Program()
 {
@@ -596,18 +596,43 @@ public void Save()
     // needed.
 }
 
+float Avg_Override=0;
 void SetThrust(){
 	float Override=0;
-	Vector3D Direction=Current_LinearVelocity*2;
-	if(Gravity.Length()>0&&Mass_Accomodation!=0){
-		double Grav_Angle=GetAngle(Gravity_Direction,Thruster_Direction);
-		Override+=(float)Math.Abs((Mass_Accomodation/Math.Cos(Grav_Angle)));
-		Direction+=Gravity;
+	Vector3D Direction=new Vector3D(0,0,0);
+	if(Controller.DampenersOverride){
+		Direction=Current_LinearVelocity;
+		Direction.Normalize();
+		Direction*=5;
 	}
-	Direction.Normalize();
-	SetDirection(Direction);
-	Main_Thruster.ThrustOverride=Override;
-	Write("Override: "+Math.Round(Override/1000,1).ToString()+"kN");
+	if(Current_LinearVelocity.Length()<20)
+		Direction*=Current_LinearVelocity.Length()/4;
+	if(Gravity.Length()>0&&Mass_Accommodation!=0){
+		double Grav_Angle=GetAngle(Gravity_Direction,Thruster_Direction);
+		Write("Grav_Angle: "+Math.Round(Grav_Angle,0).ToString()+'°');
+		Override+=(float)Math.Abs((Mass_Accommodation));
+		//Override+=(float)Math.Abs((Mass_Accommodation/Math.Cos(Grav_Angle)));
+		Write("Mass Accommodation: "+Math.Round(Mass_Accommodation/1000,1)+"kN");
+		//Direction+=Gravity;
+	}
+	if(Direction.Length()>0){
+		Direction.Normalize();
+		SetDirection(Direction);
+	}
+	else{
+		SetDirection(Down_Vector);
+	}
+	if(Controller.DampenersOverride){
+		Vector3D Relative_Velocity=GlobalToLocal(Current_LinearVelocity,Main_Thruster);
+		float override_multx=(float)Math.Pow((100-Relative_Velocity.Z)/100,2);
+		Write("Multx: "+Math.Round(override_multx,2).ToString());
+		Override*=override_multx;
+	}
+	Avg_Override=(9*Avg_Override+Override)/10;
+	Main_Thruster.ThrustOverride=Avg_Override;
+	Write("Override: "+Math.Round(Avg_Override/1000,1).ToString()+"kN");
+	Write("Override: "+Math.Round((Avg_Override/Gravity.Length())/1000,1).ToString()+"kG");
+	Write("Override: "+Math.Round(Main_Thruster.ThrustOverridePercentage*100,1).ToString()+"%");
 }
 
 bool SetDirection(Vector3D Direction){
@@ -770,7 +795,7 @@ void UpdateProgramInfo(){
 	Current_LinearVelocity=Controller.GetShipVelocities().LinearVelocity;
 	Current_AngularVelocity=Controller.GetShipVelocities().AngularVelocity;
 	
-	Mass_Accomodation=(float)(Controller.CalculateShipMass().PhysicalMass/Gravity.Length());
+	Mass_Accommodation=(float)(Controller.CalculateShipMass().PhysicalMass*Gravity.Length());
 }
 
 public void Main(string argument, UpdateType updateSource)
