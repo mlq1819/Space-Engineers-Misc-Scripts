@@ -513,6 +513,14 @@ void Write(string text, bool new_line=true, bool append=true){
 		Me.GetSurface(0).WriteText(text, append);
 }
 
+bool IsHinge(IMyMotorStator Motor){
+	return Motor.BlockDefinition.SubtypeName.Contains("Hinge");
+}
+
+bool IsRotor(IMyMotorStator Motor){
+	return (!IsHinge(Motor))&&Motor.BlockDefinition.SubtypeName.Contains("Stator");
+}
+
 class Hand : List<Arm>{
 	public Hand():base(){
 		;
@@ -631,6 +639,15 @@ public Program()
 	Me.GetSurface(1).FontSize=2.2f;
 	Me.GetSurface(1).TextPadding=40.0f;
 	Echo("Beginning initialization");
+	Arm.P=this;
+	Arm.HasBlockData=HasBlockData;
+	Arm.GetBlockData=GetBlockData;
+	Arm.GlobalToLocalPosition=GlobalToLocalPosition;
+	Arm.SetBlockData=SetBlockData;
+	Arm.IsHinge=IsHinge;
+	Arm.IsRotor=IsRotor;
+	Arm.GetAngle=GetAngle;
+	Arm.LocalToGlobal=LocalToGlobal;
 	// The constructor, called only once every session and
     // always before any other method is called. Use it to
     // initialize your script. 
@@ -651,6 +668,117 @@ public void Save()
     // 
     // This method is optional and can be removed if not
     // needed.
+}
+
+bool SetDirection(IMyMotorStator Motor,Vector3D Direction,float Speed_Multx=1){
+	float Difference=0;
+	Angle Current=Angle.FromRadians(Motor.Angle);
+	if(IsRotor(Motor)){
+		Vector3D Rotor_Left=LocalToGlobal(new Vector3D(-1,0,0),Motor.Top);
+		Difference=(float)(GetAngle(-1*Rotor_Left,Direction)-GetAngle(Rotor_Left,Direction));
+	}
+	else if(IsHinge(Motor)){
+		Vector3D Hinge_Forward=LocalToGlobal(new Vector3D(0,0,-1),Motor.Top);
+		Difference=(float)(GetAngle(-1*Hinge_Forward,Direction)-GetAngle(Hinge_Forward,Direction));
+	}
+	else{
+		Write("Invalid Stator: "+Motor.CustomName);
+		return false;
+	}
+	Target=Current+Difference;
+	SetAngle(Motor,Rotor_Target,Speed_Multx);
+	return true;
+}
+
+bool SetAngle(IMyMotorStator Motor,Angle Target,float Speed_Multx=1){
+	Speed_Multx=Math.Max(0.05f, Math.Min(Math.Abs(Speed_Multx),50));
+	bool can_increase=true;
+	bool can_decrease=true;
+	Vector3D Velocity=GetVelocity(Motor);
+	double Speed=Velocity.Length();
+	float RPM=GetRPM(Motor);
+	float overall_speed=(float)Speed+RPM;
+	Speed_Multx*=(float)Math.Min(1,(10*Speed_Multx)/overall_speed);
+	
+	Angle Motor_Angle=Angle.FromRadians(Motor.Angle);
+	Speed_Multx*=Math.Min(1,10/Math.Abs(Motor_Angle.Difference(Target)));
+	if(Motor.UpperLimitDeg!=float.MaxValue)
+		can_increase=Angle.IsBetween(Motor_Angle,Target,new Angle(Motor.UpperLimitDeg));
+	if(Motor.LowerLimitDeg!=float.MinValue)
+		can_decrease=Angle.IsBetween(new Angle(Motor.LowerLimitDeg),Target,Motor_Angle);
+	if(Motor_Angle.Difference_From_Top(Target)<Motor_Angle.Difference_From_Bottom(Target)){
+		if(!can_increase)
+			Target=new Angle(Motor.UpperLimitDeg);
+	}
+	else{
+		if(!can_decrease)
+			Target=new Angle(Motor.LowerLimitDeg);
+	}
+	float From_Bottom=Motor_Angle.Difference_From_Bottom(Target);
+	if(!can_decrease)
+		From_Bottom=float.MaxValue;
+	float From_Top=Motor_Angle.Difference_From_Top(Target);
+	if(!can_increase)
+		From_Top=float.MaxValue;
+	float difference=Math.Min(From_Bottom,From_Top);
+	if(difference>1){
+		Motor.RotorLock=false;
+		float target_rpm=0;
+		float current_rpm=GetRPM(Motor);
+		Speed_Multx*=Math.Max(0.1f,(20-Math.Abs(current_rpm))/10);
+		if(From_Bottom<From_Top)
+			target_rpm=(float)(-1*From_Bottom*Speed_Multx*.5f);
+		else
+			target_rpm=(float)(From_Top*Speed_Multx*.5f);
+		Motor.TargetVelocityRPM=target_rpm;
+	}
+	else
+		Motor.TargetVelocityRPM=0;
+	return true;
+}
+
+Vector3D GetVelocity(IMyMotorStator Motor){
+	Vector3D Last_Velocity=new Vector3D(0,0,0);
+	if(HasBlockData(Motor,"LastVelocity"))
+		Vector3D.TryParse(GetBlockData(Motor,"LastVelocity"),out Last_Velocity);
+	return Last_Velocity;
+}
+
+float GetRPM(IMyMotorStator Motor){
+	float Last_RPM=0;
+	if(HasBlockData(Motor,"LastRPM"))
+		float.TryParse(GetBlockData(Motor,"LastRPM"),out Last_RPM);
+	return Last_RPM;
+}
+
+void UpdateMotor(IMyMotorStator Motor){
+	Angle Current_Angle=Angle.FromRadians(Motor.Angle);
+	Angle Last_Angle=Current_Angle;
+	if(HasBlockData(Motor,"LastAngle"))
+		Angle.TryParse(GetBlockData(Motor,"LastAngle"),out Last_Angle);
+	SetBlockData(Motor,"LastAngle",Current_Angle.ToString());
+	
+	float Last_RPM=GetRPM(Motor);
+	float Difference=Current_Angle.Difference(Last_Angle);
+	float Current_RPM=(float)(Difference/seconds_since_last_update/6);
+	
+	Vector3D Current_Position=Motor.GetPosition()-Controller.GetPosition();
+	Vector3D Last_Position=Current_Position;
+	if(HasBlockData(Motor,"LastPosition"))
+		Vector3D.TryParse(GetBlockData(Motor,"LastPosition"),out Last_Position);
+	SetBlockData(Motor,"LastPosition",Current_Position.ToString());
+	Vector3D Current_Velocity=(Current_Position-Last_Position)/seconds_since_last_update;
+	Vector3D Last_Velocity=GetVelocity(Motor);
+	if(Runtime.UpdateFrequency==UpdateFrequency.Update1){
+		Last_RPM=((Last_RPM*99)+Current_RPM)/100;
+		Last_Velocity=((Last_Velocity*99)+Current_Velocity)/100;
+	}
+	else{
+		Last_RPM=((Last_RPM*9)+Current_RPM)/10;
+		Last_Velocity=((Last_Velocity*9)+Current_Velocity)/10;
+	}
+	SetBlockData(Motor,"LastRPM",Last_RPM.ToString());
+	SetBlockData(Motor,"LastVelocity",Last_Velocity.ToString());
 }
 
 void UpdateProgramInfo(){
@@ -684,6 +812,10 @@ void UpdateProgramInfo(){
 		Echo(Math.Round(seconds_since_last_update/60/60, 2).ToString() + " hours\n");
 	else 
 		Echo(Math.Round(seconds_since_last_update/60/60/24, 2).ToString() + " days\n");
+	List<IMyMotorStator> All_Motors=new List<IMyMotorStator>();
+	GridTerminalSystem.GetBlocksOfType<IMyMotorStator>(All_Motors);
+	foreach(IMyMotorStator Motor in All_Motors)
+		UpdateMotor(Motor);
 }
 
 public void Main(string argument, UpdateType updateSource)
