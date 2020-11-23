@@ -1,4 +1,4 @@
-const string Program_Name = ""; //Name me!
+const string Program_Name = "Arm v2"; //Name me!
 private Color DEFAULT_TEXT_COLOR=new Color(197,137,255,255);
 private Color DEFAULT_BACKGROUND_COLOR=new Color(44,0,88,255);
 
@@ -255,6 +255,187 @@ class GenericMethods<T> where T : class, IMyTerminalBlock{
 	}
 }
 
+struct Angle{
+	private float _Degrees;
+	public float Degrees{
+		get{
+			return _Degrees;
+		}
+		set{
+			_Degrees=value%360;
+			while(_Degrees<0)
+				_Degrees+=360;
+		}
+	}
+	
+	public Angle(float degrees){
+		_Degrees=degrees;
+		Degrees=degrees;
+	}
+	
+	public static Angle FromRadians(float Rads){
+		return new Angle((float)(Rads/Math.PI*180));
+	}
+	
+	public float Difference_From_Top(Angle other){
+		if(other.Degrees>=Degrees)
+			return other.Degrees-Degrees;
+		return other.Degrees-Degrees+360;
+	}
+	
+	public float Difference_From_Bottom(Angle other){
+		if(other.Degrees<=Degrees)
+			return Degrees-other.Degrees;
+		return Degrees-other.Degrees+360;
+	}
+	
+	public float Difference(Angle other){
+		return Math.Min(Difference_From_Top(other),Difference_From_Bottom(other));
+	}
+	
+	public static bool IsBetween(Angle Bottom, Angle Middle, Angle Top){
+		return Bottom.Difference_From_Top(Middle)<=Bottom.Difference_From_Top(Top);
+	}
+	
+	public static bool TryParse(string parse,out Angle output){
+		output=new Angle(0);
+		float d;
+		if(!float.TryParse(parse.Substring(0,Math.Max(0,parse.Length-1)),out d))
+			return false;
+		output=new Angle(d);
+		return true;
+	}
+	
+	public static Angle operator +(Angle a1, Angle a2){
+		return new Angle(a1.Degrees+a2.Degrees);
+	}
+	
+	public static Angle operator +(Angle a1, float a2){
+		return new Angle(a1.Degrees+a2);
+	}
+	
+	public static Angle operator +(float a1, Angle a2){
+		return a2 + a1;
+	}
+	
+	public static Angle operator -(Angle a1, Angle a2){
+		return new Angle(a1.Degrees-a2.Degrees);
+	}
+	
+	public static Angle operator -(Angle a1, float a2){
+		return new Angle(a1.Degrees-a2);
+	}
+	
+	public static Angle operator -(float a1, Angle a2){
+		return new Angle(a1-a2.Degrees);
+	}
+	
+	public static Angle operator *(Angle a1, float m){
+		return new Angle(a1.Degrees*m);
+	}
+	
+	public static Angle operator *(float m, Angle a2){
+		return a2*m;
+	}
+	
+	public static Angle operator /(Angle a1, float m){
+		return new Angle(a1.Degrees/m);
+	}
+	
+	public static bool operator ==(Angle a1, Angle a2){
+		float degrees=(a1-a2).Degrees;
+		if(degrees>180)
+			degrees-=360;
+		return Math.Abs(degrees)<0.000001f;
+	}
+	
+	public static bool operator !=(Angle a1, Angle a2){
+		return Math.Abs(a1.Degrees-a2.Degrees)>=0.000001f;
+	}
+	
+	public override bool Equals(object o){
+		return (o.GetType()==this.GetType()) && this==((Angle)o);
+	}
+	
+	public override int GetHashCode(){
+		return Degrees.GetHashCode();
+	}
+	
+	public static bool operator >(Angle a1, Angle a2){
+		return a1.Difference_From_Top(a2)>a1.Difference_From_Bottom(a2);
+	}
+	
+	public static bool operator >=(Angle a1, Angle a2){
+		return (a1==a2)||(a1>a2);
+	}
+	
+	public static bool operator <=(Angle a1, Angle a2){
+		return (a1==a2)||(a1<a2);
+	}
+	
+	public static bool operator <(Angle a1, Angle a2){
+		return a1.Difference_From_Top(a2)<a1.Difference_From_Bottom(a2);
+	}
+	
+	public override string ToString(){
+		if(Degrees>=180)
+			return (Degrees-360).ToString()+'°';
+		else
+			return Degrees.ToString()+'°';
+	}
+	
+	public string ToString(int n){
+		n=Math.Min(0,n);
+		if(Degrees>=180)
+			return Math.Round(Degrees-360,n).ToString()+'°';
+		else
+			return Math.Round(Degrees,n).ToString()+'°';
+	}
+	
+	public static string LinedFloat(float deg, int sections=10){
+		string output="[";
+		for(int i=-180/sections;i<0;i++){
+			if(deg<0){
+				if(deg/sections<=i+1)
+					output+='|';
+				else
+					output+=' ';
+			}
+			else
+				output+=' ';
+		}
+		for(int i=0;i<180/sections;i++){
+			if(deg<0)
+				output+=' ';
+			else{
+				if(deg/sections>=(i+1))
+					output+='|';
+				else
+					output+=' ';
+			}
+		}
+		output+=']';
+		return output;
+	}
+	
+	public string LinedString(int sections=10){
+		if(Degrees>=180)
+			return LinedFloat(Degrees-360,sections);
+		return LinedFloat(Degrees,sections);
+	}
+	
+	public string LinedString(Angle Comparison){
+		string output="Actual: "+LinedString();
+		output+="\nComparison: ";
+		float deg=Difference(Comparison);
+		if(deg>=180)
+			output+=LinedFloat(deg-360);
+		else
+			output+=LinedFloat(deg);
+		return output;
+	}
+}
+
 bool HasBlockData(IMyTerminalBlock Block, string Name){
 	if(Name.Contains(':'))
 		return false;
@@ -330,6 +511,107 @@ void Write(string text, bool new_line=true, bool append=true){
 		Me.GetSurface(0).WriteText(text+'\n', append);
 	else
 		Me.GetSurface(0).WriteText(text, append);
+}
+
+class Hand : List<Arm>{
+	public Hand():base(){
+		;
+	}
+}
+
+class Arm{
+	public static MyGridProgram P;
+	public static Func<IMyTerminalBlock,string,bool> HasBlockData;
+	public static Func<IMyTerminalBlock,string,string> GetBlockData;
+	public static Func<IMyTerminalBlock,string,string,bool> SetBlockData;
+	public static Func<Vector3D,IMyCubeBlock,Vector3D> GlobalToLocalPosition;
+	public static Func<Vector3D,IMyCubeBlock,Vector3D> LocalToGlobal;
+	public static Func<IMyMotorStator,bool> IsHinge;
+	public static Func<IMyMotorStator,bool> IsRotor;
+	public static Func<Vector3D,Vector3D,double> GetAngle;
+	
+	public List<IMyMotorStator> Motors;
+	public Hand MyHand;
+	public string Name;
+	
+	public double MaxLength{
+		get{
+			double output=0;
+			for(int i=1;i<Motors.Count;i++){
+				if(i>1)
+					output+=(Motors[i-1].Top.GetPosition()-Motors[i].GetPosition()).Length();
+				output+=(Motors[i].GetPosition()-Motors[i].Top.GetPosition()).Length();
+			}
+			if(MyHand!=null&&MyHand.Count>0){
+				double sum=0;
+				foreach(Arm Finger in MyHand)
+					sum+=(Finger.Motors[0].GetPosition()-Motors[Motors.Count-1].Top.GetPosition()).Length();
+				sum/=MyHand.Count;
+				output+=sum;
+			}
+			return output;
+		}
+	}
+	
+	public double MotorLength(int MotorNum){
+		IMyMotorStator Motor=Motors[MotorNum];
+		if(MotorNum<Motors.Count-1)
+			return (Motor.Top.GetPosition()-Motors[MotorNum+1].GetPosition()).Length();
+		else if(MotorNum==Motors.Count-1){
+			double sum=0;
+			foreach(Arm Finger in MyHand)
+				sum+=(Finger.Motors[0].GetPosition()-Motors[MotorNum].Top.GetPosition()).Length();
+			return sum/MyHand.Count;
+		}
+		return 0;
+	}
+	
+	public double MotorLength(IMyMotorStator Motor){
+		for(int i=0;i<Motors.Count;i++){
+			if(Motor==Motors[i])
+				return MotorLength(i);
+		}
+		return 0;
+	}
+	
+	public double SumLength(int MotorNum){
+		double sum=0;
+		for(int i=MotorNum;i<Motors.Count;i++){
+			sum+=MotorLength(i);
+			sum+=(Motors[i].GetPosition()-Motors[i].Top.GetPosition()).Length();
+		}
+		return sum;
+	}
+	
+	public Arm(IMyMotorStator BaseMotor, string name="Arm"){
+		Motors=new List<IMyMotorStator>();
+		Name=name;
+		Motors.Add(BaseMotor);
+		List<IMyMotorStator> allmotors=(new GenericMethods<IMyMotorStator>(P)).GetAllIncluding("",50);
+		List<IMyMotorStator> gridmotors;
+		do{
+			gridmotors=(new GenericMethods<IMyMotorStator>(P)).GetAllGrid("",Motors[Motors.Count-1].TopGrid,50);
+			if(gridmotors.Count==1)
+				Motors.Add(gridmotors[0]);
+		} while(gridmotors.Count==1);
+		MyHand=new Hand();
+		if(gridmotors.Count>0){
+			for(int i=0;i<gridmotors.Count;i++)
+				MyHand.Add(new Arm(gridmotors[i],Name+" Finger "+(i+1).ToString()));
+		}
+		for(int i=0;i<Motors.Count;i++){
+			if(IsHinge(Motors[i]))
+				Motors[i].CustomName=Name+" Stator "+(i+1).ToString()+" (Hinge)";
+			else if(IsRotor(Motors[i]))
+				Motors[i].CustomName=Name+" Stator "+(i+1).ToString()+" (Rotor)";
+			else
+				Motors[i].CustomName=Name+" Stator "+(i+1).ToString();
+		}
+	}
+	
+	public override string ToString(){
+		return Name;
+	}
 }
 
 long cycle_long = 1;
