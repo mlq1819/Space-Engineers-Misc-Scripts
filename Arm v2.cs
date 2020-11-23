@@ -627,6 +627,8 @@ long cycle = 0;
 char loading_char = '|';
 double seconds_since_last_update = 0;
 
+Arm MyArm;
+
 public Program()
 {
 	Me.CustomName=(Program_Name+" Programmable block").Trim();
@@ -648,18 +650,14 @@ public Program()
 	Arm.IsRotor=IsRotor;
 	Arm.GetAngle=GetAngle;
 	Arm.LocalToGlobal=LocalToGlobal;
+	List<IMyMotorStator> Motors=(new GenericMethods<IMyMotorStator>(this)).GetAllGrid("Arm",Me.CubeGrid,50);
+	if(Motors.Count==0)
+		Motors=(new GenericMethods<IMyMotorStator>(this)).GetAllGrid("",Me.CubeGrid,50);
+	if(Motors.Count==0)
+		return;
+	MyArm=new Arm(Motors[0]);
 	
-	
-	// The constructor, called only once every session and
-    // always before any other method is called. Use it to
-    // initialize your script. 
-    //     
-    // The constructor is optional and can be removed if not
-    // needed.
-    // 
-    // It's recommended to set RuntimeInfo.UpdateFrequency 
-    // here, which will allow your script to run itself without a 
-    // timer block.
+	Runtime.UpdateFrequency=UpdateFrequency.Update1;
 }
 
 public void Save()
@@ -670,6 +668,26 @@ public void Save()
     // 
     // This method is optional and can be removed if not
     // needed.
+}
+
+//Gets the difference between the motor's current Angle and the closest it can get to its Target angle
+float Adjusted_Difference(IMyMotorStator Motor,Angle Target){
+	bool can_increase=true;
+	bool can_decrease=true;
+	Angle Motor_Angle=Angle.FromRadians(Motor.Angle);
+	if(Motor.UpperLimitDeg!=float.MaxValue)
+		can_increase=Angle.IsBetween(Motor_Angle,Target,new Angle(Motor.UpperLimitDeg));
+	if(Motor.LowerLimitDeg!=float.MinValue)
+		can_decrease=Angle.IsBetween(new Angle(Motor.LowerLimitDeg),Target,Motor_Angle);
+	if(Motor_Angle.Difference_From_Top(Target)<Motor_Angle.Difference_From_Bottom(Target)){
+		if(!can_increase)
+			Target=new Angle(Motor.UpperLimitDeg);
+	}
+	else{
+		if(!can_decrease)
+			Target=new Angle(Motor.LowerLimitDeg);
+	}
+	return Motor_Angle.Difference(Target);
 }
 
 bool SetDirection(IMyMotorStator Motor,Vector3D Direction,float Speed_Multx=1){
@@ -818,6 +836,51 @@ void UpdateProgramInfo(){
 	GridTerminalSystem.GetBlocksOfType<IMyMotorStator>(All_Motors);
 	foreach(IMyMotorStator Motor in All_Motors)
 		UpdateMotor(Motor);
+}
+
+enum ArmCommand{
+	Idle=0,
+	Punch=1,
+	Push=2,
+	Grab=3,
+	Throw=4,
+	Block=5
+}
+/*
+* Idle
+* 	0:	Reduce Torque to 100
+*	E1:	Revert Torque to default
+* Punch
+* 	0:	Wind Arm, Clench Hand
+* 	1: Lock Hand, Release Arm at high speed
+* 	E2: Unlock Hand
+* Push
+* 	0: Wind Arm, Open Hand
+* 	1: Lock Hand, Release Arm at low speed until contact
+* 	2: Lock Arm
+* 	E3: Unlock Hand, Unlock Arm
+* Grab
+* 	0: Wind Arm, Prepare Hand
+* 	1: Release Arm
+* 	2: Change Arm Target
+* 	E3: Unlock Hand
+* Throw
+* 	0: Grab
+* 	1: Lock Hand, Wind Arm
+* 	2: Release Arm, Unlock Hand, Open Hand
+*	E3: Wait 2 seconds
+* Block
+* 	0: Clench Hand, Set Arm Targets, Release Arm
+* 	1: Lock Hand, Lock Arm
+* 	E2: Unlock Hand, Unlock Arm
+*/
+ArmCommand Command=ArmCommand.Idle;
+int Command_Stage=0;
+
+ArmCommand Next_Command=ArmCommand.Idle;
+
+bool PerformCommand(){
+	bool Waiting=Next_Command!=Command;
 }
 
 public void Main(string argument, UpdateType updateSource)
