@@ -1823,12 +1823,10 @@ bool SetAngle(IMyMotorStator Motor,Angle Target,float Speed_Multx=1){
 		else
 			target_rpm=(float)(From_Top*Speed_Multx*.5f);
 		Motor.TargetVelocityRPM=target_rpm;
-		Motor.RotorLock=false;
 	}
-	else{
+	else
 		Motor.TargetVelocityRPM=0;
-		Motor.RotorLock=true;
-	}
+	Motor.RotorLock=(difference<5);
 	return true;
 }
 
