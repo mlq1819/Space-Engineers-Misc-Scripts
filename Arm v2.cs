@@ -1628,6 +1628,10 @@ void Create_EntityMenu(){
 	if(EntityMenu!=null&&EntityMenu.Count>0)
 		name=EntityMenu.Menu[EntityMenu.Selection].Name();
 	EntityMenu=new Menu_Submenu("Targets");
+	if(Target_Count==1)
+		EntityMenu.Add(new Menu_Text("1 Target Needed"));
+	else
+		EntityMenu.Add(new Menu_Text(Target_Count.ToString()+" Targets Needed"));
 	if(Target_Count>0){
 		EntityMenu.Add(new Menu_Display(new EntityInfo(-2,"Forward",MyDetectedEntityType.None,null,Controller.GetShipVelocities().LinearVelocity,MyRelationsBetweenPlayerAndBlock.NoOwnership,MyArm.Motors[0].GetPosition()+20*Forward_Vector), this));
 		EntityMenu.Add(new Menu_Display(new EntityInfo(-3,"Up",MyDetectedEntityType.None,null,Controller.GetShipVelocities().LinearVelocity,MyRelationsBetweenPlayerAndBlock.NoOwnership,MyArm.Motors[0].GetPosition()+20*Up_Vector), this));
@@ -1657,15 +1661,12 @@ void Create_EntityMenu(){
 			}
 		}
 	}
-	else{
-		EntityMenu.Add(new Menu_Text("No Target Needed"));
-	}
 }
 
 int Defined_Target_Count=0;
 //This function should do whatever should happen when a command is selected
 bool Command_Menu_Function(string Command){
-	if(Target_Count>0&&Selected.ID!=-2){
+	if(Target_Count>0&&Selected.ID!=-1){
 		if(Defined_Target_Count==0){
 			Target_ID=Selected.ID;
 			Target_Position=Selected.GetPosition();
@@ -1708,10 +1709,9 @@ void Prev(){
 void Back(){
 	if(Defined_Target_Count==0)
 		CommandMenu.Back();
-	else{
+	else
 		Defined_Target_Count--;
-		EntityMenu.Selection=0;
-	}
+	EntityMenu.Selection=0;
 }
 
 void Select(){
@@ -1823,9 +1823,12 @@ bool SetAngle(IMyMotorStator Motor,Angle Target,float Speed_Multx=1){
 		else
 			target_rpm=(float)(From_Top*Speed_Multx*.5f);
 		Motor.TargetVelocityRPM=target_rpm;
+		Motor.RotorLock=false;
 	}
-	else
+	else{
 		Motor.TargetVelocityRPM=0;
+		Motor.RotorLock=true;
+	}
 	return true;
 }
 
@@ -1933,6 +1936,8 @@ bool EndCommand(){
 				if(HasBlockData(Motor,"DefaultTorque")){
 					float torque=Motor.Torque;
 					float.TryParse(GetBlockData(Motor,"DefaultTorque"),out torque);
+					if(torque<4800)
+						torque=480000;
 					Motor.Torque=torque;
 				}
 				Motor.Enabled=true;
@@ -2029,7 +2034,7 @@ void Idle(){
 	}
 	if(Command_Stage==1){
 		foreach(IMyMotorStator Motor in MyArm.AllMotors){
-			if(Motor.Torque!=100){
+			if(Motor.Torque>48000){
 				SetBlockData(Motor,"DefaultTorque",Motor.Torque.ToString());
 				Motor.Torque=100;
 			}
@@ -2435,16 +2440,18 @@ void Spin(){
 			Vector3D Direction=Target_Position-Motor.GetPosition();
 			Direction.Normalize();
 			if(Motor==MyArm.LastRotor){
-				Motor.TargetVelocityRPM=30;
+				Motor.RotorLock=false;
+				Motor.TargetVelocityRPM=60;
 			}
 			else
 				SetDirection(Motor,Direction);
 		}
 		foreach(Arm Finger in MyArm.MyHand){
 			foreach(IMyMotorStator Motor in Finger.Motors){
-				Vector3D Direction=Target_Position-Motor.GetPosition();
-				Direction.Normalize();
-				SetDirection(Motor,Direction);
+				Angle Target=new Angle(0);
+				if(Motor==Finger.FirstHinge)
+					Target=new Angle(90);
+				SetAngle(Motor,Target);
 			}
 		}
 	}
@@ -2503,6 +2510,7 @@ void UpdateProgramInfo(){
 double Scan_Timer=10;
 void PerformScan(){
 	if(Scan_Timer>=0.5){
+		Write("Scanning...");
 		Scan_Timer=0;
 		List<IMySensorBlock> Sensors=new List<IMySensorBlock>();
 		GridTerminalSystem.GetBlocksOfType<IMySensorBlock>(Sensors);
@@ -2519,14 +2527,25 @@ void PerformScan(){
 				IGC.SendBroadcastMessage("Entity Report",entity.ToString(),TransmissionDistance.TransmissionDistanceMax);
 			}
 		}
-		for(int i=0;i<MyEntities.Count;i++){
-			if((MyEntities[i].GetPosition()-Controller.GetPosition()).Length()>1000){
-				Altered=true;
-				MyEntities.RemoveEntry(MyEntities[i]);
-			}
+		EntityList temp=MyEntities;
+		MyEntities=new EntityList();
+		foreach(EntityInfo Entity in temp){
+			if((Entity.GetPosition()-Controller.GetPosition()).Length()<50)
+				MyEntities.UpdateEntry(Entity);
 		}
 		if(Altered&&!CommandMenu.IsSelected)
 			Create_EntityMenu();
+	}
+	else{
+		Write("Waiting...");
+		MyEntities.Sort(Controller.GetPosition());
+		if(MyEntities.Count>30){
+			EntityList temp=MyEntities;
+			MyEntities=new EntityList();
+			for(int i=0;i<temp.Count&&i<20;i++){
+				MyEntities.UpdateEntry(temp[i]);
+			}
+		}
 	}
 	Write("Scan: "+Math.Round(Scan_Timer,3).ToString()+"s");
 	if(MyEntities.Count==1)
