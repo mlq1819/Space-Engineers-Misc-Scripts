@@ -679,6 +679,11 @@ char loading_char = '|';
 double seconds_since_last_update = 0;
 
 Arm MyArm;
+IMyShipController Controller{
+	get{
+		return (new GenericMethods<IMyShipController>(this)).GetContaining("");
+	}
+}
 
 public Program()
 {
@@ -1010,10 +1015,13 @@ void Punch(){
 		bool ready=true;
 		foreach(IMyMotorStator Motor in MyArm.Motors){
 			Vector3D Direction=Target_Position-Motor.GetPosition();
-			Direction.Normalize();
 			float Speed_Multx=1;
-			if(Motor==MyArm.LastRotor)
+			if(Motor==MyArm.LastRotor){
 				Speed_Multx=5;
+				if(Controller!=null&&Controller.GetTotalGravity().Length()>0)
+					Direction=Controller.GetTotalGravity();
+			}
+			Direction.Normalize();
 			Angle Target=GetTarget(Motor,Direction);
 			if(Motor==MyArm.FirstHinge)
 				Target=new Angle(-90);
@@ -1039,9 +1047,13 @@ void Punch(){
 		foreach(IMyMotorStator Motor in MyArm.Motors){
 			Vector3D Direction=Target_Position-Motor.GetPosition();
 			float Speed_Multx=3;
-			if(Motor==MyArm.LastRotor)
+			if(Motor==MyArm.LastRotor){
 				Speed_Multx*=5;
+				if(Controller!=null&&Controller.GetTotalGravity().Length()>0)
+					Direction=Controller.GetTotalGravity();
+			}
 			Direction.Normalize();
+			Angle Target=GetTarget(Motor,Direction);
 			SetDirection(Motor,Direction,Speed_Multx);
 		}
 		if(Command_Timer>=2)
@@ -1063,10 +1075,13 @@ void Brace(){
 		bool ready=true;
 		foreach(IMyMotorStator Motor in MyArm.Motors){
 			Vector3D Direction=Target_Position-Motor.GetPosition();
-			Direction.Normalize();
 			float Speed_Multx=1;
-			if(Motor==MyArm.LastRotor)
-				Speed_Multx=5;
+			if(Motor==MyArm.LastRotor){
+				Speed_Multx*=5;
+				if(Controller!=null&&Controller.GetTotalGravity().Length()>0)
+					Direction=Controller.GetTotalGravity();
+			}
+			Direction.Normalize();
 			Angle Target=GetTarget(Motor,Direction);
 			if(Motor==MyArm.FirstHinge)
 				Target=new Angle(-90);
@@ -1091,10 +1106,13 @@ void Brace(){
 		SetLock(MyArm.MyHand,true);
 		foreach(IMyMotorStator Motor in MyArm.Motors){
 			Vector3D Direction=Target_Position-Motor.GetPosition();
-			Direction.Normalize();
 			float Speed_Multx=0.5f;
-			if(Motor==MyArm.LastRotor)
+			if(Motor==MyArm.LastRotor){
 				Speed_Multx*=5;
+				if(Controller!=null&&Controller.GetTotalGravity().Length()>0)
+					Direction=Controller.GetTotalGravity();
+			}
+			Direction.Normalize();
 			SetDirection(Motor,Direction,Speed_Multx);
 		}
 		if((MyArm.Motors[MyArm.Motors.Count-1].Top.GetPosition()-Target_Position).Length()<1)
@@ -1118,10 +1136,13 @@ void Grab(){
 		bool ready=true;
 		foreach(IMyMotorStator Motor in MyArm.Motors){
 			Vector3D Direction=Target_Position-Motor.GetPosition();
-			Direction.Normalize();
 			float Speed_Multx=1;
-			if(Motor==MyArm.LastRotor)
-				Speed_Multx=5;
+			if(Motor==MyArm.LastRotor){
+				Speed_Multx*=5;
+				if(Controller!=null&&Controller.GetTotalGravity().Length()>0)
+					Direction=Controller.GetTotalGravity();
+			}
+			Direction.Normalize();
 			Angle Target=GetTarget(Motor,Direction);
 			if(Motor==MyArm.FirstHinge)
 				Target=new Angle(-90);
@@ -1145,10 +1166,13 @@ void Grab(){
 	if(Command_Stage==1){
 		foreach(IMyMotorStator Motor in MyArm.Motors){
 			Vector3D Direction=Target_Position-Motor.GetPosition();
-			Direction.Normalize();
 			float Speed_Multx=1;
-			if(Motor==MyArm.LastRotor)
-				Speed_Multx=5;
+			if(Motor==MyArm.LastRotor){
+				Speed_Multx*=5;
+				if(Controller!=null&&Controller.GetTotalGravity().Length()>0)
+					Direction=Controller.GetTotalGravity();
+			}
+			Direction.Normalize();
 			SetDirection(Motor,Direction,Speed_Multx);
 		}
 		Vector3D Avg_Position=new Vector3D(0,0,0);
@@ -1262,5 +1286,8 @@ void Wave(){
 public void Main(string argument, UpdateType updateSource)
 {
 	UpdateProgramInfo();
+	Write("Current:"+Current_Command.ToString());
+	Write("Next:"+Next_Command.ToString());
 	PerformCommand();
+	
 }
