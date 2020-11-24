@@ -819,6 +819,12 @@ void Write(string text, bool new_line=true, bool append=true){
 		Me.GetSurface(0).WriteText(text+'\n', append);
 	else
 		Me.GetSurface(0).WriteText(text, append);
+	if(ProgramPanel!=null){
+		if(new_line)
+			ProgramPanel.WriteText(text+'\n', append);
+		else
+			ProgramPanel.WriteText(text, append);
+	}
 }
 
 bool IsHinge(IMyMotorStator Motor){
@@ -1408,6 +1414,146 @@ IMyShipController Controller;
 EntityList MyEntities;
 IMyTextPanel CommandPanel;
 IMyTextPanel EntityPanel;
+IMyTextPanel ProgramPanel;
+
+bool FreeLCDFunction(IMyTextPanel Panel){
+	return Panel.ContentType==ContentType.NONE&&(Panel.GetPublicTitle().Equals("Public title")||Panel.GetPublicTitle().Length==0);
+}
+
+public Program()
+{
+	Me.CustomName=(Program_Name+" Programmable block").Trim();
+	for(int i=0;i<Me.SurfaceCount;i++){
+		Me.GetSurface(i).FontColor=DEFAULT_TEXT_COLOR;
+		Me.GetSurface(i).BackgroundColor=DEFAULT_BACKGROUND_COLOR;
+		Me.GetSurface(i).Alignment=TextAlignment.CENTER;
+		Me.GetSurface(i).ContentType=ContentType.TEXT_AND_IMAGE;
+	}
+	Me.GetSurface(1).FontSize=2.2f;
+	Me.GetSurface(1).TextPadding=40.0f;
+	Echo("Beginning initialization");
+	Arm.P=this;
+	Arm.HasBlockData=HasBlockData;
+	Arm.GetBlockData=GetBlockData;
+	Arm.GlobalToLocalPosition=GlobalToLocalPosition;
+	Arm.SetBlockData=SetBlockData;
+	Arm.IsHinge=IsHinge;
+	Arm.IsRotor=IsRotor;
+	Arm.GetAngle=GetAngle;
+	Arm.LocalToGlobal=LocalToGlobal;
+	List<IMyMotorStator> Motors=(new GenericMethods<IMyMotorStator>(this)).GetAllGrid("Arm",Me.CubeGrid,50);
+	if(Motors.Count==0)
+		Motors=(new GenericMethods<IMyMotorStator>(this)).GetAllGrid("",Me.CubeGrid,50);
+	if(Motors.Count==0){
+		Write("Failed to initialize Arm");
+		return;
+	}
+	MyArm=new Arm(Motors[0]);
+	Controller=(new GenericMethods<IMyShipController>(this)).GetContaining("",50);
+	if(Controller==null){
+		Write("Failed to initialize Controller");
+		return;
+	}
+	MyEntities=new EntityList();
+	string[] args=this.Storage.Split('\n');
+	if(args.Length>0){
+		int temp=0;
+		if(Int32.TryParse(args[0],out temp))
+			Current_Command=(ArmCommand)temp;
+		if(args.Length>1){
+			if(Int32.TryParse(args[1],out temp))
+				Next_Command=(ArmCommand)temp;
+			if(args.Length>2){
+				Vector3D t2=new Vector3D(0,0,0);
+				if(Vector3D.TryParse(args[2],out t2))
+					Target_Position=t2;
+				if(args.Length>3)
+					if(Vector3D.TryParse(args[3],out t2))
+						Target_2=t2;
+			}
+		}
+	}
+	
+	List<IMyInteriorLight> Lights=new List<IMyInteriorLight>();
+	GridTerminalSystem.GetBlocksOfType<IMyInteriorLight>(Lights);
+	foreach(IMyInteriorLight Light in Lights){
+		if(HasBlockData(Light,"ExceptionState")&&GetBlockData(Light,"ExceptionState").Equals("active")){
+			SetBlockData(Light,"ExceptionState","inactive");
+			Light.Enabled=true;
+		}
+	}
+	ProgramPanel=(new GenericMethods<IMyTextPanel>(this)).GetContaining("Arm Program Display");
+	if(ProgramPanel==null){
+		ProgramPanel=(new GenericMethods<IMyTextPanel>(this)).GetClosestFunc(FreeLCDFunction,10,Controller);
+		if(ProgramPanel!=null){
+			string name="Arm Program Display";
+			if(ProgramPanel.CustomName.ToLower().Contains("transparent"))
+				name="Transparent "+name;
+			ProgramPanel.CustomName=name;
+		}
+	}
+	if(ProgramPanel!=null){
+		ProgramPanel.Alignment=TextAlignment.CENTER;
+		ProgramPanel.ContentType=ContentType.TEXT_AND_IMAGE;
+		ProgramPanel.FontSize=1.2f;
+		ProgramPanel.TextPadding=10.0f;
+		ProgramPanel.WritePublicTitle("Program Display",false);
+		if(ProgramPanel.CustomName.ToLower().Contains("transparent")){
+			ProgramPanel.FontColor=DEFAULT_BACKGROUND_COLOR;
+			ProgramPanel.BackgroundColor=new Color(10,10,10,10);
+		}
+		else{
+			ProgramPanel.FontColor=DEFAULT_TEXT_COLOR;
+			ProgramPanel.BackgroundColor=DEFAULT_BACKGROUND_COLOR;
+		}
+	}
+	CommandPanel=(new GenericMethods<IMyTextPanel>(this)).GetContaining("Arm Command Display");
+	if(CommandPanel==null){
+		CommandPanel=(new GenericMethods<IMyTextPanel>(this)).GetClosestFunc(FreeLCDFunction,10,Controller);
+		if(CommandPanel!=null){
+			string name="Arm Command Display";
+			if(CommandPanel.CustomName.ToLower().Contains("transparent"))
+				name="Transparent "+name;
+			CommandPanel.CustomName=name;
+		}
+	}
+	if(CommandPanel!=null){
+		CommandPanel.Alignment=TextAlignment.CENTER;
+		CommandPanel.ContentType=ContentType.TEXT_AND_IMAGE;
+		CommandPanel.FontSize=1.2f;
+		CommandPanel.TextPadding=10.0f;
+		CommandPanel.WritePublicTitle("Command Display",false);
+		CommandPanel.FontColor=DEFAULT_TEXT_COLOR;
+		CommandPanel.BackgroundColor=DEFAULT_BACKGROUND_COLOR;
+	}
+	EntityPanel=(new GenericMethods<IMyTextPanel>(this)).GetContaining("Arm Entity Display");
+	if(EntityPanel==null){
+		EntityPanel=(new GenericMethods<IMyTextPanel>(this)).GetClosestFunc(FreeLCDFunction,10,Controller);
+		if(EntityPanel!=null){
+			string name="Arm Entity Display";
+			if(EntityPanel.CustomName.ToLower().Contains("transparent"))
+				name="Transparent "+name;
+			EntityPanel.CustomName=name;
+		}
+	}
+	if(EntityPanel!=null){
+		EntityPanel.Alignment=TextAlignment.CENTER;
+		EntityPanel.ContentType=ContentType.TEXT_AND_IMAGE;
+		EntityPanel.FontSize=1.2f;
+		EntityPanel.TextPadding=10.0f;
+		EntityPanel.WritePublicTitle("Entity Display",false);
+		EntityPanel.FontColor=DEFAULT_TEXT_COLOR;
+		EntityPanel.BackgroundColor=DEFAULT_BACKGROUND_COLOR;
+	}
+	Create_CommandMenu();
+	DisplayMenus();
+	Runtime.UpdateFrequency=UpdateFrequency.Update1;
+}
+
+public void Save()
+{
+    this.Storage=((int)Current_Command).ToString()+'\n'+((int)Next_Command).ToString()+'\n'+Target_Position.ToString()+'\n'+Target_2.ToString();
+}
 
 EntityInfo Selected{
 	get{
@@ -1596,121 +1742,6 @@ void DisplayMenus(){
 		EntityPanel.WriteText(EntityMenu.ToString());
 	if(CommandPanel!=null)
 		CommandPanel.WriteText(CommandMenu.ToString());
-}
-
-bool FreeLCDFunction(IMyTextPanel Panel){
-	return Panel.ContentType==ContentType.NONE&&Panel.GetPublicTitle().Equals("Public title");
-}
-
-public Program()
-{
-	Me.CustomName=(Program_Name+" Programmable block").Trim();
-	for(int i=0;i<Me.SurfaceCount;i++){
-		Me.GetSurface(i).FontColor=DEFAULT_TEXT_COLOR;
-		Me.GetSurface(i).BackgroundColor=DEFAULT_BACKGROUND_COLOR;
-		Me.GetSurface(i).Alignment=TextAlignment.CENTER;
-		Me.GetSurface(i).ContentType=ContentType.TEXT_AND_IMAGE;
-	}
-	Me.GetSurface(1).FontSize=2.2f;
-	Me.GetSurface(1).TextPadding=40.0f;
-	Echo("Beginning initialization");
-	Arm.P=this;
-	Arm.HasBlockData=HasBlockData;
-	Arm.GetBlockData=GetBlockData;
-	Arm.GlobalToLocalPosition=GlobalToLocalPosition;
-	Arm.SetBlockData=SetBlockData;
-	Arm.IsHinge=IsHinge;
-	Arm.IsRotor=IsRotor;
-	Arm.GetAngle=GetAngle;
-	Arm.LocalToGlobal=LocalToGlobal;
-	List<IMyMotorStator> Motors=(new GenericMethods<IMyMotorStator>(this)).GetAllGrid("Arm",Me.CubeGrid,50);
-	if(Motors.Count==0)
-		Motors=(new GenericMethods<IMyMotorStator>(this)).GetAllGrid("",Me.CubeGrid,50);
-	if(Motors.Count==0){
-		Write("Failed to initialize Arm");
-		return;
-	}
-	MyArm=new Arm(Motors[0]);
-	Controller=(new GenericMethods<IMyShipController>(this)).GetContaining("",50);
-	if(Controller==null){
-		Write("Failed to initialize Controller");
-		return;
-	}
-	MyEntities=new EntityList();
-	string[] args=this.Storage.Split('\n');
-	if(args.Length>0){
-		int temp=0;
-		if(Int32.TryParse(args[0],out temp))
-			Current_Command=(ArmCommand)temp;
-		if(args.Length>1){
-			if(Int32.TryParse(args[1],out temp))
-				Next_Command=(ArmCommand)temp;
-			if(args.Length>2){
-				Vector3D t2=new Vector3D(0,0,0);
-				if(Vector3D.TryParse(args[2],out t2))
-					Target_Position=t2;
-				if(args.Length>3)
-					if(Vector3D.TryParse(args[3],out t2))
-						Target_2=t2;
-			}
-		}
-	}
-	
-	List<IMyInteriorLight> Lights=new List<IMyInteriorLight>();
-	GridTerminalSystem.GetBlocksOfType<IMyInteriorLight>(Lights);
-	foreach(IMyInteriorLight Light in Lights){
-		if(HasBlockData(Light,"ExceptionState")&&GetBlockData(Light,"ExceptionState").Equals("active")){
-			SetBlockData(Light,"ExceptionState","inactive");
-			Light.Enabled=true;
-		}
-	}
-	
-	CommandPanel=(new GenericMethods<IMyTextPanel>(this)).GetContaining("Arm Command Display");
-	if(CommandPanel==null){
-		CommandPanel=(new GenericMethods<IMyTextPanel>(this)).GetClosestFunc(FreeLCDFunction,5,Controller);
-		if(CommandPanel!=null){
-			string name="Arm Command Display";
-			if(CommandPanel.CustomName.ToLower().Contains("transparent"))
-				name="Transparent "+name;
-			CommandPanel.CustomName=name;
-		}
-	}
-	if(CommandPanel!=null){
-		CommandPanel.Alignment=TextAlignment.CENTER;
-		CommandPanel.ContentType=ContentType.TEXT_AND_IMAGE;
-		CommandPanel.FontSize=1.2f;
-		CommandPanel.TextPadding=10.0f;
-		CommandPanel.WritePublicTitle("Command Display",false);
-		CommandPanel.FontColor=DEFAULT_TEXT_COLOR;
-		CommandPanel.BackgroundColor=DEFAULT_BACKGROUND_COLOR;
-	}
-	EntityPanel=(new GenericMethods<IMyTextPanel>(this)).GetContaining("Arm Entity Display");
-	if(EntityPanel==null){
-		EntityPanel=(new GenericMethods<IMyTextPanel>(this)).GetClosestFunc(FreeLCDFunction,5,Controller);
-		if(EntityPanel!=null){
-			string name="Arm Entity Display";
-			if(EntityPanel.CustomName.ToLower().Contains("transparent"))
-				name="Transparent "+name;
-			EntityPanel.CustomName=name;
-		}
-	}
-	if(EntityPanel!=null){
-		EntityPanel.Alignment=TextAlignment.CENTER;
-		EntityPanel.ContentType=ContentType.TEXT_AND_IMAGE;
-		EntityPanel.FontSize=1.2f;
-		EntityPanel.TextPadding=10.0f;
-		EntityPanel.WritePublicTitle("Entity Display",false);
-		EntityPanel.FontColor=DEFAULT_TEXT_COLOR;
-		EntityPanel.BackgroundColor=DEFAULT_BACKGROUND_COLOR;
-	}
-	Create_CommandMenu();
-	DisplayMenus();
-	Runtime.UpdateFrequency=UpdateFrequency.Update1;
-}
-
-public void Save()
-{
-    this.Storage=((int)Current_Command).ToString()+'\n'+((int)Next_Command).ToString()+'\n'+Target_Position.ToString()+'\n'+Target_2.ToString();
 }
 
 //Gets the difference between the motor's current Angle and the closest it can get to its Target angle
@@ -2489,8 +2520,9 @@ public void Main(string argument, UpdateType updateSource)
 				Target_Position=MyArm.Motors[0].GetPosition()+20*Right_Vector;
 			}
 		}
-		Write("Current:"+Current_Command.ToString());
-		Write("Next:"+Next_Command.ToString());
+		Write("Current:"+Current_Command.ToString()+" "+Command_Stage.ToString());
+		if(Current_Command!=Next_Command)
+			Write("Next:"+Next_Command.ToString());
 		PerformCommand();
 		if(Current_Command==ArmCommand.Idle)
 			Runtime.UpdateFrequency=UpdateFrequency.Update100;
