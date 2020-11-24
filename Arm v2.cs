@@ -1911,6 +1911,7 @@ double Command_Timer=0;
 bool Force_End=false;
 long Target_ID=0;
 Vector3D Target_Position=new Vector3D(0,0,0);
+float Max_Offset=0;
 Vector3D Hand_Position{
 	get{
 		Vector3D Avg_Position=new Vector3D(0,0,0);
@@ -1961,6 +1962,7 @@ void PerformCommand(){
 		Ending_Command=false;
 		Force_End=false;
 	}
+	Max_Offset=0;
 	switch(Current_Command){
 		case ArmCommand.Idle:
 			Idle();
@@ -1987,17 +1989,48 @@ void PerformCommand(){
 			Spin();
 			break;
 	}
+	Write("Max_Offset:"+Math.Round(Max_Offset,1).ToString()+"°");
 	if(GetTargetCount(Current_Command)>0)
 		Write("Distance: "+Math.Round(Hand_Distance,1).ToString()+"M");
 }
 
 /*
 * Idle
-* 	0:	Reduce Torque to 100, disable Motors, lock Motors
+* 	0:	Reset Timer
+* 	1: 	Reduce Torque to 100, wait 2 seconds
+* 	2:  Disable Motors, lock Motors
 *	E:	Revert Torque to default, enable Motors, Unlock Motors
 */
 void Idle(){
 	if(Command_Stage==0){
+		bool ready=true;
+		foreach(IMyMotorStator Motor in MyArm.Motors){
+			Angle Target=new Angle(0);
+			float Speed_Multx=1;
+			if(Motor==MyArm.LastRotor){
+				Speed_Multx=5;
+				if(Controller.GetTotalGravity().Length()>0){
+					Vector3D Direction=Controller.GetTotalGravity();
+					Direction.Normalize();
+					Target=GetTarget(Motor,Direction);
+				}
+			}
+			SetAngle(Motor,Target,Speed_Multx);
+			Max_Offset=Math.Max(Max_Offset,Math.Abs(Adjusted_Difference(Motor,Target)));
+			ready=ready&&Max_Offset<5&&GetRPM(Motor)<5;
+		}
+		foreach(Arm Finger in MyArm.MyHand){
+			foreach(IMyMotorStator Motor in Finger.Motors){
+				Angle Target=new Angle(0);
+				SetAngle(Motor,Target);
+				Max_Offset=Math.Max(Max_Offset,Math.Abs(Adjusted_Difference(Motor,Target)));
+				ready=ready&&Max_Offset<5&&GetRPM(Motor)<5;
+			}
+		}
+		if(ready)
+			Command_Stage++;
+	}
+	if(Command_Stage==1){
 		foreach(IMyMotorStator Motor in MyArm.AllMotors){
 			if(Motor.Torque!=100){
 				SetBlockData(Motor,"DefaultTorque",Motor.Torque.ToString());
@@ -2032,7 +2065,8 @@ void Punch(){
 			if(Motor==MyArm.FirstHinge)
 				Target=new Angle(-90);
 			SetAngle(Motor,Target,Speed_Multx);
-			ready=ready&&Math.Abs(Adjusted_Difference(Motor,Target))<5&&GetRPM(Motor)<5;
+			Max_Offset=Math.Max(Max_Offset,Math.Abs(Adjusted_Difference(Motor,Target)));
+			ready=ready&&Max_Offset<5&&GetRPM(Motor)<5;
 		}
 		foreach(Arm Finger in MyArm.MyHand){
 			foreach(IMyMotorStator Motor in Finger.Motors){
@@ -2040,7 +2074,8 @@ void Punch(){
 				if(IsRotor(Motor))
 					Target=new Angle(0);
 				SetAngle(Motor,Target);
-				ready=ready&&Math.Abs(Adjusted_Difference(Motor,Target))<5&&GetRPM(Motor)<5;
+				Max_Offset=Math.Max(Max_Offset,Math.Abs(Adjusted_Difference(Motor,Target)));
+				ready=ready&&Max_Offset<5&&GetRPM(Motor)<5;
 			}
 		}
 		if(ready){
@@ -2092,7 +2127,8 @@ void Brace(){
 			if(Motor==MyArm.FirstHinge)
 				Target=new Angle(-90);
 			SetAngle(Motor,Target,Speed_Multx);
-			ready=ready&&Math.Abs(Adjusted_Difference(Motor,Target))<5&&GetRPM(Motor)<5;
+			Max_Offset=Math.Max(Max_Offset,Math.Abs(Adjusted_Difference(Motor,Target)));
+			ready=ready&&Max_Offset<5&&GetRPM(Motor)<5;
 		}
 		foreach(Arm Finger in MyArm.MyHand){
 			foreach(IMyMotorStator Motor in Finger.Motors){
@@ -2100,7 +2136,8 @@ void Brace(){
 				if(IsRotor(Motor))
 					Target=new Angle(0);
 				SetAngle(Motor,Target);
-				ready=ready&&Math.Abs(Adjusted_Difference(Motor,Target))<5&&GetRPM(Motor)<5;
+				Max_Offset=Math.Max(Max_Offset,Math.Abs(Adjusted_Difference(Motor,Target)));
+				ready=ready&&Max_Offset<5&&GetRPM(Motor)<5;
 			}
 		}
 		if(ready){
@@ -2153,7 +2190,8 @@ void Grab(){
 			if(Motor==MyArm.FirstHinge)
 				Target=new Angle(-90);
 			SetAngle(Motor,Target,Speed_Multx);
-			ready=ready&&Math.Abs(Adjusted_Difference(Motor,Target))<5&&GetRPM(Motor)<5;
+			Max_Offset=Math.Max(Max_Offset,Math.Abs(Adjusted_Difference(Motor,Target)));
+			ready=ready&&Max_Offset<5&&GetRPM(Motor)<5;
 		}
 		foreach(Arm Finger in MyArm.MyHand){
 			foreach(IMyMotorStator Motor in Finger.Motors){
@@ -2163,7 +2201,8 @@ void Grab(){
 				if(IsHinge(Motor))
 					Target/=2;
 				SetAngle(Motor,Target);
-				ready=ready&&Math.Abs(Adjusted_Difference(Motor,Target))<5&&GetRPM(Motor)<5;
+				Max_Offset=Math.Max(Max_Offset,Math.Abs(Adjusted_Difference(Motor,Target)));
+				ready=ready&&Max_Offset<5&&GetRPM(Motor)<5;
 			}
 		}
 		if(ready)
@@ -2191,7 +2230,8 @@ void Grab(){
 				if(IsHinge(Motor)&&Distance>1)
 					Target/=2;
 				SetAngle(Motor,Target);
-				ready=ready&&Math.Abs(Adjusted_Difference(Motor,Target))<5&&GetRPM(Motor)<5;
+				Max_Offset=Math.Max(Max_Offset,Math.Abs(Adjusted_Difference(Motor,Target)));
+				ready=ready&&Max_Offset<5&&GetRPM(Motor)<5;
 			}
 		}
 		if(ready)
@@ -2240,7 +2280,8 @@ void Throw(){
 			if(Motor==MyArm.FirstHinge)
 				Target=new Angle(-90);
 			SetAngle(Motor,Target,Speed_Multx);
-			ready=ready&&Math.Abs(Adjusted_Difference(Motor,Target))<5&&GetRPM(Motor)<5;
+			Max_Offset=Math.Max(Max_Offset,Math.Abs(Adjusted_Difference(Motor,Target)));
+			ready=ready&&Max_Offset<5&&GetRPM(Motor)<5;
 		}
 		if(ready){
 			Command_Stage++;
@@ -2297,7 +2338,8 @@ void Block(){
 			Direction.Normalize();
 			Angle Target=GetTarget(Motor,Direction);
 			SetAngle(Motor,Target,Speed_Multx);
-			ready=ready&&Math.Abs(Adjusted_Difference(Motor,Target))<5&&GetRPM(Motor)<5;
+			Max_Offset=Math.Max(Max_Offset,Math.Abs(Adjusted_Difference(Motor,Target)));
+			ready=ready&&Max_Offset<5&&GetRPM(Motor)<5;
 		}
 		foreach(Arm Finger in MyArm.MyHand){
 			foreach(IMyMotorStator Motor in Finger.Motors){
@@ -2305,7 +2347,8 @@ void Block(){
 				if(IsRotor(Motor))
 					Target=new Angle(0);
 				SetAngle(Motor,Target);
-				ready=ready&&Math.Abs(Adjusted_Difference(Motor,Target))<5&&GetRPM(Motor)<5;
+				Max_Offset=Math.Max(Max_Offset,Math.Abs(Adjusted_Difference(Motor,Target)));
+				ready=ready&&Max_Offset<5&&GetRPM(Motor)<5;
 			}
 		}
 		if(ready)
@@ -2341,13 +2384,15 @@ void Wave(){
 			Direction.Normalize();
 			Angle Target=GetTarget(Motor,Direction);
 			SetAngle(Motor,Target,Speed_Multx);
-			ready=ready&&Math.Abs(Adjusted_Difference(Motor,Target))<5&&GetRPM(Motor)<5;
+			Max_Offset=Math.Max(Max_Offset,Math.Abs(Adjusted_Difference(Motor,Target)));
+			ready=ready&&Max_Offset<5&&GetRPM(Motor)<5;
 		}
 		foreach(Arm Finger in MyArm.MyHand){
 			foreach(IMyMotorStator Motor in Finger.Motors){
 				Angle Target=new Angle(0);
 				SetAngle(Motor,Target);
-				ready=ready&&Math.Abs(Adjusted_Difference(Motor,Target))<5&&GetRPM(Motor)<5;
+				Max_Offset=Math.Max(Max_Offset,Math.Abs(Adjusted_Difference(Motor,Target)));
+				ready=ready&&Max_Offset<5&&GetRPM(Motor)<5;
 			}
 		}
 		if(ready){
@@ -2524,14 +2569,20 @@ public void Main(string argument, UpdateType updateSource)
 		if(Current_Command!=Next_Command)
 			Write("Next:"+Next_Command.ToString());
 		PerformCommand();
-		if(Current_Command==ArmCommand.Idle)
-			Runtime.UpdateFrequency=UpdateFrequency.Update100;
+		if(Current_Command==ArmCommand.Idle&&Command_Stage>1)
+			Runtime.UpdateFrequency=UpdateFrequency.Update10;
 		else
 			Runtime.UpdateFrequency=UpdateFrequency.Update1;
 		Write(Runtime.UpdateFrequency.ToString());
 	}
 	catch(Exception e){
 		try{
+			try{
+				Write(e.Message);
+			}
+			catch(Exception){
+				;
+			}
 			foreach(IMyMotorStator Motor in MyArm.AllMotors){
 				try{
 					Motor.TargetVelocityRPM=0;
