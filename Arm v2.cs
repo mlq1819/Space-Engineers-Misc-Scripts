@@ -329,6 +329,13 @@ public class EntityInfo{
 		Age=TimeSpan.Zero;
 	}
 	
+	public Vector3D GetPosition(){
+		if(HitPosition!=null){
+			return ((Vector3D)HitPosition);
+		}
+		return Position;
+	}
+	
 	public static bool TryParse(string Parse, out EntityInfo Entity){
 		Entity=new EntityInfo(-1,"bad", MyDetectedEntityType.None, null, new Vector3D(0,0,0), MyRelationsBetweenPlayerAndBlock.NoOwnership, new Vector3D(0,0,0));
 		try{
@@ -964,10 +971,377 @@ class Arm{
 	}
 }
 
+public enum MenuType{
+	Submenu=0,
+	Command=1,
+	Display=2
+}
+
+public interface MenuOption{
+	string Name();
+	MenuType Type();
+	bool AutoRefresh();
+	int Depth();
+	bool Back();
+	bool Select();
+}
+
+public class Menu_Submenu : MenuOption{
+	private string _Name;
+	public string Name(){
+		return _Name;
+	}
+	public MenuType Type(){
+		return MenuType.Submenu;
+	}
+	public bool AutoRefresh(){
+		if(IsSelected){
+			return Menu[Selection].AutoRefresh();
+		}
+		return Last_Count==Count || Count>10;
+	}
+	public int Depth(){
+		if(Selected){
+			return 1+Menu[Selection].Depth();
+		}
+		return 1;
+	}
+	private bool Selected;
+	public bool IsSelected{
+		get{
+			return Selected;
+		}
+	}
+	public int Selection;
+	
+	private int Last_Count;
+	public int Count{
+		get{
+			return Menu.Count;
+		}
+	}
+	
+	public List<MenuOption> Menu;
+	
+	public Menu_Submenu(string name){
+		_Name=name.Trim().Substring(0, Math.Min(name.Trim().Length, 24));
+		Menu=new List<MenuOption>();
+		Selection=0;
+		Last_Count=0;
+	}
+	
+	public bool Add(MenuOption new_item){
+		Menu.Add(new_item);
+		return true;
+	}
+	
+	public bool Back(){
+		if(Selected){
+			if(Menu[Selection].Back())
+				return true;
+			Selected=false;
+			return true;
+		}
+		return false;
+	}
+	
+	public bool Select(){
+		if(Selected){
+			bool output=Menu[Selection].Select();
+			if(Menu[Selection].Type()==MenuType.Command)
+				Selected=false;
+			return output;
+		}
+		Selected=true;
+		return true;
+	}
+	
+	public bool Next(){
+		if(Selected){
+			if(Menu[Selection].Type()==MenuType.Submenu){
+				return ((Menu_Submenu)(Menu[Selection])).Next();
+			}
+			return false;
+		}
+		if(Count>0)
+			Selection=(Selection+1)%Count;
+		return true;
+	}
+	
+	public bool Prev(){
+		if(Selected){
+			if(Menu[Selection].Type()==MenuType.Submenu){
+				return ((Menu_Submenu)(Menu[Selection])).Prev();
+			}
+			return false;
+		}
+		if(Count>0)
+			Selection=(Selection-1+Count)%Count;
+		return true;
+	}
+	
+	public bool Replace(Menu_Submenu Replacement){
+		for(int i=0;i<Count;i++){
+			if(Menu[i].Name().Equals(Replacement.Name())){
+				Menu[i]=Replacement;
+				return true;
+			}
+		}
+		return false;
+	}
+	
+	public override string ToString(){
+		if(Count>0)
+			Selection=Selection%Count;
+		if(Selected){
+			return Menu[Selection].ToString();
+		}
+		string output=" -- "+Name()+" -- ";
+		if(Count <= 10){
+			for(int i=0; i<Count; i++){
+				output+="\n ";
+				switch(Menu[i].Type()){
+					case MenuType.Submenu:
+						output+="[";
+						break;
+					case MenuType.Command:
+						output+="<";
+						break;
+					case MenuType.Display:
+						output+="(";
+						break;
+				}
+				output+=' ';
+				if(Selection==i){
+					output+=' '+Menu[i].Name().ToUpper()+' ';
+				}
+				else {
+					output+=Menu[i].Name().ToLower();
+				}
+				switch(Menu[i].Type()){
+					case MenuType.Submenu:
+						output+=" ("+(Menu[i] as Menu_Submenu).Count.ToString()+")]";
+						break;
+					case MenuType.Command:
+						output+=">";
+						break;
+					case MenuType.Display:
+						output+=")";
+						break;
+				}
+			}
+		}
+		else {
+			int count=0;
+			for(int i=Selection; count<=10 && i<Count;i++){
+				count++;
+				output+="\n ";
+				switch(Menu[i].Type()){
+					case MenuType.Submenu:
+						output+="[";
+						break;
+					case MenuType.Command:
+						output+="<";
+						break;
+					case MenuType.Display:
+						output+="(";
+						break;
+				}
+				output+=' ';
+				if(Selection==i){
+					output+=' '+Menu[i].Name().ToUpper()+' ';
+				}
+				else {
+					output+=Menu[i].Name().ToLower();
+				}
+				switch(Menu[i].Type()){
+					case MenuType.Submenu:
+						output+="]";
+						break;
+					case MenuType.Command:
+						output+=">";
+						break;
+					case MenuType.Display:
+						output+=")";
+						break;
+				}
+			}
+		}
+		return output;
+	}
+}
+
+public class Menu_Command<T> : MenuOption where T : class{
+	private string _Name;
+	public string Name(){
+		return _Name;
+	}
+	public MenuType Type(){
+		return MenuType.Command;
+	}
+	private bool _AutoRefresh;
+	public bool AutoRefresh(){
+		return _AutoRefresh;
+	}
+	public int Depth(){
+		return 1;
+	}
+	private string Desc;
+	public T Arg;
+	private Func<T, bool> Command;
+	
+	public Menu_Command(string name, Func<T, bool> command, string desc="No description provided", T arg=null, bool autorefresh=false){
+		if(name.Trim().Length > 0)
+			_Name=name;
+		Desc=desc;
+		Arg=arg;
+		Command=command;
+		_AutoRefresh=autorefresh;
+	}
+	
+	public bool Select(){
+		return Command(Arg);
+	}
+	
+	public bool Back(){
+		return false;
+	}
+	
+	public override string ToString(){
+		string output=Name()+'\n';
+		string[] words=Desc.Split(' ');
+		int length=24;
+		foreach(string word in words){
+			if(length > 0 && length+word.Length > 24){
+				length=0;
+				output+='\n';
+			}
+			else {
+				output+=' ';
+			}
+			output+=word;
+			if(word.Contains('\n'))
+				length=word.Length-word.IndexOf('\n')-1;
+			else
+				length+=word.Length;
+		}
+		return output+"\n\nSelect to Execute";
+	}
+}
+
+public class Menu_Display : MenuOption{
+	public string Name(){
+		if(Entity==null){
+			return "null";
+		}
+		string name=Entity.Name.Substring(0, Math.Min(24, Entity.Name.Length));
+		string[] args=name.Split(' ');
+		int number=0;
+		if(args.Length==3 && args[1].ToLower().Equals("grid") && Int32.TryParse(args[2], out number)){
+			name="Unnamed "+args[0]+' '+args[1];
+		}
+		double distance=Entity.GetDistance(P.Me.GetPosition())-Entity.Size;
+		string distance_string=Math.Round(distance,0).ToString()+"M";
+		if(distance>=1000)
+			distance_string=Math.Round(distance/1000,1).ToString()+"kM";
+		string output=' '+name+' '+distance_string;
+		switch(Entity.Relationship){
+			case MyRelationsBetweenPlayerAndBlock.Owner:
+				return ''+output;
+			case MyRelationsBetweenPlayerAndBlock.FactionShare:
+				return ''+output;
+			case MyRelationsBetweenPlayerAndBlock.Friends:
+				return ''+output;
+			case MyRelationsBetweenPlayerAndBlock.NoOwnership:
+				return ''+output;
+			case MyRelationsBetweenPlayerAndBlock.Enemies:
+				return ''+output;
+		}
+		return ''+output;
+	}
+	public MenuType Type(){
+		return MenuType.Display;
+	}
+	public bool AutoRefresh(){
+		return true;
+	}
+	public int Depth(){
+		if(Selected)
+			return 2;
+		return 1;
+	}
+	private bool Selected;
+	public EntityInfo Entity;
+	private bool Can_GoTo;
+	private Func<EntityInfo, bool> Command;
+	private Menu_Command<EntityInfo> Subcommand {
+		get{
+			double distance=(P.Me.GetPosition()-Entity.Position).Length()-Entity.Size;
+			return new Menu_Command<EntityInfo>("GoTo "+Entity.Name, Command, "Set autopilot to match target Entity's expected position and velocity", Entity);
+		}
+	}
+	private MyGridProgram P;
+	
+	public Menu_Display(EntityInfo entity, MyGridProgram p, Func<EntityInfo, bool> GoTo){
+		P=p;
+		Entity=entity;
+		Command=GoTo;
+		Selected=false;
+		Can_GoTo=true;
+	}
+	
+	public Menu_Display(EntityInfo entity, MyGridProgram p){
+		Entity=entity;
+		P=p;
+		Selected=false;
+		Can_GoTo=false;
+	}
+	
+	public bool Select(){
+		if(!Can_GoTo)
+			return false;
+		if(Selected){
+			if(Command==null)
+				return false;
+			if(Subcommand.Select()){
+				Selected=false;
+				return true;
+			}
+			return false;
+		}
+		Selected=true;
+		return true;
+	}
+	
+	public bool Back(){
+		if(!Selected){
+			return false;
+		}
+		Selected=false;
+		return true;
+	}
+	
+	public override string ToString(){
+		if(Selected){
+			return Subcommand.ToString();
+		}
+		else {
+			double distance=Entity.GetDistance(P.Me.GetPosition());
+			string distance_string=Math.Round(distance,0)+"M";
+			if(distance>=1000)
+				distance_string=Math.Round(distance/1000,1)+"kM";
+			return Entity.NiceString()+"Distance: "+distance_string;
+		}
+	}
+}
+
 long cycle_long = 1;
 long cycle = 0;
 char loading_char = '|';
 double seconds_since_last_update = 0;
+
+Menu_Submenu CommandMenu=null;
+Menu_Submenu EntityMenu=null;
 
 Vector3D Forward_Vector;
 Vector3D Backward_Vector{
@@ -993,6 +1367,183 @@ IMyShipController Controller;
 EntityList MyEntities;
 IMyTextPanel CommandPanel;
 IMyTextPanel EntityPanel;
+
+EntityInfo Selected{
+	get{
+		try{
+			return (EntityMenu.Menu[EntityMenu.Selection] as Menu_Display).Entity;
+		}
+		catch(Exception){
+			return new EntityInfo(-2,"Invalid",MyDetectedEntityType.None,null,new Vector3D(0,0,0),MyRelationsBetweenPlayerAndBlock.NoOwnership,new Vector3D(0,0,0));
+		}
+	}
+}
+ArmCommand Highlighted{
+	get{
+		try{
+			return (CommandMenu.Menu[CommandMenu.Selection] as Menu_Command).Arg as ArmCommand;
+		}
+		catch(Exception){
+			return ArmCommand.Idle;
+		}
+	}
+}
+int Target_Count{
+	get{
+		switch(Highlighted){
+			case ArmCommand.Idle:
+				return 0;
+			case ArmCommand.Punch:
+				return 1;
+			case ArmCommand.Brace:
+				return 1;
+			case ArmCommand.Grab:
+				return 2;
+			case ArmCommand.Throw:
+				return 2;
+			case ArmCommand.Block:
+				return 0;
+			case ArmCommand.Wave:
+				return 0;
+			case ArmCommand.Spin:
+				return 1;
+		}
+	}
+}
+bool Characters{
+	get{
+		return Target_Count>0;
+	}
+};
+bool Small_Ships{
+	get{
+		return Target_Count>0;
+	}
+}
+bool Large_Grids{
+	get{
+		return Target_Count>0&&Highlighted!=ArmCommand.Grab&&Highlighted!=ArmCommand.Throw;
+	}
+}
+bool Objects{
+	get{
+		return Target_Count>0&&Highlighted!=ArmCommand.Brace&&Highlighted!=ArmCommand.Punch;
+	}
+};
+bool Voxels{
+	get{
+		return Highlighted==ArmCommand.Brace;
+	}
+}
+void Create_EntityMenu(){
+	string name="";
+	if(EntityMenu!=null)
+		name=EntityMenu.Menu[EntityMenu.Selection].Name;
+	EntityMenu=new Menu_Submenu("Targets");
+	if(Target_Count>0){
+		EntityMenu.Add(new Menu_Display(new EntityInfo(-1,"Forward",MyDetectedEntityType.None,null,Controller.GetShipVelocities().LinearVelocity,MyRelationsBetweenPlayerAndBlock.NoOwnership,Arm.Motors[0].GetPosition()+20*Forward_Vector), this));
+		EntityMenu.Add(new Menu_Display(new EntityInfo(-1,"Up",MyDetectedEntityType.None,null,Controller.GetShipVelocities().LinearVelocity,MyRelationsBetweenPlayerAndBlock.NoOwnership,Arm.Motors[0].GetPosition()+20*Up_Vector), this));
+		EntityMenu.Add(new Menu_Display(new EntityInfo(-1,"Right",MyDetectedEntityType.None,null,Controller.GetShipVelocities().LinearVelocity,MyRelationsBetweenPlayerAndBlock.NoOwnership,Arm.Motors[0].GetPosition()+20*Right_Vector), this));
+	}
+	EntityList ValidEntities=new EntityList();
+	foreach(EntityInfo Entity in MyEntities){
+		if(Small_Ships&&Entity.Type==MyDetectedEntityType.SmallGrid)
+			ValidEntities.UpdateEntry(Entity);
+		else if(Large_Ships&&Entity.Type==MyDetectedEntityType.LargeGrid)
+			ValidEntities.UpdateEntry(Entity);
+		else if(Characters&&(Entity.Type==MyDetectedEntityType.CharacterHuman||Entity.Type==MyDetectedEntityType.CharacterOther))
+			ValidEntities.UpdateEntry(Entity);
+		else if(Objects&&Entity.Type==MyDetectedEntityType.FloatingObject)
+			ValidEntities.UpdateEntry(Entity);
+		else if(Voxels&&(Entity.Type==MyDetectedEntityType.Asteroid||Entity.Type==MyDetectedEntityType.Planet))
+			ValidEntities.UpdateEntry(Entity);
+	}
+	ValidEntities.Sort(Controller.GetPosition());
+	foreach(EntityInfo Entity in ValidEntities)
+		EntityMenu.Add(new Menu_Display(Entity,this));
+	for(int i=0;i<EntityMenu.Menu.Count;i++){
+		if(EntityMenu.Menu[i].Name.Equals(name)){
+			EntityMenu.Selection=i;
+			break;
+		}
+	}
+}
+
+int Defined_Target_Count=0;
+//This function should do whatever should happen when a command is selected
+bool Command_Menu_Function(ArmCommand Command){
+	if(Target_Count>0&&Selected.ID!=-2){
+		if(Defined_Target_Count==0){
+			Target_ID=Selected.ID;
+			Target_Position=Selected.GetPosition();
+			Defined_Target_Count++;
+		}
+		else if(Defined_Target_Count==1){
+			Target_2=Selected.GetPosition();
+			Defined_Target_Count++;
+		}
+	}
+	EntityMenu.Selection=0;
+	if(Defined_Target_Count>=Target_Count){
+		Next_Command=Highlighted;
+		if(Next_Command==ArmCommand.Idle)
+			Force_End=true;
+		return true;
+	}
+	else
+		return false;
+}
+
+void Next(){
+	if(CommandMenu.IsSelected)
+		EntityMenu.Next();
+	else{
+		CommandMenu.Next();
+		Create_EntityMenu();
+	}
+}
+
+void Prev(){
+	if(CommandMenu.IsSelected)
+		EntityMenu.Prev();
+	else{
+		CommandMenu.Prev();
+		Create_EntityMenu();
+	}
+}
+
+void Back(){
+	if(Defined_Target_Count==0)
+		CommandMenu.Back();
+	else{
+		Defined_Target_Count--;
+		EntityMenu.Selection=0;
+	}
+}
+
+void Select(){
+	CommandMenu.Select();
+}
+
+void Create_CommandMenu(){
+	CommandMenu=new Menu_Submenu("Arm Commands");
+	CommandMenu.Add(new Menu_Command("Idle",Command_Menu_Function,"Ends current Command",ArmCommand.Idle));
+	CommandMenu.Add(new Menu_Command("Punch",Command_Menu_Function,"Punches the target",ArmCommand.Punch));
+	CommandMenu.Add(new Menu_Command("Brace",Command_Menu_Function,"Locks arm against target",ArmCommand.Brace));
+	CommandMenu.Add(new Menu_Command("Grab",Command_Menu_Function,"Grabs the target and brings it to another target",ArmCommand.Grab));
+	CommandMenu.Add(new Menu_Command("Throw",Command_Menu_Function,"Grabs target and throws at another target",ArmCommand.Throw));
+	CommandMenu.Add(new Menu_Command("Block",Command_Menu_Function,"Shields Cockpit with Arm",ArmCommand.Block));
+	CommandMenu.Add(new Menu_Command("Wave",Command_Menu_Function,"Waves hand",ArmCommand.Wave));
+	CommandMenu.Add(new Menu_Command("Spin",Command_Menu_Function,"Aims hand at target and spins the wrist",ArmCommand.Spin));
+	Create_EntityMenu();
+}
+
+void DisplayMenus(){
+	if(EntityPanel!=null)
+		EntityPanel.WriteText(EntityMenu.ToString());
+	if(CommandPanel!=null)
+		CommandPanel.WriteText(CommandPanel.ToString());
+}
 
 bool FreeLCDFunction(IMyTextPanel Panel){
 	return Panel.ContentType==ContentType.NONE&&Panel.GetPublicTitle().Equals("Public title");
@@ -1069,7 +1620,20 @@ public Program()
 			if(CommandPanel.CustomName.ToLower().Contains("transparent"))
 				name="Transparent "+name;
 			CommandPanel.CustomName=name;
-			CommandPanel.ContentType=ContentType.TEXT_AND_IMAGE;
+		}
+	}
+	if(CommandPanel!=null){
+		CommandPanel.Alignment=TextAlignment.CENTER;
+		CommandPanel.ContentType=ContentType.TEXT_AND_IMAGE;
+		CommandPanel.FontSize=1.2f;
+		CommandPanel.TextPadding=10.0f;
+		if(CommandPanel.CustomName.ToLower().Contains("transparent")){
+			CommandPanel.FontColor=DEFAULT_BACKGROUND_COLOR;
+			CommandPanel.BackgroundColor=new Color(0,0,0,0);
+		}
+		else{
+			CommandPanel.FontColor=DEFAULT_TEXT_COLOR;
+			CommandPanel.BackgroundColor=DEFAULT_BACKGROUND_COLOR;
 		}
 	}
 	EntityPanel=(new GenericMethods<IMyTextPanel>(this)).GetContaining("Arm Entity Display");
@@ -1080,11 +1644,24 @@ public Program()
 			if(EntityPanel.CustomName.ToLower().Contains("transparent"))
 				name="Transparent "+name;
 			EntityPanel.CustomName=name;
-			EntityPanel.ContentType=ContentType.TEXT_AND_IMAGE;
 		}
 	}
-	
-	
+	if(EntityPanel!=null){
+		EntityPanel.Alignment=TextAlignment.CENTER;
+		EntityPanel.ContentType=ContentType.TEXT_AND_IMAGE;
+		EntityPanel.FontSize=1.2f;
+		EntityPanel.TextPadding=10.0f;
+		if(EntityPanel.CustomName.ToLower().Contains("transparent")){
+			EntityPanel.FontColor=DEFAULT_BACKGROUND_COLOR;
+			EntityPanel.BackgroundColor=new Color(0,0,0,0);
+		}
+		else{
+			EntityPanel.FontColor=DEFAULT_TEXT_COLOR;
+			EntityPanel.BackgroundColor=DEFAULT_BACKGROUND_COLOR;
+		}
+	}
+	Create_CommandMenu();
+	DisplayMenus();
 	Runtime.UpdateFrequency=UpdateFrequency.Update1;
 }
 
@@ -1258,7 +1835,7 @@ void SetLock(Hand hand, bool LockState){
 bool Ending_Command=false;
 double Command_Timer=0;
 bool Force_End=false;
-long Target_ID=-1;
+long Target_ID=0;
 Vector3D Target_Position=new Vector3D(0,0,0);
 Vector3D Target_2=new Vector3D(0,0,0);
 bool EndCommand(){
@@ -1812,6 +2389,7 @@ public void Main(string argument, UpdateType updateSource)
 		Write("Current:"+Current_Command.ToString());
 		Write("Next:"+Next_Command.ToString());
 		PerformCommand();
+		DisplayMenus();
 		if(Current_Command==ArmCommand.Idle)
 			Runtime.UpdateFrequency=UpdateFrequency.Update100;
 		else
