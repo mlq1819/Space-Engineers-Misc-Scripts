@@ -1381,7 +1381,10 @@ EntityInfo Selected{
 ArmCommand Highlighted{
 	get{
 		try{
-			return (CommandMenu.Menu[CommandMenu.Selection] as Menu_Command).Arg as ArmCommand;
+			ArmCommand output;
+			if(Enum.TryParse((CommandMenu.Menu[CommandMenu.Selection] as Menu_Command<string>).Arg,out output))
+				return output;
+			return ArmCommand.Idle;
 		}
 		catch(Exception){
 			return ArmCommand.Idle;
@@ -1408,19 +1411,20 @@ int Target_Count{
 			case ArmCommand.Spin:
 				return 1;
 		}
+		return -1;
 	}
 }
 bool Characters{
 	get{
 		return Target_Count>0;
 	}
-};
+}
 bool Small_Ships{
 	get{
 		return Target_Count>0;
 	}
 }
-bool Large_Grids{
+bool Large_Ships{
 	get{
 		return Target_Count>0&&Highlighted!=ArmCommand.Grab&&Highlighted!=ArmCommand.Throw;
 	}
@@ -1429,7 +1433,7 @@ bool Objects{
 	get{
 		return Target_Count>0&&Highlighted!=ArmCommand.Brace&&Highlighted!=ArmCommand.Punch;
 	}
-};
+}
 bool Voxels{
 	get{
 		return Highlighted==ArmCommand.Brace;
@@ -1438,12 +1442,12 @@ bool Voxels{
 void Create_EntityMenu(){
 	string name="";
 	if(EntityMenu!=null)
-		name=EntityMenu.Menu[EntityMenu.Selection].Name;
+		name=EntityMenu.Menu[EntityMenu.Selection].Name();
 	EntityMenu=new Menu_Submenu("Targets");
 	if(Target_Count>0){
-		EntityMenu.Add(new Menu_Display(new EntityInfo(-1,"Forward",MyDetectedEntityType.None,null,Controller.GetShipVelocities().LinearVelocity,MyRelationsBetweenPlayerAndBlock.NoOwnership,Arm.Motors[0].GetPosition()+20*Forward_Vector), this));
-		EntityMenu.Add(new Menu_Display(new EntityInfo(-1,"Up",MyDetectedEntityType.None,null,Controller.GetShipVelocities().LinearVelocity,MyRelationsBetweenPlayerAndBlock.NoOwnership,Arm.Motors[0].GetPosition()+20*Up_Vector), this));
-		EntityMenu.Add(new Menu_Display(new EntityInfo(-1,"Right",MyDetectedEntityType.None,null,Controller.GetShipVelocities().LinearVelocity,MyRelationsBetweenPlayerAndBlock.NoOwnership,Arm.Motors[0].GetPosition()+20*Right_Vector), this));
+		EntityMenu.Add(new Menu_Display(new EntityInfo(-1,"Forward",MyDetectedEntityType.None,null,Controller.GetShipVelocities().LinearVelocity,MyRelationsBetweenPlayerAndBlock.NoOwnership,MyArm.Motors[0].GetPosition()+20*Forward_Vector), this));
+		EntityMenu.Add(new Menu_Display(new EntityInfo(-1,"Up",MyDetectedEntityType.None,null,Controller.GetShipVelocities().LinearVelocity,MyRelationsBetweenPlayerAndBlock.NoOwnership,MyArm.Motors[0].GetPosition()+20*Up_Vector), this));
+		EntityMenu.Add(new Menu_Display(new EntityInfo(-1,"Right",MyDetectedEntityType.None,null,Controller.GetShipVelocities().LinearVelocity,MyRelationsBetweenPlayerAndBlock.NoOwnership,MyArm.Motors[0].GetPosition()+20*Right_Vector), this));
 	}
 	EntityList ValidEntities=new EntityList();
 	foreach(EntityInfo Entity in MyEntities){
@@ -1462,7 +1466,7 @@ void Create_EntityMenu(){
 	foreach(EntityInfo Entity in ValidEntities)
 		EntityMenu.Add(new Menu_Display(Entity,this));
 	for(int i=0;i<EntityMenu.Menu.Count;i++){
-		if(EntityMenu.Menu[i].Name.Equals(name)){
+		if(EntityMenu.Menu[i].Name().Equals(name)){
 			EntityMenu.Selection=i;
 			break;
 		}
@@ -1471,7 +1475,7 @@ void Create_EntityMenu(){
 
 int Defined_Target_Count=0;
 //This function should do whatever should happen when a command is selected
-bool Command_Menu_Function(ArmCommand Command){
+bool Command_Menu_Function(string Command){
 	if(Target_Count>0&&Selected.ID!=-2){
 		if(Defined_Target_Count==0){
 			Target_ID=Selected.ID;
@@ -1527,14 +1531,14 @@ void Select(){
 
 void Create_CommandMenu(){
 	CommandMenu=new Menu_Submenu("Arm Commands");
-	CommandMenu.Add(new Menu_Command("Idle",Command_Menu_Function,"Ends current Command",ArmCommand.Idle));
-	CommandMenu.Add(new Menu_Command("Punch",Command_Menu_Function,"Punches the target",ArmCommand.Punch));
-	CommandMenu.Add(new Menu_Command("Brace",Command_Menu_Function,"Locks arm against target",ArmCommand.Brace));
-	CommandMenu.Add(new Menu_Command("Grab",Command_Menu_Function,"Grabs the target and brings it to another target",ArmCommand.Grab));
-	CommandMenu.Add(new Menu_Command("Throw",Command_Menu_Function,"Grabs target and throws at another target",ArmCommand.Throw));
-	CommandMenu.Add(new Menu_Command("Block",Command_Menu_Function,"Shields Cockpit with Arm",ArmCommand.Block));
-	CommandMenu.Add(new Menu_Command("Wave",Command_Menu_Function,"Waves hand",ArmCommand.Wave));
-	CommandMenu.Add(new Menu_Command("Spin",Command_Menu_Function,"Aims hand at target and spins the wrist",ArmCommand.Spin));
+	CommandMenu.Add(new Menu_Command<string>("Idle",Command_Menu_Function,"Ends current Command",ArmCommand.Idle.ToString()));
+	CommandMenu.Add(new Menu_Command<string>("Punch",Command_Menu_Function,"Punches the target",ArmCommand.Punch.ToString()));
+	CommandMenu.Add(new Menu_Command<string>("Brace",Command_Menu_Function,"Locks arm against target",ArmCommand.Brace.ToString()));
+	CommandMenu.Add(new Menu_Command<string>("Grab",Command_Menu_Function,"Grabs the target and brings it to another target",ArmCommand.Grab.ToString()));
+	CommandMenu.Add(new Menu_Command<string>("Throw",Command_Menu_Function,"Grabs target and throws at another target",ArmCommand.Throw.ToString()));
+	CommandMenu.Add(new Menu_Command<string>("Block",Command_Menu_Function,"Shields Cockpit with Arm",ArmCommand.Block.ToString()));
+	CommandMenu.Add(new Menu_Command<string>("Wave",Command_Menu_Function,"Waves hand",ArmCommand.Wave.ToString()));
+	CommandMenu.Add(new Menu_Command<string>("Spin",Command_Menu_Function,"Aims hand at target and spins the wrist",ArmCommand.Spin.ToString()));
 	Create_EntityMenu();
 }
 
@@ -2364,21 +2368,25 @@ void UpdateProgramInfo(){
 	Left_Vector=LocalToGlobal(base_vector,Controller);
 	Left_Vector.Normalize();
 	MyEntities.UpdatePositions(seconds_since_last_update);
+	Scan_Timer+=seconds_since_last_update;
 }
 
+double Scan_Timer=10;
 void PerformScan(){
-	List<IMySensorBlock> Sensors=new List<IMySensorBlock>();
-	GridTerminalSystem.GetBlocksOfType<IMySensorBlock>(Sensors);
-	foreach(IMySensorBlock Sensor in Sensors){
-		List<MyDetectedEntityInfo> Detected=new List<MyDetectedEntityInfo>();
-		Sensor.DetectedEntities(Detected);
-		foreach(MyDetectedEntityInfo Entity in Detected){
-			EntityInfo entity=new EntityInfo(Entity);
-			MyEntities.UpdateEntry(entity);
-			IGC.SendBroadcastMessage("Entity Report",entity.ToString(),TransmissionDistance.TransmissionDistanceMax);
+	if(Scan_Timer>=0.5){
+		Scan_Timer=0;
+		List<IMySensorBlock> Sensors=new List<IMySensorBlock>();
+		GridTerminalSystem.GetBlocksOfType<IMySensorBlock>(Sensors);
+		foreach(IMySensorBlock Sensor in Sensors){
+			List<MyDetectedEntityInfo> Detected=new List<MyDetectedEntityInfo>();
+			Sensor.DetectedEntities(Detected);
+			foreach(MyDetectedEntityInfo Entity in Detected){
+				EntityInfo entity=new EntityInfo(Entity);
+				MyEntities.UpdateEntry(entity);
+				IGC.SendBroadcastMessage("Entity Report",entity.ToString(),TransmissionDistance.TransmissionDistanceMax);
+			}
 		}
 	}
-	
 }
 
 public void Main(string argument, UpdateType updateSource)
