@@ -477,7 +477,7 @@ public class EntityList : IEnumerable<EntityInfo>{
 	
 	public bool UpdateEntry(EntityInfo Entity){
 		for(int i=0; i<E_List.Count; i++){
-			if(E_List[i].ID==Entity.ID || Entity.GetDistance(E_List[i].Position)<=0.5f){
+			if(E_List[i].ID==Entity.ID || (Entity.GetDistance(E_List[i].Position)<=0.5f&&Entity.Type==E_List[i].Type)){
 				if(E_List[i].Age >= Entity.Age){
 					E_List[i]=Entity;
 					return true;
@@ -487,6 +487,16 @@ public class EntityList : IEnumerable<EntityInfo>{
 		}
 		E_List.Add(Entity);
 		return true;
+	}
+	
+	public bool RemoveEntry(EntityInfo Entity){
+		for(int i=0; i<E_List.Count; i++){
+			if(E_List[i].ID==Entity.ID || (Entity.GetDistance(E_List[i].Position)<=0.5f&&Entity.Type==E_List[i].Type)){
+				E_List.RemoveAt(i);
+				return true;
+			}
+		}
+		return false;
 	}
 	
 	public EntityInfo Get(long ID){
@@ -974,7 +984,8 @@ class Arm{
 public enum MenuType{
 	Submenu=0,
 	Command=1,
-	Display=2
+	Display=2,
+	Text=3
 }
 
 public interface MenuOption{
@@ -1168,6 +1179,36 @@ public class Menu_Submenu : MenuOption{
 			}
 		}
 		return output;
+	}
+}
+
+public class Menu_Text : MenuOption{
+	private string _Name;
+	public string Name(){
+		return _Name;
+	}
+	public MenuType Type(){
+		return MenuType.Text;
+	}
+	public bool AutoRefresh(){
+		return false;
+	}
+	public int Depth(){
+		return 1;
+	}
+	public bool Back(){
+		return false;
+	}
+	public bool Select(){
+		return false;
+	}
+	
+	public Menu_Text(string name){
+		_Name=name;
+	}
+	
+	public override string ToString(){
+		return Name();
 	}
 }
 
@@ -1374,9 +1415,30 @@ EntityInfo Selected{
 			return (EntityMenu.Menu[EntityMenu.Selection] as Menu_Display).Entity;
 		}
 		catch(Exception){
-			return new EntityInfo(-2,"Invalid",MyDetectedEntityType.None,null,new Vector3D(0,0,0),MyRelationsBetweenPlayerAndBlock.NoOwnership,new Vector3D(0,0,0));
+			return new EntityInfo(-1,"Invalid",MyDetectedEntityType.None,null,new Vector3D(0,0,0),MyRelationsBetweenPlayerAndBlock.NoOwnership,new Vector3D(0,0,0));
 		}
 	}
+}
+int GetTargetCount(ArmCommand Command){
+	switch(Command){
+		case ArmCommand.Idle:
+			return 0;
+		case ArmCommand.Punch:
+			return 1;
+		case ArmCommand.Brace:
+			return 1;
+		case ArmCommand.Grab:
+			return 2;
+		case ArmCommand.Throw:
+			return 2;
+		case ArmCommand.Block:
+			return 0;
+		case ArmCommand.Wave:
+			return 0;
+		case ArmCommand.Spin:
+			return 1;
+	}
+	return -1;
 }
 ArmCommand Highlighted{
 	get{
@@ -1393,25 +1455,7 @@ ArmCommand Highlighted{
 }
 int Target_Count{
 	get{
-		switch(Highlighted){
-			case ArmCommand.Idle:
-				return 0;
-			case ArmCommand.Punch:
-				return 1;
-			case ArmCommand.Brace:
-				return 1;
-			case ArmCommand.Grab:
-				return 2;
-			case ArmCommand.Throw:
-				return 2;
-			case ArmCommand.Block:
-				return 0;
-			case ArmCommand.Wave:
-				return 0;
-			case ArmCommand.Spin:
-				return 1;
-		}
-		return -1;
+		return GetTargetCount(Highlighted);
 	}
 }
 bool Characters{
@@ -1441,35 +1485,40 @@ bool Voxels{
 }
 void Create_EntityMenu(){
 	string name="";
-	if(EntityMenu!=null)
+	if(EntityMenu!=null&&EntityMenu.Count>0)
 		name=EntityMenu.Menu[EntityMenu.Selection].Name();
 	EntityMenu=new Menu_Submenu("Targets");
 	if(Target_Count>0){
-		EntityMenu.Add(new Menu_Display(new EntityInfo(-1,"Forward",MyDetectedEntityType.None,null,Controller.GetShipVelocities().LinearVelocity,MyRelationsBetweenPlayerAndBlock.NoOwnership,MyArm.Motors[0].GetPosition()+20*Forward_Vector), this));
-		EntityMenu.Add(new Menu_Display(new EntityInfo(-1,"Up",MyDetectedEntityType.None,null,Controller.GetShipVelocities().LinearVelocity,MyRelationsBetweenPlayerAndBlock.NoOwnership,MyArm.Motors[0].GetPosition()+20*Up_Vector), this));
-		EntityMenu.Add(new Menu_Display(new EntityInfo(-1,"Right",MyDetectedEntityType.None,null,Controller.GetShipVelocities().LinearVelocity,MyRelationsBetweenPlayerAndBlock.NoOwnership,MyArm.Motors[0].GetPosition()+20*Right_Vector), this));
-	}
-	EntityList ValidEntities=new EntityList();
-	foreach(EntityInfo Entity in MyEntities){
-		if(Small_Ships&&Entity.Type==MyDetectedEntityType.SmallGrid)
-			ValidEntities.UpdateEntry(Entity);
-		else if(Large_Ships&&Entity.Type==MyDetectedEntityType.LargeGrid)
-			ValidEntities.UpdateEntry(Entity);
-		else if(Characters&&(Entity.Type==MyDetectedEntityType.CharacterHuman||Entity.Type==MyDetectedEntityType.CharacterOther))
-			ValidEntities.UpdateEntry(Entity);
-		else if(Objects&&Entity.Type==MyDetectedEntityType.FloatingObject)
-			ValidEntities.UpdateEntry(Entity);
-		else if(Voxels&&(Entity.Type==MyDetectedEntityType.Asteroid||Entity.Type==MyDetectedEntityType.Planet))
-			ValidEntities.UpdateEntry(Entity);
-	}
-	ValidEntities.Sort(Controller.GetPosition());
-	foreach(EntityInfo Entity in ValidEntities)
-		EntityMenu.Add(new Menu_Display(Entity,this));
-	for(int i=0;i<EntityMenu.Menu.Count;i++){
-		if(EntityMenu.Menu[i].Name().Equals(name)){
-			EntityMenu.Selection=i;
-			break;
+		EntityMenu.Add(new Menu_Display(new EntityInfo(-2,"Forward",MyDetectedEntityType.None,null,Controller.GetShipVelocities().LinearVelocity,MyRelationsBetweenPlayerAndBlock.NoOwnership,MyArm.Motors[0].GetPosition()+20*Forward_Vector), this));
+		EntityMenu.Add(new Menu_Display(new EntityInfo(-3,"Up",MyDetectedEntityType.None,null,Controller.GetShipVelocities().LinearVelocity,MyRelationsBetweenPlayerAndBlock.NoOwnership,MyArm.Motors[0].GetPosition()+20*Up_Vector), this));
+		EntityMenu.Add(new Menu_Display(new EntityInfo(-4,"Right",MyDetectedEntityType.None,null,Controller.GetShipVelocities().LinearVelocity,MyRelationsBetweenPlayerAndBlock.NoOwnership,MyArm.Motors[0].GetPosition()+20*Right_Vector), this));
+		if(MyEntities.Count>0){
+			EntityList ValidEntities=new EntityList();
+			foreach(EntityInfo Entity in MyEntities){
+				if(Small_Ships&&Entity.Type==MyDetectedEntityType.SmallGrid)
+					ValidEntities.UpdateEntry(Entity);
+				else if(Large_Ships&&Entity.Type==MyDetectedEntityType.LargeGrid)
+					ValidEntities.UpdateEntry(Entity);
+				else if(Characters&&(Entity.Type==MyDetectedEntityType.CharacterHuman||Entity.Type==MyDetectedEntityType.CharacterOther))
+					ValidEntities.UpdateEntry(Entity);
+				else if(Objects&&Entity.Type==MyDetectedEntityType.FloatingObject)
+					ValidEntities.UpdateEntry(Entity);
+				else if(Voxels&&(Entity.Type==MyDetectedEntityType.Asteroid||Entity.Type==MyDetectedEntityType.Planet))
+					ValidEntities.UpdateEntry(Entity);
+			}
+			ValidEntities.Sort(Controller.GetPosition());
+			foreach(EntityInfo Entity in ValidEntities)
+				EntityMenu.Add(new Menu_Display(Entity,this));
+			for(int i=0;i<EntityMenu.Menu.Count;i++){
+				if(EntityMenu.Menu[i].Name().Equals(name)){
+					EntityMenu.Selection=i;
+					break;
+				}
+			}
 		}
+	}
+	else{
+		EntityMenu.Add(new Menu_Text("No Target Needed"));
 	}
 }
 
@@ -1531,14 +1580,14 @@ void Select(){
 
 void Create_CommandMenu(){
 	CommandMenu=new Menu_Submenu("Arm Commands");
-	CommandMenu.Add(new Menu_Command<string>("Idle",Command_Menu_Function,"Ends current Command",ArmCommand.Idle.ToString()));
-	CommandMenu.Add(new Menu_Command<string>("Punch",Command_Menu_Function,"Punches the target",ArmCommand.Punch.ToString()));
-	CommandMenu.Add(new Menu_Command<string>("Brace",Command_Menu_Function,"Locks arm against target",ArmCommand.Brace.ToString()));
-	CommandMenu.Add(new Menu_Command<string>("Grab",Command_Menu_Function,"Grabs the target and brings it to another target",ArmCommand.Grab.ToString()));
-	CommandMenu.Add(new Menu_Command<string>("Throw",Command_Menu_Function,"Grabs target and throws at another target",ArmCommand.Throw.ToString()));
-	CommandMenu.Add(new Menu_Command<string>("Block",Command_Menu_Function,"Shields Cockpit with Arm",ArmCommand.Block.ToString()));
-	CommandMenu.Add(new Menu_Command<string>("Wave",Command_Menu_Function,"Waves hand",ArmCommand.Wave.ToString()));
-	CommandMenu.Add(new Menu_Command<string>("Spin",Command_Menu_Function,"Aims hand at target and spins the wrist",ArmCommand.Spin.ToString()));
+	CommandMenu.Add(new Menu_Command<string>("Idle",Command_Menu_Function,"Ends current Command\nRequires 0 Targets",ArmCommand.Idle.ToString()));
+	CommandMenu.Add(new Menu_Command<string>("Punch",Command_Menu_Function,"Punches the target\nRequires 1 Target",ArmCommand.Punch.ToString()));
+	CommandMenu.Add(new Menu_Command<string>("Brace",Command_Menu_Function,"Locks arm against target\nRequires 1 Target",ArmCommand.Brace.ToString()));
+	CommandMenu.Add(new Menu_Command<string>("Grab",Command_Menu_Function,"Grabs the target and brings it to another target\nRequires 2 Targets",ArmCommand.Grab.ToString()));
+	CommandMenu.Add(new Menu_Command<string>("Throw",Command_Menu_Function,"Grabs target and throws at another target\nRequires 2 Targets",ArmCommand.Throw.ToString()));
+	CommandMenu.Add(new Menu_Command<string>("Block",Command_Menu_Function,"Shields Cockpit with Arm\nRequires 0 Targets",ArmCommand.Block.ToString()));
+	CommandMenu.Add(new Menu_Command<string>("Wave",Command_Menu_Function,"Waves hand\nRequires 0 Targets",ArmCommand.Wave.ToString()));
+	CommandMenu.Add(new Menu_Command<string>("Spin",Command_Menu_Function,"Aims hand at target and spins the wrist\nRequires 1 Target",ArmCommand.Spin.ToString()));
 	Create_EntityMenu();
 }
 
@@ -1546,7 +1595,7 @@ void DisplayMenus(){
 	if(EntityPanel!=null)
 		EntityPanel.WriteText(EntityMenu.ToString());
 	if(CommandPanel!=null)
-		CommandPanel.WriteText(CommandPanel.ToString());
+		CommandPanel.WriteText(CommandMenu.ToString());
 }
 
 bool FreeLCDFunction(IMyTextPanel Panel){
@@ -1631,14 +1680,9 @@ public Program()
 		CommandPanel.ContentType=ContentType.TEXT_AND_IMAGE;
 		CommandPanel.FontSize=1.2f;
 		CommandPanel.TextPadding=10.0f;
-		if(CommandPanel.CustomName.ToLower().Contains("transparent")){
-			CommandPanel.FontColor=DEFAULT_BACKGROUND_COLOR;
-			CommandPanel.BackgroundColor=new Color(0,0,0,0);
-		}
-		else{
-			CommandPanel.FontColor=DEFAULT_TEXT_COLOR;
-			CommandPanel.BackgroundColor=DEFAULT_BACKGROUND_COLOR;
-		}
+		CommandPanel.WritePublicTitle("Command Display",false);
+		CommandPanel.FontColor=DEFAULT_TEXT_COLOR;
+		CommandPanel.BackgroundColor=DEFAULT_BACKGROUND_COLOR;
 	}
 	EntityPanel=(new GenericMethods<IMyTextPanel>(this)).GetContaining("Arm Entity Display");
 	if(EntityPanel==null){
@@ -1655,14 +1699,9 @@ public Program()
 		EntityPanel.ContentType=ContentType.TEXT_AND_IMAGE;
 		EntityPanel.FontSize=1.2f;
 		EntityPanel.TextPadding=10.0f;
-		if(EntityPanel.CustomName.ToLower().Contains("transparent")){
-			EntityPanel.FontColor=DEFAULT_BACKGROUND_COLOR;
-			EntityPanel.BackgroundColor=new Color(0,0,0,0);
-		}
-		else{
-			EntityPanel.FontColor=DEFAULT_TEXT_COLOR;
-			EntityPanel.BackgroundColor=DEFAULT_BACKGROUND_COLOR;
-		}
+		EntityPanel.WritePublicTitle("Entity Display",false);
+		EntityPanel.FontColor=DEFAULT_TEXT_COLOR;
+		EntityPanel.BackgroundColor=DEFAULT_BACKGROUND_COLOR;
 	}
 	Create_CommandMenu();
 	DisplayMenus();
@@ -1841,6 +1880,21 @@ double Command_Timer=0;
 bool Force_End=false;
 long Target_ID=0;
 Vector3D Target_Position=new Vector3D(0,0,0);
+Vector3D Hand_Position{
+	get{
+		Vector3D Avg_Position=new Vector3D(0,0,0);
+		foreach(Arm Finger in MyArm.MyHand){
+			Avg_Position+=Finger.Motors[0].GetPosition();
+		}
+		Avg_Position/=MyArm.MyHand.Count;
+		return Avg_Position;
+	}
+}
+double Hand_Distance{
+	get{
+		return (Target_Position-Hand_Position).Length();
+	}
+}
 Vector3D Target_2=new Vector3D(0,0,0);
 bool EndCommand(){
 	if(!Ending_Command){
@@ -1855,6 +1909,8 @@ bool EndCommand(){
 					float.TryParse(GetBlockData(Motor,"DefaultTorque"),out torque);
 					Motor.Torque=torque;
 				}
+				Motor.Enabled=true;
+				Motor.RotorLock=false;
 			}
 			break;
 	}
@@ -1900,12 +1956,14 @@ void PerformCommand(){
 			Spin();
 			break;
 	}
+	if(GetTargetCount(Current_Command)>0)
+		Write("Distance: "+Math.Round(Hand_Distance,1).ToString()+"M");
 }
 
 /*
 * Idle
-* 	0:	Reduce Torque to 100
-*	E:	Revert Torque to default
+* 	0:	Reduce Torque to 100, disable Motors, lock Motors
+*	E:	Revert Torque to default, enable Motors, Unlock Motors
 */
 void Idle(){
 	if(Command_Stage==0){
@@ -1914,6 +1972,8 @@ void Idle(){
 				SetBlockData(Motor,"DefaultTorque",Motor.Torque.ToString());
 				Motor.Torque=100;
 			}
+			Motor.Enabled=false;
+			Motor.RotorLock=true;
 		}
 		Command_Stage++;
 	}
@@ -2090,11 +2150,7 @@ void Grab(){
 			Direction.Normalize();
 			SetDirection(Motor,Direction,Speed_Multx);
 		}
-		Vector3D Avg_Position=new Vector3D(0,0,0);
-		foreach(Arm Finger in MyArm.MyHand)
-			Avg_Position+=Finger.Motors[0].GetPosition();
-		Avg_Position/=MyArm.MyHand.Count;
-		double Distance=(Target_Position-Avg_Position).Length();
+		double Distance=Hand_Distance;
 		bool ready=Distance<1;
 		foreach(Arm Finger in MyArm.MyHand){
 			foreach(IMyMotorStator Motor in Finger.Motors){
@@ -2377,16 +2433,33 @@ void PerformScan(){
 		Scan_Timer=0;
 		List<IMySensorBlock> Sensors=new List<IMySensorBlock>();
 		GridTerminalSystem.GetBlocksOfType<IMySensorBlock>(Sensors);
+		bool Altered=false;
 		foreach(IMySensorBlock Sensor in Sensors){
 			List<MyDetectedEntityInfo> Detected=new List<MyDetectedEntityInfo>();
 			Sensor.DetectedEntities(Detected);
 			foreach(MyDetectedEntityInfo Entity in Detected){
 				EntityInfo entity=new EntityInfo(Entity);
 				MyEntities.UpdateEntry(entity);
+				if(entity.ID==Target_ID||Target_ID==0)
+					Target_Position=entity.GetPosition();
+				Altered=true;
 				IGC.SendBroadcastMessage("Entity Report",entity.ToString(),TransmissionDistance.TransmissionDistanceMax);
 			}
 		}
+		for(int i=0;i<MyEntities.Count;i++){
+			if((MyEntities[i].GetPosition()-Controller.GetPosition()).Length()>1000){
+				Altered=true;
+				MyEntities.RemoveEntry(MyEntities[i]);
+			}
+		}
+		if(Altered&&!CommandMenu.IsSelected)
+			Create_EntityMenu();
 	}
+	Write("Scan: "+Math.Round(Scan_Timer,3).ToString()+"s");
+	if(MyEntities.Count==1)
+		Write(MyEntities.Count.ToString()+" Entity on Record");
+	else
+		Write(MyEntities.Count.ToString()+" Entities on Record");
 }
 
 public void Main(string argument, UpdateType updateSource)
@@ -2394,10 +2467,31 @@ public void Main(string argument, UpdateType updateSource)
 	try{
 		UpdateProgramInfo();
 		PerformScan();
+		if(argument.Length>0){
+			if(argument.ToLower().Equals("back"))
+				Back();
+			else if(argument.ToLower().Equals("prev"))
+				Prev();
+			else if(argument.ToLower().Equals("next"))
+				Next();
+			else if(argument.ToLower().Equals("select"))
+				Select();
+		}
+		DisplayMenus();
+		if(Target_ID<-1){
+			if(Target_ID==-2){
+				Target_Position=MyArm.Motors[0].GetPosition()+20*Forward_Vector;
+			}
+			else if(Target_ID==-3){
+				Target_Position=MyArm.Motors[0].GetPosition()+20*Up_Vector;
+			}
+			else if(Target_ID==-3){
+				Target_Position=MyArm.Motors[0].GetPosition()+20*Right_Vector;
+			}
+		}
 		Write("Current:"+Current_Command.ToString());
 		Write("Next:"+Next_Command.ToString());
 		PerformCommand();
-		DisplayMenus();
 		if(Current_Command==ArmCommand.Idle)
 			Runtime.UpdateFrequency=UpdateFrequency.Update100;
 		else
