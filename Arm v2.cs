@@ -1445,6 +1445,11 @@ public void Main(string argument, UpdateType updateSource)
 		Write("Current:"+Current_Command.ToString());
 		Write("Next:"+Next_Command.ToString());
 		PerformCommand();
+		if(Current_Command==ArmCommand.Idle)
+			Runtime.UpdateFrequency=UpdateFrequency.Update100;
+		else
+			Runtime.UpdateFrequency=UpdateFrequency.Update1;
+		Write(Runtime.UpdateFrequency.ToString());
 	}
 	catch(Exception e){
 		try{
