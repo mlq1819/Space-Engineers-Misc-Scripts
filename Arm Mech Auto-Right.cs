@@ -1,4 +1,4 @@
-const string Program_Name = ""; //Name me!
+const string Program_Name = "Auto-Align"; //Name me!
 private Color DEFAULT_TEXT_COLOR=new Color(197,137,255,255);
 private Color DEFAULT_BACKGROUND_COLOR=new Color(44,0,88,255);
 
@@ -337,6 +337,51 @@ long cycle = 0;
 char loading_char = '|';
 double seconds_since_last_update = 0;
 
+IMyShipController Controller;
+IMyGyro Gyroscope;
+
+Vector3D Forward_Vector;
+Vector3D Backward_Vector{
+	get{
+		return -1*Forward_Vector;
+	}
+}
+Vector3D Up_Vector;
+Vector3D Down_Vector{
+	get{
+		return -1*Up_Vector;
+	}
+}
+Vector3D Left_Vector;
+Vector3D Right_Vector{
+	get{
+		return -1*Left_Vector;
+	}
+}
+
+Vector3D Gravity{
+	get{
+		return Controller.GetTotalGravity();
+	}
+}
+Vector3D Gravity_Direction{
+	get{
+		Vector3D Direction=Gravity;
+		Direction.Normalize();
+		return Direction;
+	}
+}
+Vector3D Current_AngularVelocity{
+	get{
+		return Controller.GetShipVelocities().AngularVelocity;
+	}
+}
+Vector3D Relative_AngularVelocity{
+	get{
+		return GlobalToLocal(Current_AngularVelocity,Controller);
+	}
+}
+
 public Program()
 {
 	Me.CustomName=(Program_Name+" Programmable block").Trim();
@@ -349,26 +394,105 @@ public Program()
 	Me.GetSurface(1).FontSize=2.2f;
 	Me.GetSurface(1).TextPadding=40.0f;
 	Echo("Beginning initialization");
-	// The constructor, called only once every session and
-    // always before any other method is called. Use it to
-    // initialize your script. 
-    //     
-    // The constructor is optional and can be removed if not
-    // needed.
-    // 
-    // It's recommended to set RuntimeInfo.UpdateFrequency 
-    // here, which will allow your script to run itself without a 
-    // timer block.
+	Controller=(new GenericMethods<IMyShipController>(this)).GetContaining("");
+	Gyroscope=(new GenericMethods<IMyGyro>(this)).GetContaining("Control Gyroscope");
+	if(Controller==null||Gyroscope==null)
+		return;
+	Runtime.UpdateFrequency=UpdateFrequency.Update1;
 }
 
 public void Save()
 {
-    // Called when the program needs to save its state. Use
-    // this method to save your state to the Storage field
-    // or some other means. 
-    // 
-    // This method is optional and can be removed if not
-    // needed.
+	Gyroscope.GyroOverride=false;
+}
+
+//Sets gyroscope outputs from player input, dampeners, gravity, and autopilot
+private double Pitch_Time= 1.0f;
+private double Yaw_Time=1.0f;
+private double Roll_Time=1.0f;
+private void SetGyroscopes(){
+	Gyroscope.GyroOverride=true;
+	float current_pitch=(float) Relative_AngularVelocity.X;
+	float current_yaw=(float) Relative_AngularVelocity.Y;
+	float current_roll=(float) Relative_AngularVelocity.Z;
+	
+	float gyro_count = 0;
+	List<IMyGyro> AllGyros=new List<IMyGyro>();
+	GridTerminalSystem.GetBlocksOfType<IMyGyro>(AllGyros);
+	foreach(IMyGyro Gyro in AllGyros){
+		if(Gyro.IsWorking)
+			gyro_count+=Gyro.GyroPower/100.0f;
+	}
+	float gyro_multx=(float)Math.Max(0.1f, Math.Min(1, 1.5f/(Controller.CalculateShipMass().PhysicalMass/gyro_count/1000000)));
+	float correction_multx=5;
+	
+	
+	float input_pitch=0;
+	float input_yaw=0;
+	float input_roll=0;
+	
+	if(Pitch_Time<1)
+		Pitch_Time+=seconds_since_last_update;
+	if(Yaw_Time<1)
+		Yaw_Time+=seconds_since_last_update;
+	if(Roll_Time<1)
+		Roll_Time+=seconds_since_last_update;
+	
+	input_pitch=Math.Min(Math.Max(Controller.RotationIndicator.X / 100, -1), 1);
+	if(Math.Abs(input_pitch)<0.05f){
+		input_pitch=current_pitch*0.99f;
+		if(Pitch_Time>0.5){
+			double difference=Math.Abs(GetAngle(Gravity,Forward_Vector));
+			Write("Pitch: "+Math.Round(difference-90,1).ToString()+"°");
+			float Pitch_Multx=1;
+			if(Math.Abs(difference-90)>5)
+				Pitch_Multx=correction_multx;
+			if(difference<89)
+				input_pitch-=10*Pitch_Multx*gyro_multx*((float)Math.Min(Math.Abs((90-difference)/90), 1));
+			else if(difference>91)
+				input_pitch+=10*Pitch_Multx*gyro_multx*((float)Math.Min(Math.Abs((difference-90)/90), 1));
+		}
+	}
+	else{
+		Pitch_Time=0;
+		input_pitch*=30;
+	}
+	input_yaw=Math.Min(Math.Max(Controller.RotationIndicator.Y / 100, -1), 1);
+	if(Math.Abs(input_yaw)<0.05f){
+		input_yaw=current_yaw*0.99f;
+	}
+	else{
+		Yaw_Time=0;
+		input_yaw*=30;
+	}
+	input_roll=Controller.RollIndicator;
+	if(Math.Abs(input_roll)<0.05f){
+		input_roll=current_roll*0.99f;
+		if(Gravity.Length()>0&&Roll_Time>0.5){
+			double difference=GetAngle(Left_Vector, Gravity)-GetAngle(Right_Vector, Gravity);
+			Write("Roll: "+Math.Round(difference,1).ToString()+"°");
+			float Roll_Multx=1;
+			if(Math.Abs(difference)>5)
+				Roll_Multx=correction_multx;
+			if(Math.Abs(difference)>1){
+				input_roll-=(float)Math.Min(Math.Max(difference/5,-1),1)*gyro_multx*Roll_Multx;
+			}
+		}
+	}
+	else{
+		Roll_Time=0;
+		input_roll*=10;
+	}
+	
+	Vector3D input=new Vector3D(input_pitch,input_yaw,input_roll);
+	Vector3D global=Vector3D.TransformNormal(input,Controller.WorldMatrix);
+	Vector3D output=Vector3D.TransformNormal(global,MatrixD.Invert(Gyroscope.WorldMatrix));
+	output.Normalize();
+	output*=input.Length();
+	
+	Gyroscope.Pitch=(float)output.X;
+	Gyroscope.Yaw=(float)output.Y;
+	Gyroscope.Roll=(float)output.Z;
 }
 
 void UpdateProgramInfo(){
@@ -402,16 +526,19 @@ void UpdateProgramInfo(){
 		Echo(Math.Round(seconds_since_last_update/60/60, 2).ToString() + " hours\n");
 	else 
 		Echo(Math.Round(seconds_since_last_update/60/60/24, 2).ToString() + " days\n");
+	Vector3D base_vector=new Vector3D(0,0,-1);
+	Forward_Vector=LocalToGlobal(base_vector,Controller);
+	Forward_Vector.Normalize();
+	base_vector=new Vector3D(0,1,0);
+	Up_Vector=LocalToGlobal(base_vector,Controller);
+	Up_Vector.Normalize();
+	base_vector=new Vector3D(-1,0,0);
+	Left_Vector=LocalToGlobal(base_vector,Controller);
+	Left_Vector.Normalize();
 }
 
 public void Main(string argument, UpdateType updateSource)
 {
 	UpdateProgramInfo();
-    // The main entry point of the script, invoked every time
-    // one of the programmable block's Run actions are invoked,
-    // or the script updates itself. The updateSource argument
-    // describes where the update came from.
-    // 
-    // The method itself is required, but the arguments above
-    // can be removed if not needed.
+    SetGyroscopes();
 }
