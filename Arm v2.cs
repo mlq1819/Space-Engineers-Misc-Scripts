@@ -910,6 +910,7 @@ bool Ending_Command=false;
 double Command_Timer=0;
 bool Force_End=false;
 Vector3D Target_Position=new Vector3D(0,0,0);
+Vector3D Target_2=new Vector3D(0,0,0);
 bool EndCommand(){
 	if(!Ending_Command){
 		SetLock(MyArm,false);
@@ -1042,7 +1043,7 @@ void Punch(){
 		if(Command_Timer>=2)
 			Command_Stage++;
 	}
-	else
+	if(Command_Stage>1)
 		Force_End=true;
 }
 
@@ -1179,9 +1180,18 @@ void Grab(){
 			Command_Stage++;
 	}
 	if(Command_Stage==2){
-		//Target
 		SetLock(MyArm.MyHand,true);
-		//Check
+		foreach(IMyMotorStator Motor in MyArm.Motors){
+			Vector3D Direction=Target_2-Motor.GetPosition();
+			float Speed_Multx=1;
+			if(Motor==MyArm.LastRotor){
+				Speed_Multx*=5;
+				if(Controller!=null&&Controller.GetTotalGravity().Length()>0)
+					Direction=Controller.GetTotalGravity();
+			}
+			Direction.Normalize();
+			SetDirection(Motor,Direction,Speed_Multx);
+		}
 	}
 }
 
@@ -1190,33 +1200,61 @@ void Grab(){
 * 	0: Grab 0
 * 	1: Grab 1
 * 	2: Lock Hand, Wind Arm
-* 	3: Release Arm, Unlock Hand, Open Hand
-* 	4: Wait 2 seconds
+* 	3: Release Arm, Unlock Hand, Open Hand, Wait 2 Seconds
 *	E: Unlock Hand
 */
 void Throw(){
-	if(Command_Stage<2){
+	if(Command_Stage<2)
 		Grab();
-	}
-	else if(Command_Stage==2){
-		//Wind
-		//Target
+	if(Command_Stage==2){
 		SetLock(MyArm.MyHand,true);
-		//Check
-	} else if(Command_Stage==3){
-		//Target
-		SetLock(MyArm.MyHand,false);
-		//Open
-		Command_Timer=0;
-		Command_Stage++;
+		bool ready=true;
+		foreach(IMyMotorStator Motor in MyArm.Motors){
+			Vector3D Direction=Target_2-Motor.GetPosition();
+			float Speed_Multx=1;
+			if(Motor==MyArm.LastRotor){
+				Speed_Multx*=5;
+				if(Controller!=null&&Controller.GetTotalGravity().Length()>0)
+					Direction=Controller.GetTotalGravity();
+			}
+			Direction.Normalize();
+			Angle Target=GetTarget(Motor,Direction);
+			if(Motor==MyArm.FirstHinge)
+				Target=new Angle(-90);
+			SetAngle(Motor,Target,Speed_Multx);
+			ready=ready&&Math.Abs(Adjusted_Difference(Motor,Target))<5&&GetRPM(Motor)<5;
+		}
+		if(ready){
+			Command_Stage++;
+			Command_Timer=0;
+		}
 	}
-	else if(Command_Stage==4){
+	if(Command_Stage==3){
+		foreach(IMyMotorStator Motor in MyArm.Motors){
+			Vector3D Direction=Target_2-Motor.GetPosition();
+			float Speed_Multx=3;
+			if(Motor==MyArm.LastRotor){
+				Speed_Multx*=5;
+				if(Controller!=null&&Controller.GetTotalGravity().Length()>0)
+					Direction=Controller.GetTotalGravity();
+			}
+			Direction.Normalize();
+			SetDirection(Motor,Direction,Speed_Multx);
+		}
+		SetLock(MyArm.MyHand,false);
+		foreach(Arm Finger in MyArm.MyHand){
+			foreach(IMyMotorStator Motor in Finger.Motors){
+				Angle Target=new Angle(5);
+				if(IsRotor(Motor))
+					Target=new Angle(0);
+				SetAngle(Motor,Target);
+			}
+		}
 		if(Command_Timer>=2)
 			Command_Stage++;
 	}
-	else{
+	if(Command_Stage>3)
 		Force_End=true;
-	}
 }
 
 /*
