@@ -1065,7 +1065,7 @@ public class Menu_Submenu : MenuOption{
 	public bool Select(){
 		if(Selected){
 			bool output=Menu[Selection].Select();
-			if(Menu[Selection].Type()==MenuType.Command)
+			if(Menu[Selection].Type()==MenuType.Command&&output)
 				Selected=false;
 			return output;
 		}
@@ -1682,6 +1682,7 @@ bool Command_Menu_Function(string Command){
 		Next_Command=Highlighted;
 		if(Next_Command==ArmCommand.Idle)
 			Force_End=true;
+		Defined_Target_Count=0;
 		return true;
 	}
 	else
@@ -2599,6 +2600,8 @@ public void Main(string argument, UpdateType updateSource)
 		Write("Current:"+Current_Command.ToString()+" "+Command_Stage.ToString());
 		if(Current_Command!=Next_Command)
 			Write("Next:"+Next_Command.ToString());
+		if(CommandMenu.IsSelected)
+			Write("Targets Selected:"+Defined_Target_Count.ToString()+"/"+Target_Count.ToString());
 		PerformCommand();
 		if(Current_Command==ArmCommand.Idle&&Command_Stage>1)
 			Runtime.UpdateFrequency=UpdateFrequency.Update10;
