@@ -1498,14 +1498,8 @@ public Program()
 		ProgramPanel.FontSize=1.2f;
 		ProgramPanel.TextPadding=10.0f;
 		ProgramPanel.WritePublicTitle("Program Display",false);
-		if(ProgramPanel.CustomName.ToLower().Contains("transparent")){
-			ProgramPanel.FontColor=DEFAULT_BACKGROUND_COLOR;
-			ProgramPanel.BackgroundColor=new Color(10,10,10,10);
-		}
-		else{
-			ProgramPanel.FontColor=DEFAULT_TEXT_COLOR;
-			ProgramPanel.BackgroundColor=DEFAULT_BACKGROUND_COLOR;
-		}
+		ProgramPanel.FontColor=DEFAULT_TEXT_COLOR;
+		ProgramPanel.BackgroundColor=DEFAULT_BACKGROUND_COLOR;
 	}
 	CommandPanel=(new GenericMethods<IMyTextPanel>(this)).GetContaining("Arm Command Display");
 	if(CommandPanel==null){
@@ -1996,9 +1990,8 @@ void PerformCommand(){
 
 /*
 * Idle
-* 	0:	Reset Timer
-* 	1: 	Reduce Torque to 100, wait 2 seconds
-* 	2:  Disable Motors, lock Motors
+* 	0:	Reset Positions
+* 	1:  Disable Motors, lock Motors
 *	E:	Revert Torque to default, enable Motors, Unlock Motors
 */
 void Idle(){
@@ -2015,6 +2008,8 @@ void Idle(){
 					Target=GetTarget(Motor,Direction);
 				}
 			}
+			if(Motor==MyArm.FirstHinge)
+				Target=new Angle(90);
 			SetAngle(Motor,Target,Speed_Multx);
 			Max_Offset=Math.Max(Max_Offset,Math.Abs(Adjusted_Difference(Motor,Target)));
 			ready=ready&&Max_Offset<5&&GetRPM(Motor)<5;
@@ -2022,6 +2017,8 @@ void Idle(){
 		foreach(Arm Finger in MyArm.MyHand){
 			foreach(IMyMotorStator Motor in Finger.Motors){
 				Angle Target=new Angle(0);
+				if(Motor==Finger.FirstHinge)
+					Target=new Angle(90);
 				SetAngle(Motor,Target);
 				Max_Offset=Math.Max(Max_Offset,Math.Abs(Adjusted_Difference(Motor,Target)));
 				ready=ready&&Max_Offset<5&&GetRPM(Motor)<5;
