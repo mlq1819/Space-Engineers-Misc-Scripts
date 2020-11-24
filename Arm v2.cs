@@ -678,12 +678,27 @@ long cycle = 0;
 char loading_char = '|';
 double seconds_since_last_update = 0;
 
-Arm MyArm;
-IMyShipController Controller{
+Vector3D Forward_Vector;
+Vector3D Backward_Vector{
 	get{
-		return (new GenericMethods<IMyShipController>(this)).GetContaining("");
+		return -1*Forward_Vector;
 	}
 }
+Vector3D Up_Vector;
+Vector3D Down_Vector{
+	get{
+		return -1*Up_Vector;
+	}
+}
+Vector3D Left_Vector;
+Vector3D Right_Vector{
+	get{
+		return -1*Left_Vector;
+	}
+}
+
+Arm MyArm;
+IMyShipController Controller;
 
 public Program()
 {
@@ -712,6 +727,9 @@ public Program()
 	if(Motors.Count==0)
 		return;
 	MyArm=new Arm(Motors[0]);
+	Controller=(new GenericMethods<IMyShipController>(this)).GetContaining("",50);
+	if(Controller==null)
+		return;
 	
 	Runtime.UpdateFrequency=UpdateFrequency.Update1;
 }
@@ -861,45 +879,6 @@ void UpdateMotor(IMyMotorStator Motor){
 	SetBlockData(Motor,"LastVelocity",Last_Velocity.ToString());
 }
 
-void UpdateProgramInfo(){
-	cycle_long += ((++cycle)/long.MaxValue)%long.MaxValue;
-	cycle = cycle % long.MaxValue;
-	switch(loading_char){
-		case '|':
-			loading_char='\\';
-			break;
-		case '\\':
-			loading_char='-';
-			break;
-		case '-':
-			loading_char='/';
-			break;
-		case '/':
-			loading_char='|';
-			break;
-	}
-	Write("",false,false);
-	Echo(Program_Name + " OS " + cycle_long.ToString() + '-' + cycle.ToString() + " (" + loading_char + ")");
-	Me.GetSurface(1).WriteText(Program_Name + " OS " + cycle_long.ToString() + '-' + cycle.ToString() + " (" + loading_char + ")",false);
-	seconds_since_last_update = Runtime.TimeSinceLastRun.TotalSeconds + (Runtime.LastRunTimeMs / 1000);
-	if(seconds_since_last_update<1)
-		Echo(Math.Round(seconds_since_last_update*1000, 0).ToString() + " milliseconds\n");
-	else if(seconds_since_last_update<60)
-		Echo(Math.Round(seconds_since_last_update, 3).ToString() + " seconds\n");
-	else if(seconds_since_last_update/60<60)
-		Echo(Math.Round(seconds_since_last_update/60, 2).ToString() + " minutes\n");
-	else if(seconds_since_last_update/60/60<24)
-		Echo(Math.Round(seconds_since_last_update/60/60, 2).ToString() + " hours\n");
-	else 
-		Echo(Math.Round(seconds_since_last_update/60/60/24, 2).ToString() + " days\n");
-	List<IMyMotorStator> All_Motors=new List<IMyMotorStator>();
-	GridTerminalSystem.GetBlocksOfType<IMyMotorStator>(All_Motors);
-	foreach(IMyMotorStator Motor in All_Motors)
-		UpdateMotor(Motor);
-	if(Command_Timer<10)
-		Command_Timer+=seconds_since_last_update;
-}
-
 enum ArmCommand{
 	Idle=0,
 	Punch=1,
@@ -907,7 +886,8 @@ enum ArmCommand{
 	Grab=3,
 	Throw=4,
 	Block=5,
-	Wave=6
+	Wave=6,
+	Spin=7
 }
 
 ArmCommand Current_Command=ArmCommand.Idle;
@@ -984,6 +964,9 @@ void PerformCommand(){
 		case ArmCommand.Wave:
 			Wave();
 			break;
+		case ArmCommand.Spin:
+			Spin();
+			break;
 	}
 }
 
@@ -1018,7 +1001,7 @@ void Punch(){
 			float Speed_Multx=1;
 			if(Motor==MyArm.LastRotor){
 				Speed_Multx=5;
-				if(Controller!=null&&Controller.GetTotalGravity().Length()>0)
+				if(Controller.GetTotalGravity().Length()>0)
 					Direction=Controller.GetTotalGravity();
 			}
 			Direction.Normalize();
@@ -1026,7 +1009,7 @@ void Punch(){
 			if(Motor==MyArm.FirstHinge)
 				Target=new Angle(-90);
 			SetAngle(Motor,Target,Speed_Multx);
-			ready=ready&&Math.Abs(Adjusted_Difference(Motor,Target))<5;
+			ready=ready&&Math.Abs(Adjusted_Difference(Motor,Target))<5&&GetRPM(Motor)<5;
 		}
 		foreach(Arm Finger in MyArm.MyHand){
 			foreach(IMyMotorStator Motor in Finger.Motors){
@@ -1034,7 +1017,7 @@ void Punch(){
 				if(IsRotor(Motor))
 					Target=new Angle(0);
 				SetAngle(Motor,Target);
-				ready=ready&&Math.Abs(Adjusted_Difference(Motor,Target))<5;
+				ready=ready&&Math.Abs(Adjusted_Difference(Motor,Target))<5&&GetRPM(Motor)<5;
 			}
 		}
 		if(ready){
@@ -1086,7 +1069,7 @@ void Brace(){
 			if(Motor==MyArm.FirstHinge)
 				Target=new Angle(-90);
 			SetAngle(Motor,Target,Speed_Multx);
-			ready=ready&&Math.Abs(Adjusted_Difference(Motor,Target))<5;
+			ready=ready&&Math.Abs(Adjusted_Difference(Motor,Target))<5&&GetRPM(Motor)<5;
 		}
 		foreach(Arm Finger in MyArm.MyHand){
 			foreach(IMyMotorStator Motor in Finger.Motors){
@@ -1094,7 +1077,7 @@ void Brace(){
 				if(IsRotor(Motor))
 					Target=new Angle(0);
 				SetAngle(Motor,Target);
-				ready=ready&&Math.Abs(Adjusted_Difference(Motor,Target))<5;
+				ready=ready&&Math.Abs(Adjusted_Difference(Motor,Target))<5&&GetRPM(Motor)<5;
 			}
 		}
 		if(ready){
@@ -1147,7 +1130,7 @@ void Grab(){
 			if(Motor==MyArm.FirstHinge)
 				Target=new Angle(-90);
 			SetAngle(Motor,Target,Speed_Multx);
-			ready=ready&&Math.Abs(Adjusted_Difference(Motor,Target))<5;
+			ready=ready&&Math.Abs(Adjusted_Difference(Motor,Target))<5&&GetRPM(Motor)<5;
 		}
 		foreach(Arm Finger in MyArm.MyHand){
 			foreach(IMyMotorStator Motor in Finger.Motors){
@@ -1157,7 +1140,7 @@ void Grab(){
 				if(IsHinge(Motor))
 					Target/=2;
 				SetAngle(Motor,Target);
-				ready=ready&&Math.Abs(Adjusted_Difference(Motor,Target))<5;
+				ready=ready&&Math.Abs(Adjusted_Difference(Motor,Target))<5&&GetRPM(Motor)<5;
 			}
 		}
 		if(ready)
@@ -1189,7 +1172,7 @@ void Grab(){
 				if(IsHinge(Motor)&&Distance>1)
 					Target/=2;
 				SetAngle(Motor,Target);
-				ready=ready&&Math.Abs(Adjusted_Difference(Motor,Target))<5;
+				ready=ready&&Math.Abs(Adjusted_Difference(Motor,Target))<5&&GetRPM(Motor)<5;
 			}
 		}
 		if(ready)
@@ -1244,13 +1227,35 @@ void Throw(){
 */
 void Block(){
 	if(Command_Stage==0){
-		//Target
-		//Target
-		//Target
-		//Clench
-		//Check
+		bool ready=true;
+		Vector3D My_Target=MyArm.Motors[0].GetPosition()+3*Forward_Vector;
+		foreach(IMyMotorStator Motor in MyArm.Motors){
+			if(Motor==MyArm.FirstHinge)
+				My_Target=Controller.GetPosition()+5*Forward_Vector;
+			Vector3D Direction=My_Target-Motor.GetPosition();
+			float Speed_Multx=1;
+			if(Motor==MyArm.LastRotor){
+				Speed_Multx*=5;
+				Direction=Forward_Vector;
+			}
+			Direction.Normalize();
+			Angle Target=GetTarget(Motor,Direction);
+			SetAngle(Motor,Target,Speed_Multx);
+			ready=ready&&Math.Abs(Adjusted_Difference(Motor,Target))<5&&GetRPM(Motor)<5;
+		}
+		foreach(Arm Finger in MyArm.MyHand){
+			foreach(IMyMotorStator Motor in Finger.Motors){
+				Angle Target=new Angle(90);
+				if(IsRotor(Motor))
+					Target=new Angle(0);
+				SetAngle(Motor,Target);
+				ready=ready&&Math.Abs(Adjusted_Difference(Motor,Target))<5&&GetRPM(Motor)<5;
+			}
+		}
+		if(ready)
+			Command_Stage++;
 	}
-	else if(Command_Stage==1){
+	if(Command_Stage==1){
 		SetLock(MyArm,true);
 		SetLock(MyArm.MyHand,true);
 		Command_Stage++;
@@ -1265,29 +1270,158 @@ void Block(){
 */
 void Wave(){
 	if(Command_Stage==0){
-		//Target
-		//Target
-		//Open
-		//Check
-		//Reset Timer
+		bool ready=true;
+		Vector3D My_Target=Right_Vector;
+		foreach(IMyMotorStator Motor in MyArm.Motors){
+			if(Motor==MyArm.FirstHinge)
+				My_Target=Forward_Vector;
+			Vector3D Direction=My_Target;
+			float Speed_Multx=1;
+			if(Motor==MyArm.LastRotor){
+				Speed_Multx*=5;
+				if(Controller!=null&&Controller.GetTotalGravity().Length()>0)
+					Direction=Controller.GetTotalGravity();
+			}
+			Direction.Normalize();
+			Angle Target=GetTarget(Motor,Direction);
+			SetAngle(Motor,Target,Speed_Multx);
+			ready=ready&&Math.Abs(Adjusted_Difference(Motor,Target))<5&&GetRPM(Motor)<5;
+		}
+		foreach(Arm Finger in MyArm.MyHand){
+			foreach(IMyMotorStator Motor in Finger.Motors){
+				Angle Target=new Angle(0);
+				SetAngle(Motor,Target);
+				ready=ready&&Math.Abs(Adjusted_Difference(Motor,Target))<5&&GetRPM(Motor)<5;
+			}
+		}
+		if(ready){
+			Command_Stage++;
+			Command_Timer=0;
+		}
 	}
-	else if(Command_Stage==1){
+	if(Command_Stage==1){
 		SetLock(MyArm.MyHand,true);
-		Angle Offset=new Angle(15);
-		Command_Timer=Command_Timer%3;
-		if(Command_Timer<=1.5)
-			Offset*=-1;
-		//Target
-		Command_Stage++;
+		Vector3D My_Target=Right_Vector;
+		foreach(IMyMotorStator Motor in MyArm.Motors){
+			if(Motor==MyArm.FirstHinge)
+				My_Target=Forward_Vector;
+			Vector3D Direction=My_Target;
+			float Speed_Multx=1;
+			if(Motor==MyArm.LastRotor){
+				Speed_Multx*=5;
+				if(Controller!=null&&Controller.GetTotalGravity().Length()>0)
+					Direction=Controller.GetTotalGravity();
+			}
+			Direction.Normalize();
+			Angle Target=GetTarget(Motor,Direction);
+			if(Motor==MyArm.LastRotor){
+				Angle Offset=new Angle(15);
+				Command_Timer=Command_Timer%3;
+				if(Command_Timer<=1.5)
+					Offset*=-1;
+				Target+=Offset;
+			}
+			SetAngle(Motor,Target,Speed_Multx);
+		}
 	}
 }
 
+/*
+* Spin
+* 	0: Release Hand, Release Arm, Set Last Rotor Velocity
+* 	E: Nothing
+*/
+void Spin(){
+	if(Command_Stage==0){
+		foreach(IMyMotorStator Motor in MyArm.Motors){
+			Vector3D Direction=Target_Position-Motor.GetPosition();
+			Direction.Normalize();
+			if(Motor==MyArm.LastRotor){
+				Motor.TargetVelocityRPM=30;
+			}
+			else
+				SetDirection(Motor,Direction);
+		}
+		foreach(Arm Finger in MyArm.MyHand){
+			foreach(IMyMotorStator Motor in Finger.Motors){
+				Vector3D Direction=Target_Position-Motor.GetPosition();
+				Direction.Normalize();
+				SetDirection(Motor,Direction);
+			}
+		}
+	}
+}
+
+void UpdateProgramInfo(){
+	cycle_long += ((++cycle)/long.MaxValue)%long.MaxValue;
+	cycle = cycle % long.MaxValue;
+	switch(loading_char){
+		case '|':
+			loading_char='\\';
+			break;
+		case '\\':
+			loading_char='-';
+			break;
+		case '-':
+			loading_char='/';
+			break;
+		case '/':
+			loading_char='|';
+			break;
+	}
+	Write("",false,false);
+	Echo(Program_Name + " OS " + cycle_long.ToString() + '-' + cycle.ToString() + " (" + loading_char + ")");
+	Me.GetSurface(1).WriteText(Program_Name + " OS " + cycle_long.ToString() + '-' + cycle.ToString() + " (" + loading_char + ")",false);
+	seconds_since_last_update = Runtime.TimeSinceLastRun.TotalSeconds + (Runtime.LastRunTimeMs / 1000);
+	if(seconds_since_last_update<1)
+		Echo(Math.Round(seconds_since_last_update*1000, 0).ToString() + " milliseconds\n");
+	else if(seconds_since_last_update<60)
+		Echo(Math.Round(seconds_since_last_update, 3).ToString() + " seconds\n");
+	else if(seconds_since_last_update/60<60)
+		Echo(Math.Round(seconds_since_last_update/60, 2).ToString() + " minutes\n");
+	else if(seconds_since_last_update/60/60<24)
+		Echo(Math.Round(seconds_since_last_update/60/60, 2).ToString() + " hours\n");
+	else 
+		Echo(Math.Round(seconds_since_last_update/60/60/24, 2).ToString() + " days\n");
+	List<IMyMotorStator> All_Motors=new List<IMyMotorStator>();
+	GridTerminalSystem.GetBlocksOfType<IMyMotorStator>(All_Motors);
+	foreach(IMyMotorStator Motor in All_Motors)
+		UpdateMotor(Motor);
+	if(Command_Timer<10)
+		Command_Timer+=seconds_since_last_update;
+	Vector3D base_vector=new Vector3D(0,0,-1);
+	Forward_Vector=LocalToGlobal(base_vector,Controller);
+	Forward_Vector.Normalize();
+	base_vector=new Vector3D(0,1,0);
+	Up_Vector=LocalToGlobal(base_vector,Controller);
+	Up_Vector.Normalize();
+	base_vector=new Vector3D(-1,0,0);
+	Left_Vector=LocalToGlobal(base_vector,Controller);
+	Left_Vector.Normalize();
+}
 
 public void Main(string argument, UpdateType updateSource)
 {
-	UpdateProgramInfo();
-	Write("Current:"+Current_Command.ToString());
-	Write("Next:"+Next_Command.ToString());
-	PerformCommand();
-	
+	try{
+		UpdateProgramInfo();
+		Write("Current:"+Current_Command.ToString());
+		Write("Next:"+Next_Command.ToString());
+		PerformCommand();
+	}
+	catch(Exception e){
+		try{
+			foreach(IMyMotorStator Motor in MyArm.AllMotors){
+				try{
+					Motor.TargetVelocityRPM=0;
+				}
+				catch(Exception){
+					continue;
+				}
+			}
+		}
+		catch(Exception){
+			;
+		}
+		throw e;
+	}
 }
