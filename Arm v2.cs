@@ -255,6 +255,297 @@ class GenericMethods<T> where T : class, IMyTerminalBlock{
 	}
 }
 
+public class EntityInfo{
+	public long ID;
+	public string Name;
+	public MyDetectedEntityType Type;
+	private Vector3D? _hitposition;
+	public Vector3D? HitPosition{
+		get{
+			return _hitposition;
+		}
+		set{
+			_hitposition=value;
+			if(_hitposition!=null){
+				Size=Math.Max(Size, (Position-((Vector3D)_hitposition)).Length());
+			}
+		}
+	}
+	private Vector3D _velocity;
+	public Vector3D Velocity{
+		get{
+			return _velocity;
+		}
+		set{
+			_velocity=value;
+			Age=TimeSpan.Zero;
+		}
+	}
+	public MyRelationsBetweenPlayerAndBlock Relationship;
+	public Vector3D Position;
+	public double Size=0;
+	public TimeSpan Age=TimeSpan.Zero;
+	
+	public EntityInfo(long id, string name, MyDetectedEntityType type, Vector3D? hitposition, Vector3D velocity, MyRelationsBetweenPlayerAndBlock relationship, Vector3D position){
+		ID=id;
+		Name=name;
+		Type=type;
+		HitPosition=hitposition;
+		Velocity=velocity;
+		Relationship=relationship;
+		Position=position;
+		Age=TimeSpan.Zero;
+	}
+	
+	public EntityInfo(long id, string name, MyDetectedEntityType type, Vector3D? hitposition, Vector3D velocity, MyRelationsBetweenPlayerAndBlock relationship, Vector3D position, double size) : this(id, name, type, hitposition, velocity, relationship, position){
+		this.Size=size;
+	}
+	
+	public EntityInfo(EntityInfo o){
+		ID=o.ID;
+		Name=o.Name;
+		Type=o.Type;
+		Position=o.Position;
+		HitPosition=o.HitPosition;
+		Velocity=o.Velocity;
+		Relationship=o.Relationship;
+		Size=o.Size;
+		Age=o.Age;
+	}
+	
+	public EntityInfo(MyDetectedEntityInfo entity_info){
+		ID=entity_info.EntityId;
+		Name=entity_info.Name;
+		Type=entity_info.Type;
+		Position=entity_info.Position;
+		if(entity_info.HitPosition!=null){
+			HitPosition=entity_info.HitPosition;
+		}
+		else {
+			HitPosition=(Vector3D?) null;
+		}
+		Velocity=entity_info.Velocity;
+		Relationship=entity_info.Relationship;
+		Age=TimeSpan.Zero;
+	}
+	
+	public static bool TryParse(string Parse, out EntityInfo Entity){
+		Entity=new EntityInfo(-1,"bad", MyDetectedEntityType.None, null, new Vector3D(0,0,0), MyRelationsBetweenPlayerAndBlock.NoOwnership, new Vector3D(0,0,0));
+		try{
+			string[] args=Parse.Split('\n');
+			long id;
+			if(!Int64.TryParse(args[0], out id)){
+				return false;
+			}
+			string name=args[1];
+			MyDetectedEntityType type=(MyDetectedEntityType) Int32.Parse(args[2]);
+			Vector3D? hitposition;
+			if(args[3].Equals("null")){
+				hitposition=(Vector3D?) null;
+			}
+			else {
+				Vector3D temp;
+				if(!Vector3D.TryParse(args[3], out temp)){
+					return false;
+				}
+				else {
+					hitposition=(Vector3D?) temp;
+				}
+			}
+			Vector3D velocity;
+			if(!Vector3D.TryParse(args[4], out velocity)){
+				return false;
+			}
+			MyRelationsBetweenPlayerAndBlock relationship=(MyRelationsBetweenPlayerAndBlock) Int32.Parse(args[5]);
+			Vector3D position;
+			if(!Vector3D.TryParse(args[6], out position)){
+				return false;
+			}
+			double size=0;
+			if(!double.TryParse(args[7], out size)){
+				size=0;
+			}
+			TimeSpan age;
+			if(!TimeSpan.TryParse(args[8], out age)){
+				return false;
+			}
+			Entity=new EntityInfo(id, name, type, hitposition, velocity, relationship, position, size);
+			Entity.Age=age;
+			return true;
+		}
+		catch(Exception){
+			return false;
+		}
+	}
+	
+	public override string ToString(){
+		string entity_info="";
+		entity_info+=ID.ToString()+'\n';
+		entity_info+=Name.ToString()+'\n';
+		entity_info+=((int)Type).ToString()+'\n';
+		if(HitPosition!=null){
+			entity_info+=((Vector3D) HitPosition).ToString()+'\n';
+		}
+		else {
+			entity_info+="null"+'\n';
+		}
+		entity_info+=Velocity.ToString()+'\n';
+		entity_info+=((int)Relationship).ToString()+'\n';
+		entity_info+=Position.ToString()+'\n';
+		entity_info+=Size.ToString()+'\n';
+		entity_info+=Age.ToString()+'\n';
+		return entity_info;
+	}
+	
+	public string NiceString(){
+		string entity_info="";
+		entity_info+="ID: "+ID.ToString()+'\n';
+		entity_info+="Name: "+Name.ToString()+'\n';
+		entity_info+="Type: "+Type.ToString()+'\n';
+		if(HitPosition!=null){
+			entity_info+="HitPosition: "+NeatVector((Vector3D) HitPosition)+'\n';
+		}
+		else {
+			entity_info+="HitPosition: "+"null"+'\n';
+		}
+		entity_info+="Velocity: "+NeatVector(Velocity)+'\n';
+		entity_info+="Relationship: "+Relationship.ToString()+'\n';
+		entity_info+="Position: "+NeatVector(Position)+'\n';
+		entity_info+="Size: "+((int)Size).ToString()+'\n';
+		entity_info+="Data Age: "+Age.ToString()+'\n';
+		return entity_info;
+	}
+	
+	public static string NeatVector(Vector3D vector){
+		return "X:"+Math.Round(vector.X,1).ToString()+" Y:"+Math.Round(vector.Y,1).ToString()+" Z:"+Math.Round(vector.Z,1).ToString();
+	}
+	
+	public void Update(double seconds){
+		TimeSpan time=new TimeSpan((int)(seconds/60/60/24), ((int)(seconds/60/60))%24, ((int)(seconds/60))%60, ((int)(seconds))%60, ((int)(seconds*1000))%1000);
+		Age.Add(time);
+		Position+=seconds*Velocity;
+		if(HitPosition!=null){
+			HitPosition=(Vector3D?) (((Vector3D)HitPosition)+seconds*Velocity);
+		}
+	}
+	
+	public double GetDistance(Vector3D Reference){
+		return (Position-Reference).Length();
+	}
+}
+
+public class EntityList : IEnumerable<EntityInfo>{
+	private List<EntityInfo> E_List;
+	public IEnumerator<EntityInfo> GetEnumerator(){
+		return E_List.GetEnumerator();
+	}
+	IEnumerator IEnumerable.GetEnumerator(){
+		return GetEnumerator();
+	}
+	
+	public int Count{
+		get{
+			return E_List.Count;
+		}
+	}
+	
+	public EntityInfo this[int key]{
+		get{
+			return E_List[key];
+		}
+		set{
+			E_List[key]=value;
+		}
+	}
+	
+	public EntityList(){
+		E_List=new List<EntityInfo>();
+	}
+	
+	public void UpdatePositions(double seconds){
+		foreach(EntityInfo entity in E_List){
+			entity.Update(seconds);
+		}
+	}
+	
+	public bool UpdateEntry(EntityInfo Entity){
+		for(int i=0; i<E_List.Count; i++){
+			if(E_List[i].ID==Entity.ID || Entity.GetDistance(E_List[i].Position)<=0.5f){
+				if(E_List[i].Age >= Entity.Age){
+					E_List[i]=Entity;
+					return true;
+				}
+				return false;
+			}
+		}
+		E_List.Add(Entity);
+		return true;
+	}
+	
+	public EntityInfo Get(long ID){
+		foreach(EntityInfo entity in E_List){
+			if(entity.ID==ID)
+				return entity;
+		}
+		return null;
+	}
+	
+	public double ClosestDistance(MyGridProgram P, MyRelationsBetweenPlayerAndBlock Relationship, double min_size=0){
+		double min_distance=double.MaxValue;
+		foreach(EntityInfo entity in E_List){
+			if(entity.Size >= min_size && entity.Relationship==Relationship){
+				min_distance=Math.Min(min_distance, (P.Me.GetPosition()-entity.Position).Length()-entity.Size);
+			}
+		}
+		return min_distance;
+	}
+	
+	public double ClosestDistance(MyGridProgram P, double min_size=0){
+		double min_distance=double.MaxValue;
+		foreach(EntityInfo entity in E_List){
+			if(entity.Size >= min_size){
+				min_distance=Math.Min(min_distance, (P.Me.GetPosition()-entity.Position).Length()-entity.Size);
+			}
+		}
+		return min_distance;
+	}
+	
+	public void Clear(){
+		E_List.Clear();
+	}
+	
+	public void Sort(Vector3D Reference){
+		List<EntityInfo> Sorted=new List<EntityInfo>();
+		List<EntityInfo> Unsorted=new List<EntityInfo>();
+		foreach(EntityInfo Entity in E_List){
+			double distance=Entity.GetDistance(Reference);
+			double last_distance=0;
+			if(Sorted.Count>0)
+				last_distance=Sorted[Sorted.Count-1].GetDistance(Reference);
+			if(distance>=last_distance)
+				Sorted.Add(Entity);
+			else
+				Unsorted.Add(Entity);
+		}
+		while(Unsorted.Count>0){
+			double distance=Unsorted[0].GetDistance(Reference);
+			if(distance>=Sorted[Sorted.Count-1].GetDistance(Reference)){
+				Sorted.Add(Unsorted[0]);
+				Unsorted.RemoveAt(0);
+				continue;
+			}
+			for(int i=0;i<Sorted.Count;i++){
+				if(distance<=Sorted[i].GetDistance(Reference)){
+					Sorted.Insert(i,Unsorted[0]);
+					Unsorted.RemoveAt(0);
+					break;
+				}
+			}
+		}
+		E_List=Sorted;
+	}
+}
+
 struct Angle{
 	private float _Degrees;
 	public float Degrees{
@@ -699,6 +990,13 @@ Vector3D Right_Vector{
 
 Arm MyArm;
 IMyShipController Controller;
+EntityList MyEntities;
+IMyTextPanel CommandPanel;
+IMyTextPanel EntityPanel;
+
+bool FreeLCDFunction(IMyTextPanel Panel){
+	return Panel.ContentType==ContentType.NONE&&Panel.GetPublicTitle().Equals("Public title");
+}
 
 public Program()
 {
@@ -724,24 +1022,75 @@ public Program()
 	List<IMyMotorStator> Motors=(new GenericMethods<IMyMotorStator>(this)).GetAllGrid("Arm",Me.CubeGrid,50);
 	if(Motors.Count==0)
 		Motors=(new GenericMethods<IMyMotorStator>(this)).GetAllGrid("",Me.CubeGrid,50);
-	if(Motors.Count==0)
+	if(Motors.Count==0){
+		Write("Failed to initialize Arm");
 		return;
+	}
 	MyArm=new Arm(Motors[0]);
 	Controller=(new GenericMethods<IMyShipController>(this)).GetContaining("",50);
-	if(Controller==null)
+	if(Controller==null){
+		Write("Failed to initialize Controller");
 		return;
+	}
+	MyEntities=new EntityList();
+	string[] args=this.Storage.Split('\n');
+	if(args.Length>0){
+		int temp=0;
+		if(Int32.TryParse(args[0],out temp))
+			Current_Command=(ArmCommand)temp;
+		if(args.Length>1){
+			if(Int32.TryParse(args[1],out temp))
+				Next_Command=(ArmCommand)temp;
+			if(args.Length>2){
+				Vector3D t2=new Vector3D(0,0,0);
+				if(Vector3D.TryParse(args[2],out t2))
+					Target_Position=t2;
+				if(args.Length>3)
+					if(Vector3D.TryParse(args[3],out t2))
+						Target_2=t2;
+			}
+		}
+	}
+	
+	List<IMyInteriorLight> Lights=new List<IMyInteriorLight>();
+	GridTerminalSystem.GetBlocksOfType<IMyInteriorLight>(Lights);
+	foreach(IMyInteriorLight Light in Lights){
+		if(HasBlockData(Light,"ExceptionState")&&GetBlockData(Light,"ExceptionState").Equals("active")){
+			SetBlockData(Light,"ExceptionState","inactive");
+			Light.Enabled=true;
+		}
+	}
+	
+	CommandPanel=(new GenericMethods<IMyTextPanel>(this)).GetContaining("Arm Command Display");
+	if(CommandPanel==null){
+		CommandPanel=(new GenericMethods<IMyTextPanel>(this)).GetClosestFunc(FreeLCDFunction,5,Controller);
+		if(CommandPanel!=null){
+			string name="Arm Command Display";
+			if(CommandPanel.CustomName.ToLower().Contains("transparent"))
+				name="Transparent "+name;
+			CommandPanel.CustomName=name;
+			CommandPanel.ContentType=ContentType.TEXT_AND_IMAGE;
+		}
+	}
+	EntityPanel=(new GenericMethods<IMyTextPanel>(this)).GetContaining("Arm Entity Display");
+	if(EntityPanel==null){
+		EntityPanel=(new GenericMethods<IMyTextPanel>(this)).GetClosestFunc(FreeLCDFunction,5,Controller);
+		if(EntityPanel!=null){
+			string name="Arm Entity Display";
+			if(EntityPanel.CustomName.ToLower().Contains("transparent"))
+				name="Transparent "+name;
+			EntityPanel.CustomName=name;
+			EntityPanel.ContentType=ContentType.TEXT_AND_IMAGE;
+		}
+	}
+	
 	
 	Runtime.UpdateFrequency=UpdateFrequency.Update1;
 }
 
 public void Save()
 {
-    // Called when the program needs to save its state. Use
-    // this method to save your state to the Storage field
-    // or some other means. 
-    // 
-    // This method is optional and can be removed if not
-    // needed.
+    this.Storage=((int)Current_Command).ToString()+'\n'+((int)Next_Command).ToString()+'\n'+Target_Position.ToString()+'\n'+Target_2.ToString();
 }
 
 //Gets the difference between the motor's current Angle and the closest it can get to its Target angle
@@ -909,6 +1258,7 @@ void SetLock(Hand hand, bool LockState){
 bool Ending_Command=false;
 double Command_Timer=0;
 bool Force_End=false;
+long Target_ID=-1;
 Vector3D Target_Position=new Vector3D(0,0,0);
 Vector3D Target_2=new Vector3D(0,0,0);
 bool EndCommand(){
@@ -1436,12 +1786,29 @@ void UpdateProgramInfo(){
 	base_vector=new Vector3D(-1,0,0);
 	Left_Vector=LocalToGlobal(base_vector,Controller);
 	Left_Vector.Normalize();
+	MyEntities.UpdatePositions(seconds_since_last_update);
+}
+
+void PerformScan(){
+	List<IMySensorBlock> Sensors=new List<IMySensorBlock>();
+	GridTerminalSystem.GetBlocksOfType<IMySensorBlock>(Sensors);
+	foreach(IMySensorBlock Sensor in Sensors){
+		List<MyDetectedEntityInfo> Detected=new List<MyDetectedEntityInfo>();
+		Sensor.DetectedEntities(Detected);
+		foreach(MyDetectedEntityInfo Entity in Detected){
+			EntityInfo entity=new EntityInfo(Entity);
+			MyEntities.UpdateEntry(entity);
+			IGC.SendBroadcastMessage("Entity Report",entity.ToString(),TransmissionDistance.TransmissionDistanceMax);
+		}
+	}
+	
 }
 
 public void Main(string argument, UpdateType updateSource)
 {
 	try{
 		UpdateProgramInfo();
+		PerformScan();
 		Write("Current:"+Current_Command.ToString());
 		Write("Next:"+Next_Command.ToString());
 		PerformCommand();
@@ -1456,6 +1823,19 @@ public void Main(string argument, UpdateType updateSource)
 			foreach(IMyMotorStator Motor in MyArm.AllMotors){
 				try{
 					Motor.TargetVelocityRPM=0;
+				}
+				catch(Exception){
+					continue;
+				}
+			}
+			List<IMyInteriorLight> Lights=new List<IMyInteriorLight>();
+			GridTerminalSystem.GetBlocksOfType<IMyInteriorLight>(Lights);
+			foreach(IMyInteriorLight Light in Lights){
+				try{
+					if(Light.Enabled){
+						SetBlockData(Light,"ExceptionState","active");
+						Light.Enabled=false;
+					}
 				}
 				catch(Exception){
 					continue;
