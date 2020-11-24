@@ -1826,7 +1826,11 @@ bool SetAngle(IMyMotorStator Motor,Angle Target,float Speed_Multx=1){
 	}
 	else
 		Motor.TargetVelocityRPM=0;
-	Motor.RotorLock=(difference<5);
+	float adjusted_difference=Adjusted_Difference(Motor,Target);
+	if(adjusted_difference<2.5)
+		Motor.RotorLock=true;
+	else if(adjusted_difference>5)
+		Motor.RotorLock=false;
 	return true;
 }
 
@@ -1986,9 +1990,22 @@ void PerformCommand(){
 			Spin();
 			break;
 	}
-	Write("Max_Offset:"+Math.Round(Max_Offset,1).ToString()+"°");
+	if(Max_Offset>1)
+		Write("Max Offset:"+Math.Round(Max_Offset,1).ToString()+"°");
 	if(GetTargetCount(Current_Command)>0)
 		Write("Distance: "+Math.Round(Hand_Distance,1).ToString()+"M");
+	for(int i=0;i<MyArm.Motors.Count;i++){
+		IMyMotorStator Motor=MyArm.Motors[i];
+		if(!Motor.RotorLock){
+			string short_name="S";
+			if(IsRotor(Motor))
+				short_name="R";
+			else if(IsHinge(Motor))
+				short_name="H";
+			short_name+=(i+1).ToString();
+			Write(short_name+":"+Angle.FromRadians(Motor.Angle).ToString(1)+":"+Math.Round(GetRPM(Motor),1).ToString()+" RPM");
+		}
+	}
 }
 
 /*
@@ -2575,7 +2592,7 @@ public void Main(string argument, UpdateType updateSource)
 			else if(Target_ID==-3){
 				Target_Position=MyArm.Motors[0].GetPosition()+20*Up_Vector;
 			}
-			else if(Target_ID==-3){
+			else if(Target_ID==-4){
 				Target_Position=MyArm.Motors[0].GetPosition()+20*Right_Vector;
 			}
 		}
