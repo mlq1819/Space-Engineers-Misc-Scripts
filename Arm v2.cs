@@ -1469,9 +1469,15 @@ public Program()
 				Vector3D t2=new Vector3D(0,0,0);
 				if(Vector3D.TryParse(args[2],out t2))
 					Target_Position=t2;
-				if(args.Length>3)
+				if(args.Length>3){
 					if(Vector3D.TryParse(args[3],out t2))
 						Target_2=t2;
+					if(args.Length>4){
+						bool t3=false;
+						if(bool.TryParse(args[4],out t3))
+							Fun_State=t3;
+					}
+				}
 			}
 		}
 	}
@@ -1548,7 +1554,7 @@ public Program()
 
 public void Save()
 {
-    this.Storage=((int)Current_Command).ToString()+'\n'+((int)Next_Command).ToString()+'\n'+Target_Position.ToString()+'\n'+Target_2.ToString();
+    this.Storage=((int)Current_Command).ToString()+'\n'+((int)Next_Command).ToString()+'\n'+Target_Position.ToString()+'\n'+Target_2.ToString()+'\n'+Fun_State.ToString();
 }
 
 EntityInfo Selected{
@@ -2613,6 +2619,7 @@ float Brightness(Color color){
 }
 
 double Fun_Timer=0;
+double Fun_Timer_Limit=1;
 bool Fun_State=false;
 void Fun(){
 	bool Last_State=Fun_State;
@@ -2624,11 +2631,12 @@ void Fun(){
 		if(!Last_State){
 			foreach(IMyTextSurfaceProvider Screen in Screens){
 				try{
-					Color background=DEFAULT_BACKGROUND_COLOR;
-					if(HasBlockData((IMyTerminalBlock)Screen,"DefaultBackgroundColor"))
-						background=ColorParse(GetBlockData((IMyTerminalBlock)Screen,"DefaultBackgroundColor"));
-					for(int i=0;i<Screen.SurfaceCount;i++){
-						Screen.GetSurface(i).BackgroundColor=background;
+					if(HasBlockData((IMyTerminalBlock)Screen,"DefaultBackgroundColor")){
+						Color background=ColorParse(GetBlockData((IMyTerminalBlock)Screen,"DefaultBackgroundColor"));
+						for(int i=0;i<Screen.SurfaceCount;i++){
+							Screen.GetSurface(i).BackgroundColor=background;
+							Screen.GetSurface(i).ScriptBackgroundColor=background;
+						}
 					}
 				}
 				catch(Exception){
@@ -2639,8 +2647,13 @@ void Fun(){
 		else{
 			foreach(IMyTextSurfaceProvider Screen in Screens){
 				try{
-					if(Screen.SurfaceCount>0)
-						SetBlockData((IMyTerminalBlock)Screen,"DefaultBackgroundColor",Screen.GetSurface(0).BackgroundColor.ToString());
+					if(Screen.SurfaceCount>0&&!HasBlockData((IMyTerminalBlock)Screen,"DefaultBackgroundColor")){
+						Color color=Screen.GetSurface(0).BackgroundColor;
+						if(Screen.GetSurface(0).ContentType==ContentType.SCRIPT)
+							color=Screen.GetSurface(0).ScriptBackgroundColor;
+						color.A=255;
+						SetBlockData((IMyTerminalBlock)Screen,"DefaultBackgroundColor",color.ToString());
+					}
 				}
 				catch(Exception){
 					continue;
@@ -2650,8 +2663,9 @@ void Fun(){
 	}
 	if(!Fun_State){
 		Fun_Timer+=seconds_since_last_update;
-		if(Fun_Timer>3){
+		if(Fun_Timer>Fun_Timer_Limit){
 			Fun_Timer=0;
+			Fun_Timer_Limit=0.5+(Rnd.Next(0,50)/100.0);
 			List<IMyTextSurfaceProvider> Screens=new List<IMyTextSurfaceProvider>();
 			GridTerminalSystem.GetBlocksOfType<IMyTextSurfaceProvider>(Screens);
 			foreach(IMyTextSurfaceProvider Screen in Screens){
@@ -2668,7 +2682,7 @@ void Fun(){
 						}
 						while(r+g+b==0);
 						color=new Color(r,g,b,255);
-						float Target=Brightness(DEFAULT_BACKGROUND_COLOR);
+						float Target=50;
 						float Actual=Brightness(color);
 						while(Math.Abs(Target-Actual)>5){
 							if(Target<Actual){
@@ -2682,10 +2696,11 @@ void Fun(){
 								b=Math.Min(255,(int)(b*1.2+1));
 							}
 							color=new Color(r,g,b,255);
-							Brightness(color);
+							Actual=Brightness(color);
 						}
 						for(int i=0;i<Screen.SurfaceCount;i++){
 							Screen.GetSurface(i).BackgroundColor=color;
+							Screen.GetSurface(i).ScriptBackgroundColor=color;
 						}
 					}
 				}
