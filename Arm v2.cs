@@ -1415,6 +1415,7 @@ EntityList MyEntities;
 IMyTextPanel CommandPanel;
 IMyTextPanel EntityPanel;
 IMyTextPanel ProgramPanel;
+Random Rnd;
 
 bool FreeLCDFunction(IMyTextPanel Panel){
 	return Panel.ContentType==ContentType.NONE&&(Panel.GetPublicTitle().Equals("Public title")||Panel.GetPublicTitle().Length==0);
@@ -1423,6 +1424,7 @@ bool FreeLCDFunction(IMyTextPanel Panel){
 public Program()
 {
 	Me.CustomName=(Program_Name+" Programmable block").Trim();
+	Rnd=new Random();
 	for(int i=0;i<Me.SurfaceCount;i++){
 		Me.GetSurface(i).FontColor=DEFAULT_TEXT_COLOR;
 		Me.GetSurface(i).BackgroundColor=DEFAULT_BACKGROUND_COLOR;
@@ -1719,6 +1721,28 @@ void Select(){
 	CommandMenu.Select();
 }
 
+void Destroy(){
+	List<IMyMotorStator> Motors=MyArm.AllMotors;
+	List<IMyInteriorLight> Lights=new List<IMyInteriorLight>();
+	GridTerminalSystem.GetBlocksOfType<IMyInteriorLight>(Lights);
+	foreach(IMyInteriorLight Light in Lights){
+		foreach(IMyMotorStator Motor in Motors){
+			if(Light.CubeGrid==Motor.TopGrid){
+				Light.Color=new Color(255,0,0,255);
+				Light.CustomData="SELF_DESTRUCT";
+				break;
+			}
+		}
+	}
+	for(int i=Motors.Count-1;i>=0;i--){
+		Motors[i].Torque=0;
+		Motors[i].BrakingTorque=0;
+		Motors[i].RotorLock=false;
+		Motors[i].CustomData="SELF_DESTRUCT";
+		Motors[i].Detach();
+	}
+}
+
 void Create_CommandMenu(){
 	CommandMenu=new Menu_Submenu("Arm Commands");
 	CommandMenu.Add(new Menu_Command<string>("Idle",Command_Menu_Function,"Ends current Command\nRequires 0 Targets",ArmCommand.Idle.ToString()));
@@ -1807,6 +1831,7 @@ bool SetAngle(IMyMotorStator Motor,Angle Target,float Speed_Multx=1){
 		if(!can_decrease)
 			Target=new Angle(Motor.LowerLimitDeg);
 	}
+	
 	float From_Bottom=Motor_Angle.Difference_From_Bottom(Target);
 	if(!can_decrease)
 		From_Bottom=float.MaxValue;
@@ -1823,6 +1848,7 @@ bool SetAngle(IMyMotorStator Motor,Angle Target,float Speed_Multx=1){
 			target_rpm=(float)(-1*From_Bottom*Speed_Multx*.5f);
 		else
 			target_rpm=(float)(From_Top*Speed_Multx*.5f);
+		target_rpm=(target_rpm*1.5f-RPM/2);
 		Motor.TargetVelocityRPM=target_rpm;
 	}
 	else
@@ -2390,8 +2416,6 @@ void Wave(){
 		bool ready=true;
 		Vector3D My_Target=Right_Vector;
 		foreach(IMyMotorStator Motor in MyArm.Motors){
-			if(Motor==MyArm.FirstHinge)
-				My_Target=Forward_Vector;
 			Vector3D Direction=My_Target;
 			float Speed_Multx=1;
 			if(Motor==MyArm.LastRotor){
@@ -2404,6 +2428,8 @@ void Wave(){
 			SetAngle(Motor,Target,Speed_Multx);
 			Max_Offset=Math.Max(Max_Offset,Math.Abs(Adjusted_Difference(Motor,Target)));
 			ready=ready&&Max_Offset<5&&GetRPM(Motor)<5;
+			if(Motor==MyArm.FirstHinge)
+				My_Target=Forward_Vector;
 		}
 		foreach(Arm Finger in MyArm.MyHand){
 			foreach(IMyMotorStator Motor in Finger.Motors){
@@ -2570,6 +2596,107 @@ void PerformScan(){
 		Write(MyEntities.Count.ToString()+" Entities on Record");
 }
 
+private Color ColorParse(string parse){
+	parse=parse.Substring(parse.IndexOf('{')+1);
+	parse=parse.Substring(0, parse.IndexOf('}')-1);
+	string[] args=parse.Split(' ');
+	int r, g, b, a;
+	r=Int32.Parse(args[0].Substring(args[0].IndexOf("R:")+2).Trim());
+	g=Int32.Parse(args[1].Substring(args[1].IndexOf("G:")+2).Trim());
+	b=Int32.Parse(args[2].Substring(args[2].IndexOf("B:")+2).Trim());
+	a=Int32.Parse(args[3].Substring(args[3].IndexOf("A:")+2).Trim());
+	return new Color(r,g,b,a);
+}
+
+float Brightness(Color color){
+	return 0.2126f*color.R+0.7152f*color.G + 0.0722f*color.B;
+}
+
+double Fun_Timer=0;
+bool Fun_State=false;
+void Fun(){
+	bool Last_State=Fun_State;
+	Fun_State=Controller.IsUnderControl;
+	Write("Fun:"+Fun_State.ToString()+":"+Math.Round(Fun_Timer,3).ToString()+"s");
+	if(Last_State!=Fun_State){
+		List<IMyTextSurfaceProvider> Screens=new List<IMyTextSurfaceProvider>();
+		GridTerminalSystem.GetBlocksOfType<IMyTextSurfaceProvider>(Screens);
+		if(!Last_State){
+			foreach(IMyTextSurfaceProvider Screen in Screens){
+				try{
+					Color background=DEFAULT_BACKGROUND_COLOR;
+					if(HasBlockData((IMyTerminalBlock)Screen,"DefaultBackgroundColor"))
+						background=ColorParse(GetBlockData((IMyTerminalBlock)Screen,"DefaultBackgroundColor"));
+					for(int i=0;i<Screen.SurfaceCount;i++){
+						Screen.GetSurface(i).BackgroundColor=background;
+					}
+				}
+				catch(Exception){
+					continue;
+				}
+			}
+		}
+		else{
+			foreach(IMyTextSurfaceProvider Screen in Screens){
+				try{
+					if(Screen.SurfaceCount>0)
+						SetBlockData((IMyTerminalBlock)Screen,"DefaultBackgroundColor",Screen.GetSurface(0).BackgroundColor.ToString());
+				}
+				catch(Exception){
+					continue;
+				}
+			}
+		}
+	}
+	if(!Fun_State){
+		Fun_Timer+=seconds_since_last_update;
+		if(Fun_Timer>3){
+			Fun_Timer=0;
+			List<IMyTextSurfaceProvider> Screens=new List<IMyTextSurfaceProvider>();
+			GridTerminalSystem.GetBlocksOfType<IMyTextSurfaceProvider>(Screens);
+			foreach(IMyTextSurfaceProvider Screen in Screens){
+				try{
+					if(HasBlockData((IMyTerminalBlock)Screen,"DefaultBackgroundColor")){
+						Color color;
+						int r;
+						int g;
+						int b;
+						do{
+							r=Rnd.Next(0,256);
+							g=Rnd.Next(0,256);
+							b=Rnd.Next(0,256);
+						}
+						while(r+g+b==0);
+						color=new Color(r,g,b,255);
+						float Target=Brightness(DEFAULT_BACKGROUND_COLOR);
+						float Actual=Brightness(color);
+						while(Math.Abs(Target-Actual)>5){
+							if(Target<Actual){
+								r=Math.Max(0,(int)(r/1.2-1));
+								g=Math.Max(0,(int)(g/1.2-1));
+								b=Math.Max(0,(int)(b/1.2-1));
+							}
+							else{
+								r=Math.Min(255,(int)(r*1.2+1));
+								g=Math.Min(255,(int)(g*1.2+1));
+								b=Math.Min(255,(int)(b*1.2+1));
+							}
+							color=new Color(r,g,b,255);
+							Brightness(color);
+						}
+						for(int i=0;i<Screen.SurfaceCount;i++){
+							Screen.GetSurface(i).BackgroundColor=color;
+						}
+					}
+				}
+				catch(Exception){
+					continue;
+				}
+			}
+		}
+	}
+}
+
 public void Main(string argument, UpdateType updateSource)
 {
 	try{
@@ -2584,8 +2711,11 @@ public void Main(string argument, UpdateType updateSource)
 				Next();
 			else if(argument.ToLower().Equals("select"))
 				Select();
+			else if(argument.ToLower().Equals("destroy"))
+				Destroy();
 		}
 		DisplayMenus();
+		Fun();
 		if(Target_ID<-1){
 			if(Target_ID==-2){
 				Target_Position=MyArm.Motors[0].GetPosition()+20*Forward_Vector;
