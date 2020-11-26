@@ -422,6 +422,7 @@ public Program()
 	Gyroscope=(new GenericMethods<IMyGyro>(this)).GetContaining("Control Gyroscope");
 	if(Controller==null||Gyroscope==null)
 		return;
+	bool.TryParse(this.Storage,out Auto_Adjust);
 	Controller.GetSurface(0).FontColor=DEFAULT_TEXT_COLOR;
 	Controller.GetSurface(0).BackgroundColor=DEFAULT_BACKGROUND_COLOR;
 	Controller.GetSurface(0).Alignment=TextAlignment.CENTER;
@@ -436,6 +437,7 @@ public Program()
 public void Save()
 {
 	Gyroscope.GyroOverride=false;
+	this.Storage=Auto_Adjust.ToString();
 }
 
 //Sets gyroscope outputs from player input, dampeners, gravity, and autopilot
@@ -688,13 +690,21 @@ void UpdateProgramInfo(){
 	Left_Vector=LocalToGlobal(base_vector,Controller);
 	Left_Vector.Normalize();
 }
+
 bool Holding_Down=false;
+bool Auto_Adjust=true;
 
 public void Main(string argument, UpdateType updateSource)
 {
 	UpdateProgramInfo();
 	Write("Elevation: "+Math.Round(Elevation,1).ToString()+"M");
-	if(Elevation>2.5&&GetAngle(Gravity_Direction,Down_Vector)>30)
+	if((!Holding_Down)&&Controller.MoveIndicator.Y<0)
+		Auto_Adjust=!Auto_Adjust;
+	if(Auto_Adjust)
+		Write("Auto-Adjust:On");
+	else
+		Write("Auto-Adjust:Off");
+	if(Auto_Adjust&&Elevation>2.5&&GetAngle(Gravity_Direction,Down_Vector)>30)
 		SetGyroscopes();
 	else
 		Gyroscope.GyroOverride=false;
@@ -703,20 +713,7 @@ public void Main(string argument, UpdateType updateSource)
 	Write(Headlights.Count.ToString()+" Headlights");
 	Write(Brakelights.Count.ToString()+" Brake Lights");
 	
-	if(Wheels.Count>0){
-		float Speed_Limit=Wheels[0].GetValue<float>("Speed Limit");
-		if((!Holding_Down)&&Controller.MoveIndicator.Y<0){
-			bool set_up=(Speed_Limit<360);
-			if(set_up)
-				Speed_Limit=360;
-			else
-				Speed_Limit=72;
-			foreach(IMyMotorSuspension Wheel in Wheels)
-				Wheels[0].SetValue<float>("Speed Limit",Speed_Limit);
-		}
-		Write("Speed Limit\n"+Math.Round(Speed_Limit,0)+"kM/h; "+Math.Round(Speed_Limit/3.6f,1)+"M/s");
-		Holding_Down=(Controller.MoveIndicator.Y<0);
-	}
+	
 	
 	foreach(IMyLightingBlock Light in Brakelights)
 		Light.Enabled=Controller.HandBrake||Controller.MoveIndicator.Y>0;
