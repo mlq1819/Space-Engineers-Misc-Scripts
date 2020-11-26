@@ -456,7 +456,7 @@ private void SetGyroscopes(){
 			gyro_count+=Gyro.GyroPower/100.0f;
 	}
 	float gyro_multx=(float)Math.Max(0.1f, Math.Min(1, 1.5f/(Controller.CalculateShipMass().PhysicalMass/gyro_count/1000000)));
-	float correction_multx=5;
+	float correction_multx=(float)Math.Min(10,Math.Max(1,(20-Elevation)/2));
 	
 	
 	float input_pitch=0;
@@ -694,7 +694,7 @@ public void Main(string argument, UpdateType updateSource)
 {
 	UpdateProgramInfo();
 	Write("Elevation: "+Math.Round(Elevation,1).ToString()+"M");
-	if(Elevation>10)
+	if(Elevation>2.5&&GetAngle(Gravity_Direction,Down_Vector)>30)
 		SetGyroscopes();
 	else
 		Gyroscope.GyroOverride=false;
