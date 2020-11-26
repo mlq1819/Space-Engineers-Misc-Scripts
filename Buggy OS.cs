@@ -370,6 +370,13 @@ Vector3D Right_Vector{
 	}
 }
 
+double Elevation{
+	get{
+		double output=double.MaxValue;
+		Controller.TryGetPlanetElevation(MyPlanetElevation.Surface,out output);
+		return output;
+	}
+}
 Vector3D Gravity{
 	get{
 		return Controller.GetTotalGravity();
@@ -681,20 +688,20 @@ void UpdateProgramInfo(){
 	Left_Vector=LocalToGlobal(base_vector,Controller);
 	Left_Vector.Normalize();
 }
-
 bool Holding_Down=false;
+
 public void Main(string argument, UpdateType updateSource)
 {
 	UpdateProgramInfo();
-    SetGyroscopes();
+	Write("Elevation: "+Math.Round(Elevation,1).ToString()+"M");
+	if(Elevation>10)
+		SetGyroscopes();
+	else
+		Gyroscope.GyroOverride=false;
 	Fun();
 	SetLimit();
 	Write(Headlights.Count.ToString()+" Headlights");
 	Write(Brakelights.Count.ToString()+" Brake Lights");
-	if(Wheels.Count>0){
-		float Speed_Limit=Wheels[0].GetValue<float>("Speed Limit");
-		Write(Speed_Limit.ToString());
-	}
 	
 	if(Wheels.Count>0){
 		float Speed_Limit=Wheels[0].GetValue<float>("Speed Limit");
