@@ -350,6 +350,7 @@ IMyGyro Gyroscope;
 List<IMyLightingBlock> Brakelights;
 List<IMyLightingBlock> Headlights;
 List<IMyMotorSuspension> Wheels;
+List<IMyParachute> Parachutes;
 
 Vector3D Forward_Vector;
 Vector3D Backward_Vector{
@@ -431,6 +432,7 @@ public Program()
 	Headlights=(new GenericMethods<IMyLightingBlock>(this)).GetAllContaining("Headlight");
 	Brakelights=(new GenericMethods<IMyLightingBlock>(this)).GetAllContaining("Brake Light");
 	Wheels=(new GenericMethods<IMyMotorSuspension>(this)).GetAllContaining("Wheel");
+	Parachutes=(new GenericMethods<IMyParachute>(this)).GetAllContaining("Parachute");
 	Runtime.UpdateFrequency=UpdateFrequency.Update1;
 }
 
@@ -475,7 +477,7 @@ private void SetGyroscopes(){
 	input_pitch=Math.Min(Math.Max(Controller.RotationIndicator.X / 100, -1), 1);
 	if(Math.Abs(input_pitch)<0.05f){
 		input_pitch=current_pitch*0.99f;
-		if(Pitch_Time>0.5){
+		if(Pitch_Time>0.5&&Elevation>10){
 			double difference=Math.Abs(GetAngle(Gravity,Forward_Vector));
 			Write("Pitch: "+Math.Round(difference-90,1).ToString()+"°");
 			float Pitch_Multx=1;
@@ -693,6 +695,7 @@ void UpdateProgramInfo(){
 
 bool Holding_Down=false;
 bool Auto_Adjust=true;
+bool Slowing=false;
 
 public void Main(string argument, UpdateType updateSource)
 {
@@ -704,10 +707,24 @@ public void Main(string argument, UpdateType updateSource)
 		Write("Auto-Adjust:On");
 	else
 		Write("Auto-Adjust:Off");
-	if(Auto_Adjust&&Elevation>2.5&&GetAngle(Gravity_Direction,Down_Vector)>30)
+	if((Auto_Adjust&&(Elevation>2.5&&GetAngle(Gravity_Direction,Down_Vector)>30)||GetAngle(Gravity_Direction,Down_Vector)>90))
 		SetGyroscopes();
 	else
 		Gyroscope.GyroOverride=false;
+	if(Current_AngularVelocity.Length()>5&&!Controller.HandBrake)
+		Slowing=true;
+	if(Slowing){
+		if(Current_AngularVelocity.Length()>5)
+			Controller.HandBrake=true;
+		else{
+			Slowing=false;
+			Controller.HandBrake=false;
+		}
+	}
+	if(Elevation>5&&Elevation*Current_LinearVelocity.Length()>1000){
+		foreach(IMyParachute Parachute in Parachutes)
+			Parachute.OpenDoor();
+	}
 	Fun();
 	SetLimit();
 	Write(Headlights.Count.ToString()+" Headlights");
