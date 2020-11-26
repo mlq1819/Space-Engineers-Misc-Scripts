@@ -1,4 +1,4 @@
-const string Program_Name = "Auto-Align"; //Name me!
+const string Program_Name = "Buggy OS"; //Name me!
 private Color DEFAULT_TEXT_COLOR=new Color(197,137,255,255);
 private Color DEFAULT_BACKGROUND_COLOR=new Color(44,0,88,255);
 
@@ -330,6 +330,12 @@ void Write(string text, bool new_line=true, bool append=true){
 		Me.GetSurface(0).WriteText(text+'\n', append);
 	else
 		Me.GetSurface(0).WriteText(text, append);
+	if(Controller!=null){
+		if(new_line)
+			Controller.GetSurface(0).WriteText(text+'\n', append);
+		else
+			Controller.GetSurface(0).WriteText(text, append);
+	}
 }
 
 long cycle_long = 1;
@@ -339,8 +345,11 @@ double seconds_since_last_update = 0;
 
 Random Rnd;
 
-IMyShipController Controller;
+IMyCockpit Controller;
 IMyGyro Gyroscope;
+List<IMyLightingBlock> Brakelights;
+List<IMyLightingBlock> Headlights;
+List<IMyMotorSuspension> Wheels;
 
 Vector3D Forward_Vector;
 Vector3D Backward_Vector{
@@ -373,6 +382,11 @@ Vector3D Gravity_Direction{
 		return Direction;
 	}
 }
+Vector3D Current_LinearVelocity{
+	get{
+		return Controller.GetShipVelocities().LinearVelocity;
+	}
+}
 Vector3D Current_AngularVelocity{
 	get{
 		return Controller.GetShipVelocities().AngularVelocity;
@@ -397,10 +411,18 @@ public Program()
 	Me.GetSurface(1).FontSize=2.2f;
 	Me.GetSurface(1).TextPadding=40.0f;
 	Echo("Beginning initialization");
-	Controller=(new GenericMethods<IMyShipController>(this)).GetContaining("");
+	Controller=(new GenericMethods<IMyCockpit>(this)).GetContaining("");
 	Gyroscope=(new GenericMethods<IMyGyro>(this)).GetContaining("Control Gyroscope");
 	if(Controller==null||Gyroscope==null)
 		return;
+	Controller.GetSurface(0).FontColor=DEFAULT_TEXT_COLOR;
+	Controller.GetSurface(0).BackgroundColor=DEFAULT_BACKGROUND_COLOR;
+	Controller.GetSurface(0).Alignment=TextAlignment.CENTER;
+	Controller.GetSurface(0).ContentType=ContentType.TEXT_AND_IMAGE;
+	Controller.GetSurface(0).WriteText("Hello World",false);
+	Headlights=(new GenericMethods<IMyLightingBlock>(this)).GetAllContaining("Headlight");
+	Brakelights=(new GenericMethods<IMyLightingBlock>(this)).GetAllContaining("Brake Light");
+	Wheels=(new GenericMethods<IMyMotorSuspension>(this)).GetAllContaining("Wheel");
 	Runtime.UpdateFrequency=UpdateFrequency.Update1;
 }
 
@@ -448,11 +470,11 @@ private void SetGyroscopes(){
 			double difference=Math.Abs(GetAngle(Gravity,Forward_Vector));
 			Write("Pitch: "+Math.Round(difference-90,1).ToString()+"°");
 			float Pitch_Multx=1;
-			if(Math.Abs(difference-90)>5)
+			if(Math.Abs(difference-90)>20)
 				Pitch_Multx=correction_multx;
-			if(difference<89)
+			if(difference<85)
 				input_pitch-=10*Pitch_Multx*gyro_multx*((float)Math.Min(Math.Abs((90-difference)/90), 1));
-			else if(difference>91)
+			else if(difference>95)
 				input_pitch+=10*Pitch_Multx*gyro_multx*((float)Math.Min(Math.Abs((difference-90)/90), 1));
 		}
 	}
@@ -475,9 +497,9 @@ private void SetGyroscopes(){
 			double difference=GetAngle(Left_Vector, Gravity)-GetAngle(Right_Vector, Gravity);
 			Write("Roll: "+Math.Round(difference,1).ToString()+"°");
 			float Roll_Multx=1;
-			if(Math.Abs(difference)>5)
+			if(Math.Abs(difference)>20)
 				Roll_Multx=correction_multx;
-			if(Math.Abs(difference)>1){
+			if(Math.Abs(difference)>5){
 				input_roll-=(float)Math.Min(Math.Max(difference/5,-1),1)*gyro_multx*Roll_Multx;
 			}
 		}
@@ -520,7 +542,7 @@ bool Fun_State=false;
 void Fun(){
 	bool Last_State=Fun_State;
 	Fun_State=Controller.IsUnderControl;
-	Write("Fun:"+Fun_State.ToString()+":"+Math.Round(Fun_Timer,3).ToString()+"s");
+	//Write("Fun:"+Fun_State.ToString()+":"+Math.Round(Fun_Timer,3).ToString()+"s");
 	if(Last_State!=Fun_State){
 		List<IMyTextSurfaceProvider> Screens=new List<IMyTextSurfaceProvider>();
 		GridTerminalSystem.GetBlocksOfType<IMyTextSurfaceProvider>(Screens);
@@ -608,6 +630,15 @@ void Fun(){
 	}
 }
 
+void SetLimit(){
+	float Angle=15;
+	float Speed=(float)Current_LinearVelocity.Length();
+	Angle=Math.Min(15,Math.Max(2.5f,37.5f-Speed));
+	Angle=(float)(Angle/180*Math.PI);
+	foreach(IMyMotorSuspension Wheel in Wheels)
+		Wheel.MaxSteerAngle=Angle;
+	Write("Steering Angle: "+Math.Round(Angle,1).ToString()+"°");
+}
 
 void UpdateProgramInfo(){
 	cycle_long += ((++cycle)/long.MaxValue)%long.MaxValue;
@@ -651,9 +682,40 @@ void UpdateProgramInfo(){
 	Left_Vector.Normalize();
 }
 
+bool Holding_Down=false;
 public void Main(string argument, UpdateType updateSource)
 {
 	UpdateProgramInfo();
     SetGyroscopes();
 	Fun();
+	SetLimit();
+	Write(Headlights.Count.ToString()+" Headlights");
+	Write(Brakelights.Count.ToString()+" Brake Lights");
+	if(Wheels.Count>0){
+		float Speed_Limit=Wheels[0].GetValue<float>("Speed Limit");
+		Write(Speed_Limit.ToString());
+	}
+	
+	if(Wheels.Count>0){
+		float Speed_Limit=Wheels[0].GetValue<float>("Speed Limit");
+		if((!Holding_Down)&&Controller.MoveIndicator.Y<0){
+			bool set_up=(Speed_Limit<360);
+			if(set_up)
+				Speed_Limit=360;
+			else
+				Speed_Limit=72;
+			foreach(IMyMotorSuspension Wheel in Wheels)
+				Wheels[0].SetValue<float>("Speed Limit",Speed_Limit);
+		}
+		Write("Speed Limit\n"+Math.Round(Speed_Limit,0)+"kM/h; "+Math.Round(Speed_Limit/3.6f,1)+"M/s");
+		Holding_Down=(Controller.MoveIndicator.Y<0);
+	}
+	
+	foreach(IMyLightingBlock Light in Brakelights)
+		Light.Enabled=Controller.HandBrake||Controller.MoveIndicator.Y>0;
+	if(!Controller.IsUnderControl){
+		Controller.HandBrake=true;
+		foreach(IMyLightingBlock Light in Headlights)
+			Light.Enabled=false;
+	}
 }
