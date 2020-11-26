@@ -337,6 +337,8 @@ long cycle = 0;
 char loading_char = '|';
 double seconds_since_last_update = 0;
 
+Random Rnd;
+
 IMyShipController Controller;
 IMyGyro Gyroscope;
 
@@ -385,6 +387,7 @@ Vector3D Relative_AngularVelocity{
 public Program()
 {
 	Me.CustomName=(Program_Name+" Programmable block").Trim();
+	Rnd=new Random();
 	for(int i=0;i<Me.SurfaceCount;i++){
 		Me.GetSurface(i).FontColor=DEFAULT_TEXT_COLOR;
 		Me.GetSurface(i).BackgroundColor=DEFAULT_BACKGROUND_COLOR;
@@ -495,6 +498,117 @@ private void SetGyroscopes(){
 	Gyroscope.Roll=(float)output.Z;
 }
 
+private Color ColorParse(string parse){
+	parse=parse.Substring(parse.IndexOf('{')+1);
+	parse=parse.Substring(0, parse.IndexOf('}')-1);
+	string[] args=parse.Split(' ');
+	int r, g, b, a;
+	r=Int32.Parse(args[0].Substring(args[0].IndexOf("R:")+2).Trim());
+	g=Int32.Parse(args[1].Substring(args[1].IndexOf("G:")+2).Trim());
+	b=Int32.Parse(args[2].Substring(args[2].IndexOf("B:")+2).Trim());
+	a=Int32.Parse(args[3].Substring(args[3].IndexOf("A:")+2).Trim());
+	return new Color(r,g,b,a);
+}
+
+float Brightness(Color color){
+	return 0.2126f*color.R+0.7152f*color.G + 0.0722f*color.B;
+}
+
+double Fun_Timer=0;
+double Fun_Timer_Limit=1;
+bool Fun_State=false;
+void Fun(){
+	bool Last_State=Fun_State;
+	Fun_State=Controller.IsUnderControl;
+	Write("Fun:"+Fun_State.ToString()+":"+Math.Round(Fun_Timer,3).ToString()+"s");
+	if(Last_State!=Fun_State){
+		List<IMyTextSurfaceProvider> Screens=new List<IMyTextSurfaceProvider>();
+		GridTerminalSystem.GetBlocksOfType<IMyTextSurfaceProvider>(Screens);
+		if(!Last_State){
+			foreach(IMyTextSurfaceProvider Screen in Screens){
+				try{
+					if(HasBlockData((IMyTerminalBlock)Screen,"DefaultBackgroundColor")){
+						Color background=ColorParse(GetBlockData((IMyTerminalBlock)Screen,"DefaultBackgroundColor"));
+						for(int i=0;i<Screen.SurfaceCount;i++){
+							Screen.GetSurface(i).BackgroundColor=background;
+							Screen.GetSurface(i).ScriptBackgroundColor=background;
+						}
+					}
+				}
+				catch(Exception){
+					continue;
+				}
+			}
+		}
+		else{
+			foreach(IMyTextSurfaceProvider Screen in Screens){
+				try{
+					if(Screen.SurfaceCount>0&&!HasBlockData((IMyTerminalBlock)Screen,"DefaultBackgroundColor")){
+						Color color=Screen.GetSurface(0).BackgroundColor;
+						if(Screen.GetSurface(0).ContentType==ContentType.SCRIPT)
+							color=Screen.GetSurface(0).ScriptBackgroundColor;
+						color.A=255;
+						SetBlockData((IMyTerminalBlock)Screen,"DefaultBackgroundColor",color.ToString());
+					}
+				}
+				catch(Exception){
+					continue;
+				}
+			}
+		}
+	}
+	if(!Fun_State){
+		Fun_Timer+=seconds_since_last_update;
+		if(Fun_Timer>Fun_Timer_Limit){
+			Fun_Timer=0;
+			Fun_Timer_Limit=0.5+(Rnd.Next(0,50)/100.0);
+			List<IMyTextSurfaceProvider> Screens=new List<IMyTextSurfaceProvider>();
+			GridTerminalSystem.GetBlocksOfType<IMyTextSurfaceProvider>(Screens);
+			foreach(IMyTextSurfaceProvider Screen in Screens){
+				try{
+					if(HasBlockData((IMyTerminalBlock)Screen,"DefaultBackgroundColor")){
+						for(int i=0;i<Screen.SurfaceCount;i++){
+							Color color;
+							int r;
+							int g;
+							int b;
+							do{
+								r=Rnd.Next(0,256);
+								g=Rnd.Next(0,256);
+								b=Rnd.Next(0,256);
+							}
+							while(r+g+b==0);
+							color=new Color(r,g,b,255);
+							float Target=50;
+							float Actual=Brightness(color);
+							while(Math.Abs(Target-Actual)>5){
+								if(Target<Actual){
+									r=Math.Max(0,(int)(r/1.2-1));
+									g=Math.Max(0,(int)(g/1.2-1));
+									b=Math.Max(0,(int)(b/1.2-1));
+								}
+								else{
+									r=Math.Min(255,(int)(r*1.2+1));
+									g=Math.Min(255,(int)(g*1.2+1));
+									b=Math.Min(255,(int)(b*1.2+1));
+								}
+								color=new Color(r,g,b,255);
+								Actual=Brightness(color);
+							}
+							Screen.GetSurface(i).BackgroundColor=color;
+							Screen.GetSurface(i).ScriptBackgroundColor=color;
+						}
+					}
+				}
+				catch(Exception){
+					continue;
+				}
+			}
+		}
+	}
+}
+
+
 void UpdateProgramInfo(){
 	cycle_long += ((++cycle)/long.MaxValue)%long.MaxValue;
 	cycle = cycle % long.MaxValue;
@@ -541,4 +655,5 @@ public void Main(string argument, UpdateType updateSource)
 {
 	UpdateProgramInfo();
     SetGyroscopes();
+	Fun();
 }
