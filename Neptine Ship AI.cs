@@ -2615,29 +2615,44 @@ public bool PerformScan(object obj=null){
 		}
 	}
 	
-	foreach(EntityInfo Entity in SmallShipList){
+	for(int i=0;i<SmallShipList.Count;i++){
+		bool Removed=false;
+		EntityInfo Entity=SmallShipList[i];
 		foreach(IMySensorBlock Sensor in AllSensors){
 			if(CanDetect(Sensor,Entity)&&!IsDetecting(Sensor,Entity)){
 				SmallShipList.RemoveEntry(Entity);
+				Removed=true;
 				break;
 			}
 		}
+		if(Removed)
+			i--;
 	}
-	foreach(EntityInfo Entity in LargeShipList){
+	for(int i=0;i<LargeShipList.Count;i++){
+		bool Removed=false;
+		EntityInfo Entity=LargeShipList[i];
 		foreach(IMySensorBlock Sensor in AllSensors){
 			if(CanDetect(Sensor,Entity)&&!IsDetecting(Sensor,Entity)){
 				LargeShipList.RemoveEntry(Entity);
+				Removed=true;
 				break;
 			}
 		}
+		if(Removed)
+			i--;
 	}
-	foreach(EntityInfo Entity in CharacterList){
+	for(int i=0;i<CharacterList.Count;i++){
+		bool Removed=false;
+		EntityInfo Entity=CharacterList[i];
 		foreach(IMySensorBlock Sensor in AllSensors){
 			if(CanDetect(Sensor,Entity)&&!IsDetecting(Sensor,Entity)){
 				CharacterList.RemoveEntry(Entity);
+				Removed=true;
 				break;
 			}
 		}
+		if(Removed)
+			i--;
 	}
 	
 	PerformAlarm();
