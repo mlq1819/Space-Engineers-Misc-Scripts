@@ -419,7 +419,7 @@ public Program()
 	Me.GetSurface(1).FontSize=2.2f;
 	Me.GetSurface(1).TextPadding=40.0f;
 	Echo("Beginning initialization");
-	Controller=(new GenericMethods<IMyCockpit>(this)).GetContaining("");
+	Controller=(new GenericMethods<IMyCockpit>(this)).GetContaining("Buggy Cockpit");
 	Gyroscope=(new GenericMethods<IMyGyro>(this)).GetContaining("Control Gyroscope");
 	if(Controller==null||Gyroscope==null)
 		return;
