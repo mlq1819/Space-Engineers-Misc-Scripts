@@ -464,7 +464,7 @@ public class EntityList : IEnumerable<EntityInfo>{
 	
 	public bool UpdateEntry(EntityInfo Entity){
 		for(int i=0; i<E_List.Count; i++){
-			if(E_List[i].ID==Entity.ID || Entity.GetDistance(E_List[i].Position)<=0.5f){
+			if(E_List[i].ID==Entity.ID || (Entity.GetDistance(E_List[i].Position)<=0.5f&&Entity.Type==E_List[i].Type)){
 				if(E_List[i].Age >= Entity.Age){
 					E_List[i]=Entity;
 					return true;
@@ -474,6 +474,16 @@ public class EntityList : IEnumerable<EntityInfo>{
 		}
 		E_List.Add(Entity);
 		return true;
+	}
+	
+	public bool RemoveEntry(EntityInfo Entity){
+		for(int i=0; i<E_List.Count; i++){
+			if(E_List[i].ID==Entity.ID || (Entity.GetDistance(E_List[i].Position)<=0.5f&&Entity.Type==E_List[i].Type)){
+				E_List.RemoveAt(i);
+				return true;
+			}
+		}
+		return false;
 	}
 	
 	public EntityInfo Get(long ID){
@@ -2371,6 +2381,62 @@ private double Scan_Frequency{
 		return output;
 	}
 }
+
+bool CanDetect(IMySensorBlock Sensor,MyRelationsBetweenPlayerAndBlock Relationship){
+	switch(Relationship){
+		case MyRelationsBetweenPlayerAndBlock.Owner:
+			return Sensor.DetectOwner;
+		case MyRelationsBetweenPlayerAndBlock.Friends:
+			return Sensor.DetectFriendly;
+		case MyRelationsBetweenPlayerAndBlock.Enemies:
+			return Sensor.DetectEnemy;
+	}
+	return Sensor.DetectNeutral;
+}
+
+bool CanDetect(IMySensorBlock Sensor,MyDetectedEntityType Type){
+	switch(Type){
+		case MyDetectedEntityType.SmallGrid:
+			return Sensor.DetectSmallShips;
+		case MyDetectedEntityType.LargeGrid:
+			return Sensor.DetectLargeShips&&Sensor.DetectStations;
+		case MyDetectedEntityType.CharacterHuman:
+			return Sensor.DetectPlayers;
+		case MyDetectedEntityType.CharacterOther:
+			return Sensor.DetectPlayers;
+		case MyDetectedEntityType.Asteroid:
+			return Sensor.DetectAsteroids;
+		case MyDetectedEntityType.Planet:
+			return Sensor.DetectAsteroids;
+	}
+	return false;
+}
+
+bool CanDetect(IMySensorBlock Sensor,EntityInfo Entity){
+	return Sensor.IsWorking&&CanDetect(Sensor,Entity.Type)&&CanDetect(Sensor,Entity.Relationship);
+}
+
+bool IsDetecting(IMySensorBlock Sensor,EntityInfo Entity){
+	List<MyDetectedEntityInfo> Entities=new List<MyDetectedEntityInfo>();
+	Sensor.DetectedEntities(Entities);
+	foreach(MyDetectedEntityInfo entity in Entities){
+		if(entity.EntityId==Entity.ID || (Entity.GetDistance(entity.Position)<=0.5f&&Entity.Type==entity.Type))
+			return true;
+	}
+	return false;
+}
+
+float SensorRange(IMySensorBlock Sensor){
+	float range=50;
+	range=Math.Min(range,Sensor.LeftExtend);
+	range=Math.Min(range,Sensor.RightExtend);
+	range=Math.Min(range,Sensor.TopExtend);
+	range=Math.Min(range,Sensor.BottomExtend);
+	range=Math.Min(range,Sensor.FrontExtend);
+	range=Math.Min(range,Sensor.BackExtend);
+	return range;
+}
+
 private double Scan_Time=10;
 private string ScanString="";
 private string AirlockString="";
@@ -2546,6 +2612,31 @@ public bool PerformScan(object obj=null){
 			case MyDetectedEntityType.CharacterOther:
 				CharacterList.UpdateEntry(Entity);
 				break;
+		}
+	}
+	
+	foreach(EntityInfo Entity in SmallShipList){
+		foreach(IMySensorBlock Sensor in AllSensors){
+			if(CanDetect(Sensor,Entity)&&!IsDetecting(Sensor,Entity)){
+				SmallShipList.RemoveEntry(Entity);
+				break;
+			}
+		}
+	}
+	foreach(EntityInfo Entity in LargeShipList){
+		foreach(IMySensorBlock Sensor in AllSensors){
+			if(CanDetect(Sensor,Entity)&&!IsDetecting(Sensor,Entity)){
+				LargeShipList.RemoveEntry(Entity);
+				break;
+			}
+		}
+	}
+	foreach(EntityInfo Entity in CharacterList){
+		foreach(IMySensorBlock Sensor in AllSensors){
+			if(CanDetect(Sensor,Entity)&&!IsDetecting(Sensor,Entity)){
+				CharacterList.RemoveEntry(Entity);
+				break;
+			}
 		}
 	}
 	
