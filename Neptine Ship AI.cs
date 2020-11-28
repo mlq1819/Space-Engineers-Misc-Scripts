@@ -1728,6 +1728,11 @@ private AlertStatus ShipStatus{
 				Submessage += "\nAutoland Enabled";
 			}
 		}
+		if(_Lockdown){
+			AlertStatus new_status=AlertStatus.Yellow;
+			status=(AlertStatus) Math.Max((int)status, (int)new_status);
+			Submessage += "\nCurrently in Lockdown";
+		}
 		
 		double ActualEnemyShipDistance=Math.Min(SmallShipList.ClosestDistance(this, MyRelationsBetweenPlayerAndBlock.Enemies), LargeShipList.ClosestDistance(this, MyRelationsBetweenPlayerAndBlock.Enemies));
 		double EnemyShipDistance=Math.Min(SmallShipList.ClosestDistance(this, MyRelationsBetweenPlayerAndBlock.Enemies), LargeShipList.ClosestDistance(this, MyRelationsBetweenPlayerAndBlock.Enemies)/2);
@@ -3189,6 +3194,12 @@ public void Main(string argument, UpdateType updateSource)
 		else if(argument.ToLower().Equals("select")){
 			Command_Menu.Select();
 			DisplayMenu();
+		}
+		else if(argument.ToLower().Equals("lockdown")){
+			Lockdown();
+		}
+		else if(argument.ToLower().Equals("autoland")){
+			Autoland();
 		}
 		else if(argument.ToLower().Equals("factory reset")){
 			FactoryReset();
