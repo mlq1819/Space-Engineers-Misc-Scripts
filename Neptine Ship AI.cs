@@ -2666,6 +2666,7 @@ public bool PerformScan(object obj=null){
 		AirlockString += "Airlock "+(i+1).ToString()+" Status:\n";
 		UpdateAirlock(Airlocks[i]);
 	}
+	
 	foreach(IMyDoor AutoDoor in AutoDoors){
 		bool found_entity=false;
 		double min_distance_check=3.75*(1+(Controller.GetShipSpeed() / 200));
@@ -2676,7 +2677,8 @@ public bool PerformScan(object obj=null){
 				bool is_closest_to_this_airlock=distance <= min_distance_check;
 				if(distance<min_distance_check){
 					found_entity=true;
-					AutoDoor.OpenDoor();
+					if(!_Lockdown)
+						AutoDoor.OpenDoor();
 					break;
 				}
 			}
