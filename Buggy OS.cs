@@ -419,8 +419,8 @@ public Program()
 	Me.GetSurface(1).FontSize=2.2f;
 	Me.GetSurface(1).TextPadding=40.0f;
 	Echo("Beginning initialization");
-	Controller=(new GenericMethods<IMyCockpit>(this)).GetContaining("Buggy Cockpit");
-	Gyroscope=(new GenericMethods<IMyGyro>(this)).GetContaining("Control Gyroscope");
+	Controller=(new GenericMethods<IMyCockpit>(this)).GetGrid("Buggy Cockpit",Me.CubeGrid);
+	Gyroscope=(new GenericMethods<IMyGyro>(this)).GetGrid("Control Gyroscope",Me.CubeGrid);
 	if(Controller==null||Gyroscope==null)
 		return;
 	bool.TryParse(this.Storage,out Auto_Adjust);
@@ -429,10 +429,10 @@ public Program()
 	Controller.GetSurface(0).Alignment=TextAlignment.CENTER;
 	Controller.GetSurface(0).ContentType=ContentType.TEXT_AND_IMAGE;
 	Controller.GetSurface(0).WriteText("Hello World",false);
-	Headlights=(new GenericMethods<IMyLightingBlock>(this)).GetAllContaining("Headlight");
-	Brakelights=(new GenericMethods<IMyLightingBlock>(this)).GetAllContaining("Brake Light");
-	Wheels=(new GenericMethods<IMyMotorSuspension>(this)).GetAllContaining("Wheel");
-	Parachutes=(new GenericMethods<IMyParachute>(this)).GetAllContaining("Parachute");
+	Headlights=(new GenericMethods<IMyLightingBlock>(this)).GetAllGrid("Headlight",Controller.CubeGrid);
+	Brakelights=(new GenericMethods<IMyLightingBlock>(this)).GetAllGrid("Brake Light",Controller.CubeGrid);
+	Wheels=(new GenericMethods<IMyMotorSuspension>(this)).GetAllGrid("Wheel",Controller.CubeGrid);
+	Parachutes=(new GenericMethods<IMyParachute>(this)).GetAllGrid("Parachute",Controller.CubeGrid);
 	Runtime.UpdateFrequency=UpdateFrequency.Update1;
 }
 
