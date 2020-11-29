@@ -561,7 +561,7 @@ void Fun(){
 		foreach(IMyTextSurfaceProvider Screen in AllScreens){
 			try{
 				IMyTerminalBlock Block=Screen as IMyTerminalBlock;
-				if(Block!=null&&Block.CubeGrid==Controller.CubeGrid&&(Block.GetPosition()-Me.GetPosition()).Length()<10)
+				if(Block!=null&&Block.CubeGrid==Controller.CubeGrid&&(Block.GetPosition()-Me.GetPosition()).Length()<2.5&&Block.CubeGrid.GridSizeEnum==MyCubeSize.Small)
 					Screens.Add(Screen);
 			}
 			catch(Exception){

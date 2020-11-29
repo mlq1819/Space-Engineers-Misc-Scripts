@@ -4,27 +4,27 @@
 * https://github.com/mlq1819
 */
 //Name me!
-private const string Program_Name="Neptine Ship AI"; 
+const string Program_Name="Neptine Ship AI"; 
 //The angle of what the ship will accept as "correct"
-private const double ACCEPTABLE_ANGLE=10; //Suggested between 5° and 20°
+const double ACCEPTABLE_ANGLE=10; //Suggested between 5° and 20°
 //The maximum speed limit of the ship
-private const double SPEED_LIMIT=100;
+const double SPEED_LIMIT=100;
 //The distance accepted for raycasts
-private const double RAYCAST_DISTANCE=5000; //The lower the better, but whatever works for you
+const double RAYCAST_DISTANCE=5000; //The lower the better, but whatever works for you
 //Set this to the distance you want lights, sound blocks, and doors to update when enemies are nearby
-private const double ALERT_DISTANCE=15;
+const double ALERT_DISTANCE=15;
 //Set this to a string contained in the name of lights you want to change the color of during a lockdown
-private const string LOCKDOWN_LIGHT_NAME="";
+const string LOCKDOWN_LIGHT_NAME="";
 //Set this to a string contained in the name of doors you want to automatically open when a player gets near
-private const string AUTODOOR_NAME="AutoDoor";
-private Color DEFAULT_TEXT_COLOR=new Color(197,137,255,255);
-private Color DEFAULT_BACKGROUND_COLOR=new Color(44,0,88,255);
-private Color LOCKDOWN_COLOR=new Color(255,255,125,255);
+const string AUTODOOR_NAME="AutoDoor";
+Color DEFAULT_TEXT_COLOR=new Color(197,137,255,255);
+Color DEFAULT_BACKGROUND_COLOR=new Color(44,0,88,255);
+Color LOCKDOWN_COLOR=new Color(255,255,125,255);
 
 public class GenericMethods<T> where T : class, IMyTerminalBlock{
-	private IMyGridTerminalSystem TerminalSystem;
-	private IMyTerminalBlock Prog;
-	private MyGridProgram Program;
+	IMyGridTerminalSystem TerminalSystem;
+	IMyTerminalBlock Prog;
+	MyGridProgram Program;
 	
 	public GenericMethods(MyGridProgram Program){
 		this.Program=Program;
@@ -63,6 +63,24 @@ public class GenericMethods<T> where T : class, IMyTerminalBlock{
 	
 	public T GetFull(string name){
 		return GetFull(name, double.MaxValue);
+	}
+	
+	public List<T> GetAllConstruct(string name, double max_distance, IMyTerminalBlock Reference){
+		List<T> input=GetAllContaining(name,max_distance,Reference);
+		List<T> output=new List<T>();
+		foreach(T Block in input){
+			if(Reference.IsSameConstructAs(Block))
+				output.Add(Block);
+		}
+		return output;
+	}
+	
+	public List<T> GetAllConstruct(string name, IMyTerminalBlock Reference){
+		return GetAllConstruct(name,double.MaxValue,Reference);
+	}
+	
+	public List<T> GetAllConstruct(string name){
+		return GetAllConstruct(name,Prog);
 	}
 	
 	public T GetContaining(string name, double max_distance, Vector3D Reference){
@@ -214,6 +232,31 @@ public class GenericMethods<T> where T : class, IMyTerminalBlock{
 		return GetClosestFunc(f, double.MaxValue);
 	}
 	
+	public T GetGrid(string name, IMyCubeGrid Grid, double max_distance, IMyTerminalBlock Reference){
+		List<T> input=GetAllGrid(name,Grid,max_distance,Reference);
+		if(input.Count>0)
+			return input[0];
+		return null;
+	}
+	
+	public T GetGrid(string name,IMyCubeGrid Grid,double max_distance=double.MaxValue){
+		return GetGrid(name,Grid,max_distance,Prog);
+	}
+	
+	public List<T> GetAllGrid(string name, IMyCubeGrid Grid, double max_distance,IMyTerminalBlock Reference){
+		List<T> output=new List<T>();
+		List<T> input=GetAllContaining(name,max_distance,Reference);
+		foreach(T Block in input){
+			if(Block.CubeGrid==Grid)
+				output.Add(Block);
+		}
+		return output;
+	}
+	
+	public List<T> GetAllGrid(string name, IMyCubeGrid Grid, double max_distance=double.MaxValue){
+		return GetAllGrid(name,Grid,max_distance,Prog);
+	}
+	
 	public static List<T> SortByDistance(List<T> unsorted, Vector3D Reference){
 		List<T> output=new List<T>();
 		while(unsorted.Count > 0){
@@ -253,7 +296,7 @@ public class EntityInfo{
 	public long ID;
 	public string Name;
 	public MyDetectedEntityType Type;
-	private Vector3D? _hitposition;
+	Vector3D? _hitposition;
 	public Vector3D? HitPosition{
 		get{
 			return _hitposition;
@@ -265,7 +308,7 @@ public class EntityInfo{
 			}
 		}
 	}
-	private Vector3D _velocity;
+	Vector3D _velocity;
 	public Vector3D Velocity{
 		get{
 			return _velocity;
@@ -429,7 +472,7 @@ public class EntityInfo{
 }
 
 public class EntityList : IEnumerable<EntityInfo>{
-	private List<EntityInfo> E_List;
+	List<EntityInfo> E_List;
 	public IEnumerator<EntityInfo> GetEnumerator(){
 		return E_List.GetEnumerator();
 	}
@@ -566,7 +609,7 @@ public interface MenuOption{
 }
 
 public class Menu_Submenu : MenuOption{
-	private string _Name;
+	string _Name;
 	public string Name(){
 		return _Name;
 	}
@@ -585,22 +628,22 @@ public class Menu_Submenu : MenuOption{
 		}
 		return 1;
 	}
-	private bool Selected;
+	bool Selected;
 	public bool IsSelected{
 		get{
 			return Selected;
 		}
 	}
-	private int Selection;
+	int Selection;
 	
-	private int Last_Count;
+	int Last_Count;
 	public int Count{
 		get{
 			return Menu.Count;
 		}
 	}
 	
-	private List<MenuOption> Menu;
+	List<MenuOption> Menu;
 	
 	public Menu_Submenu(string name){
 		_Name=name.Trim().Substring(0, Math.Min(name.Trim().Length, 24));
@@ -751,23 +794,23 @@ public class Menu_Submenu : MenuOption{
 }
 
 public class Menu_Command<T> : MenuOption where T : class{
-	private string _Name;
+	string _Name;
 	public string Name(){
 		return _Name;
 	}
 	public MenuType Type(){
 		return MenuType.Command;
 	}
-	private bool _AutoRefresh;
+	bool _AutoRefresh;
 	public bool AutoRefresh(){
 		return _AutoRefresh;
 	}
 	public int Depth(){
 		return 1;
 	}
-	private string Desc;
-	private T Arg;
-	private Func<T, bool> Command;
+	string Desc;
+	T Arg;
+	Func<T, bool> Command;
 	
 	public Menu_Command(string name, Func<T, bool> command, string desc="No description provided", T arg=null, bool autorefresh=false){
 		if(name.Trim().Length > 0)
@@ -849,17 +892,17 @@ public class Menu_Display : MenuOption{
 			return 2;
 		return 1;
 	}
-	private bool Selected;
-	private EntityInfo Entity;
-	private bool Can_GoTo;
-	private Func<EntityInfo, bool> Command;
-	private Menu_Command<EntityInfo> Subcommand {
+	bool Selected;
+	EntityInfo Entity;
+	bool Can_GoTo;
+	Func<EntityInfo, bool> Command;
+	Menu_Command<EntityInfo> Subcommand {
 		get{
 			double distance=(P.Me.GetPosition()-Entity.Position).Length()-Entity.Size;
 			return new Menu_Command<EntityInfo>("GoTo "+Entity.Name, Command, "Set autopilot to match target Entity's expected position and velocity", Entity);
 		}
 	}
-	private MyGridProgram P;
+	MyGridProgram P;
 	
 	public Menu_Display(EntityInfo entity, MyGridProgram p, Func<EntityInfo, bool> GoTo){
 		P=p;
@@ -914,7 +957,7 @@ public class Menu_Display : MenuOption{
 	}
 }
 
-private struct Airlock{
+struct Airlock{
 	public IMyDoor Door1;
 	public IMyDoor Door2;
 	public Airlock(IMyDoor d1, IMyDoor d2){
@@ -931,35 +974,35 @@ private struct Airlock{
 	}
 }
 
-private long cycle_long=1;
-private long cycle=0;
-private char loading_char='|';
+long cycle_long=1;
+long cycle=0;
+char loading_char='|';
 double seconds_since_last_update=0;
-private Random Rnd;
+Random Rnd;
 
-private IMyShipController Controller;
-private IMyGyro Gyroscope;
+IMyShipController Controller;
+IMyGyro Gyroscope;
 
-private List<IMyTextPanel> StatusLCDs;
-private List<IMyTextPanel> DebugLCDs;
+List<IMyTextPanel> StatusLCDs;
+List<IMyTextPanel> DebugLCDs;
 
-private List<IMyDoor> AutoDoors;
+List<IMyDoor> AutoDoors;
 
-private List<Airlock> Airlocks;
+List<Airlock> Airlocks;
 
-private EntityList AsteroidList;
-private EntityList PlanetList;
-private EntityList SmallShipList;
-private EntityList LargeShipList;
-private EntityList CharacterList;
+EntityList AsteroidList;
+EntityList PlanetList;
+EntityList SmallShipList;
+EntityList LargeShipList;
+EntityList CharacterList;
 
-private List<IMyThrust> Forward_Thrusters;
-private List<IMyThrust> Backward_Thrusters;
-private List<IMyThrust> Up_Thrusters;
-private List<IMyThrust> Down_Thrusters;
-private List<IMyThrust> Left_Thrusters;
-private List<IMyThrust> Right_Thrusters;
-private float Forward_Thrust{
+List<IMyThrust> Forward_Thrusters;
+List<IMyThrust> Backward_Thrusters;
+List<IMyThrust> Up_Thrusters;
+List<IMyThrust> Down_Thrusters;
+List<IMyThrust> Left_Thrusters;
+List<IMyThrust> Right_Thrusters;
+float Forward_Thrust{
 	get{
 		float total=0;
 		foreach(IMyThrust Thruster in Forward_Thrusters)
@@ -967,7 +1010,7 @@ private float Forward_Thrust{
 		return total;
 	}
 }
-private float Backward_Thrust{
+float Backward_Thrust{
 	get{
 		float total=0;
 		foreach(IMyThrust Thruster in Backward_Thrusters)
@@ -975,7 +1018,7 @@ private float Backward_Thrust{
 		return total;
 	}
 }
-private float Up_Thrust{
+float Up_Thrust{
 	get{
 		float total=0;
 		foreach(IMyThrust Thruster in Up_Thrusters)
@@ -983,7 +1026,7 @@ private float Up_Thrust{
 		return total;
 	}
 }
-private float Down_Thrust{
+float Down_Thrust{
 	get{
 		float total=0;
 		foreach(IMyThrust Thruster in Down_Thrusters)
@@ -991,7 +1034,7 @@ private float Down_Thrust{
 		return total;
 	}
 }
-private float Left_Thrust{
+float Left_Thrust{
 	get{
 		float total=0;
 		foreach(IMyThrust Thruster in Left_Thrusters)
@@ -999,7 +1042,7 @@ private float Left_Thrust{
 		return total;
 	}
 }
-private float Right_Thrust{
+float Right_Thrust{
 	get{
 		float total=0;
 		foreach(IMyThrust Thruster in Right_Thrusters)
@@ -1008,74 +1051,74 @@ private float Right_Thrust{
 	}
 }
 
-private double Time_To_Crash=double.MaxValue;
-private Menu_Submenu Command_Menu;
+double Time_To_Crash=double.MaxValue;
+Menu_Submenu Command_Menu;
 
-private Base6Directions.Direction Forward;
-private Base6Directions.Direction Backward{
+Base6Directions.Direction Forward;
+Base6Directions.Direction Backward{
 	get{
 		return Base6Directions.GetOppositeDirection(Forward);
 	}
 }
-private Base6Directions.Direction Up;
-private Base6Directions.Direction Down{
+Base6Directions.Direction Up;
+Base6Directions.Direction Down{
 	get{
 		return Base6Directions.GetOppositeDirection(Up);
 	}
 }
-private Base6Directions.Direction Left;
-private Base6Directions.Direction Right{
+Base6Directions.Direction Left;
+Base6Directions.Direction Right{
 	get{
 		return Base6Directions.GetOppositeDirection(Left);
 	}
 }
 
-private Vector3D Forward_Vector;
-private Vector3D Backward_Vector{
+Vector3D Forward_Vector;
+Vector3D Backward_Vector{
 	get{
 		return -1*Forward_Vector;
 	}
 }
-private Vector3D Up_Vector;
-private Vector3D Down_Vector{
+Vector3D Up_Vector;
+Vector3D Down_Vector{
 	get{
 		return -1*Up_Vector;
 	}
 }
-private Vector3D Left_Vector;
-private Vector3D Right_Vector{
+Vector3D Left_Vector;
+Vector3D Right_Vector{
 	get{
 		return -1*Left_Vector;
 	}
 }
 
-private bool Tracking=false;
-private bool Match_Direction=false;
-private Vector3D Target_Direction;
-private bool Match_Position=false;
-private Vector3D Target_Position;
-private Vector3D Relative_Target_Position{
+bool Tracking=false;
+bool Match_Direction=false;
+Vector3D Target_Direction;
+bool Match_Position=false;
+Vector3D Target_Position;
+Vector3D Relative_Target_Position{
 	get{
 		return GlobalToLocalPosition(Target_Position);
 	}
 }
-private double Target_Distance{
+double Target_Distance{
 	get{
 		return (Target_Position-Controller.GetPosition()).Length();
 	}
 }
-private long Target_ID=0;
+long Target_ID=0;
 
-private float Mass_Accomodation=0.0f;
+float Mass_Accomodation=0.0f;
 
-private Vector3D RestingVelocity;
-private Vector3D Relative_RestingVelocity{
+Vector3D RestingVelocity;
+Vector3D Relative_RestingVelocity{
 	get{
 		return GlobalToLocal(RestingVelocity);
 	}
 }
-private Vector3D CurrentVelocity;
-private Vector3D Relative_CurrentVelocity{
+Vector3D CurrentVelocity;
+Vector3D Relative_CurrentVelocity{
 	get{
 		Vector3D output=Vector3D.Transform(CurrentVelocity+Controller.GetPosition(), MatrixD.Invert(Controller.WorldMatrix));
 		output.Normalize();
@@ -1083,20 +1126,20 @@ private Vector3D Relative_CurrentVelocity{
 		return output;
 	}
 }
-private Vector3D Gravity;
-private Vector3D Relative_Gravity{
+Vector3D Gravity;
+Vector3D Relative_Gravity{
 	get{
 		return GlobalToLocal(Gravity);
 	}
 }
-private Vector3D Adjusted_Gravity{
+Vector3D Adjusted_Gravity{
 	get{
 		Vector3D temp=GlobalToLocal(Gravity);
 		temp.Normalize();
 		return temp*Mass_Accomodation;
 	}
 }
-private Vector3D Gravity_Direction{
+Vector3D Gravity_Direction{
 	get{
 		Vector3D direction=Gravity;
 		direction.Normalize();
@@ -1104,24 +1147,24 @@ private Vector3D Gravity_Direction{
 	}
 }
 
-private double Speed_Deviation{
+double Speed_Deviation{
 	get{
 		return (CurrentVelocity-RestingVelocity).Length();
 	}
 }
 
-private Vector3D AngularVelocity;
-private Vector3D Relative_AngularVelocity{
+Vector3D AngularVelocity;
+Vector3D Relative_AngularVelocity{
 	get{
 		return GlobalToLocal(AngularVelocity);
 	}
 }
 
-private double Elevation;
-private double Sealevel;
-private Vector3D PlanetCenter;
+double Elevation;
+double Sealevel;
+Vector3D PlanetCenter;
 
-private bool HasBlockData(IMyTerminalBlock Block, string Name){
+bool HasBlockData(IMyTerminalBlock Block, string Name){
 	if(Name.Contains(':'))
 		return false;
 	string[] args=Block.CustomData.Split('•');
@@ -1133,7 +1176,7 @@ private bool HasBlockData(IMyTerminalBlock Block, string Name){
 	return false;
 }
 
-private string GetBlockData(IMyTerminalBlock Block, string Name){
+string GetBlockData(IMyTerminalBlock Block, string Name){
 	if(Name.Contains(':'))
 		return "";
 	string[] args=Block.CustomData.Split('•');
@@ -1145,7 +1188,7 @@ private string GetBlockData(IMyTerminalBlock Block, string Name){
 	return "";
 }
 
-private bool SetBlockData(IMyTerminalBlock Block, string Name, string Data){
+bool SetBlockData(IMyTerminalBlock Block, string Name, string Data){
 	if(Name.Contains(':'))
 		return false;
 	string[] args=Block.CustomData.Split('•');
@@ -1164,7 +1207,7 @@ private bool SetBlockData(IMyTerminalBlock Block, string Name, string Data){
 	return true;
 }
 
-private bool CanHaveJob(IMyTerminalBlock Block, string JobName){
+bool CanHaveJob(IMyTerminalBlock Block, string JobName){
 	return (!HasBlockData(Block, "Job")) || GetBlockData(Block, "Job").Equals("None") || GetBlockData(Block, "Job").Equals(JobName);
 }
 
@@ -1206,7 +1249,7 @@ public void Reset(){
 	Runtime.UpdateFrequency=UpdateFrequency.None;
 }
 
-private bool ControllerFunction(IMyShipController ctrlr){
+bool ControllerFunction(IMyShipController ctrlr){
 	IMyRemoteControl Remote=ctrlr as IMyRemoteControl;
 	if(Remote!=null)
 		return ctrlr.ControlThrusters;
@@ -1214,7 +1257,7 @@ private bool ControllerFunction(IMyShipController ctrlr){
 		return (ctrlr.ControlThrusters && ctrlr.IsMainCockpit);
 }
 
-private void SetupAirlocks(){
+void SetupAirlocks(){
 	Airlocks=new List<Airlock>();
 	List<IMyDoor> AllAirlockDoors=(new GenericMethods<IMyDoor>(this)).GetAllContaining("Airlock");
 	List<IMyDoor> AllAirlockDoor1s=new List<IMyDoor>();
@@ -1305,7 +1348,7 @@ private void SetupAirlocks(){
 	}
 }
 
-private UpdateFrequency GetUpdateFrequency(){
+UpdateFrequency GetUpdateFrequency(){
 	if(!Operational)
 		return UpdateFrequency.None;
 	if(Controller.IsUnderControl)
@@ -1317,7 +1360,7 @@ private UpdateFrequency GetUpdateFrequency(){
 	return UpdateFrequency.Update10;
 }
 
-private string GetRemovedString(string big_string, string small_string){
+string GetRemovedString(string big_string, string small_string){
 	string output=big_string;
 	if(big_string.Contains(small_string)){
 		output=big_string.Substring(0, big_string.IndexOf(small_string))+big_string.Substring(big_string.IndexOf(small_string)+small_string.Length);
@@ -1325,7 +1368,7 @@ private string GetRemovedString(string big_string, string small_string){
 	return output;
 }
 
-private List<List<IMyDoor>> RemoveDoor(List<List<IMyDoor>> list, IMyDoor Door){
+List<List<IMyDoor>> RemoveDoor(List<List<IMyDoor>> list, IMyDoor Door){
 	List<List<IMyDoor>> output=new List<List<IMyDoor>>();
 	Echo("\tRemoving Door \""+Door.CustomName+"\" from list["+list.Count+"]");
 	if(list.Count == 0){
@@ -1363,9 +1406,8 @@ private List<List<IMyDoor>> RemoveDoor(List<List<IMyDoor>> list, IMyDoor Door){
 public bool Setup(){
 	Reset();
 	
-	StatusLCDs=(new GenericMethods<IMyTextPanel>(this)).GetAllContaining("Ship Status");
-	
-	DebugLCDs=(new GenericMethods<IMyTextPanel>(this)).GetAllContaining("AI Visual Display");
+	StatusLCDs=(new GenericMethods<IMyTextPanel>(this)).GetAllConstruct("Ship Status");
+	DebugLCDs=(new GenericMethods<IMyTextPanel>(this)).GetAllConstruct("AI Visual Display");
 	foreach(IMyTextPanel Display in DebugLCDs){
 		if(Display.CustomName.ToLower().Contains("transparent")){
 			Display.FontColor=DEFAULT_BACKGROUND_COLOR;
@@ -1468,7 +1510,7 @@ public bool Setup(){
 	return true;
 }
 
-private bool Operational=false;
+bool Operational=false;
 public Program(){
 	DebugLCDs=new List<IMyTextPanel>();
 	Me.CustomName=(Program_Name+" Programmable block").Trim();
@@ -1520,7 +1562,7 @@ public Program(){
 	DisplayMenu();
 }
 
-private void SetThrusterList(List<IMyThrust> Thrusters, string Direction){
+void SetThrusterList(List<IMyThrust> Thrusters, string Direction){
 	int small_misc=0;
 	int large_misc=0;
 	int small_hydrogen=0;
@@ -1608,7 +1650,7 @@ private void SetThrusterList(List<IMyThrust> Thrusters, string Direction){
 	}
 }
 
-private void ResetThruster(IMyThrust Thruster){
+void ResetThruster(IMyThrust Thruster){
 	if(HasBlockData(Thruster, "DefaultOverride")){
 		float ThrustOverride=0.0f;
 		if(float.TryParse(GetBlockData(Thruster, "DefaultOverride"), out ThrustOverride))
@@ -1685,15 +1727,15 @@ public Vector3D LocalToGlobalPosition(Vector3D Local){
 	return Vector3D.Transform(Local,Controller.WorldMatrix);
 }
 
-private enum AlertStatus{
+enum AlertStatus{
 	Green=0,
 	Blue=1,
 	Yellow=2,
 	Orange=3,
 	Red=4
 }
-private string Submessage="";
-private AlertStatus ShipStatus{
+string Submessage="";
+AlertStatus ShipStatus{
 	get{
 		AlertStatus status=AlertStatus.Green;
 		Submessage="";
@@ -1802,7 +1844,7 @@ private AlertStatus ShipStatus{
 	}
 }
 
-private void UpdateList(List<MyDetectedEntityInfo> list, MyDetectedEntityInfo new_entity){
+void UpdateList(List<MyDetectedEntityInfo> list, MyDetectedEntityInfo new_entity){
 	if(new_entity.Type == MyDetectedEntityType.None || new_entity.EntityId == Me.CubeGrid.EntityId)
 		return;
 	for(int i=0; i<list.Count; i++){
@@ -1815,7 +1857,7 @@ private void UpdateList(List<MyDetectedEntityInfo> list, MyDetectedEntityInfo ne
 	list.Add(new_entity);
 }
 
-private void UpdateList(List<EntityInfo> list, EntityInfo new_entity){
+void UpdateList(List<EntityInfo> list, EntityInfo new_entity){
 	if(new_entity.Type == MyDetectedEntityType.None || new_entity.ID == Me.CubeGrid.EntityId)
 		return;
 	for(int i=0; i<list.Count; i++){
@@ -1827,7 +1869,7 @@ private void UpdateList(List<EntityInfo> list, EntityInfo new_entity){
 	list.Add(new_entity);
 }
 
-private void SetStatus(string message, Color TextColor, Color BackgroundColor){
+void SetStatus(string message, Color TextColor, Color BackgroundColor){
 	float padding=40.0f;
 	string[] lines=message.Split('\n');
 	padding=Math.Max(10.0f, padding-(lines.Length*5.0f));
@@ -1858,13 +1900,13 @@ public bool Stop(object obj=null){
 	return true;
 }
 
-private bool _Autoland=false;
+bool _Autoland=false;
 public bool Autoland(object obj=null){
 	_Autoland=!_Autoland;
 	return true;
 }
 
-private bool _Lockdown=false;
+bool _Lockdown=false;
 public bool Lockdown(object obj=null){
 	_Lockdown=!_Lockdown;
 	List<IMyDoor> Seals=(new GenericMethods<IMyDoor>(this)).GetAllIncluding("Air Seal");
@@ -1944,7 +1986,7 @@ public bool FactoryReset(object obj=null){
 	return true;
 }
 
-private Vector3D GetOffsetPosition(Vector3D Position, double Target_Size=0){
+Vector3D GetOffsetPosition(Vector3D Position, double Target_Size=0){
 	Vector3D direction=Position-Controller.GetPosition();
 	double distance=direction.Length();
 	direction.Normalize();
@@ -2029,12 +2071,12 @@ public bool UpdateEntityListing(Menu_Submenu Menu){
 	return false;
 }
 
-private Menu_Submenu AsteroidMenu;
-private Menu_Submenu PlanetMenu;
-private Menu_Submenu SmallShipMenu;
-private Menu_Submenu LargeShipMenu;
-private Menu_Submenu CharacterMenu;
-private bool CreateMenu(object obj=null){
+Menu_Submenu AsteroidMenu;
+Menu_Submenu PlanetMenu;
+Menu_Submenu SmallShipMenu;
+Menu_Submenu LargeShipMenu;
+Menu_Submenu CharacterMenu;
+bool CreateMenu(object obj=null){
 	Command_Menu=new Menu_Submenu("Command Menu");
 	Command_Menu.Add(new Menu_Command<object>("Update Menu", CreateMenu, "Refreshes menu"));
 	Menu_Submenu ShipCommands=new Menu_Submenu("Commands");
@@ -2067,8 +2109,8 @@ private bool CreateMenu(object obj=null){
 	return true;
 }
 
-private void DisplayMenu(){
-	List<IMyTextPanel> Panels=(new GenericMethods<IMyTextPanel>(this)).GetAllContaining("Command Menu Display");
+void DisplayMenu(){
+	List<IMyTextPanel> Panels=(new GenericMethods<IMyTextPanel>(this)).GetAllConstruct("Command Menu Display");
 	foreach(IMyTextPanel Panel in Panels){
 		Panel.WriteText(Command_Menu.ToString(), false);
 		Panel.Alignment=TextAlignment.CENTER;
@@ -2086,7 +2128,7 @@ private void DisplayMenu(){
 	}
 }
 
-private Color ColorParse(string parse){
+Color ColorParse(string parse){
 	parse=parse.Substring(parse.IndexOf('{')+1);
 	parse=parse.Substring(0, parse.IndexOf('}')-1);
 	string[] args=parse.Split(' ');
@@ -2098,7 +2140,7 @@ private Color ColorParse(string parse){
 	return new Color(r,g,b,a);
 }
 
-private bool last_performed_alarm=false;
+bool last_performed_alarm=false;
 public void PerformAlarm(){
 	bool nearby_enemy=(CharacterList.ClosestDistance(this, MyRelationsBetweenPlayerAndBlock.Enemies) <= (float) MySize);
 	if(!nearby_enemy && !last_performed_alarm){
@@ -2257,7 +2299,7 @@ public void PerformAlarm(){
 	}
 }
 
-private void UpdateAirlock(Airlock airlock){
+void UpdateAirlock(Airlock airlock){
 	if(airlock.Door1.Status != DoorStatus.Closed && airlock.Door2.Status != DoorStatus.Closed){
 		airlock.Door1.Enabled=true;
 		airlock.Door1.CloseDoor();
@@ -2341,7 +2383,7 @@ private void UpdateAirlock(Airlock airlock){
 	}
 }
 
-private List<IMyCameraBlock> GetValidCameras(){
+List<IMyCameraBlock> GetValidCameras(){
 	List<IMyCameraBlock> AllCameras=new List<IMyCameraBlock>();
 	List<IMyCameraBlock> output=new List<IMyCameraBlock>();
 	GridTerminalSystem.GetBlocksOfType<IMyCameraBlock>(AllCameras);
@@ -2361,8 +2403,8 @@ private List<IMyCameraBlock> GetValidCameras(){
 }
 
 //Performs the scan function on all scanning devices
-private Vector3D Closest_Hit_Position=new Vector3D(0,0,0);
-private double Scan_Frequency{
+Vector3D Closest_Hit_Position=new Vector3D(0,0,0);
+double Scan_Frequency{
 	get{
 		double output=10;
 		double MySize=Me.CubeGrid.GridSize;
@@ -2442,9 +2484,9 @@ float SensorRange(IMySensorBlock Sensor){
 	return range;
 }
 
-private double Scan_Time=10;
-private string ScanString="";
-private string AirlockString="";
+double Scan_Time=10;
+string ScanString="";
+string AirlockString="";
 public double MySize=0;
 public bool PerformScan(object obj=null){
 	Write("Beginning Scan");
@@ -2706,7 +2748,7 @@ public void PerformDisarm(){
 	}
 }
 
-private void UpdateProgramInfo(){
+void UpdateProgramInfo(){
 	cycle_long+=((++cycle)/long.MaxValue)%long.MaxValue;
 	cycle=cycle % long.MaxValue;
 	switch(loading_char){
@@ -2744,15 +2786,15 @@ private void UpdateProgramInfo(){
 	}
 }
 
-private double GetAngle(Vector3D v1, Vector3D v2){
+double GetAngle(Vector3D v1, Vector3D v2){
 	return GenericMethods<IMyTerminalBlock>.GetAngle(v1,v2);
 }
 
 //Sets gyroscope outputs from player input, dampeners, gravity, and autopilot
-private double Pitch_Time= 1.0f;
-private double Yaw_Time=1.0f;
-private double Roll_Time=1.0f;
-private void SetGyroscopes(){
+double Pitch_Time= 1.0f;
+double Yaw_Time=1.0f;
+double Roll_Time=1.0f;
+void SetGyroscopes(){
 	Gyroscope.GyroOverride=(AngularVelocity.Length()<3);
 	float current_pitch=(float) Relative_AngularVelocity.X;
 	float current_yaw=(float) Relative_AngularVelocity.Y;
@@ -2842,7 +2884,7 @@ private void SetGyroscopes(){
 }
 
 //Sets thruster outputs from player input, dampeners, gravity, and autopilot
-private void SetThrusters(){
+void SetThrusters(){
 	float input_forward=0.0f;
 	float input_up=0.0f;
 	float input_right=0.0f;
@@ -3060,7 +3102,7 @@ private void SetThrusters(){
 }
 
 //Sets directional vectors, Elevation, etc
-private void GetPositionData(){
+void GetPositionData(){
 	Write("", false, false);
 	Vector3D base_vector=new Vector3D(0,0,-1);
 	Forward_Vector=LocalToGlobal(base_vector);
