@@ -555,7 +555,7 @@ void Fun(){
 	Fun_State=Controller.IsUnderControl;
 	//Write("Fun:"+Fun_State.ToString()+":"+Math.Round(Fun_Timer,3).ToString()+"s");
 	if(Last_State!=Fun_State){
-		List<IMyTextSurfaceProvider> Screens=new List<IMyTextSurfaceProvider>();
+		List<IMyTextSurfaceProvider> Screens=(new GenericMethods<IMyTextSurfaceProvider>(this)).GetAllGrid("",Controller.CubeGrid);
 		GridTerminalSystem.GetBlocksOfType<IMyTextSurfaceProvider>(Screens);
 		if(!Last_State){
 			foreach(IMyTextSurfaceProvider Screen in Screens){
