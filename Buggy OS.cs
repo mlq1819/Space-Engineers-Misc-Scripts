@@ -46,6 +46,35 @@ class GenericMethods<T> where T : class, IMyTerminalBlock{
 		return GetFull(name, double.MaxValue);
 	}
 	
+	public List<T> GetAllConstruct(string name, double max_distance, IMyTerminalBlock Reference){
+		List<T> input=GetAllContaining(name,max_distance,Reference);
+		List<T> output=new List<T>();
+		foreach(T Block in input){
+			if(Reference.IsSameConstructAs(Block))
+				output.Add(Block);
+		}
+		return output;
+	}
+	
+	public T GetConstruct(string name, IMyTerminalBlock Reference){
+		List<T> input=GetAllConstruct(name,Reference);
+		if(input.Count>0)
+			return input[0];
+		return null;
+	}
+	
+	public T GetConstruct(string name){
+		return GetConstruct(name,Prog);
+	}
+	
+	public List<T> GetAllConstruct(string name, IMyTerminalBlock Reference){
+		return GetAllConstruct(name,double.MaxValue,Reference);
+	}
+	
+	public List<T> GetAllConstruct(string name){
+		return GetAllConstruct(name,Prog);
+	}
+	
 	public T GetContaining(string name, Vector3D Reference, double max_distance){
 		List<T> AllBlocks = new List<T>();
 		List<T> MyBlocks = new List<T>();
@@ -195,7 +224,7 @@ class GenericMethods<T> where T : class, IMyTerminalBlock{
 		return GetClosestFunc(f, double.MaxValue);
 	}
 	
-	public T GetGrid(string name, IMyCubeGrid Grid, double max_distance, IMyTerminalBlock Reference){
+	public T GetGrid(string name, IMyCubeGrid Grid, double max_distance,IMyTerminalBlock Reference){
 		List<T> input=GetAllGrid(name,Grid,max_distance,Reference);
 		if(input.Count>0)
 			return input[0];
@@ -419,8 +448,8 @@ public Program()
 	Me.GetSurface(1).FontSize=2.2f;
 	Me.GetSurface(1).TextPadding=40.0f;
 	Echo("Beginning initialization");
-	Controller=(new GenericMethods<IMyCockpit>(this)).GetGrid("Buggy Cockpit",Me.CubeGrid);
-	Gyroscope=(new GenericMethods<IMyGyro>(this)).GetGrid("Control Gyroscope",Me.CubeGrid);
+	Controller=(new GenericMethods<IMyCockpit>(this)).GetConstruct("Buggy Cockpit");
+	Gyroscope=(new GenericMethods<IMyGyro>(this)).GetConstruct("Control Gyroscope");
 	if(Controller==null||Gyroscope==null)
 		return;
 	bool.TryParse(this.Storage,out Auto_Adjust);
@@ -429,10 +458,10 @@ public Program()
 	Controller.GetSurface(0).Alignment=TextAlignment.CENTER;
 	Controller.GetSurface(0).ContentType=ContentType.TEXT_AND_IMAGE;
 	Controller.GetSurface(0).WriteText("Hello World",false);
-	Headlights=(new GenericMethods<IMyLightingBlock>(this)).GetAllGrid("Headlight",Controller.CubeGrid);
-	Brakelights=(new GenericMethods<IMyLightingBlock>(this)).GetAllGrid("Brake Light",Controller.CubeGrid);
-	Wheels=(new GenericMethods<IMyMotorSuspension>(this)).GetAllGrid("Wheel",Controller.CubeGrid);
-	Parachutes=(new GenericMethods<IMyParachute>(this)).GetAllGrid("Parachute",Controller.CubeGrid);
+	Headlights=(new GenericMethods<IMyLightingBlock>(this)).GetAllConstruct("Headlight");
+	Brakelights=(new GenericMethods<IMyLightingBlock>(this)).GetAllConstruct("Brake Light");
+	Wheels=(new GenericMethods<IMyMotorSuspension>(this)).GetAllConstruct("Wheel");
+	Parachutes=(new GenericMethods<IMyParachute>(this)).GetAllConstruct("Parachute");
 	Runtime.UpdateFrequency=UpdateFrequency.Update1;
 }
 
@@ -554,20 +583,20 @@ void Fun(){
 	bool Last_State=Fun_State;
 	Fun_State=Controller.IsUnderControl;
 	//Write("Fun:"+Fun_State.ToString()+":"+Math.Round(Fun_Timer,3).ToString()+"s");
-	if(Last_State!=Fun_State){
-		List<IMyTextSurfaceProvider> Screens=new List<IMyTextSurfaceProvider>();
-		List<IMyTextSurfaceProvider> AllScreens=new List<IMyTextSurfaceProvider>();
-		GridTerminalSystem.GetBlocksOfType<IMyTextSurfaceProvider>(AllScreens);
-		foreach(IMyTextSurfaceProvider Screen in AllScreens){
-			try{
-				IMyTerminalBlock Block=Screen as IMyTerminalBlock;
-				if(Block!=null&&Block.CubeGrid==Controller.CubeGrid&&(Block.GetPosition()-Me.GetPosition()).Length()<2.5&&Block.CubeGrid.GridSizeEnum==MyCubeSize.Small)
-					Screens.Add(Screen);
-			}
-			catch(Exception){
-				;
-			}
+	List<IMyTextSurfaceProvider> Screens=new List<IMyTextSurfaceProvider>();
+	List<IMyTextSurfaceProvider> AllScreens=new List<IMyTextSurfaceProvider>();
+	GridTerminalSystem.GetBlocksOfType<IMyTextSurfaceProvider>(AllScreens);
+	foreach(IMyTextSurfaceProvider Screen in AllScreens){
+		try{
+			IMyTerminalBlock Block=Screen as IMyTerminalBlock;
+			if(Block!=null&&Block.CubeGrid==Controller.CubeGrid&&(Block.GetPosition()-Me.GetPosition()).Length()<2.5&&Block.CubeGrid.GridSizeEnum==MyCubeSize.Small)
+				Screens.Add(Screen);
 		}
+		catch(Exception){
+			;
+		}
+	}
+	if(Last_State!=Fun_State){
 		if(!Last_State){
 			foreach(IMyTextSurfaceProvider Screen in Screens){
 				try{
@@ -606,8 +635,6 @@ void Fun(){
 		if(Fun_Timer>Fun_Timer_Limit){
 			Fun_Timer=0;
 			Fun_Timer_Limit=0.5+(Rnd.Next(0,50)/100.0);
-			List<IMyTextSurfaceProvider> Screens=new List<IMyTextSurfaceProvider>();
-			GridTerminalSystem.GetBlocksOfType<IMyTextSurfaceProvider>(Screens);
 			foreach(IMyTextSurfaceProvider Screen in Screens){
 				try{
 					if(HasBlockData((IMyTerminalBlock)Screen,"DefaultBackgroundColor")){
