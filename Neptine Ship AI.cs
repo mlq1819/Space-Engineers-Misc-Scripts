@@ -1259,7 +1259,7 @@ bool ControllerFunction(IMyShipController ctrlr){
 
 void SetupAirlocks(){
 	Airlocks=new List<Airlock>();
-	List<IMyDoor> AllAirlockDoors=(new GenericMethods<IMyDoor>(this)).GetAllContaining("Airlock");
+	List<IMyDoor> AllAirlockDoors=(new GenericMethods<IMyDoor>(this)).GetAllConstruct("Airlock");
 	List<IMyDoor> AllAirlockDoor1s=new List<IMyDoor>();
 	List<IMyDoor> AllAirlockDoor2s=new List<IMyDoor>();
 	foreach(IMyDoor Door in AllAirlockDoors){
@@ -1424,7 +1424,7 @@ public bool Setup(){
 	}
 	
 	SetupAirlocks();
-	AutoDoors=(new GenericMethods<IMyDoor>(this)).GetAllContaining(AUTODOOR_NAME);
+	AutoDoors=(new GenericMethods<IMyDoor>(this)).GetAllConstruct(AUTODOOR_NAME);
 	
 	Controller=(new GenericMethods<IMyShipController>(this)).GetClosestFunc(ControllerFunction);
 	if(Controller==null){
@@ -1463,7 +1463,7 @@ public bool Setup(){
 		Gyroscope.GyroOverride=Controller.IsUnderControl;
 	}
 	
-	List<IMyThrust> MyThrusters=(new GenericMethods<IMyThrust>(this)).GetAllContaining("");
+	List<IMyThrust> MyThrusters=(new GenericMethods<IMyThrust>(this)).GetAllConstruct("");
 	for(int i=0;i<2;i++){
 		bool retry=!Me.CubeGrid.IsStatic;
 		foreach(IMyThrust Thruster in MyThrusters){
