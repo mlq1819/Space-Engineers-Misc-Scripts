@@ -1817,7 +1817,7 @@ AlertStatus ShipStatus{
 			status=(AlertStatus) Math.Max((int)status, (int)new_status);
 			Submessage += "\nNearby ship at "+Math.Round(ShipDistance, 0)+" meters";
 		}
-		if(AsteroidList.ClosestDistance(this)<500){
+		if((!Me.CubeGrid.IsStatic)&&AsteroidList.ClosestDistance(this)<500){
 			AlertStatus new_status=AlertStatus.Blue;
 			status=(AlertStatus) Math.Max((int)status, (int)new_status);
 			Submessage += "\nNearby asteroid at "+Math.Round(AsteroidList.ClosestDistance(this), 0)+" meters";
