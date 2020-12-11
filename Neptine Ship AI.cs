@@ -2663,43 +2663,58 @@ public bool PerformScan(object obj=null){
 	}
 	
 	for(int i=0;i<SmallShipList.Count;i++){
-		bool Removed=false;
+		bool Remove=false;
 		EntityInfo Entity=SmallShipList[i];
 		foreach(IMySensorBlock Sensor in AllSensors){
-			if(CanDetect(Sensor,Entity)&&!IsDetecting(Sensor,Entity)){
-				SmallShipList.RemoveEntry(Entity);
-				Removed=true;
-				break;
+			if(CanDetect(Sensor,Entity)){
+				if(IsDetecting(Sensor,Entity)){
+					Remove=false;
+					break;
+				}
+				else
+					Remove=true;
 			}
 		}
-		if(Removed)
+		if(Remove){
+			SmallShipList.RemoveEntry(Entity);
 			i--;
+		}
 	}
 	for(int i=0;i<LargeShipList.Count;i++){
-		bool Removed=false;
+		bool Remove=false;
 		EntityInfo Entity=LargeShipList[i];
 		foreach(IMySensorBlock Sensor in AllSensors){
-			if(CanDetect(Sensor,Entity)&&!IsDetecting(Sensor,Entity)){
-				LargeShipList.RemoveEntry(Entity);
-				Removed=true;
-				break;
+			if(CanDetect(Sensor,Entity)){
+				if(IsDetecting(Sensor,Entity)){
+					Remove=false;
+					break;
+				}
+				else
+					Remove=true;
 			}
 		}
-		if(Removed)
+		if(Remove){
+			LargeShipList.RemoveEntry(Entity);
 			i--;
+		}
 	}
 	for(int i=0;i<CharacterList.Count;i++){
-		bool Removed=false;
+		bool Remove=false;
 		EntityInfo Entity=CharacterList[i];
 		foreach(IMySensorBlock Sensor in AllSensors){
-			if(CanDetect(Sensor,Entity)&&!IsDetecting(Sensor,Entity)){
-				CharacterList.RemoveEntry(Entity);
-				Removed=true;
-				break;
+			if(CanDetect(Sensor,Entity)){
+				if(IsDetecting(Sensor,Entity)){
+					Remove=false;
+					break;
+				}
+				else
+					Remove=true;
 			}
 		}
-		if(Removed)
+		if(Remove){
+			CharacterList.RemoveEntry(Entity);
 			i--;
+		}
 	}
 	
 	PerformAlarm();
