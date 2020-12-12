@@ -1,9 +1,21 @@
+/*
+* Ship AI System 
+* Built by mlq1616
+* https://github.com/mlq1819
+*/
 const string Program_Name = ""; //Name me!
 Color DEFAULT_TEXT_COLOR=new Color(197,137,255,255);
 Color DEFAULT_BACKGROUND_COLOR=new Color(44,0,88,255);
 
 class Prog{
 	public static MyGridProgram P;
+	public static TimeSpan FromSeconds(double seconds){
+		return (new TimeSpan(0,0,0,(int)seconds,(int)(seconds*1000)%1000));
+	}
+
+	public static TimeSpan UpdateTimeSpan(TimeSpan old,double seconds){
+		return old+FromSeconds(seconds);
+	}
 }
 
 class GenericMethods<T> where T : class, IMyTerminalBlock{
@@ -264,8 +276,317 @@ class GenericMethods<T> where T : class, IMyTerminalBlock{
 	}
 }
 
+class EntityInfo{
+	public long ID;
+	public string Name;
+	public MyDetectedEntityType Type;
+	Vector3D? _hitposition;
+	public Vector3D? HitPosition{
+		get{
+			return _hitposition;
+		}
+		set{
+			_hitposition=value;
+			if(_hitposition!=null){
+				Size=Math.Max(Size, (Position-((Vector3D)_hitposition)).Length());
+			}
+		}
+	}
+	Vector3D _velocity;
+	public Vector3D Velocity{
+		get{
+			return _velocity;
+		}
+		set{
+			_velocity=value;
+			Age=TimeSpan.Zero;
+		}
+	}
+	public MyRelationsBetweenPlayerAndBlock Relationship;
+	public Vector3D Position;
+	public double Size=0;
+	public TimeSpan Age=TimeSpan.Zero;
+	public Vector3D TargetPosition{
+		get{
+			if(HitPosition!=null)
+				return (Vector3D)HitPosition;
+			return Position;
+		}
+	}
+	
+	public EntityInfo(long id, string name, MyDetectedEntityType type, Vector3D? hitposition, Vector3D velocity, MyRelationsBetweenPlayerAndBlock relationship, Vector3D position){
+		ID=id;
+		Name=name;
+		Type=type;
+		HitPosition=hitposition;
+		Velocity=velocity;
+		Relationship=relationship;
+		Position=position;
+		Age=TimeSpan.Zero;
+	}
+	
+	public EntityInfo(long id, string name, MyDetectedEntityType type, Vector3D? hitposition, Vector3D velocity, MyRelationsBetweenPlayerAndBlock relationship, Vector3D position, double size) : this(id, name, type, hitposition, velocity, relationship, position){
+		this.Size=size;
+	}
+	
+	public EntityInfo(EntityInfo o){
+		ID=o.ID;
+		Name=o.Name;
+		Type=o.Type;
+		Position=o.Position;
+		HitPosition=o.HitPosition;
+		Velocity=o.Velocity;
+		Relationship=o.Relationship;
+		Size=o.Size;
+		Age=o.Age;
+	}
+	
+	public EntityInfo(MyDetectedEntityInfo entity_info){
+		ID=entity_info.EntityId;
+		Name=entity_info.Name;
+		Type=entity_info.Type;
+		Position=entity_info.Position;
+		if(entity_info.HitPosition!=null){
+			HitPosition=entity_info.HitPosition;
+		}
+		else {
+			HitPosition=(Vector3D?) null;
+		}
+		Velocity=entity_info.Velocity;
+		Relationship=entity_info.Relationship;
+		Age=TimeSpan.Zero;
+	}
+	
+	public static bool TryParse(string Parse, out EntityInfo Entity){
+		Entity=new EntityInfo(-1,"bad", MyDetectedEntityType.None, null, new Vector3D(0,0,0), MyRelationsBetweenPlayerAndBlock.NoOwnership, new Vector3D(0,0,0));
+		try{
+			string[] args=Parse.Split('\n');
+			long id;
+			if(!Int64.TryParse(args[0], out id)){
+				return false;
+			}
+			string name=args[1];
+			MyDetectedEntityType type=(MyDetectedEntityType) Int32.Parse(args[2]);
+			Vector3D? hitposition;
+			if(args[3].Equals("null")){
+				hitposition=(Vector3D?) null;
+			}
+			else {
+				Vector3D temp;
+				if(!Vector3D.TryParse(args[3], out temp)){
+					return false;
+				}
+				else {
+					hitposition=(Vector3D?) temp;
+				}
+			}
+			Vector3D velocity;
+			if(!Vector3D.TryParse(args[4], out velocity)){
+				return false;
+			}
+			MyRelationsBetweenPlayerAndBlock relationship=(MyRelationsBetweenPlayerAndBlock) Int32.Parse(args[5]);
+			Vector3D position;
+			if(!Vector3D.TryParse(args[6], out position)){
+				return false;
+			}
+			double size=0;
+			if(!double.TryParse(args[7], out size)){
+				size=0;
+			}
+			TimeSpan age;
+			if(!TimeSpan.TryParse(args[8], out age)){
+				return false;
+			}
+			Entity=new EntityInfo(id, name, type, hitposition, velocity, relationship, position, size);
+			Entity.Age=age;
+			return true;
+		}
+		catch(Exception){
+			return false;
+		}
+	}
+	
+	public override string ToString(){
+		string entity_info="";
+		entity_info+=ID.ToString()+'\n';
+		entity_info+=Name.ToString()+'\n';
+		entity_info+=((int)Type).ToString()+'\n';
+		if(HitPosition!=null){
+			entity_info+=((Vector3D) HitPosition).ToString()+'\n';
+		}
+		else {
+			entity_info+="null"+'\n';
+		}
+		entity_info+=Velocity.ToString()+'\n';
+		entity_info+=((int)Relationship).ToString()+'\n';
+		entity_info+=Position.ToString()+'\n';
+		entity_info+=Size.ToString()+'\n';
+		entity_info+=Age.ToString()+'\n';
+		return entity_info;
+	}
+	
+	public string NiceString(){
+		string entity_info="";
+		entity_info+="ID: "+ID.ToString()+'\n';
+		entity_info+="Name: "+Name.ToString()+'\n';
+		entity_info+="Type: "+Type.ToString()+'\n';
+		if(HitPosition!=null){
+			entity_info+="HitPosition: "+NeatVector((Vector3D) HitPosition)+'\n';
+		}
+		else {
+			entity_info+="HitPosition: "+"null"+'\n';
+		}
+		entity_info+="Velocity: "+NeatVector(Velocity)+'\n';
+		entity_info+="Relationship: "+Relationship.ToString()+'\n';
+		entity_info+="Position: "+NeatVector(Position)+'\n';
+		entity_info+="Size: "+((int)Size).ToString()+'\n';
+		entity_info+="Data Age: "+Age.ToString()+'\n';
+		return entity_info;
+	}
+	
+	public static string NeatVector(Vector3D vector){
+		return "X:"+Math.Round(vector.X,1).ToString()+" Y:"+Math.Round(vector.Y,1).ToString()+" Z:"+Math.Round(vector.Z,1).ToString();
+	}
+	
+	public void Update(double seconds){
+		Age=Prog.UpdateTimeSpan(Age,seconds);
+	}
+	
+	public double GetDistance(Vector3D Reference){
+		return (TargetPosition-Reference).Length();
+	}
+}
+
+class EntityList:IEnumerable<EntityInfo>{
+	List<EntityInfo> E_List;
+	public IEnumerator<EntityInfo> GetEnumerator(){
+		return E_List.GetEnumerator();
+	}
+	IEnumerator IEnumerable.GetEnumerator(){
+		return GetEnumerator();
+	}
+	
+	public int Count{
+		get{
+			return E_List.Count;
+		}
+	}
+	
+	public EntityInfo this[int key]{
+		get{
+			return E_List[key];
+		}
+		set{
+			E_List[key]=value;
+		}
+	}
+	
+	public EntityList(){
+		E_List=new List<EntityInfo>();
+	}
+	
+	public void UpdatePositions(double seconds){
+		foreach(EntityInfo entity in E_List)
+			entity.Update(seconds);
+	}
+	
+	public bool UpdateEntry(EntityInfo Entity){
+		for(int i=0; i<E_List.Count; i++){
+			if(E_List[i].ID==Entity.ID || (Entity.GetDistance(E_List[i].Position)<=0.5f&&Entity.Type==E_List[i].Type)){
+				if(E_List[i].Age >= Entity.Age){
+					E_List[i]=Entity;
+					return true;
+				}
+				return false;
+			}
+		}
+		E_List.Add(Entity);
+		return true;
+	}
+	
+	public bool RemoveEntry(EntityInfo Entity){
+		for(int i=0; i<E_List.Count; i++){
+			if(E_List[i].ID==Entity.ID || (Entity.GetDistance(E_List[i].Position)<=0.5f&&Entity.Type==E_List[i].Type)){
+				E_List.RemoveAt(i);
+				return true;
+			}
+		}
+		return false;
+	}
+	
+	public EntityInfo Get(long ID){
+		foreach(EntityInfo entity in E_List){
+			if(entity.ID==ID)
+				return entity;
+		}
+		return null;
+	}
+	
+	public double ClosestDistance(MyRelationsBetweenPlayerAndBlock Relationship, double min_size=0){
+		double min_distance=double.MaxValue;
+		foreach(EntityInfo entity in E_List){
+			if(entity.Size >= min_size && entity.Relationship==Relationship)
+				min_distance=Math.Min(min_distance, (Prog.P.Me.GetPosition()-entity.Position).Length()-entity.Size);
+		}
+		return min_distance;
+	}
+	
+	public double ClosestDistance(double min_size=0){
+		double min_distance=double.MaxValue;
+		foreach(EntityInfo entity in E_List){
+			if(entity.Size >= min_size)
+				min_distance=Math.Min(min_distance, (Prog.P.Me.GetPosition()-entity.Position).Length()-entity.Size);
+		}
+		return min_distance;
+	}
+	
+	public void Clear(){
+		E_List.Clear();
+	}
+	
+	public void Sort(Vector3D Reference){
+		Queue<EntityInfo> Unsorted=new Queue<EntityInfo>();
+		double last_distance=0;
+		for(int i=0;i<E_List.Count;i++){
+			double distance=E_List[i].GetDistance(Reference);
+			if(distance<last_distance){
+				Unsorted.Enqueue(E_List[i]);
+				E_List.RemoveAt(i);
+				i--;
+				continue;
+			}
+			last_distance=distance;
+		}
+		while(Unsorted.Count>0){
+			double distance=Unsorted.Peek().GetDistance(Reference);
+			int upper=E_List.Count;
+			int lower=0;
+			int index;
+			double down;
+			double up;
+			do{
+				index=(upper-lower)/2+lower;
+				down=0;
+				if(index>0)
+					down=E_List[index-1].GetDistance(Reference);
+				up=E_List[index].GetDistance(Reference);
+				if(down>distance)
+					upper=index-1;
+				else
+					lower=index-1;
+				if(up<distance)
+					lower=index;
+				else
+					upper=index;
+			}
+			while((down>distance||up<distance)&&upper!=lower);
+			E_List.Insert(index,Unsorted.Deqeue());
+		}
+	}
+}
+
 TimeSpan FromSeconds(double seconds){
-	return (new TimeSpan(0,0,0,(int)seconds,(int)(seconds*1000)%1000));
+	return Prog.FromSeconds(seconds);
 }
 
 TimeSpan UpdateTimeSpan(TimeSpan old,double seconds){
