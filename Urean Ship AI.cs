@@ -932,6 +932,26 @@ class Menu_Display:MenuOption{
 	}
 }
 
+struct Airlock{
+	public IMyDoor Door1;
+	public IMyDoor Door2;
+	public IMyAirVent Vent;
+	public double VentTimer=1;
+	public Airlock(IMyDoor d1,IMyDoor d2,IMyAirVent v=null){
+		Door1=d1;
+		Door2=d2;
+		Vent=v;
+	}
+	public bool Equals(Airlock o){
+		return Door1.Equals(o.Door1)&&Door2.Equals(o.Door2)&&Vent.Equals(o.Vent);
+	}
+	public double Distance(Vector3D Reference){
+		double distance_1=(Reference-Door1.GetPosition()).Length();
+		double distance_2=(Reference-Door2.GetPosition()).Length();
+		return Math.Min(distance_1, distance_2);
+	}
+}
+
 TimeSpan FromSeconds(double seconds){
 	return Prog.FromSeconds(seconds);
 }
