@@ -585,6 +585,353 @@ class EntityList:IEnumerable<EntityInfo>{
 	}
 }
 
+enum MenuType{
+	Submenu=0,
+	Command=1,
+	Display=2
+}
+
+interface MenuOption{
+	string Name();
+	MenuType Type();
+	bool AutoRefresh();
+	int Depth();
+	bool Back();
+	bool Select();
+}
+
+class Menu_Submenu:MenuOption{
+	string _Name;
+	public string Name(){
+		return _Name;
+	}
+	public MenuType Type(){
+		return MenuType.Submenu;
+	}
+	public bool AutoRefresh(){
+		if(Selected){
+			return Menu[Selection].AutoRefresh();
+		}
+		return Last_Count==Count||Count>10;
+	}
+	public int Depth(){
+		if(Selected){
+			return 1+Menu[Selection].Depth();
+		}
+		return 1;
+	}
+	public bool Selected;
+	public int Selection;
+	
+	int Last_Count;
+	public int Count{
+		get{
+			return Menu.Count;
+		}
+	}
+	
+	public List<MenuOption> Menu;
+	
+	public Menu_Submenu(string name){
+		_Name=name.Trim().Substring(0, Math.Min(name.Trim().Length, 24));
+		Menu=new List<MenuOption>();
+		Selection=0;
+		Last_Count=0;
+	}
+	
+	public bool Add(MenuOption new_item){
+		Menu.Add(new_item);
+		return true;
+	}
+	
+	public bool Back(){
+		if(Selected){
+			if(Menu[Selection].Back())
+				return true;
+			Selected=false;
+			return true;
+		}
+		return false;
+	}
+	
+	public bool Select(){
+		if(Selected){
+			bool output=Menu[Selection].Select();
+			if(Menu[Selection].Type()==MenuType.Command)
+				Selected=false;
+			return output;
+		}
+		Selected=true;
+		return true;
+	}
+	
+	public bool Next(){
+		if(Selected){
+			if(Menu[Selection].Type()==MenuType.Submenu){
+				return ((Menu_Submenu)(Menu[Selection])).Next();
+			}
+			return false;
+		}
+		if(Count>0)
+			Selection=(Selection+1)%Count;
+		return true;
+	}
+	
+	public bool Prev(){
+		if(Selected){
+			if(Menu[Selection].Type()==MenuType.Submenu){
+				return ((Menu_Submenu)(Menu[Selection])).Prev();
+			}
+			return false;
+		}
+		if(Count>0)
+			Selection=(Selection-1+Count)%Count;
+		return true;
+	}
+	
+	public bool Replace(Menu_Submenu Replacement){
+		for(int i=0;i<Count;i++){
+			if(Menu[i].Name().Equals(Replacement.Name())){
+				Menu[i]=Replacement;
+				return true;
+			}
+		}
+		return false;
+	}
+	
+	public override string ToString(){
+		if(Count>0)
+			Selection=Selection%Count;
+		if(Selected)
+			return Menu[Selection].ToString();
+		string output=" -- "+Name()+" -- ";
+		if(Count<=10){
+			for(int i=0;i<Count;i++){
+				output+="\n ";
+				switch(Menu[i].Type()){
+					case MenuType.Submenu:
+						output+="[";
+						break;
+					case MenuType.Command:
+						output+="<";
+						break;
+					case MenuType.Display:
+						output+="(";
+						break;
+				}
+				output+=' ';
+				if(Selection==i)
+					output+=' '+Menu[i].Name().ToUpper()+' ';
+				else 
+					output+=Menu[i].Name().ToLower();
+				switch(Menu[i].Type()){
+					case MenuType.Submenu:
+						output+=" ("+(Menu[i] as Menu_Submenu).Count.ToString()+")]";
+						break;
+					case MenuType.Command:
+						output+=">";
+						break;
+					case MenuType.Display:
+						output+=")";
+						break;
+				}
+			}
+		}
+		else{
+			int count=0;
+			for(int i=Selection; count<=10 && i<Count;i++){
+				count++;
+				output+="\n ";
+				switch(Menu[i].Type()){
+					case MenuType.Submenu:
+						output+="[";
+						break;
+					case MenuType.Command:
+						output+="<";
+						break;
+					case MenuType.Display:
+						output+="(";
+						break;
+				}
+				output+=' ';
+				if(Selection==i)
+					output+=' '+Menu[i].Name().ToUpper()+' ';
+				else
+					output+=Menu[i].Name().ToLower();
+				switch(Menu[i].Type()){
+					case MenuType.Submenu:
+						output+="]";
+						break;
+					case MenuType.Command:
+						output+=">";
+						break;
+					case MenuType.Display:
+						output+=")";
+						break;
+				}
+			}
+		}
+		return output;
+	}
+}
+
+class Menu_Command<T>:MenuOption where T:class{
+	string _Name;
+	public string Name(){
+		return _Name;
+	}
+	public MenuType Type(){
+		return MenuType.Command;
+	}
+	bool _AutoRefresh;
+	public bool AutoRefresh(){
+		return _AutoRefresh;
+	}
+	public int Depth(){
+		return 1;
+	}
+	string Desc;
+	T Arg;
+	Func<T, bool> Command;
+	
+	public Menu_Command(string name,Func<T, bool> command,string desc="No description provided",T arg=null,bool autorefresh=false){
+		if(name.Trim().Length > 0)
+			_Name=name;
+		Desc=desc;
+		Arg=arg;
+		Command=command;
+		_AutoRefresh=autorefresh;
+	}
+	
+	public bool Select(){
+		return Command(Arg);
+	}
+	
+	public bool Back(){
+		return false;
+	}
+	
+	public override string ToString(){
+		string output=Name()+'\n';
+		string[] words=Desc.Split(' ');
+		int length=24;
+		foreach(string word in words){
+			if(length > 0 && length+word.Length > 24){
+				length=0;
+				output+='\n';
+			}
+			else
+				output+=' ';
+			output+=word;
+			if(word.Contains('\n'))
+				length=word.Length-word.IndexOf('\n')-1;
+			else
+				length+=word.Length;
+		}
+		return output+"\n\nSelect to Execute";
+	}
+}
+
+class Menu_Display:MenuOption{
+	public string Name(){
+		if(Entity==null){
+			return "null";
+		}
+		string name=Entity.Name.Substring(0,Math.Min(24,Entity.Name.Length));
+		string[] args=name.Split(' ');
+		int number=0;
+		if(args.Length==3&&args[1].ToLower().Equals("grid")&&Int32.TryParse(args[2],out number))
+			name="Unnamed "+args[0]+' '+args[1];
+		double distance=Entity.GetDistance(Prog.P.Me.GetPosition())-Entity.Size;
+		string distance_string=Math.Round(distance,0).ToString()+"M";
+		if(distance>=1000)
+			distance_string=Math.Round(distance/1000,1).ToString()+"kM";
+		string output=' '+name+' '+distance_string;
+		switch(Entity.Relationship){
+			case MyRelationsBetweenPlayerAndBlock.Owner:
+				return ''+output;
+			case MyRelationsBetweenPlayerAndBlock.FactionShare:
+				return ''+output;
+			case MyRelationsBetweenPlayerAndBlock.Friends:
+				return ''+output;
+			case MyRelationsBetweenPlayerAndBlock.NoOwnership:
+				return ''+output;
+			case MyRelationsBetweenPlayerAndBlock.Enemies:
+				return ''+output;
+		}
+		return ''+output;
+	}
+	public MenuType Type(){
+		return MenuType.Display;
+	}
+	public bool AutoRefresh(){
+		return true;
+	}
+	public int Depth(){
+		if(Selected)
+			return 2;
+		return 1;
+	}
+	bool Selected;
+	EntityInfo Entity;
+	bool Can_GoTo;
+	Func<EntityInfo, bool> Command;
+	Menu_Command<EntityInfo> Subcommand {
+		get{
+			double distance=(P.Me.GetPosition()-Entity.Position).Length()-Entity.Size;
+			return new Menu_Command<EntityInfo>("GoTo "+Entity.Name, Command, "Set autopilot to match target Entity's expected position and velocity", Entity);
+		}
+	}
+		
+	public Menu_Display(EntityInfo entity, Func<EntityInfo, bool> GoTo){
+		Entity=entity;
+		Command=GoTo;
+		Selected=false;
+		Can_GoTo=true;
+	}
+	
+	public Menu_Display(EntityInfo entity){
+		Entity=entity;
+		Selected=false;
+		Can_GoTo=false;
+	}
+	
+	public bool Select(){
+		if(!Can_GoTo)
+			return false;
+		if(Selected){
+			if(Command==null)
+				return false;
+			if(Subcommand.Select()){
+				Selected=false;
+				return true;
+			}
+			return false;
+		}
+		Selected=true;
+		return true;
+	}
+	
+	public bool Back(){
+		if(!Selected)
+			return false;
+		Selected=false;
+		return true;
+	}
+	
+	public override string ToString(){
+		if(Selected)
+			return Subcommand.ToString();
+		else {
+			double distance=Entity.GetDistance(Prog.P.Me.GetPosition());
+			string distance_string=Math.Round(distance,0)+"M";
+			if(distance>=1000)
+				distance_string=Math.Round(distance/1000,1)+"kM";
+			return Entity.NiceString()+"Distance: "+distance_string;
+		}
+	}
+}
+
 TimeSpan FromSeconds(double seconds){
 	return Prog.FromSeconds(seconds);
 }
