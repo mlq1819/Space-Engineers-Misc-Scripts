@@ -936,7 +936,7 @@ struct Airlock{
 	public IMyDoor Door1;
 	public IMyDoor Door2;
 	public IMyAirVent Vent;
-	public double VentTimer=1;
+	public double AirlockTimer=10;
 	public Airlock(IMyDoor d1,IMyDoor d2,IMyAirVent v=null){
 		Door1=d1;
 		Door2=d2;
@@ -1048,6 +1048,14 @@ void Write(string text,bool new_line=true,bool append=true){
 		Me.GetSurface(0).WriteText(text+'\n', append);
 	else
 		Me.GetSurface(0).WriteText(text, append);
+}
+
+string GetRemovedString(string big_string, string small_string){
+	string output=big_string;
+	if(big_string.Contains(small_string)){
+		output=big_string.Substring(0, big_string.IndexOf(small_string))+big_string.Substring(big_string.IndexOf(small_string)+small_string.Length);
+	}
+	return output;
 }
 
 TimeSpan Time_Since_Start=new TimeSpan(0);
@@ -1279,6 +1287,107 @@ bool ControllerFunction(IMyShipController ctrlr){
 	return ctrlr.CanControlShip&&ctrlr.ControlThrusters&&(ctrlr.IsMainCockpit||Remote!=null);
 }
 
+void SetupAirlocks(){
+	Airlocks=new List<Airlock>();
+	List<IMyDoor> AllAirlockDoors=GenericMethods<IMyDoor>.GetAllConstruct("Airlock");
+	List<IMyDoor> AllAirlockDoor1s=new List<IMyDoor>();
+	List<IMyDoor> AllAirlockDoor2s=new List<IMyDoor>();
+	foreach(IMyDoor Door in AllAirlockDoors){
+		if(Door.CustomName.Contains("Door 1")){
+			AllAirlockDoor1s.Add(Door);
+		}
+		else if(Door.CustomName.Contains("Door 2")){
+			AllAirlockDoor2s.Add(Door);
+		}
+	}
+	List<List<IMyDoor>> PossibleAirlockDoor1Pairs=new List<List<IMyDoor>>();
+	foreach(IMyDoor Door1 in AllAirlockDoor1s){
+		List<IMyDoor> pair=new List<IMyDoor>();
+		pair.Add(Door1);
+		List<IMyDoor> Copy=new List<IMyDoor>();
+		string name=GetRemovedString(Door1.CustomName,"Door 1");
+		foreach(IMyDoor Door2 in AllAirlockDoor2s){
+			Copy.Add(Door2);
+		}
+		foreach(IMyDoor Door2 in GenericMethods<IMyDoor>.SortByDistance(Copy, Door1)){
+			if(GetRemovedString(Door2.CustomName,"Door 2").Equals(name))
+				pair.Add(Door2);
+		}
+		if(pair.Count > 1)
+			PossibleAirlockDoor1Pairs.Add(pair);
+	}
+	List<List<IMyDoor>> PossibleAirlockDoor2Pairs=new List<List<IMyDoor>>();
+	foreach(IMyDoor Door2 in AllAirlockDoor2s){
+		List<IMyDoor> pair=new List<IMyDoor>();
+		pair.Add(Door2);
+		List<IMyDoor> Copy=new List<IMyDoor>();
+		string name=GetRemovedString(Door2.CustomName,"Door 2");
+		foreach(IMyDoor Door1 in AllAirlockDoor1s){
+			Copy.Add(Door1);
+		}
+		foreach(IMyDoor Door1 in GenericMethods<IMyDoor>.SortByDistance(Copy, Door2)){
+			if(GetRemovedString(Door1.CustomName,"Door 1").Equals(name))
+				pair.Add(Door1);
+		}
+		if(pair.Count>1){
+			PossibleAirlockDoor2Pairs.Add(pair);
+		}
+	}
+	int removed=0;
+	do{
+		removed=0;
+		foreach(List<IMyDoor> pair1 in PossibleAirlockDoor1Pairs){
+			if(pair1.Count<=1){
+				IMyDoor Door=pair1[0];
+				PossibleAirlockDoor1Pairs=RemoveDoor(PossibleAirlockDoor1Pairs, Door);
+				PossibleAirlockDoor2Pairs=RemoveDoor(PossibleAirlockDoor2Pairs, Door);
+				continue;
+			}
+			foreach(List<IMyDoor> pair2 in PossibleAirlockDoor2Pairs){
+				if(pair2.Count<=1){
+					IMyDoor Door=pair2[0];
+					PossibleAirlockDoor1Pairs=RemoveDoor(PossibleAirlockDoor1Pairs, Door);
+					PossibleAirlockDoor2Pairs=RemoveDoor(PossibleAirlockDoor2Pairs, Door);
+					continue;
+				}
+				if(pair2[0].Equals(pair1[1])&&pair1[0].Equals(pair2[1])){
+					removed++;
+					IMyDoor Door1=pair1[0];
+					IMyDoor Door2=pair2[0];
+					Airlocks.Add(new Airlock(Door1, Door2));
+					PossibleAirlockDoor1Pairs=RemoveDoor(RemoveDoor(PossibleAirlockDoor1Pairs, Door1), Door2);
+					PossibleAirlockDoor2Pairs=RemoveDoor(RemoveDoor(PossibleAirlockDoor2Pairs, Door2), Door1);
+					break;
+				}
+			}
+		}
+	} 
+	while(removed>0&&PossibleAirlockDoor1Pairs.Count>0&&PossibleAirlockDoor2Pairs.Count>0);
+	foreach(List<IMyDoor> pair1 in PossibleAirlockDoor1Pairs){
+		if(pair1.Count<=1){
+			IMyDoor Door=pair1[0];
+			PossibleAirlockDoor1Pairs=RemoveDoor(PossibleAirlockDoor1Pairs, Door);
+			PossibleAirlockDoor2Pairs=RemoveDoor(PossibleAirlockDoor2Pairs, Door);
+			continue;
+		}
+		IMyDoor Door1=pair1[0];
+		IMyDoor Door2=pair1[1];
+		Airlocks.Add(new Airlock(Door1, Door2));
+		PossibleAirlockDoor1Pairs=RemoveDoor(RemoveDoor(PossibleAirlockDoor1Pairs, Door1), Door2);
+		PossibleAirlockDoor2Pairs=RemoveDoor(RemoveDoor(PossibleAirlockDoor2Pairs, Door2), Door1);
+	}
+	foreach(Airlock airlock in Airlocks){
+		string name=GetRemovedString(airlock.Door1.CustomName,"Door 1");
+		List<IMyAirVent> Vents=GenericMethods<IMyAirVent>.GetAllConstruct(name+"Air Vent",airlock.Door1);
+		foreach(IMyAirVent Vent in Vents){
+			if(Vent.CustomName.Equals(name+"Air Vent")){
+				airlock.Vent=Vent;
+				break;
+			}
+		}
+	}
+}
+
 public Program(){
 	Prog.P=this;
 	Me.CustomName=(Program_Name+" Programmable block").Trim();
@@ -1336,6 +1445,14 @@ void UpdateProgramInfo(){
 	Time_Since_Start=UpdateTimeSpan(Time_Since_Start,seconds_since_last_update);
 	Echo(ToString(Time_Since_Start)+" since last reboot\n");
 	Me.GetSurface(1).WriteText("\n"+ToString(Time_Since_Start)+" since last reboot\n");
+}
+
+void UpdateTimers(){
+	foreach(Airlock airlock in Airlocks){
+		if(airlock.AirlockTimer<10&&airlock.AirlockTimer<Math.Max(3,airlock.Door1.GetPosition()-airlock.Door2.GetPosition()))
+			airlock.AirlockTimer+=seconds_since_last_update;
+	}
+	
 }
 
 public void Main(string argument, UpdateType updateSource)
