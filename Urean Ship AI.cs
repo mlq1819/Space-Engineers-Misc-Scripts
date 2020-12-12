@@ -1054,6 +1054,225 @@ TimeSpan Time_Since_Start=new TimeSpan(0);
 long cycle=0;
 char loading_char='|';
 double seconds_since_last_update=0;
+Random Rnd;
+
+IMyShipController Controller;
+IMyGyro Gyroscope;
+
+List<IMyTextPanel> StatusLCDs;
+List<IMyTextPanel> DebugLCDs;
+
+List<IMyDoor> AutoDoors;
+List<Airlock> Airlocks;
+
+EntityList[5] EntityLists=new EntityList[5];
+EntityList AsteroidList{
+	set{
+		EntityLists[0]=value;
+	}
+	get{
+		return EntityLists[0];
+	}
+}
+EntityList PlanetList{
+	set{
+		EntityLists[1]=value;
+	}
+	get{
+		return EntityLists[1];
+	}
+}
+EntityList SmallShipList{
+	set{
+		EntityLists[2]=value;
+	}
+	get{
+		return EntityLists[2];
+	}
+}
+EntityList LargeShipList{
+	set{
+		EntityLists[3]=value;
+	}
+	get{
+		return EntityLists[3];
+	}
+}
+EntityList CharacterList{
+	set{
+		EntityLists[4]=value;
+	}
+	get{
+		return EntityLists[4];
+	}
+}
+
+List<IMyThrust> Forward_Thrusters;
+List<IMyThrust> Backward_Thrusters;
+List<IMyThrust> Up_Thrusters;
+List<IMyThrust> Down_Thrusters;
+List<IMyThrust> Left_Thrusters;
+List<IMyThrust> Right_Thrusters;
+
+float Forward_Thrust{
+	get{
+		float total=0;
+		foreach(IMyThrust Thruster in Forward_Thrusters)
+			total+=Thruster.MaxEffectiveThrust;
+		return total;
+	}
+}
+float Backward_Thrust{
+	get{
+		float total=0;
+		foreach(IMyThrust Thruster in Backward_Thrusters)
+			total+=Thruster.MaxEffectiveThrust;
+		return total;
+	}
+}
+float Up_Thrust{
+	get{
+		float total=0;
+		foreach(IMyThrust Thruster in Up_Thrusters)
+			total+=Thruster.MaxEffectiveThrust;
+		return total;
+	}
+}
+float Down_Thrust{
+	get{
+		float total=0;
+		foreach(IMyThrust Thruster in Down_Thrusters)
+			total+=Thruster.MaxEffectiveThrust;
+		return total;
+	}
+}
+float Left_Thrust{
+	get{
+		float total=0;
+		foreach(IMyThrust Thruster in Left_Thrusters)
+			total+=Thruster.MaxEffectiveThrust;
+		return total;
+	}
+}
+float Right_Thrust{
+	get{
+		float total=0;
+		foreach(IMyThrust Thruster in Right_Thrusters)
+			total+=Thruster.MaxEffectiveThrust;
+		return total;
+	}
+}
+
+double Time_To_Crash=double.MaxValue;
+Menu_Submenu Command_Menu;
+
+Base6Directions.Direction Forward;
+Base6Directions.Direction Backward{
+	get{
+		return Base6Directions.GetOppositeDirection(Forward);
+	}
+}
+Base6Directions.Direction Up;
+Base6Directions.Direction Down{
+	get{
+		return Base6Directions.GetOppositeDirection(Up);
+	}
+}
+Base6Directions.Direction Left;
+Base6Directions.Direction Right{
+	get{
+		return Base6Directions.GetOppositeDirection(Left);
+	}
+}
+
+Vector3D Forward_Vector;
+Vector3D Backward_Vector{
+	get{
+		return -1*Forward_Vector;
+	}
+}
+Vector3D Up_Vector;
+Vector3D Down_Vector{
+	get{
+		return -1*Up_Vector;
+	}
+}
+Vector3D Left_Vector;
+Vector3D Right_Vector{
+	get{
+		return -1*Left_Vector;
+	}
+}
+
+bool Tracking=false;
+bool Match_Direction=false;
+Vector3D Target_Direction;
+bool Match_Position=false;
+Vector3D Target_Position;
+Vector3D Relative_Target_Position{
+	get{
+		return GlobalToLocalPosition(Target_Position);
+	}
+}
+double Target_Distance{
+	get{
+		return (Target_Position-Controller.GetPosition()).Length();
+	}
+}
+long Target_ID=0;
+
+float Mass_Accomodation=0.0f;
+
+Vector3D RestingVelocity;
+Vector3D Relative_RestingVelocity{
+	get{
+		return GlobalToLocal(RestingVelocity);
+	}
+}
+Vector3D CurrentVelocity;
+Vector3D Relative_CurrentVelocity{
+	get{
+		Vector3D output=Vector3D.Transform(CurrentVelocity+Controller.GetPosition(), MatrixD.Invert(Controller.WorldMatrix));
+		output.Normalize();
+		output *= CurrentVelocity.Length();
+		return output;
+	}
+}
+Vector3D Gravity;
+Vector3D Relative_Gravity{
+	get{
+		return GlobalToLocal(Gravity);
+	}
+}
+Vector3D Adjusted_Gravity{
+	get{
+		Vector3D temp=GlobalToLocal(Gravity);
+		temp.Normalize();
+		return temp*Mass_Accomodation;
+	}
+}
+Vector3D Gravity_Direction{
+	get{
+		Vector3D direction=Gravity;
+		direction.Normalize();
+		return direction;
+	}
+}
+double Speed_Deviation{
+	get{
+		return (CurrentVelocity-RestingVelocity).Length();
+	}
+}
+Vector3D AngularVelocity;
+Vector3D Relative_AngularVelocity{
+	get{
+		return GlobalToLocal(AngularVelocity);
+	}
+}
+
+double Elevation;
+double Sealevel;
+Vector3D PlanetCenter;
 
 public Program(){
 	Prog.P=this;
