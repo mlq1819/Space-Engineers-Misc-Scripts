@@ -1274,6 +1274,11 @@ double Elevation;
 double Sealevel;
 Vector3D PlanetCenter;
 
+bool ControllerFunction(IMyShipController ctrlr){
+	IMyRemoteControl Remote=ctrlr as IMyRemoteControl;
+	return ctrlr.CanControlShip&&ctrlr.ControlThrusters&&(ctrlr.IsMainCockpit||Remote!=null);
+}
+
 public Program(){
 	Prog.P=this;
 	Me.CustomName=(Program_Name+" Programmable block").Trim();
@@ -1330,6 +1335,7 @@ void UpdateProgramInfo(){
 	Echo(ToString(FromSeconds(seconds_since_last_update))+" since last cycle");
 	Time_Since_Start=UpdateTimeSpan(Time_Since_Start,seconds_since_last_update);
 	Echo(ToString(Time_Since_Start)+" since last reboot\n");
+	Me.GetSurface(1).WriteText("\n"+ToString(Time_Since_Start)+" since last reboot\n");
 }
 
 public void Main(string argument, UpdateType updateSource)
