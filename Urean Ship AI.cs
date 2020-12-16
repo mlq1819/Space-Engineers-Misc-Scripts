@@ -2224,113 +2224,6 @@ void PerformAlarm(){
 	}
 }
 
-void UpdateAirlock(Airlock airlock){
-	if(airlock.Door1.Status!=DoorStatus.Closed&&airlock.Door2.Status!=DoorStatus.Closed){
-		airlock.Door1.Enabled=true;
-		airlock.Door1.CloseDoor();
-		airlock.Door2.Enabled=true;
-		airlock.Door2.CloseDoor();
-	}
-	if(!(CanHaveJob(airlock.Door1,"Airlock")&&(CanHaveJob(airlock.Door2,"Airlock"))))
-		return;
-	bool detected=false;
-	double min_distance_1=double.MaxValue;
-	double min_distance_2=double.MaxValue;
-	double min_distance_check=3.75*(1+(Controller.GetShipSpeed()/200));
-	foreach(EntityInfo Entity in CharacterList){
-		if(Guest_Mode||(Entity.Relationship!=MyRelationsBetweenPlayerAndBlock.Enemies&&Entity.Relationship!=MyRelationsBetweenPlayerAndBlock.Neutral)){
-			Vector3D position=Entity.Position+CurrentVelocity/100;
-			double distance=airlock.Distance(Entity.Position);
-			bool is_closest_to_this_airlock=distance <= min_distance_check;
-			if(is_closest_to_this_airlock){
-				foreach(Airlock alock in Airlocks){
-					if(is_closest_to_this_airlock && !alock.Equals(airlock))
-						is_closest_to_this_airlock=is_closest_to_this_airlock&&distance<(alock.Distance(position));
-				}
-			}
-			if(is_closest_to_this_airlock){
-				detected=true;
-				min_distance_1=Math.Min(min_distance_1,(airlock.Door1.GetPosition()-position).Length());
-				min_distance_2=Math.Min(min_distance_2,(airlock.Door2.GetPosition()-position).Length());
-			}
-		}
-	}
-	double wait=0.25;
-	if(airlock.Vent!=null)
-		wait=1.5;
-	if(detected){
-		SetBlockData(airlock.Door1,"Job","Airlock");
-		SetBlockData(airlock.Door2,"Job","Airlock");
-		if(min_distance_1<=min_distance_2){
-			airlock.Door2.Enabled=(airlock.Door2.Status!=DoorStatus.Closed)&&AirlockTimer>wait;
-			if(airlock.Door2.Status!=DoorStatus.Closing)
-				airlock.Door2.CloseDoor();
-			if(airlock.Door2.Enabled){
-				airlock.Door1.Enabled=(airlock.Door1.Status!=DoorStatus.Closed);
-				if(airlock.Door1.Status!=DoorStatus.Closing)
-					airlock.Door1.CloseDoor();
-				Write(airlock.Name+":"+"Closing Door 2");
-			}
-			else{
-				airlock.Door1.Enabled=true;
-				if(airlock.Door1.Status!=DoorStatus.Opening&&AirlockTimer>wait)
-					airlock.Door1.OpenDoor();
-				Write(airlock.Name+":"+"Opening Door 1");
-			}
-		}
-		else {
-			airlock.Door1.Enabled=(airlock.Door1.Status!=DoorStatus.Closed)&&AirlockTimer>wait;
-			if(airlock.Door1.Status!=DoorStatus.Closing)
-				airlock.Door1.CloseDoor();
-			if(airlock.Door1.Enabled){
-				airlock.Door2.Enabled=(airlock.Door2.Status!=DoorStatus.Closed);
-				if(airlock.Door2.Status!=DoorStatus.Closing)
-					airlock.Door2.CloseDoor();
-				Write(airlock.Name+":"+"Closing Door 1");
-			}
-			else {
-				airlock.Door2.Enabled=true;
-				if(airlock.Door2.Status!=DoorStatus.Opening)
-					airlock.Door2.OpenDoor();
-				Write(airlock.Name+":"+"Opening Door 2");
-			}
-		}
-	}
-	else{
-		SetBlockData(airlock.Door1,"Job","None");
-		SetBlockData(airlock.Door2,"Job","None");
-		airlock.Door1.Enabled=(airlock.Door1.Status!=DoorStatus.Closed)&&AirlockTimer>wait;
-		if(airlock.Door1.Status!=DoorStatus.Closing)
-			airlock.Door1.CloseDoor();
-		airlock.Door2.Enabled=(airlock.Door2.Status!=DoorStatus.Closed)&&AirlockTimer>wait;
-		if(airlock.Door2.Status!=DoorStatus.Closing)
-			airlock.Door2.CloseDoor();
-		Write(airlock.Name+":"+"Opening both Doors");
-	}
-}
-
-void UpdateAutoDoors(){
-	foreach(IMyDoor AutoDoor in AutoDoors){
-		bool found_entity=false;
-		double min_distance_check=3.75*(1+(Controller.GetShipSpeed()/200));
-		foreach(EntityInfo Entity in CharacterList){
-			if(Entity.Relationship!=MyRelationsBetweenPlayerAndBlock.Enemies&&Entity.Relationship!=MyRelationsBetweenPlayerAndBlock.Neutral){
-				Vector3D position=Entity.Position+CurrentVelocity/100;
-				double distance=(AutoDoor.GetPosition()-Entity.Position).Length();
-				bool is_closest_to_this_airlock=distance<=min_distance_check;
-				if(distance<min_distance_check){
-					found_entity=true;
-					if(!_Lockdown)
-						AutoDoor.OpenDoor();
-					break;
-				}
-			}
-		}
-		if(!found_entity)
-			AutoDoor.CloseDoor();
-	}
-}
-
 List<IMyCameraBlock> GetValidCameras(){
 	List<IMyCameraBlock> AllCameras=GenericMethods<IMyCameraBlock>.GetAllConstruct("");
 	List<IMyCameraBlock> output=new List<IMyCameraBlock>();
@@ -2424,7 +2317,7 @@ float SensorRange(IMySensorBlock Sensor){
 double Scan_Time=10;
 string ScanString="";
 double MySize=0;
-public bool PerformScan(object obj=null){
+bool PerformScan(object obj=null){
 	Write("Beginning Scan");
 	ScanString="";
 	for(int i=0;i<EntityLists.Length;i++)
@@ -2617,6 +2510,127 @@ public bool PerformScan(object obj=null){
 	Scan_Time=0;
 	return true;
 }
+
+void UpdateAirlock(Airlock airlock){
+	if(airlock.Door1.Status!=DoorStatus.Closed&&airlock.Door2.Status!=DoorStatus.Closed){
+		airlock.Door1.Enabled=true;
+		airlock.Door1.CloseDoor();
+		airlock.Door2.Enabled=true;
+		airlock.Door2.CloseDoor();
+	}
+	if(!(CanHaveJob(airlock.Door1,"Airlock")&&(CanHaveJob(airlock.Door2,"Airlock"))))
+		return;
+	bool detected=false;
+	double min_distance_1=double.MaxValue;
+	double min_distance_2=double.MaxValue;
+	double min_distance_check=3.75*(1+(Controller.GetShipSpeed()/200));
+	foreach(EntityInfo Entity in CharacterList){
+		if(Guest_Mode||(Entity.Relationship!=MyRelationsBetweenPlayerAndBlock.Enemies&&Entity.Relationship!=MyRelationsBetweenPlayerAndBlock.Neutral)){
+			Vector3D position=Entity.Position+CurrentVelocity/100;
+			double distance=airlock.Distance(Entity.Position);
+			bool is_closest_to_this_airlock=distance <= min_distance_check;
+			if(is_closest_to_this_airlock){
+				foreach(Airlock alock in Airlocks){
+					if(is_closest_to_this_airlock && !alock.Equals(airlock))
+						is_closest_to_this_airlock=is_closest_to_this_airlock&&distance<(alock.Distance(position));
+				}
+			}
+			if(is_closest_to_this_airlock){
+				detected=true;
+				min_distance_1=Math.Min(min_distance_1,(airlock.Door1.GetPosition()-position).Length());
+				min_distance_2=Math.Min(min_distance_2,(airlock.Door2.GetPosition()-position).Length());
+			}
+		}
+	}
+	double wait=0.25;
+	if(airlock.Vent!=null)
+		wait=1.5;
+	if(detected){
+		SetBlockData(airlock.Door1,"Job","Airlock");
+		SetBlockData(airlock.Door2,"Job","Airlock");
+		if(min_distance_1<=min_distance_2){
+			airlock.Door2.Enabled=(airlock.Door2.Status!=DoorStatus.Closed)&&AirlockTimer>wait;
+			if(airlock.Door2.Status!=DoorStatus.Closing)
+				airlock.Door2.CloseDoor();
+			if(airlock.Door2.Enabled){
+				airlock.Door1.Enabled=(airlock.Door1.Status!=DoorStatus.Closed);
+				if(airlock.Door1.Status!=DoorStatus.Closing)
+					airlock.Door1.CloseDoor();
+				Write(airlock.Name+":"+"Closing Door 2");
+			}
+			else{
+				airlock.Door1.Enabled=true;
+				if(airlock.Door1.Status!=DoorStatus.Opening&&AirlockTimer>wait)
+					airlock.Door1.OpenDoor();
+				Write(airlock.Name+":"+"Opening Door 1");
+			}
+		}
+		else {
+			airlock.Door1.Enabled=(airlock.Door1.Status!=DoorStatus.Closed)&&AirlockTimer>wait;
+			if(airlock.Door1.Status!=DoorStatus.Closing)
+				airlock.Door1.CloseDoor();
+			if(airlock.Door1.Enabled){
+				airlock.Door2.Enabled=(airlock.Door2.Status!=DoorStatus.Closed);
+				if(airlock.Door2.Status!=DoorStatus.Closing)
+					airlock.Door2.CloseDoor();
+				Write(airlock.Name+":"+"Closing Door 1");
+			}
+			else {
+				airlock.Door2.Enabled=true;
+				if(airlock.Door2.Status!=DoorStatus.Opening)
+					airlock.Door2.OpenDoor();
+				Write(airlock.Name+":"+"Opening Door 2");
+			}
+		}
+	}
+	else{
+		SetBlockData(airlock.Door1,"Job","None");
+		SetBlockData(airlock.Door2,"Job","None");
+		airlock.Door1.Enabled=(airlock.Door1.Status!=DoorStatus.Closed)&&AirlockTimer>wait;
+		if(airlock.Door1.Status!=DoorStatus.Closing)
+			airlock.Door1.CloseDoor();
+		airlock.Door2.Enabled=(airlock.Door2.Status!=DoorStatus.Closed)&&AirlockTimer>wait;
+		if(airlock.Door2.Status!=DoorStatus.Closing)
+			airlock.Door2.CloseDoor();
+		Write(airlock.Name+":"+"Opening both Doors");
+	}
+}
+
+void UpdateAutoDoors(){
+	foreach(IMyDoor AutoDoor in AutoDoors){
+		bool found_entity=false;
+		double min_distance_check=3.75*(1+(Controller.GetShipSpeed()/200));
+		foreach(EntityInfo Entity in CharacterList){
+			if(Entity.Relationship!=MyRelationsBetweenPlayerAndBlock.Enemies&&Entity.Relationship!=MyRelationsBetweenPlayerAndBlock.Neutral){
+				Vector3D position=Entity.Position+CurrentVelocity/100;
+				double distance=(AutoDoor.GetPosition()-Entity.Position).Length();
+				bool is_closest_to_this_airlock=distance<=min_distance_check;
+				if(distance<min_distance_check){
+					found_entity=true;
+					if(!_Lockdown)
+						AutoDoor.OpenDoor();
+					break;
+				}
+			}
+		}
+		if(!found_entity)
+			AutoDoor.CloseDoor();
+	}
+}
+
+void PerformDisarm(){
+	List<IMyWarhead> Warheads=new List<IMyWarhead>();
+	GridTerminalSystem.GetBlocksOfType<IMyWarhead>(Warheads);
+	foreach(IMyWarhead Warhead in Warheads){
+		if(HasBlockData(Warhead, "VerifiedWarhead")&&GetBlockData(Warhead,"VerifiedWahead").Equals("Active"))
+			continue;
+		Warhead.DetonationTime=Math.Max(60,Warhead.DetonationTime);
+		Warhead.IsArmed=false;
+		Warhead.StopCountdown();
+	}
+}
+
+
 
 
 
