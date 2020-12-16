@@ -9,6 +9,7 @@ Color DEFAULT_BACKGROUND_COLOR=new Color(44,0,88,255);
 string Lockdown_Door_Name="Air Seal";
 string Lockdown_Light_Name="";
 double Alert_Distance=15;
+bool Guest_Mode=false;
 
 class Prog{
 	public static MyGridProgram P;
@@ -2069,7 +2070,7 @@ void DisplayMenu(){
 
 bool last_performed_alarm=false;
 void PerformAlarm(){
-	bool nearby_enemy=(CharacterList.ClosestDistance(MyRelationsBetweenPlayerAndBlock.Enemies)<=(float) MySize);
+	bool nearby_enemy=(!Guest_Mode)&&(CharacterList.ClosestDistance(MyRelationsBetweenPlayerAndBlock.Enemies)<=(float)MySize);
 	if(!nearby_enemy&&!last_performed_alarm)
 		return;
 	last_performed_alarm=nearby_enemy;
@@ -2214,6 +2215,90 @@ void PerformAlarm(){
 	}
 }
 
+void UpdateAirlock(Airlock airlock){
+	if(airlock.Door1.Status!=DoorStatus.Closed&&airlock.Door2.Status!=DoorStatus.Closed){
+		airlock.Door1.Enabled=true;
+		airlock.Door1.CloseDoor();
+		airlock.Door2.Enabled=true;
+		airlock.Door2.CloseDoor();
+	}
+	if(!(CanHaveJob(airlock.Door1,"Airlock")&&(CanHaveJob(airlock.Door2,"Airlock"))))
+		return;
+	bool detected=false;
+	double min_distance_1=double.MaxValue;
+	double min_distance_2=double.MaxValue;
+	double min_distance_check=3.75*(1+(Controller.GetShipSpeed()/200));
+	foreach(EntityInfo Entity in CharacterList){
+		if(Guest_Mode||(Entity.Relationship!=MyRelationsBetweenPlayerAndBlock.Enemies&&Entity.Relationship!=MyRelationsBetweenPlayerAndBlock.Neutral)){
+			Vector3D position=Entity.Position+CurrentVelocity/100;
+			double distance=airlock.Distance(Entity.Position);
+			bool is_closest_to_this_airlock=distance <= min_distance_check;
+			if(is_closest_to_this_airlock){
+				foreach(Airlock alock in Airlocks){
+					if(is_closest_to_this_airlock && !alock.Equals(airlock))
+						is_closest_to_this_airlock=is_closest_to_this_airlock&&distance<(alock.Distance(position));
+				}
+			}
+			if(is_closest_to_this_airlock){
+				detected=true;
+				min_distance_1=Math.Min(min_distance_1,(airlock.Door1.GetPosition()-position).Length());
+				min_distance_2=Math.Min(min_distance_2,(airlock.Door2.GetPosition()-position).Length());
+			}
+		}
+	}
+	double wait=0.25;
+	if(airlock.Vent!=null)
+		wait=1.5;
+	if(detected){
+		SetBlockData(airlock.Door1,"Job","Airlock");
+		SetBlockData(airlock.Door2,"Job","Airlock");
+		if(min_distance_1<=min_distance_2){
+			airlock.Door2.Enabled=(airlock.Door2.Status!=DoorStatus.Closed)&&AirlockTimer>wait;
+			if(airlock.Door2.Status!=DoorStatus.Closing)
+				airlock.Door2.CloseDoor();
+			if(airlock.Door2.Enabled){
+				airlock.Door1.Enabled=(airlock.Door1.Status!=DoorStatus.Closed);
+				if(airlock.Door1.Status!=DoorStatus.Closing)
+					airlock.Door1.CloseDoor();
+				AirlockString+='\t'+"Closing Door 2"+'\n';
+			}
+			else{
+				airlock.Door1.Enabled=true;
+				if(airlock.Door1.Status!=DoorStatus.Opening&&AirlockTimer>wait)
+					airlock.Door1.OpenDoor();
+				AirlockString+='\t'+"Opening Door 1"+'\n';
+			}
+		}
+		else {
+			airlock.Door1.Enabled=(airlock.Door1.Status!=DoorStatus.Closed)&&AirlockTimer>wait;
+			if(airlock.Door1.Status!=DoorStatus.Closing)
+				airlock.Door1.CloseDoor();
+			if(airlock.Door1.Enabled){
+				airlock.Door2.Enabled=(airlock.Door2.Status!=DoorStatus.Closed);
+				if(airlock.Door2.Status!=DoorStatus.Closing)
+					airlock.Door2.CloseDoor();
+				AirlockString+='\t'+"Closing Door 1"+'\n';
+			}
+			else {
+				airlock.Door2.Enabled=true;
+				if(airlock.Door2.Status!=DoorStatus.Opening)
+					airlock.Door2.OpenDoor();
+				AirlockString+='\t'+"Opening Door 2"+'\n';
+			}
+		}
+	}
+	else{
+		SetBlockData(airlock.Door1,"Job","None");
+		SetBlockData(airlock.Door2,"Job","None");
+		airlock.Door1.Enabled=(airlock.Door1.Status!=DoorStatus.Closed)&&AirlockTimer>wait;
+		if(airlock.Door1.Status!=DoorStatus.Closing)
+			airlock.Door1.CloseDoor();
+		airlock.Door2.Enabled=(airlock.Door2.Status!=DoorStatus.Closed)&&AirlockTimer>wait;
+		if(airlock.Door2.Status!=DoorStatus.Closing)
+			airlock.Door2.CloseDoor();
+		AirlockString+='\t'+"Closing both Doors"+'\n';
+	}
+}
 
 
 
@@ -2247,8 +2332,12 @@ void UpdateProgramInfo(){
 
 void UpdateTimers(){
 	foreach(Airlock airlock in Airlocks){
-		if(airlock.AirlockTimer<10&&airlock.AirlockTimer<Math.Max(3,airlock.Door1.GetPosition()-airlock.Door2.GetPosition()))
-			airlock.AirlockTimer+=seconds_since_last_update;
+		if(airlock.Door1.Status==DoorStatus.Closed&&airlock.Door2.Doorstatus==DoorStatus.Closed){
+			if(airlock.AirlockTimer<10&&airlock.AirlockTimer<Math.Max(3,airlock.Door1.GetPosition()-airlock.Door2.GetPosition()))
+				airlock.AirlockTimer+=seconds_since_last_update;
+		}
+		else
+			airlock.AirlockTimer=0;
 	}
 	
 }
