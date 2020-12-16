@@ -951,6 +951,15 @@ struct Airlock{
 	public IMyDoor Door1;
 	public IMyDoor Door2;
 	public IMyAirVent Vent;
+	public string Name{
+		get{
+			string name=Door1.CustomName;
+			if(Door1.name.Contains("Door 1")){
+				name=name.Substring(0,name.IndexOf("Door 1"))+name.Substring(name.IndexOf("Door 1")+"Door 1".Length);
+			}
+			return name.Trim();
+		}
+	}
 	public double AirlockTimer=10;
 	public Airlock(IMyDoor d1,IMyDoor d2,IMyAirVent v=null){
 		Door1=d1;
@@ -2260,13 +2269,13 @@ void UpdateAirlock(Airlock airlock){
 				airlock.Door1.Enabled=(airlock.Door1.Status!=DoorStatus.Closed);
 				if(airlock.Door1.Status!=DoorStatus.Closing)
 					airlock.Door1.CloseDoor();
-				AirlockString+='\t'+"Closing Door 2"+'\n';
+				Write(airlock.Name+":"+"Closing Door 2");
 			}
 			else{
 				airlock.Door1.Enabled=true;
 				if(airlock.Door1.Status!=DoorStatus.Opening&&AirlockTimer>wait)
 					airlock.Door1.OpenDoor();
-				AirlockString+='\t'+"Opening Door 1"+'\n';
+				Write(airlock.Name+":"+"Opening Door 1");
 			}
 		}
 		else {
@@ -2277,13 +2286,13 @@ void UpdateAirlock(Airlock airlock){
 				airlock.Door2.Enabled=(airlock.Door2.Status!=DoorStatus.Closed);
 				if(airlock.Door2.Status!=DoorStatus.Closing)
 					airlock.Door2.CloseDoor();
-				AirlockString+='\t'+"Closing Door 1"+'\n';
+				Write(airlock.Name+":"+"Closing Door 1");
 			}
 			else {
 				airlock.Door2.Enabled=true;
 				if(airlock.Door2.Status!=DoorStatus.Opening)
 					airlock.Door2.OpenDoor();
-				AirlockString+='\t'+"Opening Door 2"+'\n';
+				Write(airlock.Name+":"+"Opening Door 2");
 			}
 		}
 	}
@@ -2296,7 +2305,7 @@ void UpdateAirlock(Airlock airlock){
 		airlock.Door2.Enabled=(airlock.Door2.Status!=DoorStatus.Closed)&&AirlockTimer>wait;
 		if(airlock.Door2.Status!=DoorStatus.Closing)
 			airlock.Door2.CloseDoor();
-		AirlockString+='\t'+"Closing both Doors"+'\n';
+		Write(airlock.Name+":"+"Opening both Doors");
 	}
 }
 
