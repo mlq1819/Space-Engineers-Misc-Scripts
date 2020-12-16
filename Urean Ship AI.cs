@@ -1671,6 +1671,123 @@ public void Save(){
 	}
 }
 
+enum AlertStatus{
+	Green=0,
+	Blue=1,
+	Yellow=2,
+	Orange=3,
+	Red=4
+}
+string Submessage="";
+AlertStatus ShipStatus{
+	get{
+		AlertStatus status=AlertStatus.Green;
+		Submessage="";
+		if(!Me.CubeGrid.IsStatic){
+			if(Elevation-MySize<50){
+				AlertStatus new_status=AlertStatus.Blue;
+				status=(AlertStatus) Math.Max((int)status, (int)new_status);
+				double psuedo_elevation=Math.Max(Elevation-MySize,0);
+				Submessage+="\nShip at low Altitude ("+Math.Round(psuedo_elevation,1).ToString()+"-"+Math.Round(Elevation,1).ToString()+" meters)";
+			}
+			
+			if(Time_To_Crash>0){
+				if(Time_To_Crash<15 && Controller.GetShipSpeed()>5){
+					AlertStatus new_status=AlertStatus.Orange;
+					status=(AlertStatus) Math.Max((int)status, (int)new_status);
+					Submessage += "\n"+Math.Round(Time_To_Crash,1).ToString()+" seconds to possible impact";
+				}
+				else if(Time_To_Crash<60 && Controller.GetShipSpeed()>15){
+					AlertStatus new_status=AlertStatus.Yellow;
+					status=(AlertStatus) Math.Max((int)status, (int)new_status);
+					Submessage += "\n"+Math.Round(Time_To_Crash,1).ToString()+" seconds to possible impact";
+				}
+				else if(Time_To_Crash<180){
+					AlertStatus new_status=AlertStatus.Blue;
+					status=(AlertStatus) Math.Max((int)status, (int)new_status);
+					Submessage += "\n"+Math.Round(Time_To_Crash,1).ToString()+" seconds to possible impact";
+				}
+			}
+			if(_Autoland&&CurrentVelocity.Length()>1){
+				AlertStatus new_status=AlertStatus.Blue;
+				status=(AlertStatus) Math.Max((int)status, (int)new_status);
+				Submessage += "\nAutoland Enabled";
+			}
+		}
+		if(_Lockdown){
+			AlertStatus new_status=AlertStatus.Yellow;
+			status=(AlertStatus) Math.Max((int)status, (int)new_status);
+			Submessage += "\nCurrently in Lockdown";
+		}
+		
+		double ActualEnemyShipDistance=Math.Min(SmallShipList.ClosestDistance(this, MyRelationsBetweenPlayerAndBlock.Enemies), LargeShipList.ClosestDistance(this, MyRelationsBetweenPlayerAndBlock.Enemies));
+		double EnemyShipDistance=Math.Min(SmallShipList.ClosestDistance(this, MyRelationsBetweenPlayerAndBlock.Enemies), LargeShipList.ClosestDistance(this, MyRelationsBetweenPlayerAndBlock.Enemies)/2);
+		if(EnemyShipDistance<800){
+			AlertStatus new_status=AlertStatus.Red;
+			status=(AlertStatus) Math.Max((int)status, (int)new_status);
+			Submessage += "\nEnemy Ship at "+Math.Round(ActualEnemyShipDistance, 0)+" meters";
+		}
+		else if(EnemyShipDistance<2500){
+			AlertStatus new_status=AlertStatus.Orange;
+			status=(AlertStatus) Math.Max((int)status, (int)new_status);
+			Submessage += "\nEnemy Ship at "+Math.Round(ActualEnemyShipDistance, 0)+" meters";
+		}
+		else if(EnemyShipDistance<5000){
+			AlertStatus new_status=AlertStatus.Yellow;
+			status=(AlertStatus) Math.Max((int)status, (int)new_status);
+			Submessage += "\nEnemy Ship at "+Math.Round(ActualEnemyShipDistance, 0)+" meters";
+		}
+		
+		double EnemyCharacterDistance=CharacterList.ClosestDistance(this, MyRelationsBetweenPlayerAndBlock.Enemies);
+		if(EnemyCharacterDistance-MySize<0){
+			AlertStatus new_status=AlertStatus.Red;
+			status=(AlertStatus) Math.Max((int)status, (int)new_status);
+			Submessage += "\nEnemy Creature has boarded ship";
+		}
+		else if(EnemyCharacterDistance-MySize<800){
+			AlertStatus new_status=AlertStatus.Orange;
+			status=(AlertStatus) Math.Max((int)status, (int)new_status);
+			Submessage += "\nEnemy Creature at "+Math.Round(EnemyCharacterDistance, 0)+" meters";
+		}
+		else if(EnemyCharacterDistance-MySize<2000){
+			AlertStatus new_status=AlertStatus.Yellow;
+			status=(AlertStatus) Math.Max((int)status, (int)new_status);
+			Submessage += "\nEnemy Creature at "+Math.Round(EnemyCharacterDistance, 0)+" meters";
+		}
+		
+		double ShipDistance=Math.Min(SmallShipList.ClosestDistance(this),LargeShipList.ClosestDistance(this))-MySize;
+		if(ShipDistance<500 && ShipDistance > 0){
+			AlertStatus new_status=AlertStatus.Blue;
+			status=(AlertStatus) Math.Max((int)status, (int)new_status);
+			Submessage += "\nNearby ship at "+Math.Round(ShipDistance, 0)+" meters";
+		}
+		if((!Me.CubeGrid.IsStatic)&&AsteroidList.ClosestDistance(this)<500){
+			AlertStatus new_status=AlertStatus.Blue;
+			status=(AlertStatus) Math.Max((int)status, (int)new_status);
+			Submessage += "\nNearby asteroid at "+Math.Round(AsteroidList.ClosestDistance(this), 0)+" meters";
+		}
+		if(Controller.GetShipSpeed() > 30){
+			AlertStatus new_status=AlertStatus.Blue;
+			status=(AlertStatus) Math.Max((int)status, (int)new_status);
+			double Speed=Controller.GetShipSpeed();
+			Submessage += "\nHigh Ship Speed [";
+			const int SECTIONS=20;
+			for(int i=0; i<SECTIONS; i++){
+				if(Speed >= ((100.0/SECTIONS)*i)){
+					Submessage += '|';
+				}
+				else {
+					Submessage += ' ';
+				}
+			}
+			Submessage += ']';
+		}
+		if(status == AlertStatus.Green)
+			Submessage="\nNo issues";
+		return status;
+	}
+}
+
 void UpdateProgramInfo(){
 	cycle=(++cycle)%long.MaxValue;
 	switch(loading_char){
