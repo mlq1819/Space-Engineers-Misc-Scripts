@@ -1508,16 +1508,42 @@ public Program(){
 	Me.GetSurface(1).FontSize=2.2f;
 	Me.GetSurface(1).TextPadding=40.0f;
 	Echo("Beginning initialization");
-	// The constructor, called only once every session and
-    // always before any other method is called. Use it to
-    // initialize your script. 
-    //     
-    // The constructor is optional and can be removed if not
-    // needed.
-    // 
-    // It's recommended to set RuntimeInfo.UpdateFrequency 
-    // here, which will allow your script to run itself without a 
-    // timer block.
+	Rnd=new Random();
+	Setup();
+	string[] args=this.Storage.Split('•');
+	foreach(string arg in args){
+		EntityInfo Entity=null;
+		if(EntityInfo.TryParse(arg,out Entity)){
+			switch(Entity.Type){
+				case MyDetectedEntityType.Asteroid:
+					AsteroidList.UpdateEntry(Entity);
+					break;
+				case MyDetectedEntityType.Planet:
+					PlanetList.UpdateEntry(Entity);
+					break;
+				case MyDetectedEntityType.SmallGrid:
+					SmallShipList.UpdateEntry(Entity);
+					break;
+				case MyDetectedEntityType.LargeGrid:
+					LargeShipList.UpdateEntry(Entity);
+					break;
+				case MyDetectedEntityType.CharacterHuman:
+					CharacterList.UpdateEntry(Entity);
+					break;
+				case MyDetectedEntityType.CharacterOther:
+					CharacterList.UpdateEntry(Entity);
+					break;
+			}
+		}
+		else if(arg.IndexOf("Lockdown:")==0){
+			bool.TryParse(arg.Substring("Lockdown:".Length), out _Lockdown);
+		}
+	}
+	IGC.RegisterBroadcastListener("Urean AI");
+	IGC.RegisterBroadcastListener("Entity Report");
+	IGC.RegisterBroadcastListener(Me.CubeGrid.CustomName);
+	CreateMenu();
+	DisplayMenu();
 }
 
 public void Save(){
