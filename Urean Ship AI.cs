@@ -1514,12 +1514,8 @@ void Reset(){
 	DebugLCDs=new List<IMyTextPanel>();
 	List<Airlock> Airlocks=new List<Airlock>();
 	AutoDoors=new List<IMyDoor>();
-	Forward_Thrusters=new List<IMyThrust>();
-	Backward_Thrusters=new List<IMyThrust>();
-	Up_Thrusters=new List<IMyThrust>();
-	Down_Thrusters=new List<IMyThrust>();
-	Left_Thrusters=new List<IMyThrust>();
-	Right_Thrusters=new List<IMyThrust>();
+	for(int i=0;i<All_Thrusters.Length;i++)
+		All_Thrusters[i]=new List<IMyThrust>();
 	RestingVelocity=new Vector3D(0,0,0);
 }
 
