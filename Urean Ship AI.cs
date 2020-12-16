@@ -1115,12 +1115,55 @@ EntityList CharacterList{
 	}
 }
 
-List<IMyThrust> Forward_Thrusters;
-List<IMyThrust> Backward_Thrusters;
-List<IMyThrust> Up_Thrusters;
-List<IMyThrust> Down_Thrusters;
-List<IMyThrust> Left_Thrusters;
-List<IMyThrust> Right_Thrusters;
+List<IMyThrust>[6] All_Thrusters=new List<IMyThrust>[6];
+List<IMyThrust> Forward_Thrusters{
+	set{
+		All_Thrusters[0]=value;
+	}
+	get{
+		return All_Thrusters[0];
+	}
+}
+List<IMyThrust> Backward_Thrusters{
+	set{
+		All_Thrusters[1]=value;
+	}
+	get{
+		return All_Thrusters[1];
+	}
+}
+List<IMyThrust> Up_Thrusters{
+	set{
+		All_Thrusters[2]=value;
+	}
+	get{
+		return All_Thrusters[2];
+	}
+}
+List<IMyThrust> Down_Thrusters{
+	set{
+		All_Thrusters[3]=value;
+	}
+	get{
+		return All_Thrusters[3];
+	}
+}
+List<IMyThrust> Left_Thrusters{
+	set{
+		All_Thrusters[4]=value;
+	}
+	get{
+		return All_Thrusters[4];
+	}
+}
+List<IMyThrust> Right_Thrusters{
+	set{
+		All_Thrusters[5]=value;
+	}
+	get{
+		return All_Thrusters[5];
+	}
+}
 
 float Forward_Thrust{
 	get{
@@ -1446,13 +1489,26 @@ void SetThrusterList(List<IMyThrust> Thrusters,string Direction){
 		}
 	}
 }
+void ResetThruster(IMyThrust Thruster){
+	if(HasBlockData(Thruster,"DefaultOverride")){
+		float ThrustOverride=0.0f;
+		if(float.TryParse(GetBlockData(Thruster,"DefaultOverride"),out ThrustOverride))
+			Thruster.ThrustOverridePercentage=ThrustOverride;
+		else
+			Thruster.ThrustOverridePercentage=0.0f;
+	}
+	if(HasBlockData(Thruster,"DefaultName")){
+		Thruster.CustomName=GetBlockData(Thruster,"DefaultName");
+	}
+	SetBlockData(Thruster,"Owner","0");
+}
 
 void Reset(){
 	Operational=false;
 	Runtime.UpdateFrequency=UpdateFrequency.None;
 	Controller=null;
 	Gyroscope=null;
-	for(int i=0;i<EntityLists.Count;i++)
+	for(int i=0;i<EntityLists.Length;i++)
 		EntityLists[i]=new EntityList();
 	StatusLCDs=new List<IMyTextPanel>();
 	DebugLCDs=new List<IMyTextPanel>();
@@ -1606,12 +1662,17 @@ public Program(){
 }
 
 public void Save(){
-    // Called when the program needs to save its state. Use
-    // this method to save your state to the Storage field
-    // or some other means. 
-    // 
-    // This method is optional and can be removed if not
-    // needed.
+    this.Storage="Lockdown:"+_Lockdown.ToString();
+	for(int i=0;i<EntityLists.Length;i++){
+		foreach(EntityInfo Entity in EntityLists[i])
+			this.Storage+='•'+Entity.ToString();
+	}
+	if(Gyroscope!=null)
+		Gyroscope.GyroOverride=false;
+	for(int i=0;i<All_Thrusters.Length;i++){
+		foreach(IMyThrust Thruster in All_Thrusters[i])
+			ResetThruster(Thruster);
+	}
 }
 
 void UpdateProgramInfo(){
