@@ -8,6 +8,7 @@ Color DEFAULT_TEXT_COLOR=new Color(197,137,255,255);
 Color DEFAULT_BACKGROUND_COLOR=new Color(44,0,88,255);
 string Lockdown_Door_Name="Air Seal";
 string Lockdown_Light_Name="";
+double Alert_Distance=15;
 
 class Prog{
 	public static MyGridProgram P;
@@ -592,7 +593,6 @@ enum MenuType{
 	Command=1,
 	Display=2
 }
-
 interface MenuOption{
 	string Name();
 	MenuType Type();
@@ -626,6 +626,18 @@ class Menu_Submenu:MenuOption{
 	public int Selection;
 	
 	int Last_Count;
+	public int Display_Count{
+		get{
+			if(Count>0&&Menu[0].Type==MenuType.Command){
+				for(int i=1;i<Count;i++){
+					if(Menu[i].Type!=MenuType.Display)
+						return Count;
+				}
+				return Count-1;
+			}
+			return Count;
+		}
+	}
 	public int Count{
 		get{
 			return Menu.Count;
@@ -728,7 +740,7 @@ class Menu_Submenu:MenuOption{
 					output+=Menu[i].Name().ToLower();
 				switch(Menu[i].Type()){
 					case MenuType.Submenu:
-						output+=" ("+(Menu[i] as Menu_Submenu).Count.ToString()+")]";
+						output+=" ("+(Menu[i] as Menu_Submenu).Display_Count.ToString()+")]";
 						break;
 					case MenuType.Command:
 						output+=">";
@@ -1058,6 +1070,18 @@ string GetRemovedString(string big_string, string small_string){
 		output=big_string.Substring(0, big_string.IndexOf(small_string))+big_string.Substring(big_string.IndexOf(small_string)+small_string.Length);
 	}
 	return output;
+}
+
+Color ColorParse(string parse){
+	parse=parse.Substring(parse.IndexOf('{')+1);
+	parse=parse.Substring(0, parse.IndexOf('}')-1);
+	string[] args=parse.Split(' ');
+	int r, g, b, a;
+	r=Int32.Parse(args[0].Substring(args[0].IndexOf("R:")+2).Trim());
+	g=Int32.Parse(args[1].Substring(args[1].IndexOf("G:")+2).Trim());
+	b=Int32.Parse(args[2].Substring(args[2].IndexOf("B:")+2).Trim());
+	a=Int32.Parse(args[3].Substring(args[3].IndexOf("A:")+2).Trim());
+	return new Color(r,g,b,a);
 }
 
 TimeSpan Time_Since_Start=new TimeSpan(0);
@@ -1992,7 +2016,6 @@ Menu_Submenu CharacterMenu{
 		return Object_Menus[4];
 	}
 }
-
 bool CreateMenu(object obj=null){
 	Command_Menu=new Menu_Submenu("Command Menu");
 	Command_Menu.Add(new Menu_Command<object>("Update Menu", CreateMenu, "Refreshes menu"));
@@ -2025,6 +2048,176 @@ bool CreateMenu(object obj=null){
 	UpdateEntityListing(CharacterMenu);
 	return true;
 }
+void DisplayMenu(){
+	List<IMyTextPanel> Panels=GenericMethods<IMyTextPanel>.GetAllConstruct("Command Menu Display");
+	foreach(IMyTextPanel Panel in Panels){
+		Panel.WriteText(Command_Menu.ToString(),false);
+		Panel.Alignment=TextAlignment.CENTER;
+		Panel.FontSize=1.2f;
+		Panel.ContentType=ContentType.TEXT_AND_IMAGE;
+		Panel.TextPadding=10.0f;
+		if(Panel.CustomName.ToLower().Contains("transparent")){
+			Panel.FontColor=DEFAULT_BACKGROUND_COLOR;
+			Panel.BackgroundColor=new Color(0,0,0,0);
+		}
+		else{
+			Panel.FontColor=DEFAULT_TEXT_COLOR;
+			Panel.BackgroundColor=DEFAULT_BACKGROUND_COLOR;
+		}
+	}
+}
+
+bool last_performed_alarm=false;
+void PerformAlarm(){
+	bool nearby_enemy=(CharacterList.ClosestDistance(MyRelationsBetweenPlayerAndBlock.Enemies)<=(float) MySize);
+	if(!nearby_enemy&&!last_performed_alarm)
+		return;
+	last_performed_alarm=nearby_enemy;
+	List<IMyInteriorLight> AllLights=GenericMethods<IMyInteriorLight>.GetAllConstruct("");
+	foreach(IMyInteriorLight Light in AllLights){
+		if(!CanHaveJob(Light,"PlayerAlert"))
+			continue;
+		double distance=double.MaxValue;
+		foreach(EntityInfo Entity in CharacterList){
+			if((Entity.Relationship==MyRelationsBetweenPlayerAndBlock.Enemies)&&Entity.Age.TotalSeconds<=60)
+				distance=Math.Min(distance,Entity.GetDistance(Light.GetPosition()));
+		}
+		if(distance<=Alert_Distance){
+			if(!HasBlockData(Light, "DefaultColor")){
+				SetBlockData(Light, "DefaultColor", Light.Color.ToString());
+			}
+			if(!HasBlockData(Light, "DefaultBlinkLength")){
+				SetBlockData(Light, "DefaultBlinkLength", Light.BlinkLength.ToString());
+			}
+			if(!HasBlockData(Light, "DefaultBlinkInterval")){
+				SetBlockData(Light, "DefaultBlinkInterval", Light.BlinkIntervalSeconds.ToString());
+			}
+			SetBlockData(Light, "Job", "PlayerAlert");
+			Light.Color=new Color(255,0,0,255);
+			Light.BlinkLength=100.0f-(((float)(distance/Alert_Distance))*50.0f);
+			Light.BlinkIntervalSeconds=1.0f;
+		}
+		else {
+			if(HasBlockData(Light,"Job")&&GetBlockData(Light,"Job").Equals("PlayerAlert")){
+				if(HasBlockData(Light,"DefaultColor")){
+					try{
+						Light.Color=ColorParse(GetBlockData(Light,"DefaultColor"));
+					}
+					catch(Exception){
+						Echo("Failed to parse color");
+					}
+				}
+				if(HasBlockData(Light,"DefaultBlinkLength")){
+					try{
+						Light.BlinkLength=float.Parse(GetBlockData(Light,"DefaultBlinkLength"));
+					}
+					catch(Exception){
+						;
+					}
+				}
+				if(HasBlockData(Light,"DefaultBlinkInterval")){
+					try{
+						Light.BlinkIntervalSeconds=float.Parse(GetBlockData(Light,"DefaultBlinkInterval"));
+					}
+					catch(Exception){
+						;
+					}
+				}
+				SetBlockData(Light,"Job","None");
+			}
+		}
+	}
+	List<IMySoundBlock> AllSounds=GenericMethods<IMySoundBlock>.GetAllConstruct("");
+	foreach(IMySoundBlock Sound in AllSounds){
+		if(!CanHaveJob(Sound,"PlayerAlert"))
+			continue;
+		double distance=double.MaxValue;
+		foreach(EntityInfo Entity in CharacterList){
+			if((Entity.Relationship==MyRelationsBetweenPlayerAndBlock.Enemies)&&Entity.Age.TotalSeconds<=60)
+				distance=Math.Min(distance,Entity.GetDistance(Sound.GetPosition()));
+		}
+		if(distance<=Alert_Distance){
+			if(!HasBlockData(Sound,"DefaultSound"))
+				SetBlockData(Sound,"DefaultSound",Sound.SelectedSound);
+			if(!HasBlockData(Sound,"DefaultVolume"))
+				SetBlockData(Sound,"DefaultVolume",Sound.Volume.ToString());
+			SetBlockData(Sound,"Job","PlayerAlert");
+			if(!HasBlockData(Sound,"Playing")||!GetBlockData(Sound,"Playing").Equals("True")){
+				Sound.SelectedSound="SoundBlockEnemyDetected";
+				Sound.Volume=100.0f;
+				Sound.Play();
+				SetBlockData(Sound,"Playing","True");
+			}
+		}
+		else{
+			if(HasBlockData(Sound,"Job")&&GetBlockData(Sound,"Job").Equals("PlayerAlert")){
+				if(HasBlockData(Sound,"DefaultSound"))
+					Sound.SelectedSound=GetBlockData(Sound,"DefaultSound");
+				if(HasBlockData(Sound,"DefaultVolume")){
+					try{
+						Sound.Volume=float.Parse(GetBlockData(Sound,"DefaultVolume"));
+					}
+					catch(Exception){
+						;
+					}
+				}
+				Sound.Stop();
+				SetBlockData(Sound,"Playing","False");
+				SetBlockData(Sound,"Job","None");
+			}
+		}
+	}
+	List<IMyDoor> AllDoors=GenericMethods<IMyDoor>.GetAllConstruct("");
+	foreach(IMyDoor Door in AllDoors){
+		if(!CanHaveJob(Door,"PlayerAlert"))
+			continue;
+		double distance=double.MaxValue;
+		double friendly=double.MaxValue;
+		foreach(EntityInfo Entity in CharacterList){
+			if(Entity.Age.TotalSeconds<=60){
+				if(Entity.Relationship==MyRelationsBetweenPlayerAndBlock.Enemies)
+					distance=Math.Min(distance,Entity.GetDistance(Door.GetPosition()));
+				else if(Entity.Relationship!=MyRelationsBetweenPlayerAndBlock.Neutral)
+					friendly=Math.Min(friendly,Entity.GetDistance(Door.GetPosition()));
+			}
+		}
+		if(distance<=Alert_Distance&&distance<friendly){
+			if(!HasBlockData(Door,"DefaultState")){
+				if(Door.Status.ToString().Contains("Open"))
+					SetBlockData(Door,"DefaultState","Open");
+				else
+					SetBlockData(Door,"DefaultState","Closed");
+			}
+			if(!HasBlockData(Door,"DefaultPower")){
+				if(Door.Enabled)
+					SetBlockData(Door,"DefaultPower","On");
+				else
+					SetBlockData(Door,"DefaultPower","Off");
+			}
+			SetBlockData(Door,"Job","PlayerAlert");
+			Door.Enabled=(Door.Status!=DoorStatus.Closed);
+			Door.CloseDoor();
+		}
+		else{
+			if(HasBlockData(Door,"Job")&&GetBlockData(Door,"Job").Equals("PlayerAlert")){
+				if(HasBlockData(Door,"DefaultPower"))
+					Door.Enabled=GetBlockData(Door,"DefaultPower").Equals("On");
+				if(HasBlockData(Door,"DefaultState")){
+					if(GetBlockData(Door,"DefaultState").Equals("Open"))
+						Door.OpenDoor();
+					else
+						Door.CloseDoor();
+				}
+				SetBlockData(Door,"Job","None");
+			}
+		}
+	}
+}
+
+
+
+
+
 
 void UpdateProgramInfo(){
 	cycle=(++cycle)%long.MaxValue;
