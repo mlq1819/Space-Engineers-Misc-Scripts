@@ -2309,6 +2309,314 @@ void UpdateAirlock(Airlock airlock){
 	}
 }
 
+void UpdateAutoDoors(){
+	foreach(IMyDoor AutoDoor in AutoDoors){
+		bool found_entity=false;
+		double min_distance_check=3.75*(1+(Controller.GetShipSpeed()/200));
+		foreach(EntityInfo Entity in CharacterList){
+			if(Entity.Relationship!=MyRelationsBetweenPlayerAndBlock.Enemies&&Entity.Relationship!=MyRelationsBetweenPlayerAndBlock.Neutral){
+				Vector3D position=Entity.Position+CurrentVelocity/100;
+				double distance=(AutoDoor.GetPosition()-Entity.Position).Length();
+				bool is_closest_to_this_airlock=distance<=min_distance_check;
+				if(distance<min_distance_check){
+					found_entity=true;
+					if(!_Lockdown)
+						AutoDoor.OpenDoor();
+					break;
+				}
+			}
+		}
+		if(!found_entity)
+			AutoDoor.CloseDoor();
+	}
+}
+
+List<IMyCameraBlock> GetValidCameras(){
+	List<IMyCameraBlock> AllCameras=GenericMethods<IMyCameraBlock>.GetAllConstruct("");
+	List<IMyCameraBlock> output=new List<IMyCameraBlock>();
+	foreach(IMyCameraBlock Camera in AllCameras){
+		if(!HasBlockData(Camera,"DoRaycast")){
+			SetBlockData(Camera,"DoRaycast","maybe");
+			SetBlockData(Camera,"RaycastTestCount","0");
+		}
+		if(GetBlockData(Camera,"DoRaycast").Equals("false")){
+			Camera.EnableRaycast=false;
+			continue;
+		}
+		Camera.EnableRaycast=true;
+		output.Add(Camera);
+	}
+	return output;
+}
+Vector3D Closest_Hit_Position=new Vector3D(0,0,0);
+double Scan_Frequency{
+	get{
+		double output=10;
+		double MySize=Me.CubeGrid.GridSize;
+		output=Math.Max(1,Math.Min(output,11-(CurrentVelocity.Length()/10)));
+		double distance=SmallShipList.ClosestDistance();
+		if(distance>=MySize)
+			output=Math.Min(output,Math.Max(1,Math.Min(10,(distance+MySize+100)/100)));
+		distance=SmallShipList.ClosestDistance(MyRelationsBetweenPlayerAndBlock.Enemies);
+		output=Math.Min(output,Math.Max(1,ath.Min(10,(distance-MySize+100)/100)));
+		distance=LargeShipList.ClosestDistance();
+		if(distance>=MySize)
+			output=Math.Min(output,Math.Max(1,Math.Min(10,(distance+MySize+100)/100)));
+		distance=LargeShipList.ClosestDistance(MyRelationsBetweenPlayerAndBlock.Enemies);
+		output=Math.Min(output,Math.Max(1,Math.Min(10,(distance-MySize+100)/100)));
+		distance=CharacterList.ClosestDistance();
+		output=Math.Min(output,Math.Max(1,Math.Min(10,(distance+MySize+100)/100)));
+		if(Controller.IsUnderControl)
+			output=Math.Min(output,5);
+		return output;
+	}
+}
+bool CanDetect(IMySensorBlock Sensor,MyRelationsBetweenPlayerAndBlock Relationship){
+	switch(Relationship){
+		case MyRelationsBetweenPlayerAndBlock.Owner:
+			return Sensor.DetectOwner;
+		case MyRelationsBetweenPlayerAndBlock.Friends:
+			return Sensor.DetectFriendly;
+		case MyRelationsBetweenPlayerAndBlock.Enemies:
+			return Sensor.DetectEnemy;
+	}
+	return Sensor.DetectNeutral;
+}
+bool CanDetect(IMySensorBlock Sensor,MyDetectedEntityType Type){
+	switch(Type){
+		case MyDetectedEntityType.SmallGrid:
+			return Sensor.DetectSmallShips;
+		case MyDetectedEntityType.LargeGrid:
+			return Sensor.DetectLargeShips&&Sensor.DetectStations;
+		case MyDetectedEntityType.CharacterHuman:
+			return Sensor.DetectPlayers;
+		case MyDetectedEntityType.CharacterOther:
+			return Sensor.DetectPlayers;
+		case MyDetectedEntityType.Asteroid:
+			return Sensor.DetectAsteroids;
+		case MyDetectedEntityType.Planet:
+			return Sensor.DetectAsteroids;
+	}
+	return false;
+}
+bool CanDetect(IMySensorBlock Sensor,EntityInfo Entity){
+	return Sensor.IsWorking&&CanDetect(Sensor,Entity.Type)&&CanDetect(Sensor,Entity.Relationship);
+}
+bool IsDetecting(IMySensorBlock Sensor,EntityInfo Entity){
+	List<MyDetectedEntityInfo> Entities=new List<MyDetectedEntityInfo>();
+	Sensor.DetectedEntities(Entities);
+	foreach(MyDetectedEntityInfo entity in Entities){
+		if(entity.EntityId==Entity.ID||(Entity.GetDistance(entity.Position)<=0.5f&&Entity.Type==entity.Type))
+			return true;
+	}
+	return false;
+}
+float SensorRange(IMySensorBlock Sensor){
+	float range=Sensor.LeftExtend;
+	range=Math.Min(range,Sensor.RightExtend);
+	range=Math.Min(range,Sensor.TopExtend);
+	range=Math.Min(range,Sensor.BottomExtend);
+	range=Math.Min(range,Sensor.FrontExtend);
+	range=Math.Min(range,Sensor.BackExtend);
+	return range;
+}
+
+double Scan_Time=10;
+string ScanString="";
+double MySize=0;
+public bool PerformScan(object obj=null){
+	Write("Beginning Scan");
+	ScanString="";
+	for(int i=0;i<EntityLists.Length;i++)
+		EntityLists[i].UpdatePositions(Scan_Time);
+	PerformDisarm();
+	List<IMyTerminalBlock> AllTerminalBlocks=new List<IMyTerminalBlock>();
+	GridTerminalSystem.GetBlocksOfType<IMyTerminalBlock>(AllTerminalBlocks);
+	MySize=0;
+	foreach(IMyTerminalBlock Block in AllTerminalBlocks){
+		double distance=(Controller.GetPosition()-Block.GetPosition()).Length();
+		MySize=Math.Max(MySize,distance);
+	}
+	
+	List<MyDetectedEntityInfo> DetectedEntities=new List<MyDetectedEntityInfo>();
+	List<IMySensorBlock> AllSensors=new List<IMySensorBlock>();
+	GridTerminalSystem.GetBlocksOfType<IMySensorBlock>(AllSensors);
+	foreach(IMySensorBlock Sensor in AllSensors){
+		MyDetectedEntityInfo LastEntity=Sensor.LastDetectedEntity;
+		if(Sensor.CustomName.ToLower().Contains("locking")||Sensor.CustomName.ToLower().Contains("tracking")){
+			if(Sensor.Enabled&&LastEntity.Relationship==MyRelationsBetweenPlayerAndBlock.Enemies&&(LastEntity.Position-Sensor.GetPosition()).Length()<1000)
+				Sensor.Enabled=false;
+			if(!Sensor.Enabled)
+				ScanString+='\n'+Sensor.CustomName+":LOCKED";
+		}
+		UpdateList(DetectedEntities,LastEntity);
+		List<MyDetectedEntityInfo> entities=new List<MyDetectedEntityInfo>();
+		Sensor.DetectedEntities(entities);
+		foreach(MyDetectedEntityInfo Entity in entities)
+			UpdateList(DetectedEntities, Entity);
+	}
+	List<IMyLargeTurretBase> AllTurrets=new List<IMyLargeTurretBase>();
+	GridTerminalSystem.GetBlocksOfType<IMyLargeTurretBase>(AllTurrets);
+	foreach(IMyLargeTurretBase Turret in AllTurrets){
+		if(Turret.HasTarget)
+			UpdateList(DetectedEntities, Turret.GetTargetedEntity());
+	}
+	List<bool> raycast_check=new List<bool>();
+	for(int i=0;i<DetectedEntities.Count;i++)
+		raycast_check.Add(false);
+	double Scan_Crash_Time=double.MaxValue;
+	List<IMyCameraBlock> MyCameras=GetValidCameras();
+	foreach(IMyCameraBlock Camera in MyCameras){
+		int count=0;
+		bool update_me=false;
+		if(GetBlockData(Camera,"DoRaycast").Equals("maybe")){
+			Int32.TryParse(GetBlockData(Camera, "RaycastTestCount"), out count);
+			if(count>=100){
+				SetBlockData(Camera, "DoRaycast", "false");
+				continue;
+			}
+			update_me=true;
+		}
+		double raycast_distance=RAYCAST_DISTANCE;
+		if(Camera.RaycastDistanceLimit!=-1)
+			raycast_distance=Math.Min(raycast_distance,Camera.AvailableScanRange);
+		MyDetectedEntityInfo Raycast_Entity=Camera.Raycast(raycast_distance,0,0);
+		if(update_me && Raycast_Entity.EntityId!=Me.CubeGrid.EntityId&&Raycast_Entity.EntityId!=Camera.CubeGrid.EntityId){
+			SetBlockData(Camera,"DoRaycast","true");
+			update_me=true;
+		}
+		UpdateList(DetectedEntities,Raycast_Entity);
+		if(!update_me){
+			if((Time_To_Crash<60&&Elevation<500)||Target_Distance<250){
+				Vector3D Velocity_Direction=CurrentVelocity;
+				Velocity_Direction.Normalize();
+				double speed_check=15*CurrentVelocity.Length();
+				double distance=Math.Min(speed_check, Camera.AvailableScanRange/2);
+				if(Camera.CanScan(distance,Velocity_Direction)){
+					MyDetectedEntityInfo Entity=Camera.Raycast(distance,Velocity_Direction);
+					if(Entity.Type!=MyDetectedEntityType.None&&Entity.EntityId!=Me.CubeGrid.EntityId){
+						try{
+							double new_distance=(((Vector3D)Entity.HitPosition)-Camera.GetPosition()).Length();
+							double new_time=new_distance/CurrentVelocity.Length();
+							if(new_time<Scan_Crash_Time){
+								Scan_Crash_Time=new_time;
+								Closest_Hit_Position=((Vector3D)Entity.HitPosition);
+							}
+						}
+						catch(Exception){
+							;
+						}
+					}
+				}
+			}
+			if(Tracking&&RestingVelocity.Length()>0&&Target_Distance<=RAYCAST_DISTANCE){
+				if(Camera.CanScan(Target_Position)){
+					MyDetectedEntityInfo Entity=Camera.Raycast(Target_Position);
+					if(Entity.Type!=MyDetectedEntityType.None&&Entity.EntityId!=Me.CubeGrid.EntityId){
+						UpdateList(DetectedEntities,Entity);
+						RestingVelocity=Entity.Velocity;
+					}
+				}
+			}
+			for(int i=0; i<Math.Min(raycast_check.Count,DetectedEntities.Count); i++){
+				if(raycast_check[i] && Camera.CanScan(DetectedEntities[i].Position)){
+					Raycast_Entity=Camera.Raycast(DetectedEntities[i].Position);
+					UpdateList(DetectedEntities, Raycast_Entity);
+					if(Raycast_Entity.Type!=MyDetectedEntityType.None&&Raycast_Entity.EntityId!=Me.CubeGrid.EntityId){
+						raycast_check[i]=false;
+					}
+				}
+			}
+		}
+	}
+	ScanString+="Retrieved updated data\non "+DetectedEntities.Count+" relevant entities"+'\n';
+	List<IMyBroadcastListener> listeners=new List<IMyBroadcastListener>();
+	IGC.GetBroadcastListeners(listeners);
+	MyDetectedEntityType MyType=MyDetectedEntityType.LargeGrid;
+	if(Controller.CubeGrid.GridSizeEnum==MyCubeSize.Small)
+		MyType=MyDetectedEntityType.SmallGrid;
+	EntityInfo Myself=new EntityInfo(Controller.CubeGrid.EntityId,Controller.CubeGrid.CustomName,MyType,(Vector3D?)(Controller.GetPosition()),CurrentVelocity,MyRelationsBetweenPlayerAndBlock.Owner,Controller.CubeGrid.GetPosition());
+	
+	foreach(IMyBroadcastListener Listener in listeners)
+		IGC.SendBroadcastMessage(Listener.Tag,Myself.ToString(),TransmissionDistance.TransmissionDistanceMax);
+	foreach(MyDetectedEntityInfo entity in DetectedEntities){
+		EntityInfo Entity=new EntityInfo(entity);
+		foreach(IMyBroadcastListener Listener in listeners)
+			IGC.SendBroadcastMessage(Listener.Tag,Entity.ToString(),TransmissionDistance.TransmissionDistanceMax);
+	}
+	List<EntityInfo> Entities=new List<EntityInfo>();
+	foreach(MyDetectedEntityInfo entity in DetectedEntities)
+		Entities.Add(new EntityInfo(entity));
+	foreach(IMyBroadcastListener Listener in listeners){
+		int count=0;
+		while(Listener.HasPendingMessage){
+			MyIGCMessage message=Listener.AcceptMessage();
+			count++;
+			EntityInfo Entity;
+			if(EntityInfo.TryParse(message.Data.ToString(), out Entity))
+				UpdateList(Entities, Entity);
+		}
+		if(count>0)
+			ScanString+="Received "+count.ToString()+" messages on "+Listener.Tag+'\n';
+	}
+	foreach(EntityInfo Entity in Entities){
+		if(Entity.ID==Target_ID){
+			RestingVelocity=Entity.Velocity;
+			Target_Direction=Entity.Position-Controller.GetPosition();
+			Target_Direction.Normalize();
+			Target_Position=GetOffsetPosition(Entity.Position, Entity.Size);
+		}
+		switch(Entity.Type){
+			case MyDetectedEntityType.Asteroid:
+				AsteroidList.UpdateEntry(Entity);
+				break;
+			case MyDetectedEntityType.Planet:
+				PlanetList.UpdateEntry(Entity);
+				break;
+			case MyDetectedEntityType.SmallGrid:
+				SmallShipList.UpdateEntry(Entity);
+				break;
+			case MyDetectedEntityType.LargeGrid:
+				LargeShipList.UpdateEntry(Entity);
+				break;
+			case MyDetectedEntityType.CharacterHuman:
+				CharacterList.UpdateEntry(Entity);
+				break;
+			case MyDetectedEntityType.CharacterOther:
+				CharacterList.UpdateEntry(Entity);
+				break;
+		}
+	}
+	
+	for(int j=2;j<EntityLists.Length;j++){
+		for(int i=0;i<EntityLists[j].Count;i++){
+			bool Remove=false;
+			EntityInfo Entity=EntityLists[j][i];
+			foreach(IMySensorBlock Sensor in AllSensors){
+				if(CanDetect(Sensor,Entity)){
+					if(IsDetecting(Sensor,Entity)){
+						Remove=false;
+						break;
+					}
+					else
+						Remove=true;
+				}
+			}
+			if(Remove){
+				EntityLists[j].RemoveEntry(Entity);
+				i--;
+			}
+		}
+	}
+	
+	PerformAlarm();
+	
+	if(Command_Menu.AutoRefresh())
+		DisplayMenu();
+	
+	Scan_Time=0;
+	return true;
+}
 
 
 
