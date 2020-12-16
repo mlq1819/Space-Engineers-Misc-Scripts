@@ -1388,6 +1388,114 @@ void SetupAirlocks(){
 	}
 }
 
+void Reset(){
+	Operational=false;
+	Runtime.UpdateFrequency=UpdateFrequency.None;
+	Controller=null;
+	Gyroscope=null;
+	for(int i=0;i<EntityLists.Count;i++)
+		EntityLists[i]=new EntityList();
+	StatusLCDs=new List<IMyTextPanel>();
+	DebugLCDs=new List<IMyTextPanel>();
+	List<Airlock> Airlocks=new List<Airlock>();
+	AutoDoors=new List<IMyDoor>();
+	Forward_Thrusters=new List<IMyThrust>();
+	Backward_Thrusters=new List<IMyThrust>();
+	Up_Thrusters=new List<IMyThrust>();
+	Down_Thrusters=new List<IMyThrust>();
+	Left_Thrusters=new List<IMyThrust>();
+	Right_Thrusters=new List<IMyThrust>();
+	RestingVelocity=new Vector3D(0,0,0);
+}
+
+bool Setup(){
+	Reset();
+	StatusLCDs=GenericMethods<IMyTextPanel>.GetAllConstruct("Ship Status");
+	DebugLCDs=GenericMethods<IMyTextPanel>.GetAllConstruct("AI Visual Display");
+	foreach(IMyTextPanel Display in DebugLCDs){
+		if(Display.CustomName.ToLower().Contains("transparent")){
+			Display.FontColor=DEFAULT_BACKGROUND_COLOR;
+			Display.BackgroundColor=new Color(0,0,0,0);
+		}
+		else{
+			Display.FontColor=DEFAULT_TEXT_COLOR;
+			Display.BackgroundColor=DEFAULT_BACKGROUND_COLOR;
+		}
+		Display.Alignment=TextAlignment.CENTER;
+		Display.ContentType=ContentType.TEXT_AND_IMAGE;
+		Display.TextPadding=10.0f;
+		Display.FontSize=1.0f;
+	}
+	SetupAirlocks();
+	AutoDoors=GenericMethods<IMyDoor>.GetAllConstruct(AUTODOOR_NAME);
+	Controller=GenericMethods<IMyShipController>.GetClosestFunc(ControllerFunction);
+	if(Controller==null){
+		Write("Failed to find Controller", false, false);
+		return false;
+	}
+	Forward=Controller.Orientation.Forward;
+	Up=Controller.Orientation.Up;
+	Left=Controller.Orientation.Left;
+	if((Controller as IMyTextSurfaceProvider)!=null){
+		IMyTextSurfaceProvider Cockpit=Controller as IMyTextSurfaceProvider;
+		for(int i=0;i<Cockpit.SurfaceCount;i++){
+			Cockpit.GetSurface(i).FontColor=DEFAULT_TEXT_COLOR;
+			Cockpit.GetSurface(i).BackgroundColor=DEFAULT_BACKGROUND_COLOR;
+			Cockpit.GetSurface(i).Alignment=TextAlignment.CENTER;
+			Cockpit.GetSurface(i).ScriptForegroundColor=DEFAULT_TEXT_COLOR;
+			Cockpit.GetSurface(i).ScriptBackgroundColor=DEFAULT_BACKGROUND_COLOR;
+		}
+	}
+	MySize=Controller.CubeGrid.GridSize;
+	Gyroscope=GenericMethods<IMyGyro>.GetConstruct("Control Gyroscope");
+	if(Gyroscope==null){
+		Gyroscope=GenericMethods<IMyGyro>.GetConstruct("");
+		if(Gyroscope==null&&!Me.CubeGrid.IsStatic)
+			return false;
+		Gyroscope.CustomName="Control Gyroscope";
+	}
+	Gyroscope.GyroOverride=Controller.IsUnderControl;
+	List<IMyThrust> MyThrusters=GenericMethods<IMyThrust>.GetAllConstruct("");
+	for(int i=0;i<2;i++){
+		bool retry=!Me.CubeGrid.IsStatic;
+		foreach(IMyThrust Thruster in MyThrusters){
+			if(HasBlockData(Thruster, "Owner")){
+				long ID=0;
+				if(i==0&&!Int64.TryParse(GetBlockData(Thruster, "Owner"),out ID)||(ID!=0&&ID!=Me.CubeGrid.EntityId))
+					continue;
+			}
+			if(Thruster.CubeGrid!=Controller.CubeGrid)
+				continue;
+			retry=false;
+			Base6Directions.Direction ThrustDirection=Thruster.Orientation.Forward;
+			if(ThrustDirection==Backward)
+				Forward_Thrusters.Add(Thruster);
+			else if(ThrustDirection==Forward)
+				Backward_Thrusters.Add(Thruster);
+			else if(ThrustDirection==Down)
+				Up_Thrusters.Add(Thruster);
+			else if(ThrustDirection==Up)
+				Down_Thrusters.Add(Thruster);
+			else if(ThrustDirection==Right)
+				Left_Thrusters.Add(Thruster);
+			else if(ThrustDirection==Left)
+				Right_Thrusters.Add(Thruster);
+		}
+		if(!retry)
+			break;
+	}
+	SetThrusterList(Forward_Thrusters,"Forward");
+	SetThrusterList(Backward_Thrusters,"Backward");
+	SetThrusterList(Up_Thrusters,"Up");
+	SetThrusterList(Down_Thrusters,"Down");
+	SetThrusterList(Left_Thrusters,"Left");
+	SetThrusterList(Right_Thrusters,"Right");
+	Operational=Me.IsWorking;
+	Runtime.UpdateFrequency=GetUpdateFrequency();
+	return true;
+}
+
+bool Operational=false;
 public Program(){
 	Prog.P=this;
 	Me.CustomName=(Program_Name+" Programmable block").Trim();
