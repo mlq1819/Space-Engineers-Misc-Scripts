@@ -6,6 +6,8 @@
 const string Program_Name = ""; //Name me!
 Color DEFAULT_TEXT_COLOR=new Color(197,137,255,255);
 Color DEFAULT_BACKGROUND_COLOR=new Color(44,0,88,255);
+string Lockdown_Door_Name="Air Seal";
+string Lockdown_Light_Name="";
 
 class Prog{
 	public static MyGridProgram P;
@@ -1786,6 +1788,242 @@ AlertStatus ShipStatus{
 			Submessage="\nNo issues";
 		return status;
 	}
+}
+void SetStatus(string message, Color TextColor, Color BackgroundColor){
+	float padding=40.0f;
+	string[] lines=message.Split('\n');
+	padding=Math.Max(10.0f, padding-(lines.Length*5.0f));
+	foreach(IMyTextPanel LCD in StatusLCDs){
+		LCD.Alignment=TextAlignment.CENTER;
+		LCD.FontSize=1.2f;
+		LCD.ContentType=ContentType.TEXT_AND_IMAGE;
+		LCD.TextPadding=padding;
+		LCD.WriteText(message, false);
+		if(LCD.CustomName.ToLower().Contains("transparent")){
+			LCD.FontColor=BackgroundColor;
+			LCD.BackgroundColor=new Color(0,0,0,255);
+		}
+		else {
+			LCD.FontColor=TextColor;
+			LCD.BackgroundColor=BackgroundColor;
+		}
+	}
+}
+
+void UpdateList(List<MyDetectedEntityInfo> list,MyDetectedEntityInfo new_entity){
+	if(new_entity.Type==MyDetectedEntityType.None||new_entity.EntityId==Me.CubeGrid.EntityId)
+		return;
+	for(int i=0;i<list.Count;i++){
+		if(list[i].EntityId==new_entity.EntityId){
+			if(list[i].TimeStamp<new_entity.TimeStamp||((list[i].HitPosition==null)&&(new_entity.HitPosition!=null)))
+				list[i]=new_entity;
+			return;
+		}
+	}
+	list.Add(new_entity);
+}
+void UpdateList(List<EntityInfo>list,EntityInfo new_entity){
+	if(new_entity.Type==MyDetectedEntityType.None||new_entity.ID == Me.CubeGrid.EntityId)
+		return;
+	for(int i=0;i<list.Count;i++){
+		if(list[i].ID==new_entity.ID){
+			list[i]=new_entity;
+			return;
+		}
+	}
+	list.Add(new_entity);
+}
+
+bool Stop(object obj=null){
+	RestingVelocity=new Vector3D(0,0,0);
+	Target_Position=new Vector3D(0,0,0);
+	Match_Direction=false;
+	Match_Position=false;
+	Tracking=false;
+	Target_ID=0;
+	return true;
+}
+bool _Autoland=false;
+bool Autoland(object obj=null){
+	_Autoland=!_Autoland;
+	return true;
+}
+bool _Lockdown=false;
+bool Lockdown(object obj=null){
+	_Lockdown=!_Lockdown;
+	List<IMyDoor> Seals=GenericMethods<IMyDoor>.GetAllIncluding(Lockdown_Door_Name);
+	foreach(IMyDoor Door in Seals){
+		if(CanHaveJob(Door,"Lockdown")){
+			if(_Lockdown){
+				SetBlockData(Door,"Job","Lockdown");
+				Door.Enabled=true;
+				Door.CloseDoor();
+			}
+			else{
+				SetBlockData(Door,"Job","None");
+				Door.Enabled=true;
+				Door.OpenDoor();
+			}
+		}
+	}
+	if(Lockdown_Light_Name.Length>0){
+		List<IMyInteriorLight> Lights=GenericMethods<IMyInteriorLight>.GetAllIncluding(Lockdown_Light_Name);
+		foreach(IMyInteriorLight Light in Lights){
+			if(CanHaveJob(Light,"Lockdown")){
+				if(_Lockdown){
+					SetBlockData(Light,"Job","Lockdown");
+					if(!HasBlockData(Light,"DefaultColor"))
+						SetBlockData(Light,"DefaultColor",Light.Color.ToString());
+					Light.Color=new Color(255,255,0,255);
+				}
+				else{
+					SetBlockData(Light,"Job","None");
+					if(HasBlockData(Light,"DefaultColor")){
+						try{
+							Light.Color=ColorParse(GetBlockData(Light,"DefaultColor"));
+						}
+						catch(Exception){
+							Echo("Failed to parse color");
+						}
+					}
+				}
+			}
+		}
+	}
+	return true;
+}
+bool FactoryReset(object obj=null){
+	SetStatus("Status LCD\nOffline", DEFAULT_TEXT_COLOR, DEFAULT_BACKGROUND_COLOR);
+	if(Gyroscope!=null)
+		Gyroscope.GyroOverride=false;
+	for(int i=0;i<All_Thrusters.Length;i++){
+		foreach(IMyThrust Thruster in All_Thrusters[i])
+			ResetThruster(Thruster);
+	}
+	for(int i=0;i<EntityLists.Length;i++)
+		EntityLists[i].Clear();
+	Me.CustomData="";
+	this.Storage="";
+	Reset();
+	Me.Enabled=false;
+	return true;
+}
+bool DeployFlares(IMyProgrammableBlock FlareBlock){
+	return FlareBlock.TryRun("Deploy");
+}
+
+bool UpdateEntityListing(Menu_Submenu Menu){
+	EntityList list=null;
+	bool do_goto=false;
+	switch(Menu.Name()){
+		case "Asteroids":
+			list=AsteroidList;
+			do_goto=true;
+			break;
+		case "Planets":
+			list=PlanetList;
+			do_goto=false;
+			break;
+		case "Small Ships":
+			list=SmallShipList;
+			do_goto=true;
+			break;
+		case "Large Ships":
+			list=LargeShipList;
+			do_goto=true;
+			break;
+		case "Characters":
+			list=CharacterList;
+			do_goto=true;
+			break;
+	}
+	if(list==null)
+		return false;
+	Menu=new Menu_Submenu(Menu.Name());
+	Menu.Add(new Menu_Command<Menu_Submenu>("Refresh",UpdateEntityListing,"Updates "+Menu.Name(),Menu));
+	list.Sort(Controller.GetPosition());
+	for(int i=0;i<list.Count;i++)
+		Menu.Add(new Menu_Display(list[i], this));
+	if(Command_Menu.Replace(Menu)){
+		DisplayMenu();
+		return true;
+	}
+	return false;
+}
+
+Menu_Submenu[5] Object_Menus=new Menu_Submenu[5];
+Menu_Submenu AsteroidMenu{
+	set{
+		Object_Menus[0]=value;
+	}
+	get{
+		return Object_Menus[0];
+	}
+}
+Menu_Submenu PlanetMenu{
+	set{
+		Object_Menus[1]=value;
+	}
+	get{
+		return Object_Menus[1];
+	}
+}
+Menu_Submenu SmallShipMenu{
+	set{
+		Object_Menus[2]=value;
+	}
+	get{
+		return Object_Menus[2];
+	}
+}
+Menu_Submenu LargeShipMenu{
+	set{
+		Object_Menus[3]=value;
+	}
+	get{
+		return Object_Menus[3];
+	}
+}
+Menu_Submenu CharacterMenu{
+	set{
+		Object_Menus[4]=value;
+	}
+	get{
+		return Object_Menus[4];
+	}
+}
+
+bool CreateMenu(object obj=null){
+	Command_Menu=new Menu_Submenu("Command Menu");
+	Command_Menu.Add(new Menu_Command<object>("Update Menu", CreateMenu, "Refreshes menu"));
+	Menu_Submenu ShipCommands=new Menu_Submenu("Commands");
+	if(!Me.CubeGrid.IsStatic){
+		ShipCommands.Add(new Menu_Command<object>("Stop", Stop, "Disables autopilot"));
+		ShipCommands.Add(new Menu_Command<object>("Toggle Autoland",Autoland,"Toggles On/Off the Autoland feature\nLands at 5 m/s\nDo not use on ships with poor mobility!"));
+	}
+	ShipCommands.Add(new Menu_Command<object>("Scan", PerformScan, "Immediately performs a scan operation"));
+	IMyProgrammableBlock FlareBlock=(new GenericMethods<IMyProgrammableBlock>(this)).GetFull("Flare Printer Programmable block");
+	if(FlareBlock!=null)
+		ShipCommands.Add(new Menu_Command<IMyProgrammableBlock>("Deploy Flares",DeployFlares,"Deploys flares made using Flare Printers",FlareBlock));
+	ShipCommands.Add(new Menu_Command<object>("Toggle Lockdown", Lockdown, "Closes/Opens Air Seals"));
+	ShipCommands.Add(new Menu_Command<object>("Factory Reset", FactoryReset, "Resets AI memory and settings, and turns it off"));
+	Command_Menu.Add(ShipCommands);
+	AsteroidMenu=new Menu_Submenu("Asteroids");
+	Command_Menu.Add(AsteroidMenu);
+	UpdateEntityListing(AsteroidMenu);
+	PlanetMenu=new Menu_Submenu("Planets");
+	Command_Menu.Add(PlanetMenu);
+	UpdateEntityListing(PlanetMenu);
+	SmallShipMenu=new Menu_Submenu("Small Ships");
+	Command_Menu.Add(SmallShipMenu);
+	UpdateEntityListing(SmallShipMenu);
+	LargeShipMenu=new Menu_Submenu("Large Ships");
+	Command_Menu.Add(LargeShipMenu);
+	UpdateEntityListing(LargeShipMenu);
+	CharacterMenu=new Menu_Submenu("Characters");
+	Command_Menu.Add(CharacterMenu);
+	UpdateEntityListing(CharacterMenu);
+	return true;
 }
 
 void UpdateProgramInfo(){
