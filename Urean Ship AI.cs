@@ -1286,7 +1286,6 @@ bool ControllerFunction(IMyShipController ctrlr){
 	IMyRemoteControl Remote=ctrlr as IMyRemoteControl;
 	return ctrlr.CanControlShip&&ctrlr.ControlThrusters&&(ctrlr.IsMainCockpit||Remote!=null);
 }
-
 void SetupAirlocks(){
 	Airlocks=new List<Airlock>();
 	List<IMyDoor> AllAirlockDoors=GenericMethods<IMyDoor>.GetAllConstruct("Airlock");
@@ -1382,6 +1381,66 @@ void SetupAirlocks(){
 		foreach(IMyAirVent Vent in Vents){
 			if(Vent.CustomName.Equals(name+"Air Vent")){
 				airlock.Vent=Vent;
+				break;
+			}
+		}
+	}
+}
+
+string GetThrustTypeName(IMyThrust Thruster){
+	string block_type=Thruster.BlockDefinition.SubtypeName;
+	if(block_type.Contains("LargeBlock"))
+		block_type=GetRemovedString(block_type,"LargeBlock");
+	else if(block_type.Contains("SmallBlock"))
+		block_type=GetRemovedString(block_type,"SmallBlock");
+	if(block_type.Contains("Thrust"))
+		block_type.GetRemovedString(block_type,"Thrust");
+	string size="";
+	if(block_type.Contains("Small")){
+		size="Small";
+		block_type.GetRemovedString(block_type,size);
+	}
+	else if(block_type.Contains("Large")){
+		size="Large";
+		block_type.GetRemovedString(block_type,size);
+	}
+	if((!block_type.ToLower().Contains("atmospheric"))||(!block_type.ToLower().Contains("hydrogen")))
+		block_type+="Ion";
+	return (size+" "+block_type).Trim();
+}
+struct NameTuple{
+	public string Name;
+	public int Count;
+	
+	public NameTuple(string n,int c=0){
+		Name=n;
+		Count=c;
+	}
+}
+void SetThrusterList(List<IMyThrust> Thrusters,string Direction){
+	List<NameTuple> Thruster_Types=new List<NameTuple>();
+	foreach(IMyThrust Thruster in Thrusters){
+		if(!HasBlockData(Thruster,"DefaultOverride"))
+			SetBlockData(Thruster,"DefaultOverride",Thruster.ThrustOverridePercentage.ToString());
+		SetBlockData(Thruster,"Owner",Me.CubeGrid.EntityId.ToString());
+		SetBlockData(Thruster,"DefaultName",Thruster.CustomName);
+		string name=GetThrustTypeName();
+		bool found=false;
+		for(int i=0;i<Thruster_Types.Count;i++){
+			if(name.Equals(Thruster_Types[i].Name)){
+				found=true;
+				Thruster_Types[i].Count++;
+				break;
+			}
+		}
+		if(!found)
+			Thruster_Types.Add(new NameTuple(name,1));
+	}
+	foreach(IMyThrust Thruster in Thrusters){
+		string name=GetThrustTypeName(Thruster);
+		for(int i=0;i<Thruster_Types.Count;i++){
+			if(name.Equals(Thruster_Types[i].Name)){
+				Thruster.CustomName=(Direction+" "+name+" Thruster "+(Thruster_Types[i].Count--).ToString()).Trim();
 				break;
 			}
 		}
