@@ -10,6 +10,7 @@ string Lockdown_Door_Name="Air Seal";
 string Lockdown_Light_Name="";
 double Alert_Distance=15;
 bool Guest_Mode=false;
+double Speed_Limit=100;
 
 class Prog{
 	public static MyGridProgram P;
@@ -1206,7 +1207,7 @@ float Forward_Thrust{
 		float total=0;
 		foreach(IMyThrust Thruster in Forward_Thrusters)
 			total+=Thruster.MaxEffectiveThrust;
-		return total;
+		return Math.Max(total,1);
 	}
 }
 float Backward_Thrust{
@@ -1214,7 +1215,7 @@ float Backward_Thrust{
 		float total=0;
 		foreach(IMyThrust Thruster in Backward_Thrusters)
 			total+=Thruster.MaxEffectiveThrust;
-		return total;
+		return Math.Max(total,1);
 	}
 }
 float Up_Thrust{
@@ -1222,7 +1223,7 @@ float Up_Thrust{
 		float total=0;
 		foreach(IMyThrust Thruster in Up_Thrusters)
 			total+=Thruster.MaxEffectiveThrust;
-		return total;
+		return Math.Max(total,1);
 	}
 }
 float Down_Thrust{
@@ -1230,7 +1231,7 @@ float Down_Thrust{
 		float total=0;
 		foreach(IMyThrust Thruster in Down_Thrusters)
 			total+=Thruster.MaxEffectiveThrust;
-		return total;
+		return Math.Max(total,1);
 	}
 }
 float Left_Thrust{
@@ -1238,7 +1239,7 @@ float Left_Thrust{
 		float total=0;
 		foreach(IMyThrust Thruster in Left_Thrusters)
 			total+=Thruster.MaxEffectiveThrust;
-		return total;
+		return Math.Max(total,1);
 	}
 }
 float Right_Thrust{
@@ -1246,7 +1247,7 @@ float Right_Thrust{
 		float total=0;
 		foreach(IMyThrust Thruster in Right_Thrusters)
 			total+=Thruster.MaxEffectiveThrust;
-		return total;
+		return Math.Max(total,1);
 	}
 }
 
@@ -2595,7 +2596,6 @@ void UpdateAirlock(Airlock airlock){
 		Write(airlock.Name+":"+"Opening both Doors");
 	}
 }
-
 void UpdateAutoDoors(){
 	foreach(IMyDoor AutoDoor in AutoDoors){
 		bool found_entity=false;
@@ -2617,7 +2617,6 @@ void UpdateAutoDoors(){
 			AutoDoor.CloseDoor();
 	}
 }
-
 void PerformDisarm(){
 	List<IMyWarhead> Warheads=new List<IMyWarhead>();
 	GridTerminalSystem.GetBlocksOfType<IMyWarhead>(Warheads);
@@ -2630,9 +2629,299 @@ void PerformDisarm(){
 	}
 }
 
+//Sets gyroscope outputs from player input, dampeners, gravity, and autopilot
+double Pitch_Time= 1.0f;
+double Yaw_Time=1.0f;
+double Roll_Time=1.0f;
+void SetGyroscopes(){
+	Gyroscope.GyroOverride=(AngularVelocity.Length()<3);
+	float current_pitch=(float)Relative_AngularVelocity.X;
+	float current_yaw=(float)Relative_AngularVelocity.Y;
+	float current_roll=(float)Relative_AngularVelocity.Z;
+	
+	float gyro_count=0;
+	List<IMyGyro> AllGyros=new List<IMyGyro>();
+	GridTerminalSystem.GetBlocksOfType<IMyGyro>(AllGyros);
+	foreach(IMyGyro Gyro in AllGyros){
+		if(Gyro.IsWorking)
+			gyro_count+=Gyro.GyroPower/100.0f;
+	}
+	float gyro_multx=(float)Math.Max(0.1f, Math.Min(1, 1.5f/(Controller.CalculateShipMass().PhysicalMass/gyro_count/1000000)));
+	
+	float input_pitch=0;
+	float input_yaw=0;
+	float input_roll=0;
+	
+	if(Pitch_Time<1)
+		Pitch_Time+=seconds_since_last_update;
+	if(Yaw_Time<1)
+		Yaw_Time+=seconds_since_last_update;
+	if(Roll_Time<1)
+		Roll_Time+=seconds_since_last_update;
+	
+	input_pitch=Math.Min(Math.Max(Controller.RotationIndicator.X/100,-1),1);
+	if(Math.Abs(input_pitch)<0.05f){
+		input_pitch=current_pitch*0.99f;
+		if((((Elevation-MySize)<Controller.GetShipSpeed()*2&&(Elevation-MySize)<50)||(Controller.DampenersOverride&&!Controller.IsUnderControl))&&GetAngle(Gravity,Forward_Vector)<90&&Pitch_Time>=1){
+			double difference=Math.Abs(GetAngle(Gravity,Forward_Vector));
+			if(difference<90)
+				input_pitch-=10*gyro_multx*((float)Math.Min(Math.Abs((90-difference)/90),1));
+		}
+		if((Controller.DampenersOverride&&!Controller.IsUnderControl)&&(GetAngle(Gravity,Forward_Vector)>(90+ACCEPTABLE_ANGLE/2))){
+			double difference=Math.Abs(GetAngle(Gravity,Forward_Vector));
+			if(difference>90+ACCEPTABLE_ANGLE/2)
+				input_pitch+=10*gyro_multx*((float)Math.Min(Math.Abs((difference-90)/90),1));
+		}
+		if(Match_Direction){
+			double difference=GetAngle(Down_Vector, Target_Direction)-GetAngle(Up_Vector, Target_Direction);
+			if(Math.Abs(difference)>1)
+				input_pitch-=(float)Math.Min(Math.Max(difference/5,-4),4)*gyro_multx;
+		}
+	}
+	else{
+		Pitch_Time=0;
+		input_pitch*=30;
+	}
+	input_yaw=Math.Min(Math.Max(Controller.RotationIndicator.Y/100,-1),1);
+	if(Math.Abs(input_yaw)<0.05f){
+		input_yaw=current_yaw*0.99f;
+		if(Match_Direction){
+			double difference=GetAngle(Left_Vector,Target_Direction)-GetAngle(Right_Vector,Target_Direction);
+			if(Math.Abs(difference)>1)
+				input_yaw+=(float)Math.Min(Math.Max(difference/5,-4),4)*gyro_multx;
+		}
+	}
+	else{
+		Yaw_Time=0;
+		input_yaw*=30;
+	}
+	input_roll=Controller.RollIndicator;
+	if(Math.Abs(input_roll)<0.05f){
+		input_roll=current_roll*0.99f;
+		if(Gravity.Length()>0&&Roll_Time>=1){
+			double difference=GetAngle(Left_Vector,Gravity)-GetAngle(Right_Vector,Gravity);
+			if(Math.Abs(difference)>ACCEPTABLE_ANGLE){
+				input_roll-=(float)Math.Min(Math.Max(difference/5,-1),1)*gyro_multx;
+			}
+		}
+	}
+	else{
+		Roll_Time=0;
+		input_roll*=10;
+	}
+	
+	Vector3D input=new Vector3D(input_pitch,input_yaw,input_roll);
+	Vector3D global=Vector3D.TransformNormal(input,Controller.WorldMatrix);
+	Vector3D output=Vector3D.TransformNormal(global,MatrixD.Invert(Gyroscope.WorldMatrix));
+	output.Normalize();
+	output*=input.Length();
+	
+	Gyroscope.Pitch=(float)output.X;
+	Gyroscope.Yaw=(float)output.Y;
+	Gyroscope.Roll=(float)output.Z;
+}
 
-
-
+void SetThrusters(){
+	float input_forward=0.0f;
+	float input_up=0.0f;
+	float input_right=0.0f;
+	float damp_multx=0.99f;
+	double effective_speed_limit=Speed_Limit;
+	
+	if(Elevation<50)
+		effective_speed_limit=Math.Min(effective_speed_limit, Elevation*2);
+	if(Time_To_Crash<60 && Time_To_Crash>=0)
+		effective_speed_limit=Math.Min(effective_speed_limit,Time_To_Crash/60*100);
+	if(Controller.DampenersOverride){
+		Write("Cruise Control: Off");
+		input_right-=(float)((Relative_CurrentVelocity.X-Relative_RestingVelocity.X)*Mass_Accomodation*damp_multx);
+		input_up-=(float)((Relative_CurrentVelocity.Y-Relative_RestingVelocity.Y)*Mass_Accomodation*damp_multx);
+		input_forward+=(float)((Relative_CurrentVelocity.Z-Relative_RestingVelocity.Z)*Mass_Accomodation*damp_multx);
+	}
+	else{
+		Write("Cruise Control: On");
+		Vector3D velocity_direction=CurrentVelocity;
+		velocity_direction.Normalize();
+		double angle=Math.Min(GetAngle(Forward_Vector, velocity_direction), GetAngle(Backward_Vector, velocity_direction));
+		if(angle <= ACCEPTABLE_ANGLE / 2){
+			input_right -= (float) ((Relative_CurrentVelocity.X-Relative_RestingVelocity.X)*Mass_Accomodation*damp_multx);
+			input_up -= (float) ((Relative_CurrentVelocity.Y-Relative_RestingVelocity.Y)*Mass_Accomodation*damp_multx);
+			Write("Stabilizers: On ("+Math.Round(angle, 1)+"° dev)");
+		}
+		else
+			Write("Stabilizers: Off ("+Math.Round(angle, 1)+"° dev)");
+	}
+	if(Target_Distance<Math.Max(1, Math.Min(10, MySize/10))){
+		Match_Direction=false;
+		Match_Position=false;
+	}
+	else 
+		effective_speed_limit=Math.Min(effective_speed_limit, Math.Sqrt(Target_Distance/4)*4);
+	effective_speed_limit=Math.Max(effective_speed_limit,5);
+	if(Gravity.Length()>0&&Mass_Accomodation>0&&(Controller.GetShipSpeed()<100||GetAngle(CurrentVelocity,Gravity)>ACCEPTABLE_ANGLE)){
+		if(!(_Autoland&&Time_To_Crash>15&&Controller.GetShipSpeed()>5)){
+			input_right-=(float)Adjusted_Gravity.X;
+			input_up-=(float)Adjusted_Gravity.Y;
+			input_forward+=(float)Adjusted_Gravity.Z;
+		}
+	}
+	
+	bool matched_direction=!Match_Direction;
+	if(Match_Direction)
+		matched_direction=Math.Abs(GetAngle(Target_Direction,Forward_Vector))<=ACCEPTABLE_ANGLE;
+	
+	if(Math.Abs(Controller.MoveIndicator.X)>0.5f){
+		if(Controller.MoveIndicator.X>0){
+			if((CurrentVelocity+Right_Vector-RestingVelocity).Length()<=effective_speed_limit)
+				input_right=0.95f*Right_Thrust;
+			else
+				input_right=Math.Min(input_right,0);
+		} else {
+			if((CurrentVelocity+Left_Vector-RestingVelocity).Length()<=effective_speed_limit)
+				input_right=-0.95f*Left_Thrust;
+			else
+				input_right=Math.Max(input_right,0);
+		}
+	}
+	else if(Match_Position){
+		double Relative_Speed=Relative_CurrentVelocity.X;
+		double Relative_Target_Speed=RestingVelocity.X;
+		double Relative_Distance=Relative_Target_Position.X;
+		double deacceleration=0;
+		double difference=Relative_Speed-Relative_Target_Speed;
+		if(difference>0)
+			deacceleration=Math.Abs(difference)/Left_Thrust;
+		else if(difference<0)
+			deacceleration=Math.Abs(difference)/Right_Thrust;
+		if((difference>0)^(Relative_Distance<0)){
+			double time=difference/deacceleration;
+			time=(Relative_Distance-(difference*time/2))/difference;
+			if(time>0&&(!Match_Direction||matched_direction)&&Relative_Speed-Relative_Target_Speed<=0.05){
+				if(difference>0){
+					if((CurrentVelocity+Left_Vector-RestingVelocity).Length()<=Math.Min(Elevation,Math.Min(effective_speed_limit,Target_Distance)))
+						input_right=-0.95f*Left_Thrust;
+				}
+				else {
+					if((CurrentVelocity+Right_Vector-RestingVelocity).Length()<=Math.Min(Elevation,Math.Min(effective_speed_limit,Target_Distance)))
+						input_right=0.95f*Right_Thrust;
+				}
+			}
+		}
+	}
+	
+	if(Math.Abs(Controller.MoveIndicator.Y)>0.5f){
+		if(Controller.MoveIndicator.Y>0){
+			if((CurrentVelocity+Up_Vector-RestingVelocity).Length()<=effective_speed_limit)
+				input_up=0.95f*Up_Thrust;
+			else
+				input_up=Math.Min(input_up,0);
+		} else {
+			if((CurrentVelocity+Down_Vector-RestingVelocity).Length()<=effective_speed_limit)
+				input_up=-0.95f*Down_Thrust;
+			else
+				input_up=Math.Max(input_up,0);
+		}
+	}
+	else if(Match_Position){
+		double Relative_Speed=Relative_CurrentVelocity.Y;
+		double Relative_Target_Speed=RestingVelocity.Y;
+		double Relative_Distance=Relative_Target_Position.Y;
+		double deacceleration=0;
+		double difference=Relative_Speed-Relative_Target_Speed;
+		if(difference>0){
+			deacceleration=Math.Abs(difference)/Down_Thrust;
+		}
+		else if(difference<0){
+			deacceleration=Math.Abs(difference)/Up_Thrust;
+		}
+		if((difference>0)^(Relative_Distance<0)){
+			double time=difference/deacceleration;
+			time=(Relative_Distance-(difference*time/2))/difference;
+			if(time>0&&(!Match_Direction||matched_direction)&&Relative_Speed-Relative_Target_Speed<=0.05){
+				if(difference>0){
+					if((CurrentVelocity+Down_Vector-RestingVelocity).Length()<=Math.Min(Elevation,Math.Min(effective_speed_limit,Target_Distance)))
+						input_up=-0.95f*Down_Thrust;
+				}
+				else {
+					if((CurrentVelocity+Up_Vector-RestingVelocity).Length()<=Math.Min(Elevation,Math.Min(effective_speed_limit,Target_Distance)))
+						input_up=0.95f*Up_Thrust;
+				}
+			}
+		}
+	}
+	
+	if(Math.Abs(Controller.MoveIndicator.Z)>0.5f){
+		if(Controller.MoveIndicator.Z<0){
+			if((CurrentVelocity+Up_Vector-RestingVelocity).Length()<=effective_speed_limit)
+				input_forward=0.95f*Forward_Thrust;
+			else
+				input_forward=Math.Min(input_forward,0);
+		} 
+		else{
+			if((CurrentVelocity+Down_Vector-RestingVelocity).Length()<=effective_speed_limit)
+				input_forward=-0.95f*Backward_Thrust;
+			else
+				input_forward=Math.Max(input_forward,0);
+		}
+	}
+	else if(Match_Position){
+		double Relative_Speed=Relative_CurrentVelocity.Z;
+		double Relative_Target_Speed=RestingVelocity.Z;
+		double Relative_Distance=Relative_Target_Position.Z;
+		double deacceleration=0;
+		double difference=Relative_Speed-Relative_Target_Speed;
+		if(difference>0)
+			deacceleration=Math.Abs(difference)/Backward_Thrust;
+		else if(difference<0)
+			deacceleration=Math.Abs(difference)/Forward_Thrust;
+		if((difference>0)^(Relative_Distance<0)){
+			double time=difference/deacceleration;
+			time=(Relative_Distance-(difference*time/2))/difference;
+			if(time>0&&(!Match_Direction||matched_direction)&&Relative_Speed-Relative_Target_Speed<=0.05){
+				if(difference>0){
+					if((CurrentVelocity+Down_Vector-RestingVelocity).Length()<=Math.Min(Elevation,Math.Min(effective_speed_limit,Target_Distance)))
+						input_forward=-0.95f*Backward_Thrust;
+				}
+				else {
+					if((CurrentVelocity+Up_Vector-RestingVelocity).Length()<=Math.Min(Elevation,Math.Min(effective_speed_limit,Target_Distance)))
+						input_forward=0.95f*Forward_Thrust;
+				}
+			}
+		}
+	}
+	
+	float output_forward=0.0f;
+	float output_backward=0.0f;
+	if(input_forward/Forward_Thrust>0.05f)
+		output_forward=Math.Min(Math.Abs(input_forward/Forward_Thrust),1);
+	else if(input_forward/Backward_Thrust<-0.05f)
+		output_backward=Math.Min(Math.Abs(input_forward/Backward_Thrust),1);
+	float output_up=0.0f;
+	float output_down=0.0f;
+	if(input_up/Up_Thrust>0.05f)
+		output_up=Math.Min(Math.Abs(input_up/Up_Thrust), 1);
+	else if(input_up/Down_Thrust<-0.05f)
+		output_down=Math.Min(Math.Abs(input_up/Down_Thrust), 1);
+	float output_right=0.0f;
+	float output_left=0.0f;
+	if(input_right/Right_Thrust>0.05f)
+		output_right=Math.Min(Math.Abs(input_right/Right_Thrust), 1);
+	else if(input_right/Left_Thrust<-0.05f)
+		output_left=Math.Min(Math.Abs(input_right/Left_Thrust), 1);
+	
+	foreach(IMyThrust Thruster in Forward_Thrusters)
+		Thruster.ThrustOverridePercentage=output_forward;
+	foreach(IMyThrust Thruster in Backward_Thrusters)
+		Thruster.ThrustOverridePercentage=output_backward;
+	foreach(IMyThrust Thruster in Up_Thrusters)
+		Thruster.ThrustOverridePercentage=output_up;
+	foreach(IMyThrust Thruster in Down_Thrusters)
+		Thruster.ThrustOverridePercentage=output_down;
+	foreach(IMyThrust Thruster in Right_Thrusters)
+		Thruster.ThrustOverridePercentage=output_right;
+	foreach(IMyThrust Thruster in Left_Thrusters)
+		Thruster.ThrustOverridePercentage=output_left;
+}
 
 
 void UpdateProgramInfo(){
