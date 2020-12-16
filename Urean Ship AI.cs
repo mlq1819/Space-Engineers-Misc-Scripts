@@ -1251,6 +1251,37 @@ float Right_Thrust{
 	}
 }
 
+double Forward_Gs{
+	get{
+		return Forward_Thrust/Controller.CalculateShipMass().TotalMass/9.81;
+	}
+}
+double Backward_Gs{
+	get{
+		return Backward_Thrust/Controller.CalculateShipMass().TotalMass/9.81;
+	}
+}
+double Up_Gs{
+	get{
+		return Up_Thrust/Controller.CalculateShipMass().TotalMass/9.81;
+	}
+}
+double Down_Gs{
+	get{
+		return Down_Thrust/Controller.CalculateShipMass().TotalMass/9.81;
+	}
+}
+double Left_Gs{
+	get{
+		return Left_Thrust/Controller.CalculateShipMass().TotalMass/9.81;
+	}
+}
+double Right_Gs{
+	get{
+		return Right_Thrust/Controller.CalculateShipMass().TotalMass/9.81;
+	}
+}
+
 double Time_To_Crash=double.MaxValue;
 Menu_Submenu Command_Menu;
 
@@ -1721,13 +1752,66 @@ AlertStatus ShipStatus{
 		AlertStatus status=AlertStatus.Green;
 		Submessage="";
 		if(!Me.CubeGrid.IsStatic){
+			if(Forward_Thrust==1){
+				AlertStatus new_status=AlertStatus.Yellow;
+				status=(AlertStatus)Math.Max((int)status, (int)new_status);
+				Submessage+="\nNo Forward Thrusters";
+			}
+			if(Backward_Thrust==1){
+				AlertStatus new_status=AlertStatus.Yellow;
+				status=(AlertStatus)Math.Max((int)status, (int)new_status);
+				Submessage+="\nNo Backward Thrusters";
+			}
+			if(Up_Thrust==1){
+				AlertStatus new_status=AlertStatus.Yellow;
+				status=(AlertStatus)Math.Max((int)status, (int)new_status);
+				Submessage+="\nNo Up Thrusters";
+			}
+			if(Down_Thrust==1){
+				AlertStatus new_status=AlertStatus.Yellow;
+				status=(AlertStatus)Math.Max((int)status, (int)new_status);
+				Submessage+="\nNo Down Thrusters";
+			}
+			if(Left_Thrust==1){
+				AlertStatus new_status=AlertStatus.Yellow;
+				status=(AlertStatus)Math.Max((int)status, (int)new_status);
+				Submessage+="\nNo Left Thrusters";
+			}
+			if(Right_Thrust==1){
+				AlertStatus new_status=AlertStatus.Yellow;
+				status=(AlertStatus)Math.Max((int)status, (int)new_status);
+				Submessage+="\nNo Right Thrusters";
+			}
+			if(Gravity.Length()>0){
+				if(Up_Gs<Gravity.Length()){
+					AlertStatus new_status=AlertStatus.Yellow;
+					if(Forward_Gs<Gravity.Length()){
+						new_status=AlertStatus.Orange;
+						double max_Gs=Math.Max(Forward_Gs,Left_Gs);
+						max_Gs=Math.Max(max_Gs,Right_Gs);
+						max_Gs=Math.Max(max_Gs,Down_Gs);
+						max_Gs=Math.Max(max_Gs,Backward_Gs);
+						if(max_Gs<Gravity.Length()){
+							new_status=AlertStatus.Red;
+							Submessage+="\nInsufficient Thrust to liftoff";
+						}
+						else
+							Submessage+="\nInsufficient Vertical and Forward Thrust";
+					}
+					else
+						Submessage+="\nInsufficient Vertical Thrust";
+					status=(AlertStatus)Math.Max((int)status, (int)new_status);
+				}
+				else if(Up_Gs<Gravity.Length()*1.5){
+					
+				}
+			}
 			if(Elevation-MySize<50){
 				AlertStatus new_status=AlertStatus.Blue;
 				status=(AlertStatus) Math.Max((int)status, (int)new_status);
 				double psuedo_elevation=Math.Max(Elevation-MySize,0);
 				Submessage+="\nShip at low Altitude ("+Math.Round(psuedo_elevation,1).ToString()+"-"+Math.Round(Elevation,1).ToString()+" meters)";
 			}
-			
 			if(Time_To_Crash>0){
 				if(Time_To_Crash<15 && Controller.GetShipSpeed()>5){
 					AlertStatus new_status=AlertStatus.Orange;
@@ -2923,7 +3007,6 @@ void SetThrusters(){
 		Thruster.ThrustOverridePercentage=output_left;
 }
 
-
 void UpdateProgramInfo(){
 	cycle=(++cycle)%long.MaxValue;
 	switch(loading_char){
@@ -2965,6 +3048,8 @@ void UpdateTimers(){
 public void Main(string argument, UpdateType updateSource)
 {
 	UpdateProgramInfo();
+	Write("Maximum Power (Hovering): "+Math.Round(Up_Gs,2)+"Gs");
+	Write("Maximum Power (Launching): "+Math.Round(Math.Max(Up_Gs,Forward_Gs),2)+"Gs");
     // The main entry point of the script, invoked every time
     // one of the programmable block's Run actions are invoked,
     // or the script updates itself. The updateSource argument
