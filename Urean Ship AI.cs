@@ -1402,7 +1402,7 @@ Vector3D PlanetCenter;
 
 bool ControllerFunction(IMyShipController ctrlr){
 	IMyRemoteControl Remote=ctrlr as IMyRemoteControl;
-	return ctrlr.CanControlShip&&ctrlr.ControlThrusters&&(ctrlr.IsMainCockpit||Remote!=null);
+	return ctrlr.IsSameConstructAs(Me)&&ctrlr.CanControlShip&&ctrlr.ControlThrusters&&(ctrlr.IsMainCockpit||Remote!=null);
 }
 void SetupAirlocks(){
 	Airlocks=new List<Airlock>();
