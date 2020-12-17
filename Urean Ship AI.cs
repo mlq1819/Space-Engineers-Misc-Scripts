@@ -1301,6 +1301,8 @@ double Right_Gs{
 	}
 }
 
+float Cargo_Status=0;
+
 double Time_To_Crash=double.MaxValue;
 double Guest_Timer=double.MaxValue;
 Menu_Submenu Command_Menu;
@@ -1989,6 +1991,17 @@ AlertStatus ShipStatus{
 			AlertStatus new_status=AlertStatus.Blue;
 			status=(AlertStatus)Math.Max((int)status,(int)new_status);
 			Submessage+="\nGuest Mode: "+ToString(FromSeconds(Guest_Mode_Timer-Guest_Timer));
+		}
+		
+		if(Cargo_Status>0.95f){
+			AlertStatus new_status=AlertStatus.Yellow;
+			status=(AlertStatus)Math.Max((int)status,(int)new_status);
+			Submessage+="\nCargo at "+Math.Round(Cargo_Status*100,1).ToString()+"% Capacity";
+		}
+		else if(Cargo_Status>0.8f){
+			AlertStatus new_status=AlertStatus.Blue;
+			status=(AlertStatus)Math.Max((int)status,(int)new_status);
+			Submessage+="\nCargo at "+Math.Round(Cargo_Status*100,1).ToString()+"% Capacity";
 		}
 		
 		double ActualEnemyShipDistance=Math.Min(SmallShipList.ClosestDistance(MyRelationsBetweenPlayerAndBlock.Enemies),LargeShipList.ClosestDistance(MyRelationsBetweenPlayerAndBlock.Enemies));
@@ -3106,7 +3119,7 @@ void UpdateTimers(){
 	Scan_Time+=seconds_since_last_update;
 }
 
-void GetPositionData(){
+void UpdateSystemData(){
 	Write("", false, false);
 	Vector3D base_vector=new Vector3D(0,0,-1);
 	Forward_Vector=LocalToGlobal(base_vector,Controller);
@@ -3183,13 +3196,23 @@ void GetPositionData(){
 	else
 		Sealevel=double.MaxValue;
 	Mass_Accomodation=(float)(Controller.CalculateShipMass().PhysicalMass*Gravity.Length());
+	Cargo_Status=0;
+	List<IMyCargoContainer> Cargos=GenericMethods<IMyCargoContainer>.GetAllConstruct("");
+	if(Cargos.Count>0){
+		float sum=0,total=0;
+		foreach(IMyCargoContainer Cargo in Cargos){
+			sum+=(float)Cargo.CurrentVolume.ToIntSafe();
+			total+=(float)Cargo.MaxVolume.ToIntSafe();
+		}
+		Cargo_Status=sum/total;
+	}
 }
 
 public void Main(string argument, UpdateType updateSource)
 {
 	try{
 		UpdateProgramInfo();
-		GetPositionData();
+		UpdateSystemData();
 		UpdateTimers();
 		if(!Me.CubeGrid.IsStatic){
 			if(Elevation!=double.MaxValue)
@@ -3197,6 +3220,7 @@ public void Main(string argument, UpdateType updateSource)
 			Write("Maximum Power (Hovering): "+Math.Round(Up_Gs,2)+"Gs");
 			Write("Maximum Power (Launching): "+Math.Round(Math.Max(Up_Gs,Forward_Gs),2)+"Gs");
 		}
+		Write("Cargo at "+Math.Round(Cargo_Status*100,1).ToString()+"% Capacity");
 		if(Scan_Time>=Scan_Frequency)
 			PerformScan();
 		else
