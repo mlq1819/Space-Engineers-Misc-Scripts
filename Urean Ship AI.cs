@@ -1646,7 +1646,6 @@ bool Setup(){
 				
 			}
 		}
-		
 	}
 	MySize=Controller.CubeGrid.GridSize;
 	Gyroscope=GenericMethods<IMyGyro>.GetConstruct("Control Gyroscope");
@@ -1654,9 +1653,11 @@ bool Setup(){
 		Gyroscope=GenericMethods<IMyGyro>.GetConstruct("");
 		if(Gyroscope==null&&!Me.CubeGrid.IsStatic)
 			return false;
-		Gyroscope.CustomName="Control Gyroscope";
 	}
-	Gyroscope.GyroOverride=Controller.IsUnderControl;
+	if(Gyroscope!=null){
+		Gyroscope.CustomName="Control Gyroscope";
+		Gyroscope.GyroOverride=Controller.IsUnderControl;
+	}
 	List<IMyThrust> MyThrusters=GenericMethods<IMyThrust>.GetAllConstruct("");
 	for(int i=0;i<2;i++){
 		bool retry=!Me.CubeGrid.IsStatic;
