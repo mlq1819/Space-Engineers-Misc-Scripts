@@ -1893,52 +1893,51 @@ AlertStatus ShipStatus{
 			List<IMyJumpDrive> JumpDrives=GenericMethods<IMyJumpDrive>.GetAllIncluding("");
 			foreach(IMyJumpDrive Drive in JumpDrives){
 				if(Drive.Status==MyJumpDriveStatus.Jumping){
-					AlertStatus new_status=AlertStatus.Blue;
-					status=(AlertStatus)Math.Max((int)status,(int)new_status);
+					AlertStatus nw_sts=AlertStatus.Blue;
+					status=(AlertStatus)Math.Max((int)status,(int)nw_sts);
 					Submessage+="\nShip is Jumping";
 				}
 			}
 			if(Forward_Thrust==1){
-				AlertStatus new_status=AlertStatus.Yellow;
-				status=(AlertStatus)Math.Max((int)status,(int)new_status);
+				AlertStatus nw_sts=AlertStatus.Yellow;
+				status=(AlertStatus)Math.Max((int)status,(int)nw_sts);
 				Submessage+="\nNo Forward Thrusters";
 			}
 			if(Backward_Thrust==1){
-				AlertStatus new_status=AlertStatus.Yellow;
-				status=(AlertStatus)Math.Max((int)status,(int)new_status);
+				AlertStatus nw_sts=AlertStatus.Yellow;
+				status=(AlertStatus)Math.Max((int)status,(int)nw_sts);
 				Submessage+="\nNo Backward Thrusters";
 			}
 			if(Up_Thrust==1){
-				AlertStatus new_status=AlertStatus.Yellow;
-				status=(AlertStatus)Math.Max((int)status,(int)new_status);
+				AlertStatus nw_sts=AlertStatus.Yellow;
+				status=(AlertStatus)Math.Max((int)status,(int)nw_sts);
 				Submessage+="\nNo Up Thrusters";
 			}
 			if(Down_Thrust==1){
-				AlertStatus new_status=AlertStatus.Yellow;
-				status=(AlertStatus)Math.Max((int)status,(int)new_status);
+				AlertStatus nw_sts=AlertStatus.Yellow;
+				status=(AlertStatus)Math.Max((int)status,(int)nw_sts);
 				Submessage+="\nNo Down Thrusters";
 			}
 			if(Left_Thrust==1){
-				AlertStatus new_status=AlertStatus.Yellow;
-				status=(AlertStatus)Math.Max((int)status,(int)new_status);
+				AlertStatus nw_sts=AlertStatus.Yellow;
+				status=(AlertStatus)Math.Max((int)status,(int)nw_sts);
 				Submessage+="\nNo Left Thrusters";
 			}
 			if(Right_Thrust==1){
-				AlertStatus new_status=AlertStatus.Yellow;
-				status=(AlertStatus)Math.Max((int)status,(int)new_status);
+				AlertStatus nw_sts=AlertStatus.Yellow;
+				status=(AlertStatus)Math.Max((int)status,(int)nw_sts);
 				Submessage+="\nNo Right Thrusters";
 			}
 			if(Gravity.Length()>0){
-				if(Up_Gs<Gravity.Length()){
-					AlertStatus new_status=AlertStatus.Yellow;
-					if(Forward_Gs<Gravity.Length()){
-						new_status=AlertStatus.Orange;
-						double max_Gs=Math.Max(Forward_Gs,Left_Gs);
-						max_Gs=Math.Max(max_Gs,Right_Gs);
+				if(Up_Gs<Gravity.Length()/10){
+					AlertStatus nw_sts=AlertStatus.Yellow;
+					if(Forward_Gs<Gravity.Length()/10){
+						nw_sts=AlertStatus.Orange;
+						double max_Gs=Math.Max(Right_Gs,Left_Gs);
 						max_Gs=Math.Max(max_Gs,Down_Gs);
 						max_Gs=Math.Max(max_Gs,Backward_Gs);
-						if(max_Gs<Gravity.Length()){
-							new_status=AlertStatus.Red;
+						if(max_Gs<Gravity.Length()/10){
+							nw_sts=AlertStatus.Red;
 							Submessage+="\nInsufficient Thrust to liftoff";
 						}
 						else
@@ -1946,113 +1945,110 @@ AlertStatus ShipStatus{
 					}
 					else
 						Submessage+="\nInsufficient Vertical Thrust";
-					status=(AlertStatus)Math.Max((int)status,(int)new_status);
-				}
-				else if(Up_Gs<Gravity.Length()*1.5){
-					
+					status=(AlertStatus)Math.Max((int)status,(int)nw_sts);
 				}
 			}
 			if(Elevation-MySize<50){
-				AlertStatus new_status=AlertStatus.Blue;
-				status=(AlertStatus) Math.Max((int)status, (int)new_status);
+				AlertStatus nw_sts=AlertStatus.Blue;
+				status=(AlertStatus) Math.Max((int)status, (int)nw_sts);
 				double psuedo_elevation=Math.Max(Elevation-MySize,0);
 				Submessage+="\nShip at low Altitude ("+Math.Round(psuedo_elevation,1).ToString()+"-"+Math.Round(Elevation,1).ToString()+" meters)";
 			}
 			if(Time_To_Crash>0){
 				if(Time_To_Crash<15 && Controller.GetShipSpeed()>5){
-					AlertStatus new_status=AlertStatus.Orange;
-					status=(AlertStatus) Math.Max((int)status, (int)new_status);
+					AlertStatus nw_sts=AlertStatus.Orange;
+					status=(AlertStatus) Math.Max((int)status, (int)nw_sts);
 					Submessage += "\n"+Math.Round(Time_To_Crash,1).ToString()+" seconds to possible impact";
 				}
 				else if(Time_To_Crash<60 && Controller.GetShipSpeed()>15){
-					AlertStatus new_status=AlertStatus.Yellow;
-					status=(AlertStatus) Math.Max((int)status, (int)new_status);
+					AlertStatus nw_sts=AlertStatus.Yellow;
+					status=(AlertStatus) Math.Max((int)status, (int)nw_sts);
 					Submessage += "\n"+Math.Round(Time_To_Crash,1).ToString()+" seconds to possible impact";
 				}
 				else if(Time_To_Crash<180){
-					AlertStatus new_status=AlertStatus.Blue;
-					status=(AlertStatus) Math.Max((int)status, (int)new_status);
+					AlertStatus nw_sts=AlertStatus.Blue;
+					status=(AlertStatus) Math.Max((int)status, (int)nw_sts);
 					Submessage += "\n"+Math.Round(Time_To_Crash,1).ToString()+" seconds to possible impact";
 				}
 			}
 			if(_Autoland&&CurrentVelocity.Length()>1){
-				AlertStatus new_status=AlertStatus.Blue;
-				status=(AlertStatus) Math.Max((int)status, (int)new_status);
+				AlertStatus nw_sts=AlertStatus.Blue;
+				status=(AlertStatus) Math.Max((int)status, (int)nw_sts);
 				Submessage += "\nAutoland Enabled";
 			}
 		}
 		if(_Lockdown){
-			AlertStatus new_status=AlertStatus.Yellow;
-			status=(AlertStatus) Math.Max((int)status, (int)new_status);
+			AlertStatus nw_sts=AlertStatus.Yellow;
+			status=(AlertStatus) Math.Max((int)status, (int)nw_sts);
 			Submessage += "\nCurrently in Lockdown";
 		}
 		
 		if(Guest_Mode){
-			AlertStatus new_status=AlertStatus.Blue;
-			status=(AlertStatus)Math.Max((int)status,(int)new_status);
+			AlertStatus nw_sts=AlertStatus.Blue;
+			status=(AlertStatus)Math.Max((int)status,(int)nw_sts);
 			Submessage+="\nGuest Mode: "+ToString(FromSeconds(Guest_Mode_Timer-Guest_Timer));
 		}
 		
 		if(Cargo_Status>0.95f){
-			AlertStatus new_status=AlertStatus.Yellow;
-			status=(AlertStatus)Math.Max((int)status,(int)new_status);
+			AlertStatus nw_sts=AlertStatus.Yellow;
+			status=(AlertStatus)Math.Max((int)status,(int)nw_sts);
 			Submessage+="\nCargo at "+Math.Round(Cargo_Status*100,1).ToString()+"% Capacity";
 		}
 		else if(Cargo_Status>0.8f){
-			AlertStatus new_status=AlertStatus.Blue;
-			status=(AlertStatus)Math.Max((int)status,(int)new_status);
+			AlertStatus nw_sts=AlertStatus.Blue;
+			status=(AlertStatus)Math.Max((int)status,(int)nw_sts);
 			Submessage+="\nCargo at "+Math.Round(Cargo_Status*100,1).ToString()+"% Capacity";
 		}
 		
 		double ActualEnemyShipDistance=Math.Min(SmallShipList.ClosestDistance(MyRelationsBetweenPlayerAndBlock.Enemies),LargeShipList.ClosestDistance(MyRelationsBetweenPlayerAndBlock.Enemies));
 		double EnemyShipDistance=Math.Min(SmallShipList.ClosestDistance(MyRelationsBetweenPlayerAndBlock.Enemies), LargeShipList.ClosestDistance(MyRelationsBetweenPlayerAndBlock.Enemies)/2);
 		if(EnemyShipDistance<800){
-			AlertStatus new_status=AlertStatus.Red;
-			status=(AlertStatus) Math.Max((int)status, (int)new_status);
+			AlertStatus nw_sts=AlertStatus.Red;
+			status=(AlertStatus) Math.Max((int)status, (int)nw_sts);
 			Submessage += "\nEnemy Ship at "+Math.Round(ActualEnemyShipDistance, 0)+" meters";
 		}
 		else if(EnemyShipDistance<2500){
-			AlertStatus new_status=AlertStatus.Orange;
-			status=(AlertStatus) Math.Max((int)status, (int)new_status);
+			AlertStatus nw_sts=AlertStatus.Orange;
+			status=(AlertStatus) Math.Max((int)status, (int)nw_sts);
 			Submessage += "\nEnemy Ship at "+Math.Round(ActualEnemyShipDistance, 0)+" meters";
 		}
 		else if(EnemyShipDistance<5000){
-			AlertStatus new_status=AlertStatus.Yellow;
-			status=(AlertStatus) Math.Max((int)status, (int)new_status);
+			AlertStatus nw_sts=AlertStatus.Yellow;
+			status=(AlertStatus) Math.Max((int)status, (int)nw_sts);
 			Submessage += "\nEnemy Ship at "+Math.Round(ActualEnemyShipDistance, 0)+" meters";
 		}
 		
 		double EnemyCharacterDistance=CharacterList.ClosestDistance(MyRelationsBetweenPlayerAndBlock.Enemies);
 		if(EnemyCharacterDistance-MySize<0){
-			AlertStatus new_status=AlertStatus.Red;
-			status=(AlertStatus) Math.Max((int)status, (int)new_status);
+			AlertStatus nw_sts=AlertStatus.Red;
+			status=(AlertStatus) Math.Max((int)status, (int)nw_sts);
 			Submessage += "\nEnemy Creature has boarded ship";
 		}
 		else if(EnemyCharacterDistance-MySize<800){
-			AlertStatus new_status=AlertStatus.Orange;
-			status=(AlertStatus) Math.Max((int)status, (int)new_status);
+			AlertStatus nw_sts=AlertStatus.Orange;
+			status=(AlertStatus) Math.Max((int)status, (int)nw_sts);
 			Submessage += "\nEnemy Creature at "+Math.Round(EnemyCharacterDistance, 0)+" meters";
 		}
 		else if(EnemyCharacterDistance-MySize<2000){
-			AlertStatus new_status=AlertStatus.Yellow;
-			status=(AlertStatus) Math.Max((int)status, (int)new_status);
+			AlertStatus nw_sts=AlertStatus.Yellow;
+			status=(AlertStatus) Math.Max((int)status, (int)nw_sts);
 			Submessage += "\nEnemy Creature at "+Math.Round(EnemyCharacterDistance, 0)+" meters";
 		}
 		
 		double ShipDistance=Math.Min(SmallShipList.ClosestDistance(),LargeShipList.ClosestDistance())-MySize;
 		if(ShipDistance<500&&ShipDistance>0){
-			AlertStatus new_status=AlertStatus.Blue;
-			status=(AlertStatus) Math.Max((int)status, (int)new_status);
+			AlertStatus nw_sts=AlertStatus.Blue;
+			status=(AlertStatus) Math.Max((int)status, (int)nw_sts);
 			Submessage += "\nNearby ship at "+Math.Round(ShipDistance, 0)+" meters";
 		}
 		if((!Me.CubeGrid.IsStatic)&&AsteroidList.ClosestDistance()<500){
-			AlertStatus new_status=AlertStatus.Blue;
-			status=(AlertStatus) Math.Max((int)status, (int)new_status);
+			AlertStatus nw_sts=AlertStatus.Blue;
+			status=(AlertStatus) Math.Max((int)status, (int)nw_sts);
 			Submessage += "\nNearby asteroid at "+Math.Round(AsteroidList.ClosestDistance(), 0)+" meters";
 		}
 		if(Controller.GetShipSpeed()>30){
-			AlertStatus new_status=AlertStatus.Blue;
-			status=(AlertStatus) Math.Max((int)status, (int)new_status);
+			AlertStatus nw_sts=AlertStatus.Blue;
+			status=(AlertStatus) Math.Max((int)status, (int)nw_sts);
 			double Speed=Controller.GetShipSpeed();
 			Submessage += "\nHigh Ship Speed [";
 			const int SECTIONS=20;
@@ -3231,6 +3227,8 @@ public void Main(string argument, UpdateType updateSource)
 		if(!Me.CubeGrid.IsStatic){
 			if(Elevation!=double.MaxValue)
 				Write("Elevation: "+Math.Round(Elevation,1).ToString());
+			if(Gravity.Length()>0)
+				Write("Gravity:"+Math.Round(Gravity.Length()/10,2)+"Gs");
 			Write("Maximum Power (Hovering): "+Math.Round(Up_Gs,2)+"Gs");
 			Write("Maximum Power (Launching): "+Math.Round(Math.Max(Up_Gs,Forward_Gs),2)+"Gs");
 		}
