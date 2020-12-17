@@ -2208,6 +2208,11 @@ bool FactoryReset(object obj=null){
 bool DeployFlares(IMyProgrammableBlock FlareBlock){
 	return FlareBlock.TryRun("Deploy");
 }
+bool GuestMode(object obj=null){
+	Guest_Mode=true;
+	Guest_Timer=0;
+	return true;
+}
 
 bool UpdateEntityListing(Menu_Submenu Menu){
 	EntityList list=null;
@@ -2293,6 +2298,7 @@ bool CreateMenu(object obj=null){
 	ShipCommands.Add(new Menu_Command<object>("Disable AI",Disable,"Resets Thrusters, Gyroscope, and Airlocks, and turns off the program"));
 	ShipCommands.Add(new Menu_Command<object>("Toggle Thrusters",ToggleThrusters,"Toggles Thruster Controls"));
 	ShipCommands.Add(new Menu_Command<object>("Scan",PerformScan,"Immediately performs a scan operation"));
+	ShipCommands.Add(new Menu_Command<object>("Guest Mode",GuestMode,"Puts the base in Guest Mode for "+Math.Round(Guest_Mode_Timer,0)+" seconds"));
 	IMyProgrammableBlock FlareBlock=GenericMethods<IMyProgrammableBlock>.GetFull("Flare Printer Programmable block");
 	if(FlareBlock!=null)
 		ShipCommands.Add(new Menu_Command<IMyProgrammableBlock>("Deploy Flares",DeployFlares,"Deploys flares made using Flare Printers",FlareBlock));
