@@ -12,6 +12,8 @@ string Lockdown_Light_Name="";
 double Alert_Distance=15;
 double Speed_Limit=100;
 double Guest_Mode_Timer=900;
+double Acceptable_Angle=10;
+double Raycast_Distance=10000;
 
 class Prog{
 	public static MyGridProgram P;
@@ -586,8 +588,10 @@ class EntityList:IEnumerable<EntityInfo>{
 					upper=index;
 			}
 			while((down>distance||up<distance)&&upper!=lower);
-			E_List.Insert(index,Unsorted.Deqeue());
+			E_List.Insert(index,Unsorted.Dequeue());
 		}
+		if(E_List.Count>128)
+			E_List.RemoveRange(128,E_List.Count-128);
 	}
 }
 
@@ -631,9 +635,9 @@ class Menu_Submenu:MenuOption{
 	int Last_Count;
 	public int Display_Count{
 		get{
-			if(Count>0&&Menu[0].Type==MenuType.Command){
+			if(Count>0&&Menu[0].Type()==MenuType.Command){
 				for(int i=1;i<Count;i++){
-					if(Menu[i].Type!=MenuType.Display)
+					if(Menu[i].Type()!=MenuType.Display)
 						return Count;
 				}
 				return Count-1;
@@ -893,9 +897,9 @@ class Menu_Display:MenuOption{
 	EntityInfo Entity;
 	bool Can_GoTo;
 	Func<EntityInfo, bool> Command;
-	Menu_Command<EntityInfo> Subcommand {
+	Menu_Command<EntityInfo> Subcommand{
 		get{
-			double distance=(P.Me.GetPosition()-Entity.Position).Length()-Entity.Size;
+			double distance=(Prog.P.Me.GetPosition()-Entity.Position).Length()-Entity.Size;
 			return new Menu_Command<EntityInfo>("GoTo "+Entity.Name, Command, "Set autopilot to match target Entity's expected position and velocity", Entity);
 		}
 	}
@@ -949,24 +953,25 @@ class Menu_Display:MenuOption{
 	}
 }
 
-struct Airlock{
+class Airlock{
 	public IMyDoor Door1;
 	public IMyDoor Door2;
 	public IMyAirVent Vent;
 	public string Name{
 		get{
 			string name=Door1.CustomName;
-			if(Door1.name.Contains("Door 1")){
+			if(name.Contains("Door 1")){
 				name=name.Substring(0,name.IndexOf("Door 1"))+name.Substring(name.IndexOf("Door 1")+"Door 1".Length);
 			}
 			return name.Trim();
 		}
 	}
-	public double AirlockTimer=10;
+	public double AirlockTimer;
 	public Airlock(IMyDoor d1,IMyDoor d2,IMyAirVent v=null){
 		Door1=d1;
 		Door2=d2;
 		Vent=v;
+		AirlockTimer=10;
 	}
 	public bool Equals(Airlock o){
 		return Door1.Equals(o.Door1)&&Door2.Equals(o.Door2)&&Vent.Equals(o.Vent);
@@ -1039,6 +1044,9 @@ bool SetBlockData(IMyTerminalBlock Block, string Name, string Data){
 	Block.CustomData+='•'+Name+':'+Data;
 	return true;
 }
+bool CanHaveJob(IMyTerminalBlock Block, string JobName){
+	return (!HasBlockData(Block,"Job"))||GetBlockData(Block,"Job").Equals("None")||GetBlockData(Block, "Job").Equals(JobName);
+}
 
 Vector3D GlobalToLocal(Vector3D Global,IMyCubeBlock Ref){
 	Vector3D Local=Vector3D.Transform(Global+Ref.GetPosition(), MatrixD.Invert(Ref.WorldMatrix));
@@ -1079,6 +1087,39 @@ string GetRemovedString(string big_string, string small_string){
 	return output;
 }
 
+List<List<IMyDoor>> RemoveDoor(List<List<IMyDoor>> list, IMyDoor Door){
+	List<List<IMyDoor>> output=new List<List<IMyDoor>>();
+	Echo("\tRemoving Door \""+Door.CustomName+"\" from list["+list.Count+"]");
+	if(list.Count==0)
+		return output;
+	string ExampleDoorName="";
+	foreach(List<IMyDoor> sublist in list){
+		if(sublist.Count>0){
+			ExampleDoorName=sublist[0].CustomName;
+			break;
+		}
+	}
+	
+	bool is_leading_group=(ExampleDoorName.Contains("Door 1")&&Door.CustomName.Contains("Door 1"))||(ExampleDoorName.Contains("Door 2")&&Door.CustomName.Contains("Door 2"));
+	for(int i=0;i<list.Count;i++){
+		if(list[i].Count>1&&(!is_leading_group||!list[i][0].Equals(Door))){
+			if(is_leading_group)
+				output.Add(list[i]);
+			else{
+				List<IMyDoor> pair=new List<IMyDoor>();
+				pair.Add(list[i][0]);
+				for(int j=1;j<list[i].Count;j++){
+					if(!list[i][j].Equals(Door))
+						pair.Add(list[i][j]);
+				}
+				if(pair.Count>1)
+					output.Add(pair);
+			}
+		}
+	}
+	return output;
+}
+
 Color ColorParse(string parse){
 	parse=parse.Substring(parse.IndexOf('{')+1);
 	parse=parse.Substring(0, parse.IndexOf('}')-1);
@@ -1107,7 +1148,7 @@ List<IMyTextSurface> CommandLCDs;
 List<IMyDoor> AutoDoors;
 List<Airlock> Airlocks;
 
-EntityList[5] EntityLists=new EntityList[5];
+EntityList[] EntityLists=new EntityList[5];
 EntityList AsteroidList{
 	set{
 		EntityLists[0]=value;
@@ -1149,7 +1190,7 @@ EntityList CharacterList{
 	}
 }
 
-List<IMyThrust>[6] All_Thrusters=new List<IMyThrust>[6];
+List<IMyThrust>[] All_Thrusters=new List<IMyThrust>[6];
 List<IMyThrust> Forward_Thrusters{
 	set{
 		All_Thrusters[0]=value;
@@ -1328,7 +1369,7 @@ bool Match_Position=false;
 Vector3D Target_Position;
 Vector3D Relative_Target_Position{
 	get{
-		return GlobalToLocalPosition(Target_Position);
+		return GlobalToLocalPosition(Target_Position,Controller);
 	}
 }
 double Target_Distance{
@@ -1344,27 +1385,27 @@ float Mass_Accomodation=0.0f;
 Vector3D RestingVelocity;
 Vector3D Relative_RestingVelocity{
 	get{
-		return GlobalToLocal(RestingVelocity);
+		return GlobalToLocal(RestingVelocity,Controller);
 	}
 }
 Vector3D CurrentVelocity;
 Vector3D Relative_CurrentVelocity{
 	get{
-		Vector3D output=Vector3D.Transform(CurrentVelocity+Controller.GetPosition(), MatrixD.Invert(Controller.WorldMatrix));
+		Vector3D output=Vector3D.Transform(CurrentVelocity+Controller.GetPosition(),MatrixD.Invert(Controller.WorldMatrix));
 		output.Normalize();
-		output *= CurrentVelocity.Length();
+		output*=CurrentVelocity.Length();
 		return output;
 	}
 }
 Vector3D Gravity;
 Vector3D Relative_Gravity{
 	get{
-		return GlobalToLocal(Gravity);
+		return GlobalToLocal(Gravity,Controller);
 	}
 }
 Vector3D Adjusted_Gravity{
 	get{
-		Vector3D temp=GlobalToLocal(Gravity);
+		Vector3D temp=GlobalToLocal(Gravity,Controller);
 		temp.Normalize();
 		return temp*Mass_Accomodation;
 	}
@@ -1384,7 +1425,7 @@ double Speed_Deviation{
 Vector3D AngularVelocity;
 Vector3D Relative_AngularVelocity{
 	get{
-		return GlobalToLocal(AngularVelocity);
+		return GlobalToLocal(AngularVelocity,Controller);
 	}
 }
 
@@ -1485,16 +1526,26 @@ void SetupAirlocks(){
 		PossibleAirlockDoor1Pairs=RemoveDoor(RemoveDoor(PossibleAirlockDoor1Pairs, Door1), Door2);
 		PossibleAirlockDoor2Pairs=RemoveDoor(RemoveDoor(PossibleAirlockDoor2Pairs, Door2), Door1);
 	}
-	foreach(Airlock airlock in Airlocks){
-		string name=GetRemovedString(airlock.Door1.CustomName,"Door 1");
-		List<IMyAirVent> Vents=GenericMethods<IMyAirVent>.GetAllConstruct(name+"Air Vent",airlock.Door1);
-		foreach(IMyAirVent Vent in Vents){
-			if(Vent.CustomName.Equals(name+"Air Vent")){
-				airlock.Vent=Vent;
-				break;
-			}
+	for(int i=0;i<Airlocks.Count;i++){
+		string name=GetRemovedString(Airlocks[i].Door1.CustomName,"Door 1");
+		List<IMyAirVent> Vents=GenericMethods<IMyAirVent>.GetAllConstruct(name+"Air Vent",Airlocks[i].Door1);
+		foreach(IMyAirVent vent in Vents){
+			if(vent.CustomName.Equals(name+"Air Vent"))
+				Airlocks[i].Vent=vent;
 		}
 	}
+}
+
+UpdateFrequency GetUpdateFrequency(){
+	if(!Operational)
+		return UpdateFrequency.None;
+	if(Controller.IsUnderControl)
+		return UpdateFrequency.Update1;
+	if(Controller.GetShipVelocities().AngularVelocity.Length()>.1f)
+		return UpdateFrequency.Update1;
+	if((Controller.GetShipVelocities().LinearVelocity-RestingVelocity).Length()>.5)
+		return UpdateFrequency.Update1;
+	return UpdateFrequency.Update10;
 }
 
 string GetThrustTypeName(IMyThrust Thruster){
@@ -1504,15 +1555,15 @@ string GetThrustTypeName(IMyThrust Thruster){
 	else if(block_type.Contains("SmallBlock"))
 		block_type=GetRemovedString(block_type,"SmallBlock");
 	if(block_type.Contains("Thrust"))
-		block_type.GetRemovedString(block_type,"Thrust");
+		block_type=GetRemovedString(block_type,"Thrust");
 	string size="";
 	if(block_type.Contains("Small")){
 		size="Small";
-		block_type.GetRemovedString(block_type,size);
+		block_type=GetRemovedString(block_type,size);
 	}
 	else if(block_type.Contains("Large")){
 		size="Large";
-		block_type.GetRemovedString(block_type,size);
+		block_type=GetRemovedString(block_type,size);
 	}
 	if((!block_type.ToLower().Contains("atmospheric"))||(!block_type.ToLower().Contains("hydrogen")))
 		block_type+="Ion";
@@ -1534,12 +1585,12 @@ void SetThrusterList(List<IMyThrust> Thrusters,string Direction){
 			SetBlockData(Thruster,"DefaultOverride",Thruster.ThrustOverridePercentage.ToString());
 		SetBlockData(Thruster,"Owner",Me.CubeGrid.EntityId.ToString());
 		SetBlockData(Thruster,"DefaultName",Thruster.CustomName);
-		string name=GetThrustTypeName();
+		string name=GetThrustTypeName(Thruster);
 		bool found=false;
 		for(int i=0;i<Thruster_Types.Count;i++){
 			if(name.Equals(Thruster_Types[i].Name)){
 				found=true;
-				Thruster_Types[i].Count++;
+				Thruster_Types[i]=new NameTuple(name,Thruster_Types[i].Count+1);
 				break;
 			}
 		}
@@ -1550,7 +1601,8 @@ void SetThrusterList(List<IMyThrust> Thrusters,string Direction){
 		string name=GetThrustTypeName(Thruster);
 		for(int i=0;i<Thruster_Types.Count;i++){
 			if(name.Equals(Thruster_Types[i].Name)){
-				Thruster.CustomName=(Direction+" "+name+" Thruster "+(Thruster_Types[i].Count--).ToString()).Trim();
+				Thruster.CustomName=(Direction+" "+name+" Thruster "+(Thruster_Types[i].Count).ToString()).Trim();
+				Thruster_Types[i]=new NameTuple(name,Thruster_Types[i].Count-1);
 				break;
 			}
 		}
@@ -1577,8 +1629,9 @@ void Reset(){
 	Gyroscope=null;
 	for(int i=0;i<EntityLists.Length;i++)
 		EntityLists[i]=new EntityList();
-	StatusLCDs=new List<IMyTextPanel>();
-	DebugLCDs=new List<IMyTextPanel>();
+	StatusLCDs=new List<IMyTextSurface>();
+	DebugLCDs=new List<IMyTextSurface>();
+	CommandLCDs=new List<IMyTextSurface>();
 	List<Airlock> Airlocks=new List<Airlock>();
 	AutoDoors=new List<IMyDoor>();
 	for(int i=0;i<All_Thrusters.Length;i++)
@@ -1588,11 +1641,18 @@ void Reset(){
 
 bool Setup(){
 	Reset();
-	StatusLCDs=(List<IMyTextSurface>)GenericMethods<IMyTextPanel>.GetAllConstruct("Ship Status");
-	DebugLCDs=(List<IMyTextSurface>)GenericMethods<IMyTextPanel>.GetAllConstruct("AI Visual Display");
-	CommandLCDs=(List<IMyTextSurface>)GenericMethods<IMyTextPanel>.GetAllConstruct("Command Menu Display");
+	List<IMyTextPanel> LCDs=GenericMethods<IMyTextPanel>.GetAllConstruct("Ship Status");
+	foreach(IMyTextPanel Panel in LCDs)
+		StatusLCDs.Add(Panel as IMyTextSurface);
+	LCDs=GenericMethods<IMyTextPanel>.GetAllConstruct("AI Visual Display");
+	foreach(IMyTextPanel Panel in LCDs)
+		DebugLCDs.Add(Panel as IMyTextSurface);
+	LCDs=GenericMethods<IMyTextPanel>.GetAllConstruct("Command Menu Display");
+	foreach(IMyTextPanel Panel in LCDs)
+		CommandLCDs.Add(Panel as IMyTextSurface);
 	foreach(IMyTextSurface Display in DebugLCDs){
-		if(Display.CustomName.ToLower().Contains("transparent")){
+		IMyTextPanel Panel=Display as IMyTextPanel;
+		if(Panel!=null&&Panel.CustomName.ToLower().Contains("transparent")){
 			Display.FontColor=DEFAULT_BACKGROUND_COLOR;
 			Display.BackgroundColor=new Color(0,0,0,0);
 		}
@@ -1606,7 +1666,7 @@ bool Setup(){
 		Display.FontSize=1.0f;
 	}
 	SetupAirlocks();
-	AutoDoors=GenericMethods<IMyDoor>.GetAllConstruct(AUTODOOR_NAME);
+	AutoDoors=GenericMethods<IMyDoor>.GetAllConstruct("AutoDoor");
 	Controller=GenericMethods<IMyShipController>.GetClosestFunc(ControllerFunction);
 	if(Controller==null){
 		Write("Failed to find Controller", false, false);
@@ -1624,7 +1684,8 @@ bool Setup(){
 			Cockpit.GetSurface(i).Alignment=TextAlignment.CENTER;
 			Cockpit.GetSurface(i).ScriptForegroundColor=DEFAULT_TEXT_COLOR;
 			Cockpit.GetSurface(i).ScriptBackgroundColor=DEFAULT_BACKGROUND_COLOR;
-			if(Cockpit.GetSurface(i).ContentType=ContentType.TEXT_AND_IMAGE&&Cockpit.GetSurface(i).GetText().Length==0){
+			if(Cockpit.GetSurface(i).ContentType==ContentType.NONE){
+				Cockpit.GetSurface(i).ContentType=ContentType.TEXT_AND_IMAGE;
 				switch(valid_surface_count++){
 					case 0:
 						CommandLCDs.Add(Cockpit.GetSurface(i));
@@ -1871,8 +1932,8 @@ AlertStatus ShipStatus{
 			Submessage+="\nGuest Mode: "+ToString(FromSeconds(Guest_Mode_Timer-Guest_Timer));
 		}
 		
-		double ActualEnemyShipDistance=Math.Min(SmallShipList.ClosestDistance(this, MyRelationsBetweenPlayerAndBlock.Enemies), LargeShipList.ClosestDistance(this, MyRelationsBetweenPlayerAndBlock.Enemies));
-		double EnemyShipDistance=Math.Min(SmallShipList.ClosestDistance(this, MyRelationsBetweenPlayerAndBlock.Enemies), LargeShipList.ClosestDistance(this, MyRelationsBetweenPlayerAndBlock.Enemies)/2);
+		double ActualEnemyShipDistance=Math.Min(SmallShipList.ClosestDistance(MyRelationsBetweenPlayerAndBlock.Enemies),LargeShipList.ClosestDistance(MyRelationsBetweenPlayerAndBlock.Enemies));
+		double EnemyShipDistance=Math.Min(SmallShipList.ClosestDistance(MyRelationsBetweenPlayerAndBlock.Enemies), LargeShipList.ClosestDistance(MyRelationsBetweenPlayerAndBlock.Enemies)/2);
 		if(EnemyShipDistance<800){
 			AlertStatus new_status=AlertStatus.Red;
 			status=(AlertStatus) Math.Max((int)status, (int)new_status);
@@ -1889,7 +1950,7 @@ AlertStatus ShipStatus{
 			Submessage += "\nEnemy Ship at "+Math.Round(ActualEnemyShipDistance, 0)+" meters";
 		}
 		
-		double EnemyCharacterDistance=CharacterList.ClosestDistance(this, MyRelationsBetweenPlayerAndBlock.Enemies);
+		double EnemyCharacterDistance=CharacterList.ClosestDistance(MyRelationsBetweenPlayerAndBlock.Enemies);
 		if(EnemyCharacterDistance-MySize<0){
 			AlertStatus new_status=AlertStatus.Red;
 			status=(AlertStatus) Math.Max((int)status, (int)new_status);
@@ -1906,16 +1967,16 @@ AlertStatus ShipStatus{
 			Submessage += "\nEnemy Creature at "+Math.Round(EnemyCharacterDistance, 0)+" meters";
 		}
 		
-		double ShipDistance=Math.Min(SmallShipList.ClosestDistance(this),LargeShipList.ClosestDistance(this))-MySize;
+		double ShipDistance=Math.Min(SmallShipList.ClosestDistance(),LargeShipList.ClosestDistance())-MySize;
 		if(ShipDistance<500&&ShipDistance>0){
 			AlertStatus new_status=AlertStatus.Blue;
 			status=(AlertStatus) Math.Max((int)status, (int)new_status);
 			Submessage += "\nNearby ship at "+Math.Round(ShipDistance, 0)+" meters";
 		}
-		if((!Me.CubeGrid.IsStatic)&&AsteroidList.ClosestDistance(this)<500){
+		if((!Me.CubeGrid.IsStatic)&&AsteroidList.ClosestDistance()<500){
 			AlertStatus new_status=AlertStatus.Blue;
 			status=(AlertStatus) Math.Max((int)status, (int)new_status);
-			Submessage += "\nNearby asteroid at "+Math.Round(AsteroidList.ClosestDistance(this), 0)+" meters";
+			Submessage += "\nNearby asteroid at "+Math.Round(AsteroidList.ClosestDistance(), 0)+" meters";
 		}
 		if(Controller.GetShipSpeed()>30){
 			AlertStatus new_status=AlertStatus.Blue;
@@ -2063,27 +2124,21 @@ bool DeployFlares(IMyProgrammableBlock FlareBlock){
 
 bool UpdateEntityListing(Menu_Submenu Menu){
 	EntityList list=null;
-	bool do_goto=false;
 	switch(Menu.Name()){
 		case "Asteroids":
 			list=AsteroidList;
-			do_goto=true;
 			break;
 		case "Planets":
 			list=PlanetList;
-			do_goto=false;
 			break;
 		case "Small Ships":
 			list=SmallShipList;
-			do_goto=true;
 			break;
 		case "Large Ships":
 			list=LargeShipList;
-			do_goto=true;
 			break;
 		case "Characters":
 			list=CharacterList;
-			do_goto=true;
 			break;
 	}
 	if(list==null)
@@ -2092,7 +2147,7 @@ bool UpdateEntityListing(Menu_Submenu Menu){
 	Menu.Add(new Menu_Command<Menu_Submenu>("Refresh",UpdateEntityListing,"Updates "+Menu.Name(),Menu));
 	list.Sort(Controller.GetPosition());
 	for(int i=0;i<list.Count;i++)
-		Menu.Add(new Menu_Display(list[i], this));
+		Menu.Add(new Menu_Display(list[i]));
 	if(Command_Menu.Replace(Menu)){
 		DisplayMenu();
 		return true;
@@ -2100,7 +2155,7 @@ bool UpdateEntityListing(Menu_Submenu Menu){
 	return false;
 }
 
-Menu_Submenu[5] Object_Menus=new Menu_Submenu[5];
+Menu_Submenu[] Object_Menus=new Menu_Submenu[5];
 Menu_Submenu AsteroidMenu{
 	set{
 		Object_Menus[0]=value;
@@ -2150,7 +2205,7 @@ bool CreateMenu(object obj=null){
 		ShipCommands.Add(new Menu_Command<object>("Toggle Autoland",Autoland,"Toggles On/Off the Autoland feature\nLands at 5 m/s\nDo not use on ships with poor mobility!"));
 	}
 	ShipCommands.Add(new Menu_Command<object>("Scan", PerformScan, "Immediately performs a scan operation"));
-	IMyProgrammableBlock FlareBlock=(new GenericMethods<IMyProgrammableBlock>(this)).GetFull("Flare Printer Programmable block");
+	IMyProgrammableBlock FlareBlock=GenericMethods<IMyProgrammableBlock>.GetFull("Flare Printer Programmable block");
 	if(FlareBlock!=null)
 		ShipCommands.Add(new Menu_Command<IMyProgrammableBlock>("Deploy Flares",DeployFlares,"Deploys flares made using Flare Printers",FlareBlock));
 	ShipCommands.Add(new Menu_Command<object>("Toggle Lockdown", Lockdown, "Closes/Opens Air Seals"));
@@ -2174,19 +2229,20 @@ bool CreateMenu(object obj=null){
 	return true;
 }
 void DisplayMenu(){
-	foreach(IMyTextSurface Panel in CommandLCDs){
-		Panel.WriteText(Command_Menu.ToString(),false);
-		Panel.Alignment=TextAlignment.CENTER;
-		Panel.FontSize=1.2f;
-		Panel.ContentType=ContentType.TEXT_AND_IMAGE;
-		Panel.TextPadding=10.0f;
-		if(Panel.CustomName.ToLower().Contains("transparent")){
-			Panel.FontColor=DEFAULT_BACKGROUND_COLOR;
-			Panel.BackgroundColor=new Color(0,0,0,0);
+	foreach(IMyTextSurface Display in CommandLCDs){
+		Display.WriteText(Command_Menu.ToString(),false);
+		Display.Alignment=TextAlignment.CENTER;
+		Display.FontSize=1.2f;
+		Display.ContentType=ContentType.TEXT_AND_IMAGE;
+		Display.TextPadding=10.0f;
+		IMyTextPanel Panel=Display as IMyTextPanel;
+		if(Panel!=null&&Panel.CustomName.ToLower().Contains("transparent")){
+			Display.FontColor=DEFAULT_BACKGROUND_COLOR;
+			Display.BackgroundColor=new Color(0,0,0,0);
 		}
 		else{
-			Panel.FontColor=DEFAULT_TEXT_COLOR;
-			Panel.BackgroundColor=DEFAULT_BACKGROUND_COLOR;
+			Display.FontColor=DEFAULT_TEXT_COLOR;
+			Display.BackgroundColor=DEFAULT_BACKGROUND_COLOR;
 		}
 	}
 }
@@ -2365,7 +2421,7 @@ double Scan_Frequency{
 		if(distance>=MySize)
 			output=Math.Min(output,Math.Max(1,Math.Min(10,(distance+MySize+100)/100)));
 		distance=SmallShipList.ClosestDistance(MyRelationsBetweenPlayerAndBlock.Enemies);
-		output=Math.Min(output,Math.Max(1,ath.Min(10,(distance-MySize+100)/100)));
+		output=Math.Min(output,Math.Max(1,Math.Min(10,(distance-MySize+100)/100)));
 		distance=LargeShipList.ClosestDistance();
 		if(distance>=MySize)
 			output=Math.Min(output,Math.Max(1,Math.Min(10,(distance+MySize+100)/100)));
@@ -2428,6 +2484,20 @@ float SensorRange(IMySensorBlock Sensor){
 	return range;
 }
 
+Vector3D GetOffsetPosition(Vector3D Position, double Target_Size=0){
+	Vector3D direction=Position-Controller.GetPosition();
+	double distance=direction.Length();
+	direction.Normalize();
+	if(distance>1000)
+		distance-=400;
+	else
+		distance=distance/10*9;
+	distance-=Target_Size;
+	double controller_offset=(Controller.GetPosition()-Controller.GetPosition()).Length();
+	distance-=Math.Max(0,MySize/2-controller_offset);
+	return (distance*direction)+Controller.GetPosition();
+}
+
 double Scan_Time=10;
 string ScanString="";
 double MySize=0;
@@ -2484,7 +2554,7 @@ bool PerformScan(object obj=null){
 			}
 			update_me=true;
 		}
-		double raycast_distance=RAYCAST_DISTANCE;
+		double raycast_distance=Raycast_Distance;
 		if(Camera.RaycastDistanceLimit!=-1)
 			raycast_distance=Math.Min(raycast_distance,Camera.AvailableScanRange);
 		MyDetectedEntityInfo Raycast_Entity=Camera.Raycast(raycast_distance,0,0);
@@ -2516,7 +2586,7 @@ bool PerformScan(object obj=null){
 					}
 				}
 			}
-			if(Tracking&&RestingVelocity.Length()>0&&Target_Distance<=RAYCAST_DISTANCE){
+			if(Tracking&&RestingVelocity.Length()>0&&Target_Distance<=Raycast_Distance){
 				if(Camera.CanScan(Target_Position)){
 					MyDetectedEntityInfo Entity=Camera.Raycast(Target_Position);
 					if(Entity.Type!=MyDetectedEntityType.None&&Entity.EntityId!=Me.CubeGrid.EntityId){
@@ -2663,7 +2733,7 @@ void UpdateAirlock(Airlock airlock){
 		SetBlockData(airlock.Door1,"Job","Airlock");
 		SetBlockData(airlock.Door2,"Job","Airlock");
 		if(min_distance_1<=min_distance_2){
-			airlock.Door2.Enabled=(airlock.Door2.Status!=DoorStatus.Closed)&&AirlockTimer>wait;
+			airlock.Door2.Enabled=(airlock.Door2.Status!=DoorStatus.Closed)&&airlock.AirlockTimer>wait;
 			if(airlock.Door2.Status!=DoorStatus.Closing)
 				airlock.Door2.CloseDoor();
 			if(airlock.Door2.Enabled){
@@ -2674,13 +2744,13 @@ void UpdateAirlock(Airlock airlock){
 			}
 			else{
 				airlock.Door1.Enabled=true;
-				if(airlock.Door1.Status!=DoorStatus.Opening&&AirlockTimer>wait)
+				if(airlock.Door1.Status!=DoorStatus.Opening&&airlock.AirlockTimer>wait)
 					airlock.Door1.OpenDoor();
 				Write(airlock.Name+":"+"Opening Door 1");
 			}
 		}
 		else {
-			airlock.Door1.Enabled=(airlock.Door1.Status!=DoorStatus.Closed)&&AirlockTimer>wait;
+			airlock.Door1.Enabled=(airlock.Door1.Status!=DoorStatus.Closed)&&airlock.AirlockTimer>wait;
 			if(airlock.Door1.Status!=DoorStatus.Closing)
 				airlock.Door1.CloseDoor();
 			if(airlock.Door1.Enabled){
@@ -2700,10 +2770,10 @@ void UpdateAirlock(Airlock airlock){
 	else{
 		SetBlockData(airlock.Door1,"Job","None");
 		SetBlockData(airlock.Door2,"Job","None");
-		airlock.Door1.Enabled=(airlock.Door1.Status!=DoorStatus.Closed)&&AirlockTimer>wait;
+		airlock.Door1.Enabled=(airlock.Door1.Status!=DoorStatus.Closed)&&airlock.AirlockTimer>wait;
 		if(airlock.Door1.Status!=DoorStatus.Closing)
 			airlock.Door1.CloseDoor();
-		airlock.Door2.Enabled=(airlock.Door2.Status!=DoorStatus.Closed)&&AirlockTimer>wait;
+		airlock.Door2.Enabled=(airlock.Door2.Status!=DoorStatus.Closed)&&airlock.AirlockTimer>wait;
 		if(airlock.Door2.Status!=DoorStatus.Closing)
 			airlock.Door2.CloseDoor();
 		Write(airlock.Name+":"+"Opening both Doors");
@@ -2780,9 +2850,9 @@ void SetGyroscopes(){
 			if(difference<90)
 				input_pitch-=10*gyro_multx*((float)Math.Min(Math.Abs((90-difference)/90),1));
 		}
-		if((Controller.DampenersOverride&&!Controller.IsUnderControl)&&(GetAngle(Gravity,Forward_Vector)>(90+ACCEPTABLE_ANGLE/2))){
+		if((Controller.DampenersOverride&&!Controller.IsUnderControl)&&(GetAngle(Gravity,Forward_Vector)>(90+Acceptable_Angle/2))){
 			double difference=Math.Abs(GetAngle(Gravity,Forward_Vector));
-			if(difference>90+ACCEPTABLE_ANGLE/2)
+			if(difference>90+Acceptable_Angle/2)
 				input_pitch+=10*gyro_multx*((float)Math.Min(Math.Abs((difference-90)/90),1));
 		}
 		if(Match_Direction){
@@ -2813,7 +2883,7 @@ void SetGyroscopes(){
 		input_roll=current_roll*0.99f;
 		if(Gravity.Length()>0&&Roll_Time>=1){
 			double difference=GetAngle(Left_Vector,Gravity)-GetAngle(Right_Vector,Gravity);
-			if(Math.Abs(difference)>ACCEPTABLE_ANGLE){
+			if(Math.Abs(difference)>Acceptable_Angle){
 				input_roll-=(float)Math.Min(Math.Max(difference/5,-1),1)*gyro_multx;
 			}
 		}
@@ -2856,7 +2926,7 @@ void SetThrusters(){
 		Vector3D velocity_direction=CurrentVelocity;
 		velocity_direction.Normalize();
 		double angle=Math.Min(GetAngle(Forward_Vector, velocity_direction), GetAngle(Backward_Vector, velocity_direction));
-		if(angle <= ACCEPTABLE_ANGLE / 2){
+		if(angle <= Acceptable_Angle / 2){
 			input_right -= (float) ((Relative_CurrentVelocity.X-Relative_RestingVelocity.X)*Mass_Accomodation*damp_multx);
 			input_up -= (float) ((Relative_CurrentVelocity.Y-Relative_RestingVelocity.Y)*Mass_Accomodation*damp_multx);
 			Write("Stabilizers: On ("+Math.Round(angle, 1)+"° dev)");
@@ -2871,7 +2941,7 @@ void SetThrusters(){
 	else 
 		effective_speed_limit=Math.Min(effective_speed_limit, Math.Sqrt(Target_Distance/4)*4);
 	effective_speed_limit=Math.Max(effective_speed_limit,5);
-	if(Gravity.Length()>0&&Mass_Accomodation>0&&(Controller.GetShipSpeed()<100||GetAngle(CurrentVelocity,Gravity)>ACCEPTABLE_ANGLE)){
+	if(Gravity.Length()>0&&Mass_Accomodation>0&&(Controller.GetShipSpeed()<100||GetAngle(CurrentVelocity,Gravity)>Acceptable_Angle)){
 		if(!(_Autoland&&Time_To_Crash>15&&Controller.GetShipSpeed()>5)){
 			input_right-=(float)Adjusted_Gravity.X;
 			input_up-=(float)Adjusted_Gravity.Y;
@@ -2881,7 +2951,7 @@ void SetThrusters(){
 	
 	bool matched_direction=!Match_Direction;
 	if(Match_Direction)
-		matched_direction=Math.Abs(GetAngle(Target_Direction,Forward_Vector))<=ACCEPTABLE_ANGLE;
+		matched_direction=Math.Abs(GetAngle(Target_Direction,Forward_Vector))<=Acceptable_Angle;
 	
 	if(Math.Abs(Controller.MoveIndicator.X)>0.5f){
 		if(Controller.MoveIndicator.X>0){
@@ -3064,8 +3134,8 @@ void UpdateProgramInfo(){
 
 void UpdateTimers(){
 	foreach(Airlock airlock in Airlocks){
-		if(airlock.Door1.Status==DoorStatus.Closed&&airlock.Door2.Doorstatus==DoorStatus.Closed){
-			if(airlock.AirlockTimer<10&&airlock.AirlockTimer<Math.Max(3,airlock.Door1.GetPosition()-airlock.Door2.GetPosition()))
+		if(airlock.Door1.Status==DoorStatus.Closed&&airlock.Door2.Status==DoorStatus.Closed){
+			if(airlock.AirlockTimer<10&&airlock.AirlockTimer<Math.Max(3,(airlock.Door1.GetPosition()-airlock.Door2.GetPosition()).Length()))
 				airlock.AirlockTimer+=seconds_since_last_update;
 		}
 		else
@@ -3081,20 +3151,20 @@ void UpdateTimers(){
 void GetPositionData(){
 	Write("", false, false);
 	Vector3D base_vector=new Vector3D(0,0,-1);
-	Forward_Vector=LocalToGlobal(base_vector);
+	Forward_Vector=LocalToGlobal(base_vector,Controller);
 	Forward_Vector.Normalize();
 	base_vector=new Vector3D(0,1,0);
-	Up_Vector=LocalToGlobal(base_vector);
+	Up_Vector=LocalToGlobal(base_vector,Controller);
 	Up_Vector.Normalize();
 	base_vector=new Vector3D(-1,0,0);
-	Left_Vector=LocalToGlobal(base_vector);
+	Left_Vector=LocalToGlobal(base_vector,Controller);
 	Left_Vector.Normalize();
 	Gravity=Controller.GetNaturalGravity();
 	CurrentVelocity=Controller.GetShipVelocities().LinearVelocity;
 	AngularVelocity=Controller.GetShipVelocities().AngularVelocity;
 	Time_To_Crash=-1;
 	Elevation=double.MaxValue;
-	if(Controller.TryGetPlanetElevation(MyPlanetElevation.Sealevel, out Sealevel)){
+	if(Controller.TryGetPlanetElevation(MyPlanetElevation.Sealevel,out Sealevel)){
 		if(Controller.TryGetPlanetPosition(out PlanetCenter)){
 			if(Sealevel<6000&&Controller.TryGetPlanetElevation(MyPlanetElevation.Surface,out Elevation)){
 				if(Sealevel>5000){
@@ -3120,7 +3190,7 @@ void GetPositionData(){
 				Closest_Crash_Direction.Normalize();
 				Vector3D Movement_Direction=CurrentVelocity;
 				Movement_Direction.Normalize();
-				if(GetAngle(Movement_Direction,Closest_Crash_Direction)<=ACCEPTABLE_ANGLE)
+				if(GetAngle(Movement_Direction,Closest_Crash_Direction)<=Acceptable_Angle)
 					Time_To_Crash=Math.Min(Time_To_Crash,(Closest_Hit_Position-Controller.GetPosition()).Length()/CurrentVelocity.Length());
 				bool need_print=true;
 				if(Time_To_Crash>0){
@@ -3242,7 +3312,7 @@ public void Main(string argument, UpdateType updateSource)
 		else {
 			for(int i=0;i<All_Thrusters.Length;i++){
 				foreach(IMyThrust Thruster in All_Thrusters[i])
-					Thruster.ThrustOverridePercentage;
+					Thruster.ThrustOverridePercentage=0;
 			}
 		}
 		
