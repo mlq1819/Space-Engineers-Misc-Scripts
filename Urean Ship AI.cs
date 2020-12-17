@@ -2292,11 +2292,11 @@ bool CreateMenu(object obj=null){
 	Command_Menu=new Menu_Submenu("Command Menu");
 	Command_Menu.Add(new Menu_Command<object>("Update Menu", CreateMenu, "Refreshes menu"));
 	Menu_Submenu ShipCommands=new Menu_Submenu("Commands");
-	if(!Me.CubeGrid.IsStatic){
+	if(!Me.CubeGrid.IsStatic)
 		ShipCommands.Add(new Menu_Command<object>("Toggle Autoland",Autoland,"Toggles On/Off the Autoland feature\nLands at 5 m/s\nDo not use on ships with poor mobility!"));
-	}
 	ShipCommands.Add(new Menu_Command<object>("Disable AI",Disable,"Resets Thrusters, Gyroscope, and Airlocks, and turns off the program"));
-	ShipCommands.Add(new Menu_Command<object>("Toggle Thrusters",ToggleThrusters,"Toggles Thruster Controls"));
+	if(!Me.CubeGrid.IsStatic)
+		ShipCommands.Add(new Menu_Command<object>("Toggle Thrusters",ToggleThrusters,"Toggles Thruster Controls"));
 	ShipCommands.Add(new Menu_Command<object>("Scan",PerformScan,"Immediately performs a scan operation"));
 	ShipCommands.Add(new Menu_Command<object>("Guest Mode",GuestMode,"Puts the base in Guest Mode for "+Math.Round(Guest_Mode_Timer,0)+" seconds or turns it off"));
 	IMyProgrammableBlock FlareBlock=GenericMethods<IMyProgrammableBlock>.GetFull("Flare Printer Programmable block");
