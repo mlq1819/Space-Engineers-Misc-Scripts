@@ -2071,6 +2071,19 @@ void ResetThrusters(){
 	}
 }
 
+bool Disable(object obj=null){
+	Operational=false;
+	ResetThrusters();
+	if(Gyroscope!=null)
+		Gyroscope.GyroOverride=false;
+	foreach(Airlock airlock in Airlocks){
+		airlock.Door1.Enabled=true;
+		airlock.Door2.Enabled=true;
+	}
+	Runtime.UpdateFrequency=UpdateFrequency.None;
+	Me.Enabled=false;
+	return true;
+}
 bool _Autoland=false;
 bool Autoland(object obj=null){
 	_Autoland=!_Autoland;
@@ -2221,7 +2234,8 @@ bool CreateMenu(object obj=null){
 	if(!Me.CubeGrid.IsStatic){
 		ShipCommands.Add(new Menu_Command<object>("Toggle Autoland",Autoland,"Toggles On/Off the Autoland feature\nLands at 5 m/s\nDo not use on ships with poor mobility!"));
 	}
-	ShipCommands.Add(new Menu_Command<object>("Scan", PerformScan, "Immediately performs a scan operation"));
+	ShipCommands.Add(new Menu_Command<object>("Disable AI",Disable,"Resets Thrusters, Gyroscope, and Airlocks, and turns off the program"));
+	ShipCommands.Add(new Menu_Command<object>("Scan",PerformScan,"Immediately performs a scan operation"));
 	IMyProgrammableBlock FlareBlock=GenericMethods<IMyProgrammableBlock>.GetFull("Flare Printer Programmable block");
 	if(FlareBlock!=null)
 		ShipCommands.Add(new Menu_Command<IMyProgrammableBlock>("Deploy Flares",DeployFlares,"Deploys flares made using Flare Printers",FlareBlock));
