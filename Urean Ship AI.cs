@@ -936,7 +936,7 @@ class Airlock{
 		AirlockTimer=10;
 	}
 	public bool Equals(Airlock o){
-		return Door1.Equals(o.Door1)&&Door2.Equals(o.Door2)&&Vent.Equals(o.Vent);
+		return Door1.Equals(o.Door1)&&Door2.Equals(o.Door2)&&((Vent==null&&o.Vent==null)||Vent.Equals(o.Vent));
 	}
 	public double Distance(Vector3D Reference){
 		double distance_1=(Reference-Door1.GetPosition()).Length();
@@ -2793,14 +2793,14 @@ void UpdateAirlock(Airlock airlock){
 			}
 		}
 	}
-	double wait=0.25;
+	double wait=1;
 	if(airlock.Vent!=null)
-		wait=1.5;
+		wait=3;
 	if(detected){
 		SetBlockData(airlock.Door1,"Job","Airlock");
 		SetBlockData(airlock.Door2,"Job","Airlock");
 		if(min_distance_1<=min_distance_2){
-			airlock.Door2.Enabled=(airlock.Door2.Status!=DoorStatus.Closed)&&airlock.AirlockTimer>wait;
+			airlock.Door2.Enabled=(airlock.Door2.Status!=DoorStatus.Closed);
 			if(airlock.Door2.Status!=DoorStatus.Closing)
 				airlock.Door2.CloseDoor();
 			if(airlock.Door2.Enabled){
@@ -2817,7 +2817,7 @@ void UpdateAirlock(Airlock airlock){
 			}
 		}
 		else {
-			airlock.Door1.Enabled=(airlock.Door1.Status!=DoorStatus.Closed)&&airlock.AirlockTimer>wait;
+			airlock.Door1.Enabled=(airlock.Door1.Status!=DoorStatus.Closed);
 			if(airlock.Door1.Status!=DoorStatus.Closing)
 				airlock.Door1.CloseDoor();
 			if(airlock.Door1.Enabled){
@@ -2828,7 +2828,7 @@ void UpdateAirlock(Airlock airlock){
 			}
 			else {
 				airlock.Door2.Enabled=true;
-				if(airlock.Door2.Status!=DoorStatus.Opening)
+				if(airlock.Door2.Status!=DoorStatus.Opening&&airlock.AirlockTimer>wait)
 					airlock.Door2.OpenDoor();
 				Write(airlock.Name+":"+"Opening Door 2");
 			}
@@ -2837,13 +2837,13 @@ void UpdateAirlock(Airlock airlock){
 	else{
 		SetBlockData(airlock.Door1,"Job","None");
 		SetBlockData(airlock.Door2,"Job","None");
-		airlock.Door1.Enabled=(airlock.Door1.Status!=DoorStatus.Closed)&&airlock.AirlockTimer>wait;
+		airlock.Door1.Enabled=(airlock.Door1.Status!=DoorStatus.Closed);
 		if(airlock.Door1.Status!=DoorStatus.Closing)
 			airlock.Door1.CloseDoor();
-		airlock.Door2.Enabled=(airlock.Door2.Status!=DoorStatus.Closed)&&airlock.AirlockTimer>wait;
+		airlock.Door2.Enabled=(airlock.Door2.Status!=DoorStatus.Closed);
 		if(airlock.Door2.Status!=DoorStatus.Closing)
 			airlock.Door2.CloseDoor();
-		Write(airlock.Name+":"+"Opening both Doors");
+		Write(airlock.Name+":"+"Closing both Doors");
 	}
 }
 void UpdateAutoDoors(){
@@ -3201,8 +3201,8 @@ void UpdateSystemData(){
 	if(Cargos.Count>0){
 		float sum=0,total=0;
 		foreach(IMyCargoContainer Cargo in Cargos){
-			sum+=(float)Cargo.CurrentVolume.ToIntSafe();
-			total+=(float)Cargo.MaxVolume.ToIntSafe();
+			sum+=(float)Cargo.GetInventory().CurrentVolume.ToIntSafe();
+			total+=(float)Cargo.GetInventory().MaxVolume.ToIntSafe();
 		}
 		Cargo_Status=sum/total;
 	}
@@ -3226,6 +3226,10 @@ public void Main(string argument, UpdateType updateSource)
 		else
 			Write("Last Scan "+Math.Round(Scan_Time,1).ToString());
 		Write(ScanString);
+		foreach(Airlock airlock in Airlocks){
+			UpdateAirlock(airlock);
+		}
+		UpdateAutoDoors();
 		
 		if(argument.ToLower().Equals("back")){
 			Command_Menu.Back();
@@ -3259,7 +3263,7 @@ public void Main(string argument, UpdateType updateSource)
 		}
 		if(_Autoland)
 			Write("Autoland Enabled");
-		
+
 		Echo(GenericMethods<IMyDoor>.GetAllIncluding("Air Seal").Count.ToString()+" Air Seals");
 		
 		if(!Me.CubeGrid.IsStatic&&Controller.CalculateShipMass().PhysicalMass>0){
