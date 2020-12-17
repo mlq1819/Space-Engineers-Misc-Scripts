@@ -3,14 +3,15 @@
 * Built by mlq1616
 * https://github.com/mlq1819
 */
-const string Program_Name = ""; //Name me!
+string Program_Name = "Urean Ship AI";
 Color DEFAULT_TEXT_COLOR=new Color(197,137,255,255);
 Color DEFAULT_BACKGROUND_COLOR=new Color(44,0,88,255);
 string Lockdown_Door_Name="Air Seal";
+string Autoland_Action_Timer_Name="";
 string Lockdown_Light_Name="";
 double Alert_Distance=15;
-bool Guest_Mode=false;
 double Speed_Limit=100;
+double Guest_Mode_Timer=900;
 
 class Prog{
 	public static MyGridProgram P;
@@ -1099,8 +1100,9 @@ Random Rnd;
 IMyShipController Controller;
 IMyGyro Gyroscope;
 
-List<IMyTextPanel> StatusLCDs;
-List<IMyTextPanel> DebugLCDs;
+List<IMyTextSurface> StatusLCDs;
+List<IMyTextSurface> DebugLCDs;
+List<IMyTextSurface> CommandLCDs;
 
 List<IMyDoor> AutoDoors;
 List<Airlock> Airlocks;
@@ -1278,6 +1280,7 @@ double Right_Gs{
 }
 
 double Time_To_Crash=double.MaxValue;
+double Guest_Timer=double.MaxValue;
 Menu_Submenu Command_Menu;
 
 Base6Directions.Direction Forward;
@@ -1334,6 +1337,7 @@ double Target_Distance{
 	}
 }
 long Target_ID=0;
+bool Guest_Mode=false;
 
 float Mass_Accomodation=0.0f;
 
@@ -1584,9 +1588,10 @@ void Reset(){
 
 bool Setup(){
 	Reset();
-	StatusLCDs=GenericMethods<IMyTextPanel>.GetAllConstruct("Ship Status");
-	DebugLCDs=GenericMethods<IMyTextPanel>.GetAllConstruct("AI Visual Display");
-	foreach(IMyTextPanel Display in DebugLCDs){
+	StatusLCDs=(List<IMyTextSurface>)GenericMethods<IMyTextPanel>.GetAllConstruct("Ship Status");
+	DebugLCDs=(List<IMyTextSurface>)GenericMethods<IMyTextPanel>.GetAllConstruct("AI Visual Display");
+	CommandLCDs=(List<IMyTextSurface>)GenericMethods<IMyTextPanel>.GetAllConstruct("Command Menu Display");
+	foreach(IMyTextSurface Display in DebugLCDs){
 		if(Display.CustomName.ToLower().Contains("transparent")){
 			Display.FontColor=DEFAULT_BACKGROUND_COLOR;
 			Display.BackgroundColor=new Color(0,0,0,0);
@@ -1612,13 +1617,29 @@ bool Setup(){
 	Left=Controller.Orientation.Left;
 	if((Controller as IMyTextSurfaceProvider)!=null){
 		IMyTextSurfaceProvider Cockpit=Controller as IMyTextSurfaceProvider;
+		int valid_surface_count=0;
 		for(int i=0;i<Cockpit.SurfaceCount;i++){
 			Cockpit.GetSurface(i).FontColor=DEFAULT_TEXT_COLOR;
 			Cockpit.GetSurface(i).BackgroundColor=DEFAULT_BACKGROUND_COLOR;
 			Cockpit.GetSurface(i).Alignment=TextAlignment.CENTER;
 			Cockpit.GetSurface(i).ScriptForegroundColor=DEFAULT_TEXT_COLOR;
 			Cockpit.GetSurface(i).ScriptBackgroundColor=DEFAULT_BACKGROUND_COLOR;
+			if(Cockpit.GetSurface(i).ContentType=ContentType.TEXT_AND_IMAGE&&Cockpit.GetSurface(i).GetText().Length==0){
+				switch(valid_surface_count++){
+					case 0:
+						CommandLCDs.Add(Cockpit.GetSurface(i));
+						break;
+					case 1:
+						StatusLCDs.Add(Cockpit.GetSurface(i));
+						break;
+					case 2:
+						DebugLCDs.Add(Cockpit.GetSurface(i));
+						break;
+				}
+				
+			}
 		}
+		
 	}
 	MySize=Controller.CubeGrid.GridSize;
 	Gyroscope=GenericMethods<IMyGyro>.GetConstruct("Control Gyroscope");
@@ -1747,34 +1768,42 @@ AlertStatus ShipStatus{
 		AlertStatus status=AlertStatus.Green;
 		Submessage="";
 		if(!Me.CubeGrid.IsStatic){
+			List<IMyJumpDrive> JumpDrives=GenericMethods<IMyJumpDrive>.GetAllIncluding("");
+			foreach(IMyJumpDrive Drive in JumpDrives){
+				if(Drive.Status==MyJumpDriveStatus.Jumping){
+					AlertStatus new_status=AlertStatus.Blue;
+					status=(AlertStatus)Math.Max((int)status,(int)new_status);
+					Submessage+="\nShip is Jumping";
+				}
+			}
 			if(Forward_Thrust==1){
 				AlertStatus new_status=AlertStatus.Yellow;
-				status=(AlertStatus)Math.Max((int)status, (int)new_status);
+				status=(AlertStatus)Math.Max((int)status,(int)new_status);
 				Submessage+="\nNo Forward Thrusters";
 			}
 			if(Backward_Thrust==1){
 				AlertStatus new_status=AlertStatus.Yellow;
-				status=(AlertStatus)Math.Max((int)status, (int)new_status);
+				status=(AlertStatus)Math.Max((int)status,(int)new_status);
 				Submessage+="\nNo Backward Thrusters";
 			}
 			if(Up_Thrust==1){
 				AlertStatus new_status=AlertStatus.Yellow;
-				status=(AlertStatus)Math.Max((int)status, (int)new_status);
+				status=(AlertStatus)Math.Max((int)status,(int)new_status);
 				Submessage+="\nNo Up Thrusters";
 			}
 			if(Down_Thrust==1){
 				AlertStatus new_status=AlertStatus.Yellow;
-				status=(AlertStatus)Math.Max((int)status, (int)new_status);
+				status=(AlertStatus)Math.Max((int)status,(int)new_status);
 				Submessage+="\nNo Down Thrusters";
 			}
 			if(Left_Thrust==1){
 				AlertStatus new_status=AlertStatus.Yellow;
-				status=(AlertStatus)Math.Max((int)status, (int)new_status);
+				status=(AlertStatus)Math.Max((int)status,(int)new_status);
 				Submessage+="\nNo Left Thrusters";
 			}
 			if(Right_Thrust==1){
 				AlertStatus new_status=AlertStatus.Yellow;
-				status=(AlertStatus)Math.Max((int)status, (int)new_status);
+				status=(AlertStatus)Math.Max((int)status,(int)new_status);
 				Submessage+="\nNo Right Thrusters";
 			}
 			if(Gravity.Length()>0){
@@ -1795,7 +1824,7 @@ AlertStatus ShipStatus{
 					}
 					else
 						Submessage+="\nInsufficient Vertical Thrust";
-					status=(AlertStatus)Math.Max((int)status, (int)new_status);
+					status=(AlertStatus)Math.Max((int)status,(int)new_status);
 				}
 				else if(Up_Gs<Gravity.Length()*1.5){
 					
@@ -1836,6 +1865,12 @@ AlertStatus ShipStatus{
 			Submessage += "\nCurrently in Lockdown";
 		}
 		
+		if(Guest_Mode){
+			AlertStatus new_status=AlertStatus.Blue;
+			status=(AlertStatus)Math.Max((int)status,(int)new_status);
+			Submessage+="\nGuest Mode: "+ToString(FromSeconds(Guest_Mode_Timer-Guest_Timer));
+		}
+		
 		double ActualEnemyShipDistance=Math.Min(SmallShipList.ClosestDistance(this, MyRelationsBetweenPlayerAndBlock.Enemies), LargeShipList.ClosestDistance(this, MyRelationsBetweenPlayerAndBlock.Enemies));
 		double EnemyShipDistance=Math.Min(SmallShipList.ClosestDistance(this, MyRelationsBetweenPlayerAndBlock.Enemies), LargeShipList.ClosestDistance(this, MyRelationsBetweenPlayerAndBlock.Enemies)/2);
 		if(EnemyShipDistance<800){
@@ -1872,7 +1907,7 @@ AlertStatus ShipStatus{
 		}
 		
 		double ShipDistance=Math.Min(SmallShipList.ClosestDistance(this),LargeShipList.ClosestDistance(this))-MySize;
-		if(ShipDistance<500 && ShipDistance > 0){
+		if(ShipDistance<500&&ShipDistance>0){
 			AlertStatus new_status=AlertStatus.Blue;
 			status=(AlertStatus) Math.Max((int)status, (int)new_status);
 			Submessage += "\nNearby ship at "+Math.Round(ShipDistance, 0)+" meters";
@@ -1882,7 +1917,7 @@ AlertStatus ShipStatus{
 			status=(AlertStatus) Math.Max((int)status, (int)new_status);
 			Submessage += "\nNearby asteroid at "+Math.Round(AsteroidList.ClosestDistance(this), 0)+" meters";
 		}
-		if(Controller.GetShipSpeed() > 30){
+		if(Controller.GetShipSpeed()>30){
 			AlertStatus new_status=AlertStatus.Blue;
 			status=(AlertStatus) Math.Max((int)status, (int)new_status);
 			double Speed=Controller.GetShipSpeed();
@@ -2139,8 +2174,7 @@ bool CreateMenu(object obj=null){
 	return true;
 }
 void DisplayMenu(){
-	List<IMyTextPanel> Panels=GenericMethods<IMyTextPanel>.GetAllConstruct("Command Menu Display");
-	foreach(IMyTextPanel Panel in Panels){
+	foreach(IMyTextSurface Panel in CommandLCDs){
 		Panel.WriteText(Command_Menu.ToString(),false);
 		Panel.Alignment=TextAlignment.CENTER;
 		Panel.FontSize=1.2f;
@@ -3037,7 +3071,11 @@ void UpdateTimers(){
 		else
 			airlock.AirlockTimer=0;
 	}
-	
+	if(Guest_Mode){
+		Guest_Timer+=seconds_since_last_update;
+		if(Guest_Timer>=Guest_Mode_Timer)
+			Guest_Mode=false;
+	}
 }
 
 void GetPositionData(){
@@ -3098,8 +3136,14 @@ void GetPositionData(){
 							Controller.DampenersOverride=false;
 						need_print=false;
 					}
-					if(Elevation-MySize<5&&_Autoland)
+					if(Elevation-MySize<5&&_Autoland){
 						_Autoland=false;
+						if(Autoland_Action_Timer_Name.Length>0){
+							IMyTimerBlock Timer=GenericMethods<IMyTimerBlock>.GetConstruct(Autoland_Action_Timer_Name);
+							if(Timer!=null)
+								Timer.Trigger();
+						}
+					}
 				}
 				if(need_print)
 					Write("No crash likely at current velocity");
@@ -3173,6 +3217,10 @@ public void Main(string argument, UpdateType updateSource)
 		else if(argument.ToLower().Equals("factory reset")){
 			FactoryReset();
 			DisplayMenu();
+		}
+		else if(argument.ToLower().Equals("guest mode")){
+			Guest_Mode=!Guest_Mode;
+			Guest_Timer=0;
 		}
 		if(_Autoland)
 			Write("Autoland Enabled");
