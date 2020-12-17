@@ -2138,10 +2138,13 @@ bool Disable(object obj=null){
 }
 bool ToggleThrusters(object obj=null){
 	Control_Thrusters=!Control_Thrusters;
+	_Autoland=false;
 	return true;
 }
 bool _Autoland=false;
 bool Autoland(object obj=null){
+	if((!_Autoland)&&!Control_Thrusters)
+		return false;
 	_Autoland=!_Autoland;
 	return true;
 }
