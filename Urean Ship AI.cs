@@ -857,9 +857,8 @@ class Menu_Command<T>:MenuOption where T:class{
 
 class Menu_Display:MenuOption{
 	public string Name(){
-		if(Entity==null){
+		if(Entity==null)
 			return "null";
-		}
 		string name=Entity.Name.Substring(0,Math.Min(24,Entity.Name.Length));
 		string[] args=name.Split(' ');
 		int number=0;
@@ -895,63 +894,26 @@ class Menu_Display:MenuOption{
 			return 2;
 		return 1;
 	}
-	bool Selected;
 	EntityInfo Entity;
-	bool Can_GoTo;
-	Func<EntityInfo, bool> Command;
-	Menu_Command<EntityInfo> Subcommand{
-		get{
-			double distance=(Prog.P.Me.GetPosition()-Entity.Position).Length()-Entity.Size;
-			return new Menu_Command<EntityInfo>("GoTo "+Entity.Name, Command, "Set autopilot to match target Entity's expected position and velocity", Entity);
-		}
-	}
-		
-	public Menu_Display(EntityInfo entity, Func<EntityInfo, bool> GoTo){
-		Entity=entity;
-		Command=GoTo;
-		Selected=false;
-		Can_GoTo=true;
-	}
 	
 	public Menu_Display(EntityInfo entity){
 		Entity=entity;
-		Selected=false;
-		Can_GoTo=false;
 	}
 	
 	public bool Select(){
-		if(!Can_GoTo)
-			return false;
-		if(Selected){
-			if(Command==null)
-				return false;
-			if(Subcommand.Select()){
-				Selected=false;
-				return true;
-			}
-			return false;
-		}
-		Selected=true;
-		return true;
+		return false;
 	}
 	
 	public bool Back(){
-		if(!Selected)
-			return false;
-		Selected=false;
-		return true;
+		return false;
 	}
 	
 	public override string ToString(){
-		if(Selected)
-			return Subcommand.ToString();
-		else {
-			double distance=Entity.GetDistance(Prog.P.Me.GetPosition());
-			string distance_string=Math.Round(distance,0)+"M";
-			if(distance>=1000)
-				distance_string=Math.Round(distance/1000,1)+"kM";
-			return Entity.NiceString()+"Distance: "+distance_string;
-		}
+		double distance=Entity.GetDistance(Prog.P.Me.GetPosition());
+		string distance_string=Math.Round(distance,0)+"M";
+		if(distance>=1000)
+			distance_string=Math.Round(distance/1000,1)+"kM";
+		return Entity.NiceString()+"Distance: "+distance_string;
 	}
 }
 
@@ -1757,7 +1719,7 @@ void GetSettings(){
 	string[]args=Me.CustomData.Split('\n');
 	foreach(string arg in args){
 		string[]ags=arg.Split(':');
-		if(ags>1){
+		if(ags.Length>1){
 			switch(ags[0]){
 				case "Program_Name":
 					Program_Name=ags[1];
