@@ -1039,6 +1039,12 @@ void Write(string text,bool new_line=true,bool append=true){
 		Me.GetSurface(0).WriteText(text+'\n', append);
 	else
 		Me.GetSurface(0).WriteText(text, append);
+	foreach(CustomPanel Panel in DebugLCDs){
+		if(new_line)
+			Panel.Display.WriteText(text+'\n', append);
+		else
+			Panel.Display.WriteText(text, append);
+	}
 }
 
 string GetRemovedString(string big_string, string small_string){
@@ -1094,6 +1100,19 @@ Color ColorParse(string parse){
 	return new Color(r,g,b,a);
 }
 
+struct CustomPanel{
+	public IMyTextSurface Display;
+	public bool Trans;
+	public CustomPanel(IMyTextSurface d,bool t=false){
+		Display=d;
+		Trans=t;
+	}
+	public CustomPanel(IMyTextPanel p){
+		Display=p as IMyTextSurface;
+		Trans=p.CustomName.ToLower().Contains("transparent");
+	}
+}
+
 TimeSpan Time_Since_Start=new TimeSpan(0);
 long cycle=0;
 char loading_char='|';
@@ -1103,9 +1122,9 @@ Random Rnd;
 IMyShipController Controller;
 IMyGyro Gyroscope;
 
-List<IMyTextSurface> StatusLCDs;
-List<IMyTextSurface> DebugLCDs;
-List<IMyTextSurface> CommandLCDs;
+List<CustomPanel> StatusLCDs;
+List<CustomPanel> DebugLCDs;
+List<CustomPanel> CommandLCDs;
 
 List<IMyDoor> AutoDoors;
 List<Airlock> Airlocks;
@@ -1575,9 +1594,9 @@ void Reset(){
 	Gyroscope=null;
 	for(int i=0;i<EntityLists.Length;i++)
 		EntityLists[i]=new EntityList();
-	StatusLCDs=new List<IMyTextSurface>();
-	DebugLCDs=new List<IMyTextSurface>();
-	CommandLCDs=new List<IMyTextSurface>();
+	StatusLCDs=new List<CustomPanel>();
+	DebugLCDs=new List<CustomPanel>();
+	CommandLCDs=new List<CustomPanel>();
 	List<Airlock> Airlocks=new List<Airlock>();
 	AutoDoors=new List<IMyDoor>();
 	for(int i=0;i<All_Thrusters.Length;i++)
@@ -1589,27 +1608,26 @@ bool Setup(){
 	Reset();
 	List<IMyTextPanel> LCDs=GenericMethods<IMyTextPanel>.GetAllConstruct("Ship Status");
 	foreach(IMyTextPanel Panel in LCDs)
-		StatusLCDs.Add(Panel as IMyTextSurface);
+		StatusLCDs.Add(new CustomPanel(Panel));
 	LCDs=GenericMethods<IMyTextPanel>.GetAllConstruct("AI Visual Display");
 	foreach(IMyTextPanel Panel in LCDs)
-		DebugLCDs.Add(Panel as IMyTextSurface);
+		DebugLCDs.Add(new CustomPanel(Panel));
 	LCDs=GenericMethods<IMyTextPanel>.GetAllConstruct("Command Menu Display");
 	foreach(IMyTextPanel Panel in LCDs)
-		CommandLCDs.Add(Panel as IMyTextSurface);
-	foreach(IMyTextSurface Display in DebugLCDs){
-		IMyTextPanel Panel=Display as IMyTextPanel;
-		if(Panel!=null&&Panel.CustomName.ToLower().Contains("transparent")){
-			Display.FontColor=DEFAULT_BACKGROUND_COLOR;
-			Display.BackgroundColor=new Color(0,0,0,0);
+		CommandLCDs.Add(new CustomPanel(Panel));
+	foreach(CustomPanel Panel in DebugLCDs){
+		if(Panel.Trans){
+			Panel.Display.FontColor=DEFAULT_BACKGROUND_COLOR;
+			Panel.Display.BackgroundColor=new Color(0,0,0,0);
 		}
 		else{
-			Display.FontColor=DEFAULT_TEXT_COLOR;
-			Display.BackgroundColor=DEFAULT_BACKGROUND_COLOR;
+			Panel.Display.FontColor=DEFAULT_TEXT_COLOR;
+			Panel.Display.BackgroundColor=DEFAULT_BACKGROUND_COLOR;
 		}
-		Display.Alignment=TextAlignment.CENTER;
-		Display.ContentType=ContentType.TEXT_AND_IMAGE;
-		Display.TextPadding=10.0f;
-		Display.FontSize=1.0f;
+		Panel.Display.Alignment=TextAlignment.CENTER;
+		Panel.Display.ContentType=ContentType.TEXT_AND_IMAGE;
+		Panel.Display.TextPadding=10.0f;
+		Panel.Display.FontSize=1.0f;
 	}
 	SetupAirlocks();
 	AutoDoors=GenericMethods<IMyDoor>.GetAllConstruct("AutoDoor");
@@ -1632,18 +1650,32 @@ bool Setup(){
 			Cockpit.GetSurface(i).ScriptBackgroundColor=DEFAULT_BACKGROUND_COLOR;
 			if(Cockpit.GetSurface(i).ContentType==ContentType.NONE){
 				Cockpit.GetSurface(i).ContentType=ContentType.TEXT_AND_IMAGE;
+				SetBlockData(Controller,"UseSurface"+(i).ToString(),"TRUE");
 				switch(valid_surface_count++){
 					case 0:
-						CommandLCDs.Add(Cockpit.GetSurface(i));
+						CommandLCDs.Add(new CustomPanel(Cockpit.GetSurface(i)));
 						break;
 					case 1:
-						StatusLCDs.Add(Cockpit.GetSurface(i));
+						StatusLCDs.Add(new CustomPanel(Cockpit.GetSurface(i)));
 						break;
 					case 2:
-						DebugLCDs.Add(Cockpit.GetSurface(i));
+						DebugLCDs.Add(new CustomPanel(Cockpit.GetSurface(i)));
 						break;
 				}
-				
+			}
+			else if(GetBlockData(Controller,"UseSurface"+(i).ToString()).Equals("TRUE")){
+				Cockpit.GetSurface(i).ContentType=ContentType.TEXT_AND_IMAGE;
+				switch(valid_surface_count++){
+					case 0:
+						CommandLCDs.Add(new CustomPanel(Cockpit.GetSurface(i)));
+						break;
+					case 1:
+						StatusLCDs.Add(new CustomPanel(Cockpit.GetSurface(i)));
+						break;
+					case 2:
+						DebugLCDs.Add(new CustomPanel(Cockpit.GetSurface(i)));
+						break;
+				}
 			}
 		}
 	}
@@ -1822,19 +1854,25 @@ public void Save(){
 		foreach(IMyThrust Thruster in All_Thrusters[i])
 			ResetThruster(Thruster);
 	}
+	bool ship=!Me.CubeGrid.IsStatic;
+	
 	Me.CustomData="Program_Name"+':'+Program_Name;
 	Me.CustomData+='\n'+"Default_Text_Color"+':'+DEFAULT_TEXT_COLOR.ToString();
 	Me.CustomData+='\n'+"Default_Background_Color"+':'+DEFAULT_BACKGROUND_COLOR.ToString();
 	Me.CustomData+='\n'+"Lockdown_Door_Name"+':'+Lockdown_Door_Name;
 	Me.CustomData+='\n'+"Lockdown_Light_Name"+':'+Lockdown_Light_Name;
-	Me.CustomData+='\n'+"Autoland_Action_Timer_Name"+':'+Autoland_Action_Timer_Name;
+	if(ship)
+		Me.CustomData+='\n'+"Autoland_Action_Timer_Name"+':'+Autoland_Action_Timer_Name;
 	Me.CustomData+='\n'+"Alert_Distance"+':'+Alert_Distance.ToString();
-	Me.CustomData+='\n'+"Speed_Limit"+':'+Speed_Limit.ToString();
+	if(ship)
+		Me.CustomData+='\n'+"Speed_Limit"+':'+Speed_Limit.ToString();
 	Me.CustomData+='\n'+"Guest_Mode_Timer"+':'+Guest_Mode_Timer.ToString();
 	Me.CustomData+='\n'+"Acceptable_Angle"+':'+Acceptable_Angle.ToString();
 	Me.CustomData+='\n'+"Raycast_Distance"+':'+Raycast_Distance.ToString();
-	Me.CustomData+='\n'+"Control_Gyroscopes"+':'+Control_Gyroscopes.ToString();
-	Me.CustomData+='\n'+"Control_Thrusters"+':'+Control_Thrusters.ToString();
+	if(ship)
+		Me.CustomData+='\n'+"Control_Gyroscopes"+':'+Control_Gyroscopes.ToString();
+	if(ship)
+		Me.CustomData+='\n'+"Control_Thrusters"+':'+Control_Thrusters.ToString();
 }
 
 enum AlertStatus{
@@ -2024,19 +2062,19 @@ void SetStatus(string message, Color TextColor, Color BackgroundColor){
 	float padding=40.0f;
 	string[] lines=message.Split('\n');
 	padding=Math.Max(10.0f, padding-(lines.Length*5.0f));
-	foreach(IMyTextPanel LCD in StatusLCDs){
-		LCD.Alignment=TextAlignment.CENTER;
-		LCD.FontSize=1.2f;
-		LCD.ContentType=ContentType.TEXT_AND_IMAGE;
-		LCD.TextPadding=padding;
-		LCD.WriteText(message, false);
-		if(LCD.CustomName.ToLower().Contains("transparent")){
-			LCD.FontColor=BackgroundColor;
-			LCD.BackgroundColor=new Color(0,0,0,255);
+	foreach(CustomPanel LCD in StatusLCDs){
+		LCD.Display.Alignment=TextAlignment.CENTER;
+		LCD.Display.FontSize=1.2f;
+		LCD.Display.ContentType=ContentType.TEXT_AND_IMAGE;
+		LCD.Display.TextPadding=padding;
+		LCD.Display.WriteText(message, false);
+		if(LCD.Trans){
+			LCD.Display.FontColor=BackgroundColor;
+			LCD.Display.BackgroundColor=new Color(0,0,0,255);
 		}
 		else {
-			LCD.FontColor=TextColor;
-			LCD.BackgroundColor=BackgroundColor;
+			LCD.Display.FontColor=TextColor;
+			LCD.Display.BackgroundColor=BackgroundColor;
 		}
 	}
 }
@@ -2261,20 +2299,19 @@ bool CreateMenu(object obj=null){
 	return true;
 }
 void DisplayMenu(){
-	foreach(IMyTextSurface Display in CommandLCDs){
-		Display.WriteText(Command_Menu.ToString(),false);
-		Display.Alignment=TextAlignment.CENTER;
-		Display.FontSize=1.2f;
-		Display.ContentType=ContentType.TEXT_AND_IMAGE;
-		Display.TextPadding=10.0f;
-		IMyTextPanel Panel=Display as IMyTextPanel;
-		if(Panel!=null&&Panel.CustomName.ToLower().Contains("transparent")){
-			Display.FontColor=DEFAULT_BACKGROUND_COLOR;
-			Display.BackgroundColor=new Color(0,0,0,0);
+	foreach(CustomPanel Panel in CommandLCDs){
+		Panel.Display.WriteText(Command_Menu.ToString(),false);
+		Panel.Display.Alignment=TextAlignment.CENTER;
+		Panel.Display.FontSize=1.2f;
+		Panel.Display.ContentType=ContentType.TEXT_AND_IMAGE;
+		Panel.Display.TextPadding=10.0f;
+		if(Panel.Trans){
+			Panel.Display.FontColor=DEFAULT_BACKGROUND_COLOR;
+			Panel.Display.BackgroundColor=new Color(0,0,0,0);
 		}
 		else{
-			Display.FontColor=DEFAULT_TEXT_COLOR;
-			Display.BackgroundColor=DEFAULT_BACKGROUND_COLOR;
+			Panel.Display.FontColor=DEFAULT_TEXT_COLOR;
+			Panel.Display.BackgroundColor=DEFAULT_BACKGROUND_COLOR;
 		}
 	}
 }
@@ -3049,7 +3086,7 @@ void UpdateProgramInfo(){
 	Echo(ToString(FromSeconds(seconds_since_last_update))+" since last cycle");
 	Time_Since_Start=UpdateTimeSpan(Time_Since_Start,seconds_since_last_update);
 	Echo(ToString(Time_Since_Start)+" since last reboot\n");
-	Me.GetSurface(1).WriteText("\n"+ToString(Time_Since_Start)+" since last reboot\n");
+	Me.GetSurface(1).WriteText("\n"+ToString(Time_Since_Start)+" since last reboot",true);
 }
 
 void UpdateTimers(){
@@ -3066,6 +3103,7 @@ void UpdateTimers(){
 		if(Guest_Timer>=Guest_Mode_Timer)
 			Guest_Mode=false;
 	}
+	Scan_Time+=seconds_since_last_update;
 }
 
 void GetPositionData(){
@@ -3152,11 +3190,13 @@ public void Main(string argument, UpdateType updateSource)
 	try{
 		UpdateProgramInfo();
 		GetPositionData();
-		if((!Me.CubeGrid.IsStatic)&&Elevation!=double.MaxValue)
-			Write("Elevation: "+Math.Round(Elevation,1).ToString());
-		Write("Maximum Power (Hovering): "+Math.Round(Up_Gs,2)+"Gs");
-		Write("Maximum Power (Launching): "+Math.Round(Math.Max(Up_Gs,Forward_Gs),2)+"Gs");
-		Scan_Time+=seconds_since_last_update;
+		UpdateTimers();
+		if(!Me.CubeGrid.IsStatic){
+			if(Elevation!=double.MaxValue)
+				Write("Elevation: "+Math.Round(Elevation,1).ToString());
+			Write("Maximum Power (Hovering): "+Math.Round(Up_Gs,2)+"Gs");
+			Write("Maximum Power (Launching): "+Math.Round(Math.Max(Up_Gs,Forward_Gs),2)+"Gs");
+		}
 		if(Scan_Time>=Scan_Frequency)
 			PerformScan();
 		else
