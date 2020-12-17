@@ -890,8 +890,6 @@ class Menu_Display:MenuOption{
 		return true;
 	}
 	public int Depth(){
-		if(Selected)
-			return 2;
 		return 1;
 	}
 	EntityInfo Entity;
@@ -1326,22 +1324,6 @@ Vector3D Right_Vector{
 	}
 }
 
-bool Tracking=false;
-bool Match_Direction=false;
-Vector3D Target_Direction;
-bool Match_Position=false;
-Vector3D Target_Position;
-Vector3D Relative_Target_Position{
-	get{
-		return GlobalToLocalPosition(Target_Position,Controller);
-	}
-}
-double Target_Distance{
-	get{
-		return (Target_Position-Controller.GetPosition()).Length();
-	}
-}
-long Target_ID=0;
 bool Guest_Mode=false;
 
 float Mass_Accomodation=0.0f;
@@ -2089,15 +2071,6 @@ void ResetThrusters(){
 	}
 }
 
-bool Stop(object obj=null){
-	RestingVelocity=new Vector3D(0,0,0);
-	Target_Position=new Vector3D(0,0,0);
-	Match_Direction=false;
-	Match_Position=false;
-	Tracking=false;
-	Target_ID=0;
-	return true;
-}
 bool _Autoland=false;
 bool Autoland(object obj=null){
 	_Autoland=!_Autoland;
@@ -2246,7 +2219,6 @@ bool CreateMenu(object obj=null){
 	Command_Menu.Add(new Menu_Command<object>("Update Menu", CreateMenu, "Refreshes menu"));
 	Menu_Submenu ShipCommands=new Menu_Submenu("Commands");
 	if(!Me.CubeGrid.IsStatic){
-		ShipCommands.Add(new Menu_Command<object>("Stop", Stop, "Disables autopilot"));
 		ShipCommands.Add(new Menu_Command<object>("Toggle Autoland",Autoland,"Toggles On/Off the Autoland feature\nLands at 5 m/s\nDo not use on ships with poor mobility!"));
 	}
 	ShipCommands.Add(new Menu_Command<object>("Scan", PerformScan, "Immediately performs a scan operation"));
@@ -2610,7 +2582,7 @@ bool PerformScan(object obj=null){
 		}
 		UpdateList(DetectedEntities,Raycast_Entity);
 		if(!update_me){
-			if((Time_To_Crash<60&&Elevation<500)||Target_Distance<250){
+			if((Time_To_Crash<60&&Elevation<500)){
 				Vector3D Velocity_Direction=CurrentVelocity;
 				Velocity_Direction.Normalize();
 				double speed_check=15*CurrentVelocity.Length();
@@ -2632,22 +2604,12 @@ bool PerformScan(object obj=null){
 					}
 				}
 			}
-			if(Tracking&&RestingVelocity.Length()>0&&Target_Distance<=Raycast_Distance){
-				if(Camera.CanScan(Target_Position)){
-					MyDetectedEntityInfo Entity=Camera.Raycast(Target_Position);
-					if(Entity.Type!=MyDetectedEntityType.None&&Entity.EntityId!=Me.CubeGrid.EntityId){
-						UpdateList(DetectedEntities,Entity);
-						RestingVelocity=Entity.Velocity;
-					}
-				}
-			}
-			for(int i=0; i<Math.Min(raycast_check.Count,DetectedEntities.Count); i++){
-				if(raycast_check[i] && Camera.CanScan(DetectedEntities[i].Position)){
+			for(int i=0;i<Math.Min(raycast_check.Count,DetectedEntities.Count);i++){
+				if(raycast_check[i]&&Camera.CanScan(DetectedEntities[i].Position)){
 					Raycast_Entity=Camera.Raycast(DetectedEntities[i].Position);
 					UpdateList(DetectedEntities, Raycast_Entity);
-					if(Raycast_Entity.Type!=MyDetectedEntityType.None&&Raycast_Entity.EntityId!=Me.CubeGrid.EntityId){
+					if(Raycast_Entity.Type!=MyDetectedEntityType.None&&Raycast_Entity.EntityId!=Me.CubeGrid.EntityId)
 						raycast_check[i]=false;
-					}
 				}
 			}
 		}
@@ -2683,12 +2645,6 @@ bool PerformScan(object obj=null){
 			ScanString+="Received "+count.ToString()+" messages on "+Listener.Tag+'\n';
 	}
 	foreach(EntityInfo Entity in Entities){
-		if(Entity.ID==Target_ID){
-			RestingVelocity=Entity.Velocity;
-			Target_Direction=Entity.Position-Controller.GetPosition();
-			Target_Direction.Normalize();
-			Target_Position=GetOffsetPosition(Entity.Position, Entity.Size);
-		}
 		switch(Entity.Type){
 			case MyDetectedEntityType.Asteroid:
 				AsteroidList.UpdateEntry(Entity);
@@ -2901,11 +2857,6 @@ void SetGyroscopes(){
 			if(difference>90+Acceptable_Angle/2)
 				input_pitch+=10*gyro_multx*((float)Math.Min(Math.Abs((difference-90)/90),1));
 		}
-		if(Match_Direction){
-			double difference=GetAngle(Down_Vector, Target_Direction)-GetAngle(Up_Vector, Target_Direction);
-			if(Math.Abs(difference)>1)
-				input_pitch-=(float)Math.Min(Math.Max(difference/5,-4),4)*gyro_multx;
-		}
 	}
 	else{
 		Pitch_Time=0;
@@ -2914,11 +2865,6 @@ void SetGyroscopes(){
 	input_yaw=Math.Min(Math.Max(Controller.RotationIndicator.Y/100,-1),1);
 	if(Math.Abs(input_yaw)<0.05f){
 		input_yaw=current_yaw*0.99f;
-		if(Match_Direction){
-			double difference=GetAngle(Left_Vector,Target_Direction)-GetAngle(Right_Vector,Target_Direction);
-			if(Math.Abs(difference)>1)
-				input_yaw+=(float)Math.Min(Math.Max(difference/5,-4),4)*gyro_multx;
-		}
 	}
 	else{
 		Yaw_Time=0;
@@ -2980,12 +2926,6 @@ void SetThrusters(){
 		else
 			Write("Stabilizers: Off ("+Math.Round(angle, 1)+"° dev)");
 	}
-	if(Target_Distance<Math.Max(1, Math.Min(10, MySize/10))){
-		Match_Direction=false;
-		Match_Position=false;
-	}
-	else 
-		effective_speed_limit=Math.Min(effective_speed_limit, Math.Sqrt(Target_Distance/4)*4);
 	effective_speed_limit=Math.Max(effective_speed_limit,5);
 	if(Gravity.Length()>0&&Mass_Accomodation>0&&(Controller.GetShipSpeed()<100||GetAngle(CurrentVelocity,Gravity)>Acceptable_Angle)){
 		if(!(_Autoland&&Time_To_Crash>15&&Controller.GetShipSpeed()>5)){
@@ -2994,10 +2934,6 @@ void SetThrusters(){
 			input_forward+=(float)Adjusted_Gravity.Z;
 		}
 	}
-	
-	bool matched_direction=!Match_Direction;
-	if(Match_Direction)
-		matched_direction=Math.Abs(GetAngle(Target_Direction,Forward_Vector))<=Acceptable_Angle;
 	
 	if(Math.Abs(Controller.MoveIndicator.X)>0.5f){
 		if(Controller.MoveIndicator.X>0){
@@ -3010,31 +2946,6 @@ void SetThrusters(){
 				input_right=-0.95f*Left_Thrust;
 			else
 				input_right=Math.Max(input_right,0);
-		}
-	}
-	else if(Match_Position){
-		double Relative_Speed=Relative_CurrentVelocity.X;
-		double Relative_Target_Speed=RestingVelocity.X;
-		double Relative_Distance=Relative_Target_Position.X;
-		double deacceleration=0;
-		double difference=Relative_Speed-Relative_Target_Speed;
-		if(difference>0)
-			deacceleration=Math.Abs(difference)/Left_Thrust;
-		else if(difference<0)
-			deacceleration=Math.Abs(difference)/Right_Thrust;
-		if((difference>0)^(Relative_Distance<0)){
-			double time=difference/deacceleration;
-			time=(Relative_Distance-(difference*time/2))/difference;
-			if(time>0&&(!Match_Direction||matched_direction)&&Relative_Speed-Relative_Target_Speed<=0.05){
-				if(difference>0){
-					if((CurrentVelocity+Left_Vector-RestingVelocity).Length()<=Math.Min(Elevation,Math.Min(effective_speed_limit,Target_Distance)))
-						input_right=-0.95f*Left_Thrust;
-				}
-				else {
-					if((CurrentVelocity+Right_Vector-RestingVelocity).Length()<=Math.Min(Elevation,Math.Min(effective_speed_limit,Target_Distance)))
-						input_right=0.95f*Right_Thrust;
-				}
-			}
 		}
 	}
 	
@@ -3051,33 +2962,6 @@ void SetThrusters(){
 				input_up=Math.Max(input_up,0);
 		}
 	}
-	else if(Match_Position){
-		double Relative_Speed=Relative_CurrentVelocity.Y;
-		double Relative_Target_Speed=RestingVelocity.Y;
-		double Relative_Distance=Relative_Target_Position.Y;
-		double deacceleration=0;
-		double difference=Relative_Speed-Relative_Target_Speed;
-		if(difference>0){
-			deacceleration=Math.Abs(difference)/Down_Thrust;
-		}
-		else if(difference<0){
-			deacceleration=Math.Abs(difference)/Up_Thrust;
-		}
-		if((difference>0)^(Relative_Distance<0)){
-			double time=difference/deacceleration;
-			time=(Relative_Distance-(difference*time/2))/difference;
-			if(time>0&&(!Match_Direction||matched_direction)&&Relative_Speed-Relative_Target_Speed<=0.05){
-				if(difference>0){
-					if((CurrentVelocity+Down_Vector-RestingVelocity).Length()<=Math.Min(Elevation,Math.Min(effective_speed_limit,Target_Distance)))
-						input_up=-0.95f*Down_Thrust;
-				}
-				else {
-					if((CurrentVelocity+Up_Vector-RestingVelocity).Length()<=Math.Min(Elevation,Math.Min(effective_speed_limit,Target_Distance)))
-						input_up=0.95f*Up_Thrust;
-				}
-			}
-		}
-	}
 	
 	if(Math.Abs(Controller.MoveIndicator.Z)>0.5f){
 		if(Controller.MoveIndicator.Z<0){
@@ -3091,31 +2975,6 @@ void SetThrusters(){
 				input_forward=-0.95f*Backward_Thrust;
 			else
 				input_forward=Math.Max(input_forward,0);
-		}
-	}
-	else if(Match_Position){
-		double Relative_Speed=Relative_CurrentVelocity.Z;
-		double Relative_Target_Speed=RestingVelocity.Z;
-		double Relative_Distance=Relative_Target_Position.Z;
-		double deacceleration=0;
-		double difference=Relative_Speed-Relative_Target_Speed;
-		if(difference>0)
-			deacceleration=Math.Abs(difference)/Backward_Thrust;
-		else if(difference<0)
-			deacceleration=Math.Abs(difference)/Forward_Thrust;
-		if((difference>0)^(Relative_Distance<0)){
-			double time=difference/deacceleration;
-			time=(Relative_Distance-(difference*time/2))/difference;
-			if(time>0&&(!Match_Direction||matched_direction)&&Relative_Speed-Relative_Target_Speed<=0.05){
-				if(difference>0){
-					if((CurrentVelocity+Down_Vector-RestingVelocity).Length()<=Math.Min(Elevation,Math.Min(effective_speed_limit,Target_Distance)))
-						input_forward=-0.95f*Backward_Thrust;
-				}
-				else {
-					if((CurrentVelocity+Up_Vector-RestingVelocity).Length()<=Math.Min(Elevation,Math.Min(effective_speed_limit,Target_Distance)))
-						input_forward=0.95f*Forward_Thrust;
-				}
-			}
 		}
 	}
 	
@@ -3270,12 +3129,6 @@ void GetPositionData(){
 	}
 	else
 		Sealevel=double.MaxValue;
-	if(Match_Position||Tracking)
-		Target_Position+=seconds_since_last_update*RestingVelocity;
-	if(Match_Direction){
-		Target_Direction=Target_Position-Controller.GetPosition();
-		Target_Direction.Normalize();
-	}
 	Mass_Accomodation=(float)(Controller.CalculateShipMass().PhysicalMass*Gravity.Length());
 }
 
@@ -3294,19 +3147,6 @@ public void Main(string argument, UpdateType updateSource)
 		else
 			Write("Last Scan "+Math.Round(Scan_Time,1).ToString());
 		Write(ScanString);
-		
-		if(Match_Direction){
-			double angle=GetAngle(Target_Direction, Forward_Vector);
-			Write("Angle Difference: "+Math.Round(angle,1).ToString()+"°");
-		}
-		if(Match_Position){
-			double distance=(Target_Position-Controller.GetPosition()).Length()-MySize/2;
-			string distance_string=Math.Round(distance,0).ToString()+"M";
-			if(distance>=1000){
-				distance_string=Math.Round(distance/1000,1).ToString()+"kM";
-			}
-			Write("Distance: "+distance_string);
-		}
 		
 		if(argument.ToLower().Equals("back")){
 			Command_Menu.Back();
@@ -3340,14 +3180,6 @@ public void Main(string argument, UpdateType updateSource)
 		}
 		if(_Autoland)
 			Write("Autoland Enabled");
-		
-		if(Tracking){
-			double distance=(Target_Position-Controller.GetPosition()).Length();
-			string distance_string=Math.Round(distance,0).ToString()+"M";
-			if(distance>=1000)
-				distance_string=Math.Round(distance/1000,1).ToString()+"kM";
-			Write("Tracking target at "+distance_string);
-		}
 		
 		Echo(GenericMethods<IMyDoor>.GetAllIncluding("Air Seal").Count.ToString()+" Air Seals");
 		
