@@ -14,6 +14,8 @@ double Speed_Limit=100;
 double Guest_Mode_Timer=900;
 double Acceptable_Angle=10;
 double Raycast_Distance=10000;
+bool Control_Gyroscopes=true;
+bool Control_Thrusters=true;
 
 class Prog{
 	public static MyGridProgram P;
@@ -1751,9 +1753,70 @@ bool Setup(){
 	return true;
 }
 
+void GetSettings(){
+	string[]args=Me.CustomData.Split('\n');
+	foreach(string arg in args){
+		string[]ags=arg.Split(':');
+		if(ags>1){
+			switch(ags[0]){
+				case "Program_Name":
+					Program_Name=ags[1];
+					break;
+				case "Default_Text_Color":
+					try{
+						DEFAULT_TEXT_COLOR=ColorParse(ags[1]);
+					}
+					catch(Exception){
+						;
+					}
+					break;
+				case "Default_Background_Color":
+					try{
+						DEFAULT_BACKGROUND_COLOR=ColorParse(ags[1]);
+					}
+					catch(Exception){
+						;
+					}
+					break;
+				case "Lockdown_Door_Name":
+					Lockdown_Door_Name=ags[1];
+					break;
+				case "Lockdown_Light_Name":
+					Lockdown_Light_Name=ags[1];
+					break;
+				case "Autoland_Action_Timer_Name":
+					Autoland_Action_Timer_Name=ags[1];
+					break;
+				case "Alert_Distance":
+					double.TryParse(ags[1],out Alert_Distance);
+					break;
+				case "Speed_Limit":
+					double.TryParse(ags[1],out Speed_Limit);
+					break;
+				case "Guest_Mode_Timer":
+					double.TryParse(ags[1],out Guest_Mode_Timer);
+					break;
+				case "Acceptable_Angle":
+					double.TryParse(ags[1],out Acceptable_Angle);
+					break;
+				case "Raycast_Distance":
+					double.TryParse(ags[1],out Raycast_Distance);
+					break;
+				case "Control_Gyroscopes":
+					bool.TryParse(ags[1],out Control_Gyroscopes);
+					break;
+				case "Control_Thrusters":
+					bool.TryParse(ags[1],out Control_Thrusters);
+					break;
+			}
+		}
+	}
+}
+
 bool Operational=false;
 public Program(){
 	Prog.P=this;
+	GetSettings();
 	Me.CustomName=(Program_Name+" Programmable block").Trim();
 	for(int i=0;i<Me.SurfaceCount;i++){
 		Me.GetSurface(i).FontColor=DEFAULT_TEXT_COLOR;
@@ -1814,6 +1877,19 @@ public void Save(){
 		foreach(IMyThrust Thruster in All_Thrusters[i])
 			ResetThruster(Thruster);
 	}
+	Me.CustomData="Program_Name"+':'+Program_Name;
+	Me.CustomData+='\n'+"Default_Text_Color"+':'+DEFAULT_TEXT_COLOR.ToString();
+	Me.CustomData+='\n'+"Default_Background_Color"+':'+DEFAULT_BACKGROUND_COLOR.ToString();
+	Me.CustomData+='\n'+"Lockdown_Door_Name"+':'+Lockdown_Door_Name;
+	Me.CustomData+='\n'+"Lockdown_Light_Name"+':'+Lockdown_Light_Name;
+	Me.CustomData+='\n'+"Autoland_Action_Timer_Name"+':'+Autoland_Action_Timer_Name;
+	Me.CustomData+='\n'+"Alert_Distance"+':'+Alert_Distance.ToString();
+	Me.CustomData+='\n'+"Speed_Limit"+':'+Speed_Limit.ToString();
+	Me.CustomData+='\n'+"Guest_Mode_Timer"+':'+Guest_Mode_Timer.ToString();
+	Me.CustomData+='\n'+"Acceptable_Angle"+':'+Acceptable_Angle.ToString();
+	Me.CustomData+='\n'+"Raycast_Distance"+':'+Raycast_Distance.ToString();
+	Me.CustomData+='\n'+"Control_Gyroscopes"+':'+Control_Gyroscopes.ToString();
+	Me.CustomData+='\n'+"Control_Thrusters"+':'+Control_Thrusters.ToString();
 }
 
 enum AlertStatus{
@@ -2042,6 +2118,13 @@ void UpdateList(List<EntityInfo>list,EntityInfo new_entity){
 		}
 	}
 	list.Add(new_entity);
+}
+
+void ResetThrusters(){
+	for(int i=0;i<All_Thrusters.Length;i++){
+		foreach(IMyThrust Thruster in All_Thrusters[i])
+			Thruster.ThrustOverridePercentage=0;
+	}
 }
 
 bool Stop(object obj=null){
@@ -2503,6 +2586,7 @@ string ScanString="";
 double MySize=0;
 bool PerformScan(object obj=null){
 	Write("Beginning Scan");
+	GetSettings();
 	ScanString="";
 	for(int i=0;i<EntityLists.Length;i++)
 		EntityLists[i].UpdatePositions(Scan_Time);
@@ -2926,9 +3010,9 @@ void SetThrusters(){
 		Vector3D velocity_direction=CurrentVelocity;
 		velocity_direction.Normalize();
 		double angle=Math.Min(GetAngle(Forward_Vector, velocity_direction), GetAngle(Backward_Vector, velocity_direction));
-		if(angle <= Acceptable_Angle / 2){
-			input_right -= (float) ((Relative_CurrentVelocity.X-Relative_RestingVelocity.X)*Mass_Accomodation*damp_multx);
-			input_up -= (float) ((Relative_CurrentVelocity.Y-Relative_RestingVelocity.Y)*Mass_Accomodation*damp_multx);
+		if(angle<=Acceptable_Angle / 2){
+			input_right-=(float)((Relative_CurrentVelocity.X-Relative_RestingVelocity.X)*Mass_Accomodation*damp_multx);
+			input_up-=(float)((Relative_CurrentVelocity.Y-Relative_RestingVelocity.Y)*Mass_Accomodation*damp_multx);
 			Write("Stabilizers: On ("+Math.Round(angle, 1)+"° dev)");
 		}
 		else
@@ -3306,15 +3390,17 @@ public void Main(string argument, UpdateType updateSource)
 		Echo(GenericMethods<IMyDoor>.GetAllIncluding("Air Seal").Count.ToString()+" Air Seals");
 		
 		if(!Me.CubeGrid.IsStatic&&Controller.CalculateShipMass().PhysicalMass>0){
-			SetThrusters();
-			SetGyroscopes();
+			if(Control_Thrusters)
+				SetThrusters();
+			else
+				ResetThrusters();
+			if(Control_Gyroscopes)
+				SetGyroscopes();
+			else
+				Gyroscope.GyroOverride=false;
 		}
-		else {
-			for(int i=0;i<All_Thrusters.Length;i++){
-				foreach(IMyThrust Thruster in All_Thrusters[i])
-					Thruster.ThrustOverridePercentage=0;
-			}
-		}
+		else
+			ResetThrusters();
 		
 		switch(ShipStatus){
 			case AlertStatus.Green:
