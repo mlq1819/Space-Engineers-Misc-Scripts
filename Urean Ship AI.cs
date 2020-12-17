@@ -2136,6 +2136,10 @@ bool Disable(object obj=null){
 	Me.Enabled=false;
 	return true;
 }
+bool ToggleThrusters(object obj=null){
+	Control_Thrusters=!Control_Thrusters;
+	return true;
+}
 bool _Autoland=false;
 bool Autoland(object obj=null){
 	_Autoland=!_Autoland;
@@ -2287,6 +2291,7 @@ bool CreateMenu(object obj=null){
 		ShipCommands.Add(new Menu_Command<object>("Toggle Autoland",Autoland,"Toggles On/Off the Autoland feature\nLands at 5 m/s\nDo not use on ships with poor mobility!"));
 	}
 	ShipCommands.Add(new Menu_Command<object>("Disable AI",Disable,"Resets Thrusters, Gyroscope, and Airlocks, and turns off the program"));
+	ShipCommands.Add(new Menu_Command<object>("Toggle Thrusters",ToggleThrusters,"Toggles Thruster Controls"));
 	ShipCommands.Add(new Menu_Command<object>("Scan",PerformScan,"Immediately performs a scan operation"));
 	IMyProgrammableBlock FlareBlock=GenericMethods<IMyProgrammableBlock>.GetFull("Flare Printer Programmable block");
 	if(FlareBlock!=null)
