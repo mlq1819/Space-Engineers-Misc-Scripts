@@ -1400,9 +1400,9 @@ double Elevation;
 double Sealevel;
 Vector3D PlanetCenter;
 
-bool ControllerFunction(IMyShipController ctrlr){
-	IMyRemoteControl Remote=ctrlr as IMyRemoteControl;
-	return ctrlr.IsSameConstructAs(Me)&&ctrlr.CanControlShip&&ctrlr.ControlThrusters&&(ctrlr.IsMainCockpit||Remote!=null);
+bool ControllerFunction(IMyShipController ctr){
+	IMyRemoteControl Remote=ctr as IMyRemoteControl;
+	return ctr.IsSameConstructAs(Me)&&ctr.CanControlShip&&ctr.ControlThrusters&&(ctr.IsMainCockpit||Remote!=null);
 }
 void SetupAirlocks(){
 	Airlocks=new List<Airlock>();
