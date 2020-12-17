@@ -1009,7 +1009,6 @@ bool HasBlockData(IMyTerminalBlock Block, string Name){
 	}
 	return false;
 }
-
 string GetBlockData(IMyTerminalBlock Block, string Name){
 	if(Name.Contains(':'))
 		return "";
@@ -1021,7 +1020,6 @@ string GetBlockData(IMyTerminalBlock Block, string Name){
 	}
 	return "";
 }
-
 bool SetBlockData(IMyTerminalBlock Block, string Name, string Data){
 	if(Name.Contains(':'))
 		return false;
@@ -1046,19 +1044,16 @@ Vector3D GlobalToLocal(Vector3D Global,IMyCubeBlock Ref){
 	Local.Normalize();
 	return Local*Global.Length();
 }
-
 Vector3D GlobalToLocalPosition(Vector3D Global,IMyCubeBlock Ref){
 	Vector3D Local=Vector3D.Transform(Global, MatrixD.Invert(Ref.WorldMatrix));
 	Local.Normalize();
 	return Local*(Global-Ref.GetPosition()).Length();
 }
-
 Vector3D LocalToGlobal(Vector3D Local,IMyCubeBlock Ref){
 	Vector3D Global=Vector3D.Transform(Local, Ref.WorldMatrix)-Ref.GetPosition();
 	Global.Normalize();
 	return Global*Local.Length();
 }
-
 Vector3D LocalToGlobalPosition(Vector3D Local,IMyCubeBlock Ref){
 	return Vector3D.Transform(Local,Ref.WorldMatrix);
 }
@@ -3045,16 +3040,190 @@ void UpdateTimers(){
 	
 }
 
+void GetPositionData(){
+	Write("", false, false);
+	Vector3D base_vector=new Vector3D(0,0,-1);
+	Forward_Vector=LocalToGlobal(base_vector);
+	Forward_Vector.Normalize();
+	base_vector=new Vector3D(0,1,0);
+	Up_Vector=LocalToGlobal(base_vector);
+	Up_Vector.Normalize();
+	base_vector=new Vector3D(-1,0,0);
+	Left_Vector=LocalToGlobal(base_vector);
+	Left_Vector.Normalize();
+	Gravity=Controller.GetNaturalGravity();
+	CurrentVelocity=Controller.GetShipVelocities().LinearVelocity;
+	AngularVelocity=Controller.GetShipVelocities().AngularVelocity;
+	Time_To_Crash=-1;
+	Elevation=double.MaxValue;
+	if(Controller.TryGetPlanetElevation(MyPlanetElevation.Sealevel, out Sealevel)){
+		if(Controller.TryGetPlanetPosition(out PlanetCenter)){
+			if(Sealevel<6000&&Controller.TryGetPlanetElevation(MyPlanetElevation.Surface,out Elevation)){
+				if(Sealevel>5000){
+					double difference=Sealevel-5000;
+					Elevation=((Elevation*(1000-difference))+(Sealevel*difference))/1000;
+				}
+				else if(Elevation<50){
+					double terrain_height=(Controller.GetPosition()-PlanetCenter).Length()-Elevation;
+					List<IMyTerminalBlock> AllBlocks=new List<IMyTerminalBlock>();
+					GridTerminalSystem.GetBlocksOfType<IMyTerminalBlock>(AllBlocks);
+					foreach(IMyTerminalBlock Block in AllBlocks)
+						Elevation=Math.Min(Elevation, (Block.GetPosition()-PlanetCenter).Length()-terrain_height);
+				}
+			}
+			else
+				Elevation=Sealevel;
+			if(!Me.CubeGrid.IsStatic){
+				double from_center=(Controller.GetPosition()-PlanetCenter).Length();
+				Vector3D next_position=Controller.GetPosition()+1*CurrentVelocity;
+				double Elevation_per_second=(from_center-(next_position-PlanetCenter).Length());
+				Time_To_Crash=Elevation/Elevation_per_second;
+				Vector3D Closest_Crash_Direction=Closest_Hit_Position;
+				Closest_Crash_Direction.Normalize();
+				Vector3D Movement_Direction=CurrentVelocity;
+				Movement_Direction.Normalize();
+				if(GetAngle(Movement_Direction,Closest_Crash_Direction)<=ACCEPTABLE_ANGLE)
+					Time_To_Crash=Math.Min(Time_To_Crash,(Closest_Hit_Position-Controller.GetPosition()).Length()/CurrentVelocity.Length());
+				bool need_print=true;
+				if(Time_To_Crash>0){
+					if(Time_To_Crash<15 && Controller.GetShipSpeed()>5){
+						Controller.DampenersOverride=true;
+						RestingVelocity=new Vector3D(0,0,0);
+						Write("Crash predicted within 15 seconds; enabling Dampeners");
+						need_print=false;
+					}
+					else if(Time_To_Crash*Math.Max(Elevation,1000)<1800000 && Controller.GetShipSpeed() > 1.0f){
+						Write(Math.Round(Time_To_Crash, 1).ToString()+" seconds to crash");
+						if(_Autoland && Time_To_Crash>30)
+							Controller.DampenersOverride=false;
+						need_print=false;
+					}
+					if(Elevation-MySize<5&&_Autoland)
+						_Autoland=false;
+				}
+				if(need_print)
+					Write("No crash likely at current velocity");
+			}
+		}
+		else
+			PlanetCenter=new Vector3D(0,0,0);
+	}
+	else
+		Sealevel=double.MaxValue;
+	if(Match_Position||Tracking)
+		Target_Position+=seconds_since_last_update*RestingVelocity;
+	if(Match_Direction){
+		Target_Direction=Target_Position-Controller.GetPosition();
+		Target_Direction.Normalize();
+	}
+	Mass_Accomodation=(float)(Controller.CalculateShipMass().PhysicalMass*Gravity.Length());
+}
+
 public void Main(string argument, UpdateType updateSource)
 {
-	UpdateProgramInfo();
-	Write("Maximum Power (Hovering): "+Math.Round(Up_Gs,2)+"Gs");
-	Write("Maximum Power (Launching): "+Math.Round(Math.Max(Up_Gs,Forward_Gs),2)+"Gs");
-    // The main entry point of the script, invoked every time
-    // one of the programmable block's Run actions are invoked,
-    // or the script updates itself. The updateSource argument
-    // describes where the update came from.
-    // 
-    // The method itself is required, but the arguments above
-    // can be removed if not needed.
+	try{
+		UpdateProgramInfo();
+		GetPositionData();
+		if((!Me.CubeGrid.IsStatic)&&Elevation!=double.MaxValue)
+			Write("Elevation: "+Math.Round(Elevation,1).ToString());
+		Write("Maximum Power (Hovering): "+Math.Round(Up_Gs,2)+"Gs");
+		Write("Maximum Power (Launching): "+Math.Round(Math.Max(Up_Gs,Forward_Gs),2)+"Gs");
+		Scan_Time+=seconds_since_last_update;
+		if(Scan_Time>=Scan_Frequency)
+			PerformScan();
+		else
+			Write("Last Scan "+Math.Round(Scan_Time,1).ToString());
+		Write(ScanString);
+		
+		if(Match_Direction){
+			double angle=GetAngle(Target_Direction, Forward_Vector);
+			Write("Angle Difference: "+Math.Round(angle,1).ToString()+"°");
+		}
+		if(Match_Position){
+			double distance=(Target_Position-Controller.GetPosition()).Length()-MySize/2;
+			string distance_string=Math.Round(distance,0).ToString()+"M";
+			if(distance>=1000){
+				distance_string=Math.Round(distance/1000,1).ToString()+"kM";
+			}
+			Write("Distance: "+distance_string);
+		}
+		
+		if(argument.ToLower().Equals("back")){
+			Command_Menu.Back();
+			DisplayMenu();
+		}
+		else if(argument.ToLower().Equals("prev")){
+			Command_Menu.Prev();
+			DisplayMenu();
+		}
+		else if(argument.ToLower().Equals("next")){
+			Command_Menu.Next();
+			DisplayMenu();
+		}
+		else if(argument.ToLower().Equals("select")){
+			Command_Menu.Select();
+			DisplayMenu();
+		}
+		else if(argument.ToLower().Equals("lockdown")){
+			Lockdown();
+		}
+		else if(argument.ToLower().Equals("autoland")){
+			Autoland();
+		}
+		else if(argument.ToLower().Equals("factory reset")){
+			FactoryReset();
+			DisplayMenu();
+		}
+		if(_Autoland)
+			Write("Autoland Enabled");
+		
+		if(Tracking){
+			double distance=(Target_Position-Controller.GetPosition()).Length();
+			string distance_string=Math.Round(distance,0).ToString()+"M";
+			if(distance>=1000)
+				distance_string=Math.Round(distance/1000,1).ToString()+"kM";
+			Write("Tracking target at "+distance_string);
+		}
+		
+		Echo(GenericMethods<IMyDoor>.GetAllIncluding("Air Seal").Count.ToString()+" Air Seals");
+		
+		if(!Me.CubeGrid.IsStatic&&Controller.CalculateShipMass().PhysicalMass>0){
+			SetThrusters();
+			SetGyroscopes();
+		}
+		else {
+			for(int i=0;i<All_Thrusters.Length;i++){
+				foreach(IMyThrust Thruster in All_Thrusters[i])
+					Thruster.ThrustOverridePercentage;
+			}
+		}
+		
+		switch(ShipStatus){
+			case AlertStatus.Green:
+				SetStatus("Condition "+ShipStatus.ToString()+Submessage, new Color(137, 255, 137, 255), new Color(0, 151, 0, 255));
+				break;
+			case AlertStatus.Blue:
+				SetStatus("Condition "+ShipStatus.ToString()+Submessage, new Color(137, 239, 255, 255), new Color(0, 88, 151, 255));
+				break;
+			case AlertStatus.Yellow:
+				SetStatus("Condition "+ShipStatus.ToString()+Submessage, new Color(255, 239, 137, 255), new Color(66, 66, 0, 255));
+				break;
+			case AlertStatus.Orange:
+				SetStatus("Condition "+ShipStatus.ToString()+Submessage, new Color(255, 197, 0, 255), new Color(88, 44, 0, 255));
+				break;
+			case AlertStatus.Red:
+				SetStatus("Condition "+ShipStatus.ToString()+Submessage, new Color(255, 137, 137, 255), new Color(151, 0, 0, 255));
+				break;
+		}
+		
+		foreach(IMyCameraBlock Camera in GetValidCameras())
+			Write(Camera.CustomName+" Charge: "+Math.Round(Camera.AvailableScanRange/1000,1).ToString()+"kM");
+		
+		Runtime.UpdateFrequency=GetUpdateFrequency();
+	}
+	catch(Exception E){
+		Write(E.ToString());
+		FactoryReset();
+		DisplayMenu();
+	}
 }
