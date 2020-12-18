@@ -2616,6 +2616,8 @@ bool PerformScan(object obj=null){
 		if(Sensor.CustomName.ToLower().Contains("locking")||Sensor.CustomName.ToLower().Contains("tracking")){
 			if(Sensor.Enabled&&LastEntity.Relationship==MyRelationsBetweenPlayerAndBlock.Enemies&&(LastEntity.Position-Sensor.GetPosition()).Length()<1000)
 				Sensor.Enabled=false;
+			else if((!Sensor.Enabled)&&LastEntity.Relationship!=MyRelationsBetweenPlayerAndBlock.Enemies)
+				Sensor.Enabled=true;
 			if(!Sensor.Enabled)
 				ScanString+='\n'+Sensor.CustomName+":LOCKED";
 		}
