@@ -264,6 +264,122 @@ class GenericMethods<T> where T : class, IMyTerminalBlock{
 	}
 }
 
+class Sector{
+	private int _X;
+	public int X{
+		get{
+			return _X;
+		}
+	}
+	private int _Y;
+	public int Y{
+		get{
+			return _Y;
+		}
+	}
+	private int _Z;
+	public int Z{
+		get{
+			return _Z;
+		}
+	}
+	public Vector3D[] Corners;
+	
+	private bool[] subsections;
+	
+	public Sector(int x,int y,int z){
+		_X=x;
+		_Y=y;
+		_Z=z;
+		Corners=new Vector3D[8];
+		int small_x=X*5000;
+		int large_x=(X+1)*5000;
+		int small_y=Y*5000;
+		int large_y=(Y+1)*5000;
+		int small_z=Z*5000;
+		int large_z=(Z+1)*5000;
+		for(int i=0;i<8;i++){
+			x=small_x;
+			if(i%2==1)
+				x=large_x;
+			z=small_z;
+			if(i%4>1)
+				z=large_z;
+			y=small_y;
+			if(i>3)
+				y=large_y;
+			Corners[i]=new Vector3D(x,y,z);
+		}
+		subsections=new bool[25];
+		for(int i=0;i<25;i++)
+			subsections[i]=false;
+	}
+	
+	public Sector(Vector3D Point):this((int)(Point.X/5000),(int)(Point.Y/5000),(int)(Point.Z/5000)){
+		;
+	}
+	
+	public Sector(int x,int y,int z,bool[25] subs):this(x,y,z){
+		for(int i=0;i<subs.Length;i++)
+			subsections[i]=subs[i];
+	}
+	
+	public override string ToString(){
+		string output="("+X.ToString()+","+Y.ToString()+","+Z.ToString()+")";
+		for(int i=0;i<25;i++){
+			if(i>0)
+				output+=',';
+			output+=subsections[i].ToString();
+		}
+	}
+	
+	public int GetSubInt(Vector3D Coords){
+		if(Math.Abs(Coords.Y-Corners[0].Y)>25)
+			return -1;
+		if(Coords.X<Corners[0].X-25)
+			return -1;
+		if(Coords.X>Corners[1].X+25)
+			return -1;
+		if(Coords.Z<Corners[0].Z-25)
+			return -1;
+		if(Coords.Z>Corners[2].Z+25)
+			return -1;
+		int dx=(int)((Coords.X-Corners[0].X+25)/200);
+		int dz=(int)((Coords.Z-Corners[0].Z+25)/200);
+		return dx+5*dz;
+	}
+	
+	public bool TryParse(string Parse,out Sector output){
+		output=null;
+		try{
+			string[] parts=Parse.Split(')');
+			if(parts.Length!=2||parts[0].IndexOf('(')!=0)
+				return false;
+			string[] coords=parts[0].Split(',');
+			int X,Y,Z;
+			if(!Int32.TryParse(coords[0],out X))
+				return false;
+			if(!Int32.TryParse(coords[1],out Y))
+				return false;
+			if(!Int32.TryParse(coords[2],out Z))
+				return false;
+			string[] bools=parts[1].Split(',');
+			if(bools.Length!=25)
+				return false;
+			bool[] subsections=new bool[25];
+			for(int i=0;i<25;i++){
+				if(!bool.TryParse(str,out subsections[i]))
+					return false;
+			}
+			output=new Sector(X,Y,Z,subsections);
+			return true;
+		}
+		catch(Exception){
+			return false;
+		}
+	}
+}
+
 TimeSpan FromSeconds(double seconds){
 	return (new TimeSpan(0,0,0,(int)seconds,(int)(seconds*1000)%1000));
 }
