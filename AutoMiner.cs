@@ -346,7 +346,10 @@ class Sector{
 			return -1;
 		int dx=(int)((Coords.X-Corners[0].X+25)/200);
 		int dz=(int)((Coords.Z-Corners[0].Z+25)/200);
-		return dx+5*dz;
+		int output=dx+5*dz;
+		if(output<0||output>=25)
+			return -1;
+		return output;
 	}
 	
 	public bool TryParse(string Parse,out Sector output){
