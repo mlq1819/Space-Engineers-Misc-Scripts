@@ -669,6 +669,7 @@ void ResetThruster(IMyThrust Thruster){
 	SetBlockData(Thruster,"Owner","0");
 }
 
+bool Operational=false;
 public Program(){
 	Prog.P=this;
 	Me.CustomName=(Program_Name+" Programmable block").Trim();
@@ -681,16 +682,61 @@ public Program(){
 	Me.GetSurface(1).FontSize=2.2f;
 	Me.GetSurface(1).TextPadding=40.0f;
 	Echo("Beginning initialization");
-	// The constructor, called only once every session and
-    // always before any other method is called. Use it to
-    // initialize your script. 
-    //     
-    // The constructor is optional and can be removed if not
-    // needed.
-    // 
-    // It's recommended to set RuntimeInfo.UpdateFrequency 
-    // here, which will allow your script to run itself without a 
-    // timer block.
+	Controller=GenericMethods<IMyShipController>.GetClosestFunc(ControllerFunction);
+	if(Controller==null){
+		Write("Failed to find Controller", false, false);
+		return;
+	}
+	Forward=Controller.Orientation.Forward;
+	Up=Controller.Orientation.Up;
+	Left=Controller.Orientation.Left;
+	Gyroscope=GenericMethods<IMyGyro>.GetConstruct("Control Gyroscope");
+	if(Gyroscope==null){
+		Gyroscope=GenericMethods<IMyGyro>.GetConstruct("");
+		if(Gyroscope==null&&!Me.CubeGrid.IsStatic)
+			return false;
+	}
+	if(Gyroscope!=null){
+		Gyroscope.CustomName="Control Gyroscope";
+		Gyroscope.GyroOverride=Controller.IsUnderControl;
+	}
+	List<IMyThrust> MyThrusters=GenericMethods<IMyThrust>.GetAllConstruct("");
+	for(int i=0;i<2;i++){
+		bool retry=!Me.CubeGrid.IsStatic;
+		foreach(IMyThrust Thruster in MyThrusters){
+			if(HasBlockData(Thruster, "Owner")){
+				long ID=0;
+				if(i==0&&!Int64.TryParse(GetBlockData(Thruster, "Owner"),out ID)||(ID!=0&&ID!=Me.CubeGrid.EntityId))
+					continue;
+			}
+			if(Thruster.CubeGrid!=Controller.CubeGrid)
+				continue;
+			retry=false;
+			Base6Directions.Direction ThrustDirection=Thruster.Orientation.Forward;
+			if(ThrustDirection==Backward)
+				Forward_Thrusters.Add(Thruster);
+			else if(ThrustDirection==Forward)
+				Backward_Thrusters.Add(Thruster);
+			else if(ThrustDirection==Down)
+				Up_Thrusters.Add(Thruster);
+			else if(ThrustDirection==Up)
+				Down_Thrusters.Add(Thruster);
+			else if(ThrustDirection==Right)
+				Left_Thrusters.Add(Thruster);
+			else if(ThrustDirection==Left)
+				Right_Thrusters.Add(Thruster);
+		}
+		if(!retry)
+			break;
+	}
+	SetThrusterList(Forward_Thrusters,"Forward");
+	SetThrusterList(Backward_Thrusters,"Backward");
+	SetThrusterList(Up_Thrusters,"Up");
+	SetThrusterList(Down_Thrusters,"Down");
+	SetThrusterList(Left_Thrusters,"Left");
+	SetThrusterList(Right_Thrusters,"Right");
+	Operational=Me.IsWorking;
+	Runtime.UpdateFrequency=UpdateFrequency.Update1;
 }
 
 public void Save(){
@@ -728,9 +774,52 @@ void UpdateProgramInfo(){
 	Me.GetSurface(1).WriteText("\n"+ToString(Time_Since_Start)+" since last reboot",true);
 }
 
+void UpdateSystemData(){
+	Write("", false, false);
+	Vector3D base_vector=new Vector3D(0,0,-1);
+	Forward_Vector=LocalToGlobal(base_vector,Controller);
+	Forward_Vector.Normalize();
+	base_vector=new Vector3D(0,1,0);
+	Up_Vector=LocalToGlobal(base_vector,Controller);
+	Up_Vector.Normalize();
+	base_vector=new Vector3D(-1,0,0);
+	Left_Vector=LocalToGlobal(base_vector,Controller);
+	Left_Vector.Normalize();
+	Gravity=Controller.GetNaturalGravity();
+	CurrentVelocity=Controller.GetShipVelocities().LinearVelocity;
+	AngularVelocity=Controller.GetShipVelocities().AngularVelocity;
+	Time_To_Crash=-1;
+	Elevation=double.MaxValue;
+	if(Controller.TryGetPlanetElevation(MyPlanetElevation.Sealevel,out Sealevel)){
+		if(Controller.TryGetPlanetPosition(out PlanetCenter)){
+			if(Sealevel<6000&&Controller.TryGetPlanetElevation(MyPlanetElevation.Surface,out Elevation)){
+				if(Sealevel>5000){
+					double difference=Sealevel-5000;
+					Elevation=((Elevation*(1000-difference))+(Sealevel*difference))/1000;
+				}
+				else if(Elevation<50){
+					double terrain_height=(Controller.GetPosition()-PlanetCenter).Length()-Elevation;
+					List<IMyTerminalBlock> AllBlocks=new List<IMyTerminalBlock>();
+					GridTerminalSystem.GetBlocksOfType<IMyTerminalBlock>(AllBlocks);
+					foreach(IMyTerminalBlock Block in AllBlocks)
+						Elevation=Math.Min(Elevation, (Block.GetPosition()-PlanetCenter).Length()-terrain_height);
+				}
+			}
+			else
+				Elevation=Sealevel;
+		}
+		else
+			PlanetCenter=new Vector3D(0,0,0);
+	}
+	else
+		Sealevel=double.MaxValue;
+	Mass_Accomodation=(float)(Controller.CalculateShipMass().PhysicalMass*Gravity.Length());
+}
+
 public void Main(string argument, UpdateType updateSource)
 {
 	UpdateProgramInfo();
+	UpdateSystemData();
     // The main entry point of the script, invoked every time
     // one of the programmable block's Run actions are invoked,
     // or the script updates itself. The updateSource argument
