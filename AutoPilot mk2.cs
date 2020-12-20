@@ -591,6 +591,11 @@ double Elevation;
 double Sealevel;
 Vector3D PlanetCenter;
 
+bool AutoPilot=false;
+Vector3D Final_Destination;
+Vector3D Path;
+Vector3D Target_Velocity;
+
 bool ControllerFunction(IMyShipController ctr){
 	IMyRemoteControl Remote=ctr as IMyRemoteControl;
 	return ctr.IsSameConstructAs(Me)&&ctr.CanControlShip&&ctr.ControlThrusters&&(ctr.IsMainCockpit||Remote!=null);
@@ -748,6 +753,35 @@ public void Save(){
     // needed.
 }
 
+Vector3D SetToElevation(Vector3D Point,Vector3D Core,double Radius,double Elevation){
+	double Current_Elevation=(Point-Core)-Radius;
+	Vector3D Direction=Point-Core;
+	Direction.Normalize();
+	return Direction*(Radius+Elevation);
+}
+
+//Generates the next point to travel to
+Vector3D GenerateNext(Vector3D Target){
+	if(Gravity.Length()<.1)
+		return Target;
+	double Planet_Radius=(Controller.GetPosition()-PlanetCenter).Length()-Elevation;
+	double Target_Elevation=(Target-PlanetCenter)-Planet_Radius;
+	Vector3D Current_Direction=(Controller.GetPosition()-PlanetCenter);
+	Current_Direction.Normalize();
+	Vector3D Target_Direction=(Target-PlanetCenter);
+	Target_Direction.Normalize();
+	//Cruising Altitude: 10km
+	double Angle_Difference=GetAngle(Current_Direction,Target_Direction);
+	double Target_Distance=(Controller.GetPosition()-Target).Length();
+	double Arc_Distance=(Angle_Difference/360)*Math.PI*Math.Pow(Planet_Radius,2);
+	
+	double Target_Angle=(Elevation/Math.Max(Target_Elevation,10000))*90;
+	
+	if(Arc_Distance*2>Elevation)
+		return SetToElevation(Controller.GetPosition(),PlanetCenter,Planet_Radius,Math.Max(Target_Elevation,10000);
+	
+}
+
 void UpdateProgramInfo(){
 	cycle=(++cycle)%long.MaxValue;
 	switch(loading_char){
@@ -814,6 +848,9 @@ void UpdateSystemData(){
 	else
 		Sealevel=double.MaxValue;
 	Mass_Accomodation=(float)(Controller.CalculateShipMass().PhysicalMass*Gravity.Length());
+	Final_Destination+=Target_Velocity*seconds_since_last_update;
+	if(AutoPilot)
+		Path=GenerateNext(Final_Destination);
 }
 
 public void Main(string argument, UpdateType updateSource)
