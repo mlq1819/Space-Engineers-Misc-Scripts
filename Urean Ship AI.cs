@@ -1735,7 +1735,7 @@ bool Setup(){
 void GetSettings(){
 	string[]args=Me.CustomData.Split('\n');
 	foreach(string arg in args){
-		string[]ags=arg.Split(':');
+		string[]ags=arg.Split(';');
 		if(ags.Length>1){
 			switch(ags[0]){
 				case "Program_Name":
@@ -1857,24 +1857,24 @@ public void Save(){
 			ResetThruster(Thruster);
 	}
 	bool ship=!Me.CubeGrid.IsStatic;
-	
-	Me.CustomData="Program_Name"+':'+Program_Name;
-	Me.CustomData+='\n'+"Default_Text_Color"+':'+DEFAULT_TEXT_COLOR.ToString();
-	Me.CustomData+='\n'+"Default_Background_Color"+':'+DEFAULT_BACKGROUND_COLOR.ToString();
-	Me.CustomData+='\n'+"Lockdown_Door_Name"+':'+Lockdown_Door_Name;
-	Me.CustomData+='\n'+"Lockdown_Light_Name"+':'+Lockdown_Light_Name;
+	GetSettings();
+	Me.CustomData="Program_Name"+';'+Program_Name;
+	Me.CustomData+='\n'+"Default_Text_Color"+';'+DEFAULT_TEXT_COLOR.ToString();
+	Me.CustomData+='\n'+"Default_Background_Color"+';'+DEFAULT_BACKGROUND_COLOR.ToString();
+	Me.CustomData+='\n'+"Lockdown_Door_Name"+';'+Lockdown_Door_Name;
+	Me.CustomData+='\n'+"Lockdown_Light_Name"+';'+Lockdown_Light_Name;
 	if(ship)
-		Me.CustomData+='\n'+"Autoland_Action_Timer_Name"+':'+Autoland_Action_Timer_Name;
-	Me.CustomData+='\n'+"Alert_Distance"+':'+Alert_Distance.ToString();
+		Me.CustomData+='\n'+"Autoland_Action_Timer_Name"+';'+Autoland_Action_Timer_Name;
+	Me.CustomData+='\n'+"Alert_Distance"+';'+Alert_Distance.ToString();
 	if(ship)
-		Me.CustomData+='\n'+"Speed_Limit"+':'+Speed_Limit.ToString();
-	Me.CustomData+='\n'+"Guest_Mode_Timer"+':'+Guest_Mode_Timer.ToString();
-	Me.CustomData+='\n'+"Acceptable_Angle"+':'+Acceptable_Angle.ToString();
-	Me.CustomData+='\n'+"Raycast_Distance"+':'+Raycast_Distance.ToString();
+		Me.CustomData+='\n'+"Speed_Limit"+';'+Speed_Limit.ToString();
+	Me.CustomData+='\n'+"Guest_Mode_Timer"+';'+Guest_Mode_Timer.ToString();
+	Me.CustomData+='\n'+"Acceptable_Angle"+';'+Acceptable_Angle.ToString();
+	Me.CustomData+='\n'+"Raycast_Distance"+';'+Raycast_Distance.ToString();
 	if(ship)
-		Me.CustomData+='\n'+"Control_Gyroscopes"+':'+Control_Gyroscopes.ToString();
+		Me.CustomData+='\n'+"Control_Gyroscopes"+';'+Control_Gyroscopes.ToString();
 	if(ship)
-		Me.CustomData+='\n'+"Control_Thrusters"+':'+Control_Thrusters.ToString();
+		Me.CustomData+='\n'+"Control_Thrusters"+';'+Control_Thrusters.ToString();
 }
 
 enum AlertStatus{
