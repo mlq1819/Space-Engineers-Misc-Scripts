@@ -463,8 +463,30 @@ class TerrainPoint{
 		;
 	}
 	
+	public double Value(Vector3D R){
+		return Age.TotalSeconds/(Math.Max(1,(Point-R).Length()-10));
+	}
+	
 	public override string ToString(){
-		return '{'+Point.ToString()+' '
+		return '{'+Point.ToString()+';'+Age.ToString()+'}';
+	}
+	
+	public static bool TryParse(string Parse,out TerrainPoint output){
+		output=null;
+		if(Parse[0]!='{'||Parse[Parse.Length-1]!='}')
+			return false;
+		Parse=Parse.Substring(1,Parse.Length-2);
+		string[] args=Parse.Split(';');
+		if(args.Length!=2)
+			return false;
+		Vector3D point;
+		if(!Vector3D.TryParse(args[0],out point))
+			return false;
+		TimeSpan age;
+		if(!TimeSpan.TryParse(args[1],out age))
+			return false;
+		output=new TerrainPoint(point,age);
+		return true;
 	}
 }
 
@@ -480,8 +502,98 @@ class TerrainMap{
 		}
 	}
 	
+	public Vector3D Generated_Center{
+		get{
+			Vector3D min=Points[0].Point;
+			Vector3D max=Points[0].Point;
+			foreach(TerrainPoint P in Points){
+				min.X=Math.Min(min.X,P.Point.X);
+				min.Y=Math.Min(min.Y,P.Point.Y);
+				min.Z=Math.Min(min.Z,P.Point.Z);
+				max.X=Math.Max(max.X,P.Point.X);
+				max.Y=Math.Max(max.Y,P.Point.Y);
+				max.Z=Math.Max(max.Z,P.Point.Z);
+			}
+			return (min+max)/2;
+		}
+	}
+	
+	public int Count{
+		get{
+			return Points.Count;
+		}
+	}
+	
 	public TerrainMap(Vector3D c){
+		Points=new List<TerrainPoint>();
 		Center=c;
+	}
+	
+	public TerrainPoint GetOldest(){
+		TimeSpan Oldest=new TimeSpan(0);
+		foreach(TerrainPoint P in Points){
+			if(TimeSpan.Compare(Oldest,P.Age)==1)
+				Oldest=P.Age;
+		}
+		foreach(TerrainPoint P in Points){
+			if(TimeSpan.Compare(Oldest,P.Age)==0)
+				return P;
+		}
+		return null;
+	}
+	
+	public TerrainPoint GetBestToUpdate(Vector3D R){
+		double best=0;
+		foreach(TerrainPoint P in Points)
+			best=Math.Max(best,P.Value(R));
+		foreach(TerrainPoint P in Points){
+			if(best<P.Value(R)+0.1)
+				return P;
+		}
+		return null;
+	}
+	
+	public TerrainPoint GetOldest(double max,Vector3D R){
+		TimeSpan Oldest=new TimeSpan(0);
+		foreach(TerrainPoint P in Points){
+			if((P.Point-R).Length()<=max&&TimeSpan.Compare(Oldest,P.Age)==1)
+				Oldest=P.Age;
+		}
+		foreach(TerrainPoint P in Points){
+			if((P.Point-R).Length()<=max&&TimeSpan.Compare(Oldest,P.Age)==0)
+				return P;
+		}
+		return null;
+	}
+	
+	public TerrainPoint GetOuterMost(){
+		double size=Size;
+		foreach(TerrainPoint P in Points){
+			if(size<=(P.Point-Center).Length()+0.1)
+				return P;
+		}
+		return null;
+	}
+	
+	public TerrainPoint GetOuterMost(Vector3D R){
+		double offset=(R-Center).Length()-Size;
+		int adder=0;
+		double distance;
+		if(Count==0)
+			return null;
+		do{
+			distance=offset+Size/8+adder++;
+			double outermost=0;
+			foreach(TerrainPoint P in Points){
+				if((P.Point-R).Length()<=distance)
+					outermost=Math.Max(outermost,(P.Point-Center).Length());
+			}
+			foreach(TerrainPoint P in Points){
+				if((P.Point-R).Length()<=distance&&outermost<=(P.Point-Center).Length()+.1)
+					return P;
+			}
+		}
+		while(true);
 	}
 	
 	public void UpdateAges(double seconds){
@@ -489,7 +601,46 @@ class TerrainMap{
 			Points.Age=Prog.UpdateTimeSpan(Points.Age,seconds);
 	}
 	
+	public void Add(Vector3D V){
+		Points.Add(new TerrainPoint(V));
+	}
 	
+	public bool Remove(TerrainPoint P){
+		return Points.Remove(P);
+	}
+	
+	public override string ToString(){
+		string output=Center.ToString()+";(";
+		foreach(TerrainPoint P in Points)
+			output+=P.ToString()+',';
+		if(P.Count>0)
+			output=output.Substring(0,output.Length-1);
+		return output+")";
+	}
+	
+	public static bool TryParse(string Parse,out TerrainMap output){
+		output=null;
+		try{
+			int index=Parse.IndexOf(";(");
+			Vector3D center;
+			if(!Vector3D.TryParse(Parse.Substring(0,index),out center))
+				return false;
+			Parse=Parse.Substring(index+1);
+			if(Parse[0]!='('||Parse[Parse.Length-1]!=')')
+				return false;
+			output=new TerrainMap(center);
+			Parse=Parse.Substring(1,Parse.Length-2);
+			string[] args=Parse.Split(',');
+			foreach(string arg in args){
+				TerrainPoint P;
+				if(TerrainPoint.TryParse(arg,out P))
+					output.Add(P);
+			}
+			return output;
+		}catch(Exception){
+			return false;
+		}
+	}
 }
 
 TimeSpan FromSeconds(double seconds){
