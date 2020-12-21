@@ -297,7 +297,7 @@ class Sector{
 		}
 	}
 	
-	private bool[] subsections;
+	public bool[] subsections;
 	
 	public Sector(int x,int y,int z){
 		_X=x;
@@ -362,6 +362,15 @@ class Sector{
 		if(output<0||output>=25)
 			return -1;
 		return output;
+	}
+	
+	public bool Same(Sector O){
+		return X==O.X&&Y==O.Y&&Z==O.Z;
+	}
+	
+	public void Update(Sector O){
+		for(int i=0;i<25;i++)
+			subsections[i]=subsections[i]||O.subsections[i];
 	}
 	
 	public bool TryParse(string Parse,out Sector output){
@@ -596,6 +605,14 @@ class TerrainMap{
 		while(true);
 	}
 	
+	public int GetNeighbors(TerrainPoint Point,double distance=5){
+		int count=0;
+		foreach(TerrainPoint P in Points)
+			if((P.Point-Point.Point).Length()<=distance)
+				count++;
+		return count;
+	}
+	
 	public void UpdateAges(double seconds){
 		for(int i=0;i<Points.Count;i++)
 			Points.Age=Prog.UpdateTimeSpan(Points.Age,seconds);
@@ -607,6 +624,13 @@ class TerrainMap{
 	
 	public bool Remove(TerrainPoint P){
 		return Points.Remove(P);
+	}
+	
+	public bool RemoveAllInArea(Vector3D C,double R){
+		for(int i=0;i<Points.Count;i++){
+			if((Points[i].Point-C).Length()<=R)
+				Points.RemoveAt(i--);
+		}
 	}
 	
 	public override string ToString(){
@@ -746,8 +770,14 @@ long cycle=0;
 char loading_char='|';
 double seconds_since_last_update=0;
 
+TimeSpan Current_Time;
+
+TerrainMap Asteroid;
 List<Sector> Sectors;
 List<Zone> Zones;
+
+IMyRemoteControl Controller;
+IMyGyro Gyroscope;
 
 public Program(){
 	Prog.P=this;
@@ -763,6 +793,7 @@ public Program(){
 	Echo("Beginning initialization");
 	Sectors=new List<Sector>();
 	Zones=new List<Zone>();
+	Asteroid=null;
 	string[] args=this.Storage.Split('•');
 	foreach(string arg in args){
 		if(arg.IndexOf("Sec:")==0){
@@ -775,12 +806,23 @@ public Program(){
 			if(Zone.TryParse(arg.Substring(4),out zon))
 				Zones.Add(zon);
 		}
+		else if(arg.IndexOf("Ast:")==0){
+			if(!arg.Substring(4).Equals("null"))
+				TerrainMap.TryParse(arg.Substring(4),out Asteroid);
+		}
 	}
+	Controller=GenericMethods<IMyRemoteControl>.GetConstruct("Drone Remote Control");
+	Gyroscope=GenericMethods<IMyGyro>.GetConstruct("Control Gyroscope");
+	if(Controller==null||Gyroscope==null)
+		return;
+	
 }
 
 public void Save(){
-    this.Storage="";
-	
+	if(Asteroid==null)
+		this.Storage="Ast:null";
+	else
+		this.Storage="Ast:"+Asteroid.ToString();
 	
 	foreach(Sector sector in Sectors){
 		this.Storage+="•Sec:"+sector.ToString();
@@ -788,6 +830,16 @@ public void Save(){
 	foreach(Zone zone in Zones){
 		this.Storage+="•Zon:"+zone.ToString();
 	}
+}
+
+void UpdateSectors(Sector S){
+	for(int i=Sectors.Count-1;i>=0;i--){
+		if(Sectors[i].Same(S)){
+			Sectors[i].Update(S);
+			return;
+		}
+	}
+	Sectors.Add(S);
 }
 
 void UpdateProgramInfo(){
@@ -813,6 +865,12 @@ void UpdateProgramInfo(){
 	Echo(ToString(FromSeconds(seconds_since_last_update))+" since last cycle");
 	Time_Since_Start=UpdateTimeSpan(Time_Since_Start,seconds_since_last_update);
 	Echo(ToString(Time_Since_Start)+" since last reboot\n");
+}
+
+void UpdateSystemInfo(){
+	Current_Time=DateTime.Now.TimeOfDay;
+	if(Asteroid!=null)
+		Asteroid.UpdateAges(seconds_since_last_update);
 }
 
 public void Main(string argument, UpdateType updateSource)
