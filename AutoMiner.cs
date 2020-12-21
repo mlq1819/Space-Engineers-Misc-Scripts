@@ -4,6 +4,13 @@ Color DEFAULT_BACKGROUND_COLOR=new Color(44,0,88,255);
 
 class Prog{
 	public static MyGridProgram P;
+	public static TimeSpan FromSeconds(double seconds){
+		return (new TimeSpan(0,0,0,(int)seconds,(int)(seconds*1000)%1000));
+	}
+
+	public static TimeSpan UpdateTimeSpan(TimeSpan old,double seconds){
+		return old+FromSeconds(seconds);
+	}
 }
 
 class GenericMethods<T> where T : class, IMyTerminalBlock{
@@ -284,6 +291,11 @@ class Sector{
 		}
 	}
 	public Vector3D[] Corners;
+	public Vector3D Center{
+		get{
+			return Corners[0]+new Vector3D(2500,2500,2500);
+		}
+	}
 	
 	private bool[] subsections;
 	
@@ -383,12 +395,109 @@ class Sector{
 	}
 }
 
+class Zone{
+	public Vector3D Center;
+	public double Radius;
+	public bool Outpost=false;
+	public bool Gravity=false;
+	public bool Explored=false;
+	
+	public Zone(Vector3D c,double r){
+		Center=c;
+		Radius=Math.Max(5000,r);
+	}
+	
+	public bool Overlaps(Sector S){
+		if((Center-S.Center).Length()<Radius+2500)
+			return true;
+		foreach(Vector3D Corner in S.Corners){
+			if((Corner-Center).Length()<Radius+2500)
+				return true;
+		}
+		return false;
+	}
+	
+	public override string ToString(){
+		return'{'+Center.ToString()+';'+Math.Round(Radius,1).ToString()+';'+Outpost.ToString()+';'+Gravity.ToString()+';'+Explored.ToString()+'}';
+	}
+	
+	public static bool TryParse(string Parse,out Zone output){
+		output=null;
+		if(Parse[0]!='{'||Parse[Parse.Length-1]!='}')
+			return false;
+		Parse=Parse.Substring(1,Parse.Length-2);
+		string[] args=Parse.Split(';');
+		if(args.Length!=5)
+			return false;
+		Vector3D center;
+		if(!Vector3D.TryParse(args[0],out center))
+			return false;
+		double radius;
+		if(!double.TryParse(args[1],out radius))
+			return false;
+		output=new Zone(center,radius);
+		bool o,g,x;
+		if(!bool.TryParse(args[2],out o))
+			return false;
+		output.Outpost=o;
+		if(!bool.TryParse(args[3],out g))
+			return false;
+		output.Gravity=g;
+		if(!bool.TryParse(args[4],out x))
+			return false;
+		output.Explored=x;
+		return true;
+	}
+}
+
+class TerrainPoint{
+	public Vector3D Point;
+	public TimeSpan Age;
+	
+	public TerrainPoint(Vector3D p,TimeSpan a){
+		Point=p;
+		Age=a;
+	}
+	
+	public TerrainPoint(Vector3D p):this(p,new TimeSpan(0)){
+		;
+	}
+	
+	public override string ToString(){
+		return '{'+Point.ToString()+' '
+	}
+}
+
+class TerrainMap{
+	public List<TerrainPoint> Points;
+	public Vector3D Center;
+	public double Size{
+		get{
+			double size=-1;
+			foreach(TerrainPoint Point in Points)
+				size=Math.Max(size,(Point.Point-Center).Length());
+			return size;
+		}
+	}
+	
+	public TerrainMap(Vector3D c){
+		Center=c;
+	}
+	
+	public void UpdateAges(double seconds){
+		for(int i=0;i<Points.Count;i++)
+			Points.Age=Prog.UpdateTimeSpan(Points.Age,seconds);
+	}
+	
+	
+}
+
 TimeSpan FromSeconds(double seconds){
-	return (new TimeSpan(0,0,0,(int)seconds,(int)(seconds*1000)%1000));
+	return Prog.FromSeconds(seconds);
 }
 
 TimeSpan UpdateTimeSpan(TimeSpan old,double seconds){
-	return old+FromSeconds(seconds);
+	return Prog.UpdateTimeSpan(old,seconds);
 }
 
 string ToString(TimeSpan ts){
@@ -486,6 +595,9 @@ long cycle=0;
 char loading_char='|';
 double seconds_since_last_update=0;
 
+List<Sector> Sectors;
+List<Zone> Zones;
+
 public Program(){
 	Prog.P=this;
 	Me.CustomName=(Program_Name+" Programmable block").Trim();
@@ -498,25 +610,33 @@ public Program(){
 	Me.GetSurface(1).FontSize=2.2f;
 	Me.GetSurface(1).TextPadding=40.0f;
 	Echo("Beginning initialization");
-	// The constructor, called only once every session and
-    // always before any other method is called. Use it to
-    // initialize your script. 
-    //     
-    // The constructor is optional and can be removed if not
-    // needed.
-    // 
-    // It's recommended to set RuntimeInfo.UpdateFrequency 
-    // here, which will allow your script to run itself without a 
-    // timer block.
+	Sectors=new List<Sector>();
+	Zones=new List<Zone>();
+	string[] args=this.Storage.Split('•');
+	foreach(string arg in args){
+		if(arg.IndexOf("Sec:")==0){
+			Sector sec;
+			if(Sector.TryParse(arg.Substring(4),out sec))
+				Sectors.Add(sec);
+		}
+		else if(arg.IndexOf("Zon:")==0){
+			Zone zon;
+			if(Zone.TryParse(arg.Substring(4),out zon))
+				Zones.Add(zon);
+		}
+	}
 }
 
 public void Save(){
-    // Called when the program needs to save its state. Use
-    // this method to save your state to the Storage field
-    // or some other means. 
-    // 
-    // This method is optional and can be removed if not
-    // needed.
+    this.Storage="";
+	
+	
+	foreach(Sector sector in Sectors){
+		this.Storage+="•Sec:"+sector.ToString();
+	}
+	foreach(Zone zone in Zones){
+		this.Storage+="•Zon:"+zone.ToString();
+	}
 }
 
 void UpdateProgramInfo(){
