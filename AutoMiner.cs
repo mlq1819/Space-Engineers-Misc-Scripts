@@ -838,6 +838,10 @@ List<Zone> Zones;
 IMyRemoteControl Controller;
 IMyGyro Gyroscope;
 IMyRadioAntenna Antenna;
+List<IMyShipDrill> Drills;
+List<IMyConveyorSorter> Sorters;
+List<IMyShipConnector> Connectors;
+
 
 double ShipMass{
 	get{
@@ -1198,6 +1202,12 @@ public Program(){
 	Antenna=GenericMethods<IMyRadioAntenna>.GetConstruct("Drone Antenna");
 	if(Antenna==null)
 		return;
+	Drills=GenericMethods<IMyShipDrill>.GetAllConstruct("");
+	Sorters=GenericMethods<IMyConveyorSorter>.GetAllConstruct("");
+	Connectors=GenericMethods<IMyShipConnector>.GetAllConstruct("");
+	if(Drills.Count==0||Sorters.Count==0||Connectors.Count==0)
+		return;
+	
 	Forward_Camera=GenericMethods<IMyCameraBlock>.GetConstruct("Drone Camera (Front Center)");
 	Top_Camera=GenericMethods<IMyCameraBlock>.GetConstruct("Drone Camera (Front Top)");
 	Bottom_Camera=GenericMethods<IMyCameraBlock>.GetConstruct("Drone Camera (Front Bottom)");
@@ -1208,6 +1218,8 @@ public Program(){
 			return;
 	}
 	
+	IGC.RegisterBroadcastListener("AutoMiner");
+	IGC.RegisterBroadcastListener("AutoMiner Base AI");
 	Runtime.UpdateFrequency=UpdateFrequency.Update1;
 }
 
@@ -1231,8 +1243,69 @@ public void Save(){
 		this.Storage+="•Zon:"+zone.ToString();
 }
 
-void SendUpdate(){
-	
+void UpdateSectors(Sector S){
+	for(int i=Sectors.Count-1;i>=0;i--){
+		if(Sectors[i].Same(S)){
+			Sectors[i].Update(S);
+			return;
+		}
+	}
+	Sectors.Add(S);
+}
+
+void Broadcast(string Command,string Subdata){
+	IGC.SendBroadcastMessage("AutoMiner",Command+":"+Subdata,TransmissionDistance.TransmissionDistanceMax);
+}
+
+void SendUpdate(bool UpdateSectors=true)){
+	string Tag="AutoMiner";
+	if(UpdateSectors){
+		foreach(Sector S in Sectors)
+			Broadcast("Sector",S.ToString());
+	}
+	if(Asteroid!=null)
+		Broadcast("Asteroid",Asteroid.ToString());
+}
+
+int GetUpdates(){
+	int count=0;
+	List<IMyBroadcastListener> listeners=new List<IMyBroadcastListener>();
+	IGC.GetBroadcastListeners(listeners);
+	foreach(IMyBroadcastListener Listener in listeners){
+		while(Listener.HasPendingMessage){
+			MyIGCMessage message=Listener.AcceptMessage();
+			count++;
+			string Data=message.Data.ToString();
+			int index=Data.IndexOf(":");
+			if(index!=-1){
+				string Command=Data.Substring(0,index-1);
+				string Subdata=Data.Substring(index+1);
+				if(Command.Equals("Sector")){
+					Sector S=null;
+					if(Sector.TryParse(Subdata,out S))
+						UpdateSectors(S);
+				}
+				else if(Command.Contains("Ast-")&&Asteroid!=null){
+					TerrainPoint P=null;
+					if(TerrainPoint.TryParse(Subdata,out P)){
+						if((TerrainPoint.Point-Asteroid.Center).Length()<2500){
+							if(Command.Equals("Ast-Add"))
+								Asteroid.Add(P);
+							else if(Command.Equals("Ast-Rem"))
+								Asteroid.Remove(P);
+						}
+							
+					}
+				}
+				else if(Command.Equals("Asteroid")&&Asteroid==null){
+					TerrainMap T=null;
+					if(TerrainMap.TryParse(Subdata,out T))
+						Asteroid=T;
+				}
+			}
+		}
+	}
+	return count;
 }
 
 void SetGyroscopes(){
@@ -1420,16 +1493,6 @@ void SetThrusters(){
 		Thruster.ThrustOverridePercentage=output_left;
 }
 
-void UpdateSectors(Sector S){
-	for(int i=Sectors.Count-1;i>=0;i--){
-		if(Sectors[i].Same(S)){
-			Sectors[i].Update(S);
-			return;
-		}
-	}
-	Sectors.Add(S);
-}
-
 void UpdateProgramInfo(){
 	cycle=(++cycle)%long.MaxValue;
 	switch(loading_char){
@@ -1517,10 +1580,8 @@ public void Main(string argument, UpdateType updateSource)
 				Sent_Update=false;
 			}
 		}
-		else if(Asteroid!=null)
-			Antenna.Radius=2000;
 		else
-			Antenna.Radius=200;
+			Antenna.Radius=7500;
 	}
 	
 	
