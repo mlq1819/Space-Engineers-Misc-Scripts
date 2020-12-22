@@ -667,6 +667,53 @@ class TerrainMap{
 	}
 }
 
+class Dock{
+	public Vector3D Position;
+	public Vector3D Orientation;
+	public Vector3D Return;
+	
+	public Dock(Vector3D p,Vector3D o,Vector3D r){
+		Position=p;
+		Orientation=o;
+		Orientation.Normalize();
+		Return=r;
+	}
+	
+	public override string ToString(){
+		return '('+Position.ToString()+';'+Orientation.ToString()+';'+Return.ToString()+')';
+	}
+	
+	public static bool TryParse(string Parse,Dock output){
+		output=null;
+		if(Parse[0]!='('||Parse[Parse.Length-1]!=')')
+			return false;
+		Parse=Parse.Substring(1,Parse.Length-2);
+		string[] args=Parse.Split(';');
+		if(args.Length!=3)
+			return false;
+		Vector3D p;
+		if(!Vector3D.TryParse(args[0],out p))
+			return false;
+		Vector3D o;
+		if((!Vector3D.TryParse(args[1],out o))||o.Length()==0)
+			return false;
+		Vector3D r;
+		if(!Vector3D.TryParse(args[2],out r))
+			return false;
+		output=new Dock(p,o,r);
+		return true;
+	}
+}
+
+enum DroneTask{
+	None=0,
+	Charging=1,
+	Unloading=2,
+	Docking=3,
+	Traveling=4,
+	
+}
+
 TimeSpan FromSeconds(double seconds){
 	return Prog.FromSeconds(seconds);
 }
@@ -772,12 +819,286 @@ double seconds_since_last_update=0;
 
 TimeSpan Current_Time;
 
+Stack<DroneTask> Tasks;
+
+Dock MyDock;
 TerrainMap Asteroid;
 List<Sector> Sectors;
+int Last_Sector=-1;
 List<Zone> Zones;
 
 IMyRemoteControl Controller;
 IMyGyro Gyroscope;
+
+double ShipMass{
+	get{
+		return Controller.CalculateShipMass().TotalMass;
+	}
+}
+
+IMyCameraBlock[] Camera_Arr=new IMyCameraBlock[5];
+IMyCameraBlock Forward_Camera{
+	set{
+		Camera_Arr[0]=value;
+	}
+	get{
+		return Camera_Arr[0];
+	}
+}
+IMyCameraBlock Top_Camera{
+	set{
+		Camera_Arr[1]=value;
+	}
+	get{
+		return Camera_Arr[1];
+	}
+}
+IMyCameraBlock Bottom_Camera{
+	set{
+		Camera_Arr[2]=value;
+	}
+	get{
+		return Camera_Arr[2];
+	}
+}
+IMyCameraBlock Left_Camera{
+	set{
+		Camera_Arr[3]=value;
+	}
+	get{
+		return Camera_Arr[3];
+	}
+}
+IMyCameraBlock Right_Camera{
+	set{
+		Camera_Arr[4]=value;
+	}
+	get{
+		return Camera_Arr[4];
+	}
+}
+
+List<IMyThrust>[] All_Thrusters=new List<IMyThrust>[6];
+List<IMyThrust> Forward_Thrusters{
+	set{
+		All_Thrusters[0]=value;
+	}
+	get{
+		return All_Thrusters[0];
+	}
+}
+List<IMyThrust> Backward_Thrusters{
+	set{
+		All_Thrusters[1]=value;
+	}
+	get{
+		return All_Thrusters[1];
+	}
+}
+List<IMyThrust> Up_Thrusters{
+	set{
+		All_Thrusters[2]=value;
+	}
+	get{
+		return All_Thrusters[2];
+	}
+}
+List<IMyThrust> Down_Thrusters{
+	set{
+		All_Thrusters[3]=value;
+	}
+	get{
+		return All_Thrusters[3];
+	}
+}
+List<IMyThrust> Left_Thrusters{
+	set{
+		All_Thrusters[4]=value;
+	}
+	get{
+		return All_Thrusters[4];
+	}
+}
+List<IMyThrust> Right_Thrusters{
+	set{
+		All_Thrusters[5]=value;
+	}
+	get{
+		return All_Thrusters[5];
+	}
+}
+
+float GetThrust(int i){
+	float total=0;
+	foreach(IMyThrust T in All_Thrusters[i])
+		total+=T.MaxEffectiveThrust;
+	return Math.Max(total,1);
+}
+float Forward_Thrust{
+	get{
+		return GetThrust(0);
+	}
+}
+float Backward_Thrust{
+	get{
+		return GetThrust(1);
+	}
+}
+float Up_Thrust{
+	get{
+		return GetThrust(2);
+	}
+}
+float Down_Thrust{
+	get{
+		return GetThrust(3);
+	}
+}
+float Left_Thrust{
+	get{
+		return GetThrust(4);
+	}
+}
+float Right_Thrust{
+	get{
+		return GetThrust(5);
+	}
+}
+
+bool MyAutoPilot=false;
+bool Match_Direction=false;
+Vector3D Target_Direction;
+bool Match_Position=false;
+Vector3D Target_Position;
+Vector3D Relative_Target_Position{
+	get{
+		return GlobalToLocalPosition(Target_Position,Controller);
+	}
+}
+double Target_Distance{
+	get{
+		return (Target_Position-Controller.GetPosition()).Length();
+	}
+}
+
+Vector3D RestingVelocity;
+Vector3D Relative_RestingVelocity{
+	get{
+		return GlobalToLocal(RestingVelocity,Controller);
+	}
+}
+Vector3D LinearVelocity;
+Vector3D Relative_LinearVelocity{
+	get{
+		Vector3D output=Vector3D.Transform(LinearVelocity+Controller.GetPosition(),MatrixD.Invert(Controller.WorldMatrix));
+		output.Normalize();
+		output*=LinearVelocity.Length();
+		return output;
+	}
+}
+double Speed_Deviation{
+	get{
+		return (LinearVelocity-RestingVelocity).Length();
+	}
+}
+double Acceleration{
+	get{
+		return (Forward_Thrust+Backward_Thrust)/(2*ShipMass);
+	}
+}
+double Time_To_Resting{
+	get{
+		return (RestingVelocity-LinearVelocity).Length()/Acceleration;
+	}
+}
+double Distance_To_Resting{
+	get{
+		return Acceleration*Math.Pow(Time_To_Resting,2)/2;
+	}
+}
+
+double Speed_Limit=100;
+
+Vector3D AngularVelocity;
+Vector3D Relative_AngularVelocity{
+	get{
+		return GlobalToLocal(AngularVelocity,Controller);
+	}
+}
+
+string GetThrustTypeName(IMyThrust Thruster){
+	string block_type=Thruster.BlockDefinition.SubtypeName;
+	if(block_type.Contains("LargeBlock"))
+		block_type=GetRemovedString(block_type,"LargeBlock");
+	else if(block_type.Contains("SmallBlock"))
+		block_type=GetRemovedString(block_type,"SmallBlock");
+	if(block_type.Contains("Thrust"))
+		block_type=GetRemovedString(block_type,"Thrust");
+	string size="";
+	if(block_type.Contains("Small")){
+		size="Small";
+		block_type=GetRemovedString(block_type,size);
+	}
+	else if(block_type.Contains("Large")){
+		size="Large";
+		block_type=GetRemovedString(block_type,size);
+	}
+	if((!block_type.ToLower().Contains("atmospheric"))||(!block_type.ToLower().Contains("hydrogen")))
+		block_type+="Ion";
+	return (size+" "+block_type).Trim();
+}
+struct NameTuple{
+	public string Name;
+	public int Count;
+	
+	public NameTuple(string n,int c=0){
+		Name=n;
+		Count=c;
+	}
+}
+void SetThrusterList(List<IMyThrust> Thrusters,string Direction){
+	List<NameTuple> Thruster_Types=new List<NameTuple>();
+	foreach(IMyThrust Thruster in Thrusters){
+		if(!HasBlockData(Thruster,"DefaultOverride"))
+			SetBlockData(Thruster,"DefaultOverride",Thruster.ThrustOverridePercentage.ToString());
+		SetBlockData(Thruster,"Owner",Me.CubeGrid.EntityId.ToString());
+		SetBlockData(Thruster,"DefaultName",Thruster.CustomName);
+		string name=GetThrustTypeName(Thruster);
+		bool found=false;
+		for(int i=0;i<Thruster_Types.Count;i++){
+			if(name.Equals(Thruster_Types[i].Name)){
+				found=true;
+				Thruster_Types[i]=new NameTuple(name,Thruster_Types[i].Count+1);
+				break;
+			}
+		}
+		if(!found)
+			Thruster_Types.Add(new NameTuple(name,1));
+	}
+	foreach(IMyThrust Thruster in Thrusters){
+		string name=GetThrustTypeName(Thruster);
+		for(int i=0;i<Thruster_Types.Count;i++){
+			if(name.Equals(Thruster_Types[i].Name)){
+				Thruster.CustomName=(Direction+" "+name+" Thruster "+(Thruster_Types[i].Count).ToString()).Trim();
+				Thruster_Types[i]=new NameTuple(name,Thruster_Types[i].Count-1);
+				break;
+			}
+		}
+	}
+}
+void ResetThruster(IMyThrust Thruster){
+	if(HasBlockData(Thruster,"DefaultOverride")){
+		float ThrustOverride=0.0f;
+		if(float.TryParse(GetBlockData(Thruster,"DefaultOverride"),out ThrustOverride))
+			Thruster.ThrustOverridePercentage=ThrustOverride;
+		else
+			Thruster.ThrustOverridePercentage=0.0f;
+	}
+	if(HasBlockData(Thruster,"DefaultName")){
+		Thruster.CustomName=GetBlockData(Thruster,"DefaultName");
+	}
+	SetBlockData(Thruster,"Owner","0");
+}
 
 public Program(){
 	Prog.P=this;
@@ -794,6 +1115,8 @@ public Program(){
 	Sectors=new List<Sector>();
 	Zones=new List<Zone>();
 	Asteroid=null;
+	MyDock=null;
+	Tasks=new Stack<DroneTask>();
 	string[] args=this.Storage.Split('•');
 	foreach(string arg in args){
 		if(arg.IndexOf("Sec:")==0){
@@ -810,12 +1133,58 @@ public Program(){
 			if(!arg.Substring(4).Equals("null"))
 				TerrainMap.TryParse(arg.Substring(4),out Asteroid);
 		}
+		else if(arg.IndexOf("Doc:")==0){
+			if(!arg.Substring(4).Equals("null"))
+				Dock.TryParse(arg.Substring(4),out MyDock);
+		}
+		else if(arg.IndexOf("LSc:")==0){
+			Int32.TryParse(arg.Substring(4),out Last_Sector);
+		}
 	}
 	Controller=GenericMethods<IMyRemoteControl>.GetConstruct("Drone Remote Control");
 	Gyroscope=GenericMethods<IMyGyro>.GetConstruct("Control Gyroscope");
 	if(Controller==null||Gyroscope==null)
 		return;
-	
+	List<IMyThrust> MyThrusters=GenericMethods<IMyThrust>.GetAllConstruct("");
+	for(int i=0;i<2;i++){
+		bool retry=!Me.CubeGrid.IsStatic;
+		foreach(IMyThrust Thruster in MyThrusters){
+			if(HasBlockData(Thruster,"Owner")){
+				long ID=0;
+				if(i==0&&!Int64.TryParse(GetBlockData(Thruster,"Owner"),out ID)||(ID!=0&&ID!=Me.CubeGrid.EntityId))
+					continue;
+			}
+			if(Thruster.CubeGrid!=Controller.CubeGrid)
+				continue;
+			retry=false;
+			Base6Directions.Direction ThrustDirection=Thruster.Orientation.Forward;
+			if(ThrustDirection==Backward)
+				Forward_Thrusters.Add(Thruster);
+			else if(ThrustDirection==Forward)
+				Backward_Thrusters.Add(Thruster);
+			else if(ThrustDirection==Down)
+				Up_Thrusters.Add(Thruster);
+			else if(ThrustDirection==Up)
+				Down_Thrusters.Add(Thruster);
+			else if(ThrustDirection==Right)
+				Left_Thrusters.Add(Thruster);
+			else if(ThrustDirection==Left)
+				Right_Thrusters.Add(Thruster);
+		}
+		if(!retry)
+			break;
+	}
+	SetThrusterList(Forward_Thrusters,"Forward");
+	SetThrusterList(Backward_Thrusters,"Backward");
+	SetThrusterList(Up_Thrusters,"Up");
+	SetThrusterList(Down_Thrusters,"Down");
+	SetThrusterList(Left_Thrusters,"Left");
+	SetThrusterList(Right_Thrusters,"Right");
+	Forward_Camera=GenericMethods<IMyCameraBlock>.GetConstruct("Drone Camera (Front Center)");
+	Top_Camera=GenericMethods<IMyCameraBlock>.GetConstruct("Drone Camera (Front Top)");
+	Bottom_Camera=GenericMethods<IMyCameraBlock>.GetConstruct("Drone Camera (Front Bottom)");
+	Left_Camera=GenericMethods<IMyCameraBlock>.GetConstruct("Drone Camera (Front Left)");
+	Right_Camera=GenericMethods<IMyCameraBlock>.GetConstruct("Drone Camera (Front Right)");
 }
 
 public void Save(){
@@ -823,12 +1192,256 @@ public void Save(){
 		this.Storage="Ast:null";
 	else
 		this.Storage="Ast:"+Asteroid.ToString();
-	
-	foreach(Sector sector in Sectors){
+	this.Storage+="•Doc:";
+	if(MyDock==null)
+		this.Storage+="null";
+	else
+		this.Storage+=MyDock.ToString();
+	if(Last_Sector!=-1)
+		this.Storage+="•LSc:"+Last_Sector.ToString();
+	foreach(Sector sector in Sectors)
 		this.Storage+="•Sec:"+sector.ToString();
-	}
-	foreach(Zone zone in Zones){
+	foreach(Zone zone in Zones)
 		this.Storage+="•Zon:"+zone.ToString();
+}
+
+void SetGyroscopes(){
+	if(Controller.IsUnderControl||((!MyAutoPilot)&&!Controller.IsAutoPilotEnabled)){
+		Gyroscope.GyroOverride=false;
+		return;
+	}
+	Gyroscope.GyroOverride=(AngularVelocity.Length()<3);
+	float current_pitch=(float) Relative_AngularVelocity.X;
+	float current_yaw=(float) Relative_AngularVelocity.Y;
+	float current_roll=(float) Relative_AngularVelocity.Z;
+	
+	float gyro_count = 0;
+	List<IMyGyro> AllGyros=new List<IMyGyro>();
+	GridTerminalSystem.GetBlocksOfType<IMyGyro>(AllGyros);
+	foreach(IMyGyro Gyro in AllGyros){
+		if(Gyro.IsWorking)
+			gyro_count+=Gyro.GyroPower/100.0f;
+	}
+	float gyro_multx=(float)Math.Max(0.1f,Math.Min(1,1.5f/(ShipMass/gyro_count/1000000)));
+	
+	float input_pitch=current_pitch*0.99f;
+	if(Match_Direction){
+		double difference=GetAngle(Down_Vector,Target_Direction)-GetAngle(Up_Vector,Target_Direction);
+		if(Math.Abs(difference)>1)
+			input_pitch-=(float)Math.Min(Math.Max(difference/5,-4),4)*gyro_multx;
+	}
+	
+	float input_yaw=current_yaw*0.99f;
+	if(Match_Direction){
+		double difference=GetAngle(Left_Vector,Target_Direction)-GetAngle(Right_Vector,Target_Direction);
+		if(Math.Abs(difference)>1)
+			input_yaw+=(float)Math.Min(Math.Max(difference/5,-4),4)*gyro_multx;
+	}
+	
+	float input_roll=current_roll*0.99f;
+	
+	Vector3D input=new Vector3D(input_pitch,input_yaw,input_roll);
+	Vector3D global=Vector3D.TransformNormal(input,Controller.WorldMatrix);
+	Vector3D output=Vector3D.TransformNormal(global,MatrixD.Invert(Gyroscope.WorldMatrix));
+	output.Normalize();
+	output*=input.Length();
+	
+	Gyroscope.Pitch=(float)output.X;
+	Gyroscope.Yaw=(float)output.Y;
+	Gyroscope.Roll=(float)output.Z;
+}
+
+void SetThrusters(){
+	if(Controller.IsUnderControl||((!MyAutoPilot)&&!Controller.IsAutoPilotEnabled)){
+		for(int i=0;i<6;i++){
+			foreach(IMyThrust T in All_Thrusters[i])
+				T.ThrustOverridePercentage=0;
+		}
+		return;
+	}
+	float input_forward=0.0f;
+	float input_up=0.0f;
+	float input_right=0.0f;
+	
+	float damp_multx=0.99f;
+	double ESL=Speed_Limit;
+	if(TODO)
+		ESL=Math.Min(ESL,Speed_Limit*(Target_Distance-Distance_To_Resting*1.2))
+	ESL=Math.Max(ESL,5);
+	
+	input_right-=(float)((Relative_LinearVelocity.X-Relative_RestingVelocity.X)*ShipMass*damp_multx);
+	input_up-=(float)((Relative_LinearVelocity.Y-Relative_RestingVelocity.Y)*ShipMass*damp_multx);
+	input_forward+=(float)((Relative_LinearVelocity.Z-Relative_RestingVelocity.Z)*ShipMass*damp_multx);
+	
+	if(Target_Distance<1){
+		Match_Direction=false;
+		Match_Position=false;
+	}
+	
+	bool matched_direction=!Match_Direction;
+	if(Match_Direction){
+		matched_direction=Math.Abs(GetAngle(Target_Direction,Forward_Vector))<=ACCEPTABLE_ANGLE;
+	}
+	
+	if(Math.Abs(Controller.MoveIndicator.X)>0.5f){
+		if(Controller.MoveIndicator.X > 0){
+			if((LinearVelocity+Right_Vector-RestingVelocity).Length() <= ESL)
+				input_right=0.95f*Right_Thrust;
+			else
+				input_right=Math.Min(input_right, 0);
+		} else {
+			if((LinearVelocity+Left_Vector-RestingVelocity).Length() <= ESL)
+				input_right=-0.95f*Left_Thrust;
+			else
+				input_right=Math.Max(input_right, 0);
+		}
+	}
+	else if(Match_Position){
+		double Relative_Speed=Relative_LinearVelocity.X;
+		double Relative_Target_Speed=RestingVelocity.X;
+		double Relative_Distance=Relative_Target_Position.X;
+		double deacceleration=0;
+		double difference=Relative_Speed-Relative_Target_Speed;
+		if(difference > 0){
+			deacceleration=Math.Abs(difference) / Left_Thrust;
+		}
+		else if(difference<0){
+			deacceleration=Math.Abs(difference) / Right_Thrust;
+		}
+		if((difference > 0) ^ (Relative_Distance<0)){
+			double time=difference / deacceleration;
+			time=(Relative_Distance-(difference*time/2))/difference;
+			if(time > 0 && (!Match_Direction || matched_direction) && Relative_Speed-Relative_Target_Speed<=0.05){
+				if(difference > 0){
+					if((LinearVelocity+Left_Vector-RestingVelocity).Length() <= Math.Min(Elevation, Math.Min(ESL, Target_Distance)))
+						input_right=-0.95f*Left_Thrust;
+				}
+				else {
+					if((LinearVelocity+Right_Vector-RestingVelocity).Length() <= Math.Min(Elevation, Math.Min(ESL, Target_Distance)))
+						input_right=0.95f*Right_Thrust;
+				}
+			}
+		}
+	}
+	
+	if(Math.Abs(Controller.MoveIndicator.Y)>0.5f){
+		if(Controller.MoveIndicator.Y > 0){
+			if((LinearVelocity+Up_Vector-RestingVelocity).Length() <= ESL)
+				input_up=0.95f*Up_Thrust;
+			else
+				input_up=Math.Min(input_up, 0);
+		} else {
+			if((LinearVelocity+Down_Vector-RestingVelocity).Length() <= ESL)
+				input_up=-0.95f*Down_Thrust;
+			else
+				input_up=Math.Max(input_up, 0);
+		}
+	}
+	else if(Match_Position){
+		double Relative_Speed=Relative_LinearVelocity.Y;
+		double Relative_Target_Speed=RestingVelocity.Y;
+		double Relative_Distance=Relative_Target_Position.Y;
+		double deacceleration=0;
+		double difference=Relative_Speed-Relative_Target_Speed;
+		if(difference > 0){
+			deacceleration=Math.Abs(difference) / Down_Thrust;
+		}
+		else if(difference<0){
+			deacceleration=Math.Abs(difference) / Up_Thrust;
+		}
+		if((difference > 0) ^ (Relative_Distance<0)){
+			double time=difference / deacceleration;
+			time=(Relative_Distance-(difference*time/2))/difference;
+			if(time > 0 && (!Match_Direction || matched_direction) && Relative_Speed-Relative_Target_Speed<=0.05){
+				if(difference > 0){
+					if((LinearVelocity+Down_Vector-RestingVelocity).Length() <= Math.Min(Elevation, Math.Min(ESL, Target_Distance)))
+						input_up=-0.95f*Down_Thrust;
+				}
+				else {
+					if((LinearVelocity+Up_Vector-RestingVelocity).Length() <= Math.Min(Elevation, Math.Min(ESL, Target_Distance)))
+						input_up=0.95f*Up_Thrust;
+				}
+			}
+		}
+	}
+	
+	if(Math.Abs(Controller.MoveIndicator.Z)>0.5f){
+		if(Controller.MoveIndicator.Z<0){
+			if((LinearVelocity+Up_Vector-RestingVelocity).Length() <= ESL)
+				input_forward=0.95f*Forward_Thrust;
+			else
+				input_forward=Math.Min(input_forward, 0);
+		} else {
+			if((LinearVelocity+Down_Vector-RestingVelocity).Length() <= ESL)
+				input_forward=-0.95f*Backward_Thrust;
+			else
+				input_forward=Math.Max(input_forward, 0);
+		}
+	}
+	else if(Match_Position){
+		double Relative_Speed=Relative_LinearVelocity.Z;
+		double Relative_Target_Speed=RestingVelocity.Z;
+		double Relative_Distance=Relative_Target_Position.Z;
+		double deacceleration=0;
+		double difference=Relative_Speed-Relative_Target_Speed;
+		if(difference > 0){
+			deacceleration=Math.Abs(difference) / Backward_Thrust;
+		}
+		else if(difference<0){
+			deacceleration=Math.Abs(difference) / Forward_Thrust;
+		}
+		if((difference > 0) ^ (Relative_Distance<0)){
+			double time=difference / deacceleration;
+			time=(Relative_Distance-(difference*time/2))/difference;
+			if(time > 0 && (!Match_Direction || matched_direction) && Relative_Speed-Relative_Target_Speed<=0.05){
+				if(difference > 0){
+					if((LinearVelocity+Down_Vector-RestingVelocity).Length() <= Math.Min(Elevation, Math.Min(ESL, Target_Distance)))
+						input_forward=-0.95f*Backward_Thrust;
+				}
+				else {
+					if((LinearVelocity+Up_Vector-RestingVelocity).Length() <= Math.Min(Elevation, Math.Min(ESL, Target_Distance)))
+						input_forward=0.95f*Forward_Thrust;
+				}
+			}
+		}
+	}
+	
+	float output_forward=0.0f;
+	float output_backward=0.0f;
+	if(input_forward / Forward_Thrust > 0.05f)
+		output_forward=Math.Min(Math.Abs(input_forward / Forward_Thrust), 1);
+	else if(input_forward / Backward_Thrust<-0.05f)
+		output_backward=Math.Min(Math.Abs(input_forward / Backward_Thrust), 1);
+	float output_up=0.0f;
+	float output_down=0.0f;
+	if(input_up / Up_Thrust > 0.05f)
+		output_up=Math.Min(Math.Abs(input_up / Up_Thrust), 1);
+	else if(input_up / Down_Thrust<-0.05f)
+		output_down=Math.Min(Math.Abs(input_up / Down_Thrust), 1);
+	float output_right=0.0f;
+	float output_left=0.0f;
+	if(input_right / Right_Thrust > 0.05f)
+		output_right=Math.Min(Math.Abs(input_right / Right_Thrust), 1);
+	else if(input_right / Left_Thrust<-0.05f)
+		output_left=Math.Min(Math.Abs(input_right / Left_Thrust), 1);
+	
+	foreach(IMyThrust Thruster in Forward_Thrusters){
+		Thruster.ThrustOverridePercentage=output_forward;
+	}
+	foreach(IMyThrust Thruster in Backward_Thrusters){
+		Thruster.ThrustOverridePercentage=output_backward;
+	}
+	foreach(IMyThrust Thruster in Up_Thrusters){
+		Thruster.ThrustOverridePercentage=output_up;
+	}
+	foreach(IMyThrust Thruster in Down_Thrusters){
+		Thruster.ThrustOverridePercentage=output_down;
+	}
+	foreach(IMyThrust Thruster in Right_Thrusters){
+		Thruster.ThrustOverridePercentage=output_right;
+	}
+	foreach(IMyThrust Thruster in Left_Thrusters){
+		Thruster.ThrustOverridePercentage=output_left;
 	}
 }
 
@@ -871,6 +1484,8 @@ void UpdateSystemInfo(){
 	Current_Time=DateTime.Now.TimeOfDay;
 	if(Asteroid!=null)
 		Asteroid.UpdateAges(seconds_since_last_update);
+	LinearVelocity=Controller.GetShipVelocities().LinearVelocity;
+	AngularVelocity=Controller.GetShipVelocities().AngularVelocity;
 }
 
 public void Main(string argument, UpdateType updateSource)
