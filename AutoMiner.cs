@@ -1,4 +1,4 @@
-const string Program_Name = ""; //Name me!
+const string Program_Name = "AutoMiner AI"; //Name me!
 Color DEFAULT_TEXT_COLOR=new Color(197,137,255,255);
 Color DEFAULT_BACKGROUND_COLOR=new Color(44,0,88,255);
 
@@ -821,6 +821,11 @@ char loading_char='|';
 double seconds_since_last_update=0;
 
 TimeSpan Current_Time;
+double Cycle_Time{
+	get{
+		return Current_Time.TotalSeconds%10800;
+	}
+}
 
 Stack<DroneTask> Tasks;
 
@@ -832,6 +837,7 @@ List<Zone> Zones;
 
 IMyRemoteControl Controller;
 IMyGyro Gyroscope;
+IMyRadioAntenna Antenna;
 
 double ShipMass{
 	get{
@@ -839,45 +845,45 @@ double ShipMass{
 	}
 }
 
-IMyCameraBlock[] Camera_Arr=new IMyCameraBlock[5];
+IMyCameraBlock[] All_Cameras=new IMyCameraBlock[5];
 IMyCameraBlock Forward_Camera{
 	set{
-		Camera_Arr[0]=value;
+		All_Cameras[0]=value;
 	}
 	get{
-		return Camera_Arr[0];
+		return All_Cameras[0];
 	}
 }
 IMyCameraBlock Top_Camera{
 	set{
-		Camera_Arr[1]=value;
+		All_Cameras[1]=value;
 	}
 	get{
-		return Camera_Arr[1];
+		return All_Cameras[1];
 	}
 }
 IMyCameraBlock Bottom_Camera{
 	set{
-		Camera_Arr[2]=value;
+		All_Cameras[2]=value;
 	}
 	get{
-		return Camera_Arr[2];
+		return All_Cameras[2];
 	}
 }
 IMyCameraBlock Left_Camera{
 	set{
-		Camera_Arr[3]=value;
+		All_Cameras[3]=value;
 	}
 	get{
-		return Camera_Arr[3];
+		return All_Cameras[3];
 	}
 }
 IMyCameraBlock Right_Camera{
 	set{
-		Camera_Arr[4]=value;
+		All_Cameras[4]=value;
 	}
 	get{
-		return Camera_Arr[4];
+		return All_Cameras[4];
 	}
 }
 
@@ -1017,6 +1023,12 @@ double Time_To_Resting{
 double Distance_To_Resting{
 	get{
 		return Acceleration*Math.Pow(Time_To_Resting,2)/2;
+	}
+}
+
+double Distance_To_Base{
+	get{
+		return (Controller.GetPosition()-MyDock.Return).Length();
 	}
 }
 
@@ -1183,11 +1195,20 @@ public Program(){
 	SetThrusterList(Down_Thrusters,"Down");
 	SetThrusterList(Left_Thrusters,"Left");
 	SetThrusterList(Right_Thrusters,"Right");
+	Antenna=GenericMethods<IMyRadioAntenna>.GetConstruct("Drone Antenna");
+	if(Antenna==null)
+		return;
 	Forward_Camera=GenericMethods<IMyCameraBlock>.GetConstruct("Drone Camera (Front Center)");
 	Top_Camera=GenericMethods<IMyCameraBlock>.GetConstruct("Drone Camera (Front Top)");
 	Bottom_Camera=GenericMethods<IMyCameraBlock>.GetConstruct("Drone Camera (Front Bottom)");
 	Left_Camera=GenericMethods<IMyCameraBlock>.GetConstruct("Drone Camera (Front Left)");
 	Right_Camera=GenericMethods<IMyCameraBlock>.GetConstruct("Drone Camera (Front Right)");
+	for(int i=0;i<All_Cameras.Length;i++){
+		if(All_Cameras[i]==null)
+			return;
+	}
+	
+	Runtime.UpdateFrequency=UpdateFrequency.Update1;
 }
 
 public void Save(){
@@ -1198,14 +1219,20 @@ public void Save(){
 	this.Storage+="•Doc:";
 	if(MyDock==null)
 		this.Storage+="null";
-	else
+	else{
 		this.Storage+=MyDock.ToString();
+		Me.CustomData=(new MyWaypointInfo("Dock",MyDock.Position)).ToString()+'\n';
+	}
 	if(Last_Sector!=-1)
 		this.Storage+="•LSc:"+Last_Sector.ToString();
 	foreach(Sector sector in Sectors)
 		this.Storage+="•Sec:"+sector.ToString();
 	foreach(Zone zone in Zones)
 		this.Storage+="•Zon:"+zone.ToString();
+}
+
+void SendUpdate(){
+	
 }
 
 void SetGyroscopes(){
@@ -1436,18 +1463,75 @@ void UpdateSystemInfo(){
 	AngularVelocity=Controller.GetShipVelocities().AngularVelocity;
 }
 
+bool ProcessArgument(string argument){
+	if(argument.ToLower().IndexOf("dock:")==0){
+		Vector3D p,o,r;
+		string[] args=argument.Substring(5).Split('•');
+		if(args.Length!=3)
+			return false;
+		if(!Vector3D.TryParse(args[0],out p))
+			return false;
+		if(!Vector3D.TryParse(args[1],out o))
+			return false;
+		if(!Vector3D.TryParse(args[2],out r))
+			return false;
+		MyDock=new Dock(p,o,r);
+		return true;
+	}
+	else if(argument.ToLower().IndexOf("zone:")==0){
+		Vector3D c;
+		double r;
+		string[] args=argument.Substring(5).Split('•');
+		if(args.Length!=2)
+			return false;
+		if(!Vector3D.TryParse(args[0],out c))
+			return false;
+		if(!double.TryParse(args[1],out r))
+			return false;
+		Zone output=new Zone(c,r);
+		output.Outpost=true;
+		Zones.Add(output);
+		return true;
+	}
+	return false;
+}
+
+bool ArgumentError=false;
+bool Sent_Update=true;
 public void Main(string argument, UpdateType updateSource)
 {
 	UpdateProgramInfo();
+	if(MyDock!=null){
+		if(Cycle_Time+(Controller.GetPosition()-MyDock.Return).Length()/100+120>=10800){
+			//Return to base
+		}
+		if(Distance_To_Base.Length()<5000)
+			Antenna.Radius=Distance_To_Base+500;
+		else if(Cycle_Time%600<=10){
+			if(Cycle_Time%600<5){
+				Sent_Update=true;
+				Antenna.Radius=50000;
+			}
+			else if(Sent_Update){
+				SendUpdate();
+				Sent_Update=false;
+			}
+		}
+		else if(Asteroid!=null)
+			Antenna.Radius=2000;
+		else
+			Antenna.Radius=200;
+	}
+	
+	
+	
 	//Update AutoPilot
 	//Gravity Check
 	
+	if(argument.Length>0)
+		ArgumentError=ProcessArgument(argument);
+	if(ArgumentError)
+		Write("Invalid Argument");
 	
-    // The main entry point of the script, invoked every time
-    // one of the programmable block's Run actions are invoked,
-    // or the script updates itself. The updateSource argument
-    // describes where the update came from.
-    // 
-    // The method itself is required, but the arguments above
-    // can be removed if not needed.
+    //Frequency Update
 }
