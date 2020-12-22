@@ -842,7 +842,6 @@ List<IMyShipDrill> Drills;
 List<IMyConveyorSorter> Sorters;
 List<IMyShipConnector> Connectors;
 
-
 double ShipMass{
 	get{
 		return Controller.CalculateShipMass().TotalMass;
@@ -1148,6 +1147,11 @@ public Program(){
 			if(Zone.TryParse(arg.Substring(4),out zon))
 				Zones.Add(zon);
 		}
+		else if(arg.IndexOf("Tas:")==0){
+			int t;
+			if(Int32.TryParse(arg.Substring(4),out t))
+				Tasks.Push((DroneTask)t);
+		}
 		else if(arg.IndexOf("Ast:")==0){
 			if(!arg.Substring(4).Equals("null"))
 				TerrainMap.TryParse(arg.Substring(4),out Asteroid);
@@ -1241,6 +1245,50 @@ public void Save(){
 		this.Storage+="•Sec:"+sector.ToString();
 	foreach(Zone zone in Zones)
 		this.Storage+="•Zon:"+zone.ToString();
+	Stack<DroneTask> temp=new Stack<DroneTask>();
+	foreach(DroneTask T in Tasks)
+		temp.Push(T);
+	foreach(DroneTask T in temp)
+		this.Storage+="•Tas:"+((int)T).ToString();
+}
+
+bool InGravityZone(Vector3D pos,out Zone GZ){
+	GZ=null;
+	for(int i=0;i<Zones.Count;i++){
+		if(Zones[i].Gravity&&(Zones[i].Center-pos).Length()<Zones[i].Radius){
+			GZ=Zones[i];
+			return true;
+		}
+	}
+	return false;
+}
+
+bool IntersectsGravityZone(int count,Vector3D A,Vector3D B,out Zone GZ){
+	Vector3D middle=(A+B)/2;
+	Zone z;
+	if(InGravityZone(middle,out z)){
+		GZ=z;
+		return true;
+	}
+	if(count==0)
+		return false;
+	if(IntersectsGravityZone(count-1,A,middle,out z)){
+		GZ=z;
+		return true;
+	}
+	if(IntersectsGravityZone(count-1,middle,B,out z)){
+		GZ=z;
+		return true;
+	}
+	return false;
+}
+
+bool IntersectsGravityZone(out Zone GZ){
+	if(InGravityZone(Controller.GetPosition(),out GZ))
+		return true;
+	if(InGravityZone(Target_Position,out GZ))
+		return true;
+	return IntersectsGravityZone(3,Controller.GetPosition(),Target_Position,out GZ);
 }
 
 void UpdateSectors(Sector S){
