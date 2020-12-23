@@ -1259,10 +1259,8 @@ public void Save(){
 	this.Storage+="•Doc:";
 	if(MyDock==null)
 		this.Storage+="null";
-	else{
+	else
 		this.Storage+=MyDock.ToString();
-		Me.CustomData=(new MyWaypointInfo("Dock",MyDock.Position)).ToString()+'\n';
-	}
 	this.Storage+="•Und:"+AutoUndock.ToString();
 	if(Last_Sector!=-1)
 		this.Storage+="•LSc:"+Last_Sector.ToString();
@@ -1340,9 +1338,79 @@ void SendUpdate(bool UpdateSectors=true){
 		Broadcast("Asteroid",Asteroid.ToString());
 }
 
+Sector FindSector(int distance_goal,Vector3D starting_point,Vector3D current_point){
+	if(distance_goal>17)
+		return null;
+	if(distance_goal==0){
+		Sector attempt=new Sector(current_point);
+		bool found=false;
+		foreach(Zone Z in Zones){
+			if(Z.Overlaps(attempt))
+				return null;
+		}
+		foreach(Sector S in Sectors){
+			if(S.Same(Attempt)){
+				found=true;
+				break;
+			}
+		}
+		if(!found)
+			return attempt;
+		return null;
+	}
+	Sector output=null;
+	double current_distance=(current_point-starting_point).Length();
+	for(int i=0;i<6;i++){
+		Vector3D Tweak=new Vector3D(0,0,0);
+		switch(i){
+			case 0:
+				Tweak.X=-1;
+				break;
+			case 1:
+				Tweak.X=1;
+				break;
+			case 2:
+				Tweak.Y=-1;
+				break;
+			case 3:
+				Tweak.Y=1;
+				break;
+			case 4:
+				Tweak.Z=-1;
+				break;
+			case 5:
+				Tweak.Z=1;
+				break;
+		}
+		Tweak*=5000;
+		double distance=(current_point+Tweak-starting_point).Length();
+		if(distance>=current_distance-.1){
+			output=FindSector(distance_goal-1,starting_point,current_point+Tweak);
+			if(output!=null)
+				return output;
+		}
+	}
+	return output;
+}
+
 Sector NextSector(){
-	
-	
+	Vector3D Coords_Start=MyDock.Return;
+	if(LastSector!=-1){
+		foreach(bool b in Sectors[LastSector].subsections){
+			if(!b)
+				return Sectors[LastSector];
+		}
+		Coords_Start=Sectors[LastSector].Center;
+	}
+	int distance_count=0;
+	Sector output=null;
+	do{
+		FindSector(distance_count++,Coords_Start,Coords_Start);
+		if(distance_count<5&&output==null)
+			FindSector(distance_count,MyDock.Return,Controller.GetPosition());
+	}
+	while(output==null&&distance_count<=17);
+	return output;
 }
 
 void NextTask(){
@@ -1590,7 +1658,8 @@ int GetUpdates(){
 						Asteroid=T;
 				}
 				else if(Command.Equals("AutoUndock")&&Listener.Tag.Equals("AutoMiner Base AI")){
-					bool.TryParse(Subdata,out AutoUndock);
+					if(Me.CustomData.Length==0)
+						bool.TryParse(Subdata,out AutoUndock);
 				}
 			}
 		}
@@ -1872,99 +1941,109 @@ bool Sent_Update=true;
 public void Main(string argument, UpdateType updateSource)
 {
 	UpdateProgramInfo();
-	if(MyDock!=null){
-		if(Cycle_Time+(Controller.GetPosition()-MyDock.Return).Length()/100+120>=10800){
-			AutoUndock=false;
-			if((int)Tasks.Peek()>(int)DroneTask.Returning){
-				Tasks.Push(DroneTask.Docked);
-				Tasks.Push(DroneTask.Docking);
-				Tasks.Push(DroneTask.Returning);
-			}
-		}
-		if(Distance_To_Base.Length()<5000)
-			Antenna.Radius=Distance_To_Base+500;
-		else if(Cycle_Time%600<=10){
-			if(Cycle_Time%600<5){
-				Sent_Update=true;
-				Antenna.Radius=50000;
-			}
-			else if(Sent_Update){
-				SendUpdate();
-				Sent_Update=false;
-			}
-		}
-		else
-			Antenna.Radius=7500;
-	}
-	if(Controller.GetNaturalGravity().Length()>0){
-		Vector3D Center;
-		if(Controller.TryGetPlanetPosition(out Center)){
-			double Radius=Controller.GetPosition()-Center+1000;
-			bool has=false;
-			for(int i=0;i<Zones.Count;i++){
-				if(Zones[i].Gravity&&(Zones[i].Center-Center).Length()<1){
-					has=true;
-					Zones[i].Radius=Math.Max(Zones[i].Radius,Radius);
-					break;
+	try{
+		if(MyDock!=null){
+			if(Cycle_Time+(Controller.GetPosition()-MyDock.Return).Length()/100+120>=10800){
+				AutoUndock=false;
+				if((int)Tasks.Peek()>(int)DroneTask.Returning){
+					Tasks.Push(DroneTask.Docked);
+					Tasks.Push(DroneTask.Docking);
+					Tasks.Push(DroneTask.Returning);
 				}
 			}
-			if(!has){
-				Zone z=new Zone(Center,Radius);
-				z.Gravity=true;
-				Zones.Add(z);
+			if(Distance_To_Base.Length()<5000)
+				Antenna.Radius=Distance_To_Base+500;
+			else if(Cycle_Time%600<=10){
+				if(Cycle_Time%600<5){
+					Sent_Update=true;
+					Antenna.Radius=50000;
+				}
+				else if(Sent_Update){
+					SendUpdate();
+					Sent_Update=false;
+				}
+			}
+			else
+				Antenna.Radius=7500;
+		}
+		if(Controller.GetNaturalGravity().Length()>0){
+			Vector3D Center;
+			if(Controller.TryGetPlanetPosition(out Center)){
+				double Radius=Controller.GetPosition()-Center+1000;
+				bool has=false;
+				for(int i=0;i<Zones.Count;i++){
+					if(Zones[i].Gravity&&(Zones[i].Center-Center).Length()<1){
+						has=true;
+						Zones[i].Radius=Math.Max(Zones[i].Radius,Radius);
+						break;
+					}
+				}
+				if(!has){
+					Zone z=new Zone(Center,Radius);
+					z.Gravity=true;
+					Zones.Add(z);
+				}
 			}
 		}
-	}
-	else if((int)Tasks.Peek()>(int)DroneTask.Charging&&Charge<0.25f){
-		if(Distance_To_Base<2500){
-			if((int)Tasks.Peek()>(int)DroneTask.Returning){
-				Tasks.Push(DroneTask.Docked);
-				Tasks.Push(DroneTask.Docking);
-				Tasks.Push(DroneTask.Returning);
+		else if((int)Tasks.Peek()>(int)DroneTask.Charging&&Charge<0.25f){
+			if(Distance_To_Base<2500){
+				if((int)Tasks.Peek()>(int)DroneTask.Returning){
+					Tasks.Push(DroneTask.Docked);
+					Tasks.Push(DroneTask.Docking);
+					Tasks.Push(DroneTask.Returning);
+				}
 			}
+			else
+				Tasks.Push(DroneTask.Charging);
 		}
-		else
-			Tasks.Push(DroneTask.Charging);
+		if(Cycle%10==0)
+			GetUpdates();
+		switch(Tasks.Peek()){
+			case DroneTask.None:
+				Runtime.UpdateFrequency=UpdateFrequency.Update100;
+				break;
+			case DroneTask.Docked:
+				Docked();
+				break;
+			case DroneTask.Docking:
+				Docking();
+				break;
+			case DroneTask.Charging:
+				Charging();
+				break;
+			case DroneTask.Returning:
+				Returning();
+				break;
+			case DroneTask.Traveling:
+				Traveling();
+				break;
+			case DroneTask.Exploring:
+				Exploring();
+				break;
+			case DroneTask.Scanning:
+				Scanning();
+				break;
+			case DroneTask.Ejecting:
+				Ejecting();
+				break;
+			case DroneTask.Mining:
+				Mining();
+				break;
+		}
+		SetGyroscopes();
+		SetThrusters();
+		
+		if(argument.Length>0)
+			ArgumentError=ProcessArgument(argument);
+		if(ArgumentError)
+			Write("Invalid Argument");
 	}
-	if(Cycle%10==0)
-		GetUpdates();
-	switch(Tasks.Peek()){
-		case DroneTask.None:
-			Runtime.UpdateFrequency=UpdateFrequency.Update100;
-			break;
-		case DroneTask.Docked:
-			Docked();
-			break;
-		case DroneTask.Docking:
-			Docking();
-			break;
-		case DroneTask.Charging:
-			Charging();
-			break;
-		case DroneTask.Returning:
-			Returning();
-			break;
-		case DroneTask.Traveling:
-			Traveling();
-			break;
-		case DroneTask.Exploring:
-			Exploring();
-			break;
-		case DroneTask.Scanning:
-			Scanning();
-			break;
-		case DroneTask.Ejecting:
-			Ejecting();
-			break;
-		case DroneTask.Mining:
-			Mining();
-			break;
+	catch (Exception e){
+		Tasks.Clear();
+		AutoUndock=false;
+		Tasks.Push(DroneTask.Docked);
+		Tasks.Push(DroneTask.Docking);
+		Tasks.Push(DroneTask.Returning);
+		Me.CustomData+="\nFatal Error Occurred:\n"+e.Message;
 	}
-	SetGyroscopes();
-	SetThrusters();
-	
-	if(argument.Length>0)
-		ArgumentError=ProcessArgument(argument);
-	if(ArgumentError)
-		Write("Invalid Argument");
 }
