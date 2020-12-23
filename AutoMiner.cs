@@ -1639,6 +1639,7 @@ void EndTask(bool do_pop=true){
 			Match_Position=false;
 			Match_Direction=false;
 			RestingVelocity=new Vector3D(0,0,0);
+			SetRange(50);
 			break;
 	}
 }
@@ -2044,12 +2045,22 @@ void Ejecting(){
 		Runtime.UpdateFrequency=UpdateFrequency.Update100;
 }
 
+void SetRange(float range){
+	Sensor.LeftExtend=range;
+	Sensor.RightExtend=range;
+	Sensor.BottomExtend=range;
+	Sensor.TopExtend=range;
+	Sensor.FrontExtend=range;
+	Sensor.BackExtend=range;
+	Sensor.DetectAsteroids=true;
+}
 void Mining(){
+	SetRange(50);
 	if(Asteroid==null){
 		EndTask();
 		return;
 	}
-	if(Sensor.DetectAsteroids&&!Sensor.IsActive){
+	if(!Sensor.IsActive){
 		if(Asteroid.RemoveAllInArea(Sensor.GetPosition(),50)>5){
 			EndTask();
 			Tasks.Push(DroneTask.Scanning);
@@ -2083,6 +2094,7 @@ void Mining(){
 	Match_Position=false;
 	bool drill=false;
 	RestingVelocity=new Vector3D(0,0,0);
+	Speed_Limit=15;
 	if(stone_percent>0.75f||(ore_percent>0.9f&&stone_percent>0)){
 		EndTask(false);
 		Tasks.Push(DroneTask.Ejecting);
@@ -2108,8 +2120,18 @@ void Mining(){
 			}
 		}
 		else{
+			SetRange(5);
+			Sensor.FrontExtend=1.25f;
 			Match_Position=true;
-			Target_Position=direction*(distance+25)+Asteroid.Center;
+			if(Sensor.IsActive){
+				Speed_Limit=5;
+				Target_Position=Controller.GetPosition()-Asteroid.Center;
+				distance=Target_Position.Length();
+				Target_Position.Normalize();
+				Target_Position=(distance+20)*Target_Position+Asteroid.Center;
+			}
+			else
+				Target_Position=direction*(distance+25)+Asteroid.Center;
 		}
 	}
 	foreach(IMyShipDrill D in Drills)
@@ -2120,8 +2142,12 @@ void Mining(){
 void SetGyroscopes(){
 	if((!Match_Direction)||Controller.IsUnderControl||!Controller.IsAutoPilotEnabled){
 		Gyroscope.GyroOverride=false;
+		Write("Gyroscope Controls:Off");
 		return;
 	}
+	Write("Gyroscope Controls:On");
+	if(Match_Direction)
+		Write("Match_Direction:"+Math.Round(GetAngle(Target_Direction,Forward_Vector),1).ToString()+'°');
 	Gyroscope.GyroOverride=(AngularVelocity.Length()<3);
 	float current_pitch=(float) Relative_AngularVelocity.X;
 	float current_yaw=(float) Relative_AngularVelocity.Y;
@@ -2166,9 +2192,14 @@ void SetThrusters(){
 			foreach(IMyThrust T in All_Thrusters[i])
 				T.ThrustOverridePercentage=0;
 		}
+		Write("Thruster Controls:Off");
 		return;
 	}
-	
+	Write("Thruster Controls:On");
+	if(Match_Position)
+		Write("Match_Position:"+Math.Round((Target_Position-Controller.GetPosition()).Length(),1).ToString()+"meters");
+	if(RestingVelocity.Length()>0)
+		Write("RestingVelocity:"+Math.Round(RestingVelocity.Length(),1).ToString()+"mps");
 	float damp_multx=0.99f;
 	double ESL=Speed_Limit;
 		ESL=Math.Min(ESL,Speed_Limit*(Target_Distance-Distance_To_Resting*1.2));
@@ -2363,6 +2394,7 @@ void UpdateSystemInfo(){
 }
 
 bool ProcessArgument(string argument){
+	LastArgument=argument;
 	if(argument.ToLower().IndexOf("dock:")==0){
 		Vector3D p,o,r;
 		string[] args=argument.Substring(5).Split('•');
@@ -2392,6 +2424,35 @@ bool ProcessArgument(string argument){
 		Zones.Add(output);
 		return true;
 	}
+	else if(argument.ToLower().IndexOf("goto:")==0){
+		try{
+			string str=argument.Substring(5).Trim();
+			bool found=Vector3D.TryParse(str,out Target_Position);
+			if(!found){
+				MyWaypointInfo temp;
+				found=MyWaypointInfo.TryParse(str,out temp);
+				if(!found)
+					found=MyWaypointInfo.TryParse(str.Substring(0,str.Length-10),out temp);
+				if(found)
+					Target_Position=temp.Coords;
+			}
+			if(found){
+				Match_Position=true;
+				return true;
+			}
+			else
+				ArgumentError_Message=str;
+		} 
+		catch(Exception){
+			ArgumentError_Message=argument.Substring(5).Trim();
+			return false;
+		}
+	}
+	else if(argument.ToLower().Equals("stop")){
+		Match_Position=false;
+		Match_Direction=false;
+		return true;
+	}
 	else if(argument.ToLower().Equals("factory reset")){
 		this.Storage="";
 		Me.CustomData="";
@@ -2404,6 +2465,8 @@ bool ProcessArgument(string argument){
 }
 
 bool ArgumentError=false;
+string ArgumentError_Message="";
+string LastArgument="";
 bool Sent_Update=true;
 public void Main(string argument, UpdateType updateSource)
 {
@@ -2468,6 +2531,18 @@ public void Main(string argument, UpdateType updateSource)
 		}
 		if(cycle%10==0)
 			GetUpdates();
+		if(argument.Length>0)
+			ArgumentError=!ProcessArgument(argument);
+		if(LastArgument.Length>0)
+			Write("Last Argument: "+LastArgument);
+		if(ArgumentError){
+			if(ArgumentError_Message.Length>0)
+				Write("Invalid Argument: "+ArgumentError_Message);
+			else
+				Write("Invalid Argument");
+		}
+		else
+			ArgumentError_Message="";
 		bool active=true;
 		Write("Tasks");
 		foreach(DroneTask Task in Tasks){
@@ -2514,11 +2589,6 @@ public void Main(string argument, UpdateType updateSource)
 		}
 		SetGyroscopes();
 		SetThrusters();
-		
-		if(argument.Length>0)
-			ArgumentError=ProcessArgument(argument);
-		if(ArgumentError)
-			Write("Invalid Argument");
 	}
 	catch (Exception e){
 		Tasks.Clear();
