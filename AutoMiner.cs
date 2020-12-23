@@ -1811,7 +1811,7 @@ void Scanning(){
 			}
 			foreach(TerrainPoint P in Neighbors){
 				for(int i=0;i<Targets.Count;i++){
-					if(Math.Min(P.Point-Targets[i]).Length(),Asteroid.Distance(P.Point,Targets[i].Point))<=2.5)
+					if(Math.Min((P.Point-Targets[i]).Length(),Asteroid.Distance(P.Point,Targets[i].Point))<=2.5)
 						Targets.RemoveAt(i--);
 				}
 			}
