@@ -1449,10 +1449,8 @@ void EndTask(bool do_pop=true){
 				S.Enabled=false;
 				S.SetFilter(MyConveyorSorterMode.Whitelist,new List<MyInventoryItemFilter>(){new MyInventoryItemFilter("MyObjectBuilder_Ore/Stone",false)});
 			}
-			foreach(IMyShipConnector in Connectors){
+			foreach(IMyShipConnector Connector in Connectors)
 				Connector.Disconnect();
-				Connector.ThrowOut=true;
-			}
 			break;
 		case DroneTask.Docking:
 			Match_Position=false;
@@ -1478,10 +1476,17 @@ void EndTask(bool do_pop=true){
 			RestingVelocity=new Vector3D(0,0,0);
 			break;
 		case DroneTask.Scanning:
-			
+			Match_Position=false;
+			Match_Direction=false;
+			last_scan_index=0;
 			break;
 		case DroneTask.Ejecting:
-			
+			Match_Position=false;
+			Match_Direction=false;
+			foreach(IMyConveyorSorter S in Sorters)
+				S.Enabled=false;
+			foreach(IMyShipConnector Connector in Connectors)
+				Connector.ThrowOut=false;
 			break;
 		case DroneTask.Mining:
 			
@@ -1493,6 +1498,7 @@ void Docked(){
 	foreach(IMyConveyorSorter S in Sorters){
 		if(S.CustomName.Contains("Back")){
 			S.Enabled=true;
+			S.DrainAll=true;
 			S.SetFilter(MyConveyorSorterMode.Whitelist,new List<MyInventoryItemFilter>(){new MyInventoryItemFilter("MyObjectBuilder_Ore/(null)",true)});
 		}
 	}
@@ -1812,9 +1818,57 @@ void Scanning(){
 	}
 	else if(i>=Asteroid.Points.Count)
 		EndTask();
+	Runtime.UpdateFrequency=UpdateFrequency.Update1;
 }
 
-
+void Ejecting(){
+	Match_Position=false;
+	Target_Direction=Asteroid.Center-Controller.GetPosition();
+	Target_Direction.Normalize();
+	if((Controller.GetPosition()-Asteroid.Center).Length()<Asteroid.Size+150){
+		Match_Position=true;
+		Speed_Limit=20;
+		Target_Position=Controller.GetPosition()-Asteroid.Center;
+		Target_Position.Normalize();
+		Target_Position=(Asteroid.Size+200)*Target_Position+Asteroid.Center;
+	}
+	Match_Direction=Match_Position;
+	if(!Match_Position){
+		foreach(IMyConveyorSorter S in Sorters){
+			S.Enabled=false;
+			S.SetFilter(MyConveyorSorterMode.Whitelist,new List<MyInventoryItemFilter>(){new MyInventoryItemFilter("MyObjectBuilder_Ore/Stone",false)});
+			S.DrainAll=true;
+		}
+		bool has_stone=false;
+		foreach(IMyShipConnector Connector in Connectors){
+			Connector.ThrowOut=true;
+			if(!has_stone)
+				has_stone=Connector.GetInventory().GetItemAmount(new MyItemType("MyObjectBuilder_Ore","Stone")).ToIntSafe()>0;
+		}
+		if(!has_stone){
+			foreach(IMyCargoContainer C in Cargo){
+				if(C.GetInventory().GetItemAmount(new MyItemType("MyObjectBuilder_Ore","Stone")).ToIntSafe()>0){
+					has_stone=true;
+					break;
+				}
+			}
+		}
+		if(!has_stone){
+			foreach(IMyShipDrill D in Drills){
+				if(D.GetInventory().GetItemAmount(new MyItemType("MyObjectBuilder_Ore","Stone")).ToIntSafe()>0){
+					has_stone=true;
+					break;
+				}
+			}
+		}
+		if(!has_stone)
+			NextTask();
+	}
+	if(Match_Position)
+		Runtime.UpdateFrequency=UpdateFrequency.Update1;
+	else
+		Runtime.UpdateFrequency=UpdateFrequency.Update100;
+}
 
 
 
