@@ -502,13 +502,32 @@ class TerrainPoint{
 class TerrainMap{
 	public List<TerrainPoint> Points;
 	public Vector3D Center;
+	public static bool Update_Size=true;
+	private double _Size;
 	public double Size{
 		get{
-			double size=-1;
-			foreach(TerrainPoint Point in Points)
-				size=Math.Max(size,(Point.Point-Center).Length());
-			return size;
+			if(Update_Size){
+				_Size=0;
+				foreach(TerrainPoint Point in Points)
+					_Size=Math.Max(_Size,(Point.Point-Center).Length());
+				Update_Size=false;
+			}
+			return _Size;
 		}
+	}
+	
+	public Distance_From_Angle(double angle){
+		get{
+			return 2*Math.Sin(angle*Math.PI/360)*Size;
+		}
+	}
+	
+	public Distance(Vector3D v1,Vector3D v2){
+		Vector3D d1=v1-Center;
+		Vector3D d2=v2-Center;
+		d1.Normalize();
+		d2.Normalize();
+		return Distance_From_Angle(GenericMethods.GetAngle(d1,d2));
 	}
 	
 	public Vector3D Generated_Center{
@@ -608,7 +627,7 @@ class TerrainMap{
 	public List<TerrainPoint> GetNeighbors(TerrainPoint Point,double distance=7.5){
 		List<TerrainPoint> Output=new List<TerrainPoint>();
 		foreach(TerrainPoint P in Points){
-			double dif=(P.Point-Point.Point).Length();
+			double dif=Math.Min((P.Point-Point.Point).Length(),Distance(P.Point,Point.Point));
 			if(dif<=distance&&dif>0.1)
 				Output.Add(P);
 		}
@@ -618,7 +637,7 @@ class TerrainMap{
 	public int CountNeighbors(TerrainPoint Point,double distance=7.5){
 		int count=0;
 		foreach(TerrainPoint P in Points){
-			double dif=(P.Point-Point.Point).Length();
+			double dif=Math.Min((P.Point-Point.Point).Length(),Distance(P.Point,Point.Point));
 			if(dif<=distance&&dif>0.1)
 				count++;
 		}
@@ -1792,7 +1811,7 @@ void Scanning(){
 			}
 			foreach(TerrainPoint P in Neighbors){
 				for(int i=0;i<Targets.Count;i++){
-					if((P.Point-Targets[i]).Length()<=2.5)
+					if(Math.Min(P.Point-Targets[i]).Length(),Asteroid.Distance(P.Point,Targets[i].Point))<=2.5)
 						Targets.RemoveAt(i--);
 				}
 			}
@@ -1870,7 +1889,9 @@ void Ejecting(){
 		Runtime.UpdateFrequency=UpdateFrequency.Update100;
 }
 
-
+void Mining(){
+	
+}
 
 int GetUpdates(){
 	int count=0;
@@ -2190,6 +2211,7 @@ bool ArgumentError=false;
 bool Sent_Update=true;
 public void Main(string argument, UpdateType updateSource)
 {
+	TerrainMap.Update_Size=true;
 	UpdateProgramInfo();
 	try{
 		if(MyDock!=null){
