@@ -829,6 +829,7 @@ double Cycle_Time{
 }
 
 Stack<DroneTask> Tasks;
+bool AutoUndock=true;
 
 Dock MyDock;
 TerrainMap Asteroid;
@@ -845,6 +846,17 @@ List<IMyShipConnector> Connectors;
 IMyShipConnector Docking_Connector;
 List<IMyBatteryBlock> Batteries;
 List<IMyCargoContainer> Cargos;
+
+float Charge{
+	get{
+		float current=0,max=0;
+		foreach(IMyBatteryBlock B in Batteries){
+			current+=B.CurrentStoredPower;
+			max+=B.MaxStoredPower;
+		}
+		return current/max;
+	}
+}
 
 double ShipMass{
 	get{
@@ -1167,6 +1179,9 @@ public Program(){
 		else if(arg.IndexOf("LSc:")==0){
 			Int32.TryParse(arg.Substring(4),out Last_Sector);
 		}
+		else if(arg.IndexOf("Und:")==0){
+			bool.TryParse(arg.Substring(4),out AutoUndock);
+		}
 	}
 	Controller=GenericMethods<IMyRemoteControl>.GetConstruct("Drone Remote Control");
 	Gyroscope=GenericMethods<IMyGyro>.GetConstruct("Control Gyroscope");
@@ -1248,6 +1263,7 @@ public void Save(){
 		this.Storage+=MyDock.ToString();
 		Me.CustomData=(new MyWaypointInfo("Dock",MyDock.Position)).ToString()+'\n';
 	}
+	this.Storage+="•Und:"+AutoUndock.ToString();
 	if(Last_Sector!=-1)
 		this.Storage+="•LSc:"+Last_Sector.ToString();
 	foreach(Sector sector in Sectors)
@@ -1326,9 +1342,8 @@ void SendUpdate(bool UpdateSectors=true){
 
 void NextTask(){
 	DroneTask Last=DroneTask.None;
-	if(Tasks.Count>0){
+	if(Tasks.Count>0)
 		Last=Tasks.Pop();
-	}
 	if(Tasks.Count==0)
 		Tasks.Push(DroneTask.None);
 	switch(Last){
@@ -1337,7 +1352,7 @@ void NextTask(){
 				B.ChargeMode=ChargeMode.Auto;
 			foreach(IMyConveyorSorter S in Sorters){
 				S.Enabled=false;
-				S.SetFilter(MyConveyorSorterMode.Whitelist,new List<MyInventoryItemFilter>(){new MyInventoryItemFilter("Stone",false)});
+				S.SetFilter(MyConveyorSorterMode.Whitelist,new List<MyInventoryItemFilter>(){new MyInventoryItemFilter("MyObjectBuilder_Ore/Stone",false)});
 			}
 			foreach(IMyShipConnector in Connectors){
 				Connector.Disconnect();
@@ -1345,16 +1360,19 @@ void NextTask(){
 			}
 			break;
 		case DroneTask.Docking:
-			Docking();
+			Match_Position=false;
+			Match_Direction=false;
 			break;
 		case DroneTask.Charging:
-			Charging();
+			Match_Position=false;
+			Match_Direction=false;
 			break;
 		case DroneTask.Returning:
+			Match_Position=false;
+			Match_Direction=false;
 			Controller.ClearWaypoints();
 			Controller.SetAutoPilotEnabled(false);
 			
-			Returning();
 			break;
 		case DroneTask.Traveling:
 			Controller.ClearWaypoints();
@@ -1363,16 +1381,16 @@ void NextTask(){
 			Traveling();
 			break;
 		case DroneTask.Exploring:
-			Exploring();
+			
 			break;
 		case DroneTask.Scanning:
-			Scanning();
+			
 			break;
 		case DroneTask.Ejecting:
-			Ejecting();
+			
 			break;
 		case DroneTask.Mining:
-			Mining();
+			
 			break;
 	}
 	
@@ -1383,10 +1401,10 @@ void Docked(){
 	foreach(IMyConveyorSorter S in Sorters){
 		if(S.CustomName.Contains("Back")){
 			S.Enabled=true;
-			S.SetFilter(MyConveyorSorterMode.Whitelist,new List<MyInventoryItemFilter>(){new MyInventoryItemFilter("*ore*",true)});
+			S.SetFilter(MyConveyorSorterMode.Whitelist,new List<MyInventoryItemFilter>(){new MyInventoryItemFilter("MyObjectBuilder_Ore/(null)",true)});
 		}
 	}
-	bool Continue=false;
+	bool Continue=!AutoUndock;
 	foreach(IMyShipConnector in Connectors){
 		Connector.ThrowOut=false;
 		if(!Continue)
@@ -1429,6 +1447,64 @@ void Docking(){
 	Runtime.UpdateFrequency=UpdateFrequency.Update1;
 }
 
+void Charging(){
+	Match_Position=false;
+	if(Asteroid!=null){
+		if((Controller.GetPosition()-Asteroid.Center).Length()<Asteroid.Size+200){
+			Match_Position=true;
+			Speed_Limit=20;
+			Target_Position=Controller.GetPosition()-Asteroid.Center;
+			Target_Position.Normalize();
+			Target_Position=(Asteroid.Size+400)*Target_Position+Asteroid.Center;
+		}
+	}
+	if(!Match_Position){
+		Match_Direction=true;
+		Target_Direction=new Vector3D(0,1,0);
+	}
+	if(Charge>0.75f)
+		NextTask();
+	if(Match_Position)
+		Runtime.UpdateFrequency=UpdateFrequency.Update1;
+	else if(Match_Direction)
+		Runtime.UpdateFrequency=UpdateFrequency.Update10;
+	else
+		Runtime.UpdateFrequency=UpdateFrequency.Update100;
+}
+
+void Returning(){
+	Match_Position=false;
+	if(Asteroid!=null){
+		if((Controller.GetPosition()-Asteroid.Center).Length()<Asterod.Size){
+			Match_Position=true;
+			Speed_Limit=20;
+			Target_Position=Controller.GetPosition()-Asteroid.Center;
+			Target_Position.Normalize();
+			Target_Position=Target_Position*(10+Asteroid.Size)+Asteroid.Center;
+		}
+	}
+	if(!Match_Position){
+		MyWaypointInfo Destination=new MyWaypointInfo("Return to Base",MyDock.Return);
+		if(Controller.CurrentWaypoint!=Destination||!Controller.IsAutoPilotEnabled){
+			Controller.ClearWaypoints();
+			Controller.AddWaypoint(Destination);
+			Controller.SetCollisionAvoidance(true);
+			Speed_Limit=Math.Min(100,Distance_To_Base/15);
+			Controller.SpeedLimit=(float)Speed_Limit;
+			Controller.SetAutoPilotEnabled(true);
+		}
+	}
+	if((Controller.GetPosition()-MyDock.Return).Length()<2.5)
+		NextTask();
+	if(Match_Position)
+		Runtime.UpdateFrequency=UpdateFrequency.Update1;
+	else
+		Runtime.UpdateFrequency=UpdateFrequency.Update10;
+}
+
+
+
+
 int GetUpdates(){
 	int count=0;
 	List<IMyBroadcastListener> listeners=new List<IMyBroadcastListener>();
@@ -1463,6 +1539,9 @@ int GetUpdates(){
 					TerrainMap T=null;
 					if(TerrainMap.TryParse(Subdata,out T))
 						Asteroid=T;
+				}
+				else if(Command.Equals("AutoUndock")&&Listener.Tag.Equals("AutoMiner Base AI")){
+					bool.TryParse(Subdata,out AutoUndock);
 				}
 			}
 		}
@@ -1746,6 +1825,7 @@ public void Main(string argument, UpdateType updateSource)
 	UpdateProgramInfo();
 	if(MyDock!=null){
 		if(Cycle_Time+(Controller.GetPosition()-MyDock.Return).Length()/100+120>=10800){
+			AutoUndock=false;
 			if((int)Tasks.Peek()>(int)DroneTask.Returning){
 				Tasks.Push(DroneTask.Docked);
 				Tasks.Push(DroneTask.Docking);
@@ -1785,6 +1865,17 @@ public void Main(string argument, UpdateType updateSource)
 				Zones.Add(z);
 			}
 		}
+	}
+	else if((int)Tasks.Peek()>(int)DroneTask.Charging&&Charge<0.25f){
+		if(Distance_To_Base<2500){
+			if((int)Tasks.Peek()>(int)DroneTask.Returning){
+				Tasks.Push(DroneTask.Docked);
+				Tasks.Push(DroneTask.Docking);
+				Tasks.Push(DroneTask.Returning);
+			}
+		}
+		else
+			Tasks.Push(DroneTask.Charging);
 	}
 	if(Cycle%10==0)
 		GetUpdates();
