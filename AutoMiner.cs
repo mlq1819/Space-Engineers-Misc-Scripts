@@ -322,8 +322,8 @@ class Sector{
 				y=large_y;
 			Corners[i]=new Vector3D(x,y,z);
 		}
-		subsections=new bool[25];
-		for(int i=0;i<25;i++)
+		subsections=new bool[625];
+		for(int i=0;i<625;i++)
 			subsections[i]=false;
 	}
 	
@@ -331,14 +331,14 @@ class Sector{
 		;
 	}
 	
-	public Sector(int x,int y,int z,bool[25] subs):this(x,y,z){
+	public Sector(int x,int y,int z,bool[625] subs):this(x,y,z){
 		for(int i=0;i<subs.Length;i++)
 			subsections[i]=subs[i];
 	}
 	
 	public override string ToString(){
 		string output="("+X.ToString()+","+Y.ToString()+","+Z.ToString()+")";
-		for(int i=0;i<25;i++){
+		for(int i=0;i<625;i++){
 			if(i>0)
 				output+=',';
 			output+=subsections[i].ToString();
@@ -369,7 +369,7 @@ class Sector{
 	}
 	
 	public void Update(Sector O){
-		for(int i=0;i<25;i++)
+		for(int i=0;i<625;i++)
 			subsections[i]=subsections[i]||O.subsections[i];
 	}
 	
@@ -388,10 +388,10 @@ class Sector{
 			if(!Int32.TryParse(coords[2],out Z))
 				return false;
 			string[] bools=parts[1].Split(',');
-			if(bools.Length!=25)
+			if(bools.Length!=625)
 				return false;
-			bool[] subsections=new bool[25];
-			for(int i=0;i<25;i++){
+			bool[] subsections=new bool[625];
+			for(int i=0;i<625;i++){
 				if(!bool.TryParse(str,out subsections[i]))
 					return false;
 			}
@@ -994,22 +994,22 @@ float Right_Thrust{
 }
 
 bool Match_Direction=false;
-Vector3D Target_Direction;
+Vector3D Target_Direction=new Vector3D(0,1,0);
 bool Match_Position=false;
-Vector3D Pseudo_Target;
+Vector3D Pseudo_Target=new Vector3D(0,0,0)
 Vector3D Relative_Pseudo_Target{
 	get{
 		return GlobalToLocalPosition(Pseudo_Target,Controller);
 	}
 }
-Vector3D Target_Position;
+Vector3D Target_Position=new Vector3D(0,0,0);
 double Target_Distance{
 	get{
 		return (Target_Position-Controller.GetPosition()).Length();
 	}
 }
 
-Vector3D RestingVelocity;
+Vector3D RestingVelocity=new Vector3D(0,0,0);
 Vector3D Relative_RestingVelocity{
 	get{
 		return GlobalToLocal(RestingVelocity,Controller);
@@ -1244,6 +1244,7 @@ public Program(){
 	for(int i=0;i<All_Cameras.Length;i++){
 		if(All_Cameras[i]==null)
 			return;
+		All_Cameras[i].EnableRaycast=true;
 	}
 	
 	IGC.RegisterBroadcastListener("AutoMiner");
@@ -1452,6 +1453,9 @@ void NextTask(){
 			Controller.SetAutoPilotEnabled(false);
 			break;
 		case DroneTask.Exploring:
+			Match_Position=false;
+			Match_Direction=false;
+			RestingVelocity=new Vector3D(0,0,0);
 			
 			break;
 		case DroneTask.Scanning:
@@ -1616,8 +1620,103 @@ void Traveling(){
 	Runtime.UpdateFrequency=UpdateFrequency.Update10;
 }
 
+bool RaycastCheck(MyDetectedEntityInfo e){
+	return e.Type==MyDetectedEntityType.Asteroid;
+}
 void Exploring(){
+	Sector S=NextSector();
+	if(S==null){
+		NextTask();
+		return;
+	}
 	
+	bool incomplete=false;
+	Vector3D Start_Position=new Vector3D(0,0,0);
+	Vector3D End_Position=new Vector3D(0,0,0);
+	for(int i=0;i<S.subsections.Length;i++){
+		if(!S.subsections[i]){
+			incomplete=true;
+			int x=i%25;
+			int z=i/25;
+			Start_Position=S.Corners[0]+new Vector3D(x*200,0,z*200);
+			End_Position=S.Corners[0]+new Vector3D(4800,0,z*200);
+			double start_distance=(Start_Position-Controller.GetPosition()).Length();
+			double end_distance=(End_Position-Controller.GetPosition()).Length();
+			if(end_distance<start_distance){
+				Vector3D temp=Start_Position;
+				Start_Position=End_Position;
+				End_Position=temp;
+			}
+		}
+	}
+	RestingVelocity=new Vector3D(0,0,0);
+	Match_Position=false;
+	if(incomplete&&Asteroid==null){
+		Match_Direction=true;
+		Target_Direction=new Vector3D(0,1,0);
+		Vector3D d1,d2;
+		d1=Controller.GetPosition()-Start_Position;
+		d1.Normalize();
+		d2=End_Position-Start_Position;
+		d2.Normalize();
+		if(GetAngle(d1,d2)>1||GetAngle(Forward_Vector,Target_Direction)>1){
+			Match_Position=true;
+			Target_Position=Start_Position;
+		}
+		else {
+			Resting_Velocity=d2*30;
+		}
+		if(GetAngle(Forward_Vector,Target_Direction)<1){
+			MyDetectedEntityInfo A=new MyDetectedEntityInfo(-1,MyDetectedEntityType.None,null,new MatrixD(0,0,0,0,0,0,0,0,0),new Vector3D(0,0,0),MyRelationsBetweenPlayerAndBlock.NoOwnership,new BoundingBoxD(new Vector3D(0,0,0),new Vector3D(0,0,0)),0);
+			for(int i=0;i<S.subsections.Length;i++){
+				if(!S.subsections[i]){
+					int x=i%25;
+					int z=i/25;
+					Vector3D Coordinates=S.Corners[0]+(new Vector3D(x*200,0,z*200));
+					if((Controller.GetPosition()-Coordinates).Length()<5){
+						MyDetectedEntityInfo O;
+						Vector3D Target=Coordinates+(new Vector3D(0,5000,0));
+						O=Forward_Camera.Raycast(Target);
+						if(RaycastCheck(O))
+							A=O;
+						O=Top_Camera.Raycast(Target+(new Vector3D(0,0,200)));
+						if(RaycastCheck(O))
+							A=O;
+						O=Bottom_Camera.Raycast(Target+(new Vector3D(0,0,-200)));
+						if(RaycastCheck(O))
+							A=O;
+						O=Left_Camera.Raycast(Target+(new Vector3D(-200,0,0)));
+						if(RaycastCheck(O))
+							A=O;
+						O=Right_Camera.Raycast(Target+(new Vector3D(200,0,0)));
+						if(RaycastCheck(O))
+							A=O;
+					}
+					if(RaycastCheck(A))
+						break;
+				}
+			}
+			if(RaycastCheck(A)){
+				bool valid=true;
+				foreach(Zone z in Zones){
+					if((A.Position-z.Center).Length()<z.Radius+400){
+						valid=false;
+						break;
+					}
+				}
+				if(valid){
+					Asteroid=new TerrainMap(A.Position);
+					if(A.HitPosition!=null)
+						Asteroid.Add((Vector3D)A.HitPosition);
+				}
+				for(int i=0;i<S.subsections.Length;i++)
+					S.subsections[i]=true;
+			}
+		}
+	}
+	if(Asteroid!=null)
+		NextTask();
+	Runtime.UpdateFrequency=UpdateFrequency.Update1;
 }
 
 
