@@ -1304,14 +1304,11 @@ public Program(){
 	Up=Controller.Orientation.Up;
 	Left=Controller.Orientation.Left;
 	List<IMyThrust> MyThrusters=GenericMethods<IMyThrust>.GetAllConstruct("");
+	for(int i=0;i<6;i++)
+		All_Thrusters[i]=new List<IMyThrust>();
 	for(int i=0;i<2;i++){
 		bool retry=!Me.CubeGrid.IsStatic;
 		foreach(IMyThrust Thruster in MyThrusters){
-			if(HasBlockData(Thruster,"Owner")){
-				long ID=0;
-				if(i==0&&!Int64.TryParse(GetBlockData(Thruster,"Owner"),out ID)||(ID!=0&&ID!=Me.CubeGrid.EntityId))
-					continue;
-			}
 			if(Thruster.CubeGrid!=Controller.CubeGrid)
 				continue;
 			retry=false;
