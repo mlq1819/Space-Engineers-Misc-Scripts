@@ -1375,7 +1375,7 @@ void Docked(){
 	foreach(IMyConveyorSorter S in Sorters){
 		if(S.CustomName.Contains("Back")){
 			S.Enabled=true;
-			S.SetFilter(MyConveyorSorterMode.Whitelist,new List<MyInventoryItemFilter>(){new MyInventoryItemFilter("Stone",false)});
+			S.SetFilter(MyConveyorSorterMode.Whitelist,new List<MyInventoryItemFilter>(){new MyInventoryItemFilter("*ore*",true)});
 		}
 	}
 	bool Continue=false;
@@ -1389,6 +1389,11 @@ void Docked(){
 		B.ChargeMode=ChargeMode.Recharge;
 		if(!Continue)
 			Continue=B.CurrentStoredPower<B.MaxStoredPower;
+	}
+	if(!Continue){
+		foreach(IMyCargoContainer C in Cargo){
+			if(C.)
+		}
 	}
 }
 
