@@ -981,12 +981,13 @@ bool MyAutoPilot=false;
 bool Match_Direction=false;
 Vector3D Target_Direction;
 bool Match_Position=false;
-Vector3D Target_Position;
-Vector3D Relative_Target_Position{
+Vector3D Pseudo_Target;
+Vector3D Relative_Pseudo_Target{
 	get{
-		return GlobalToLocalPosition(Target_Position,Controller);
+		return GlobalToLocalPosition(Pseudo_Target,Controller);
 	}
 }
+Vector3D Target_Position;
 double Target_Distance{
 	get{
 		return (Target_Position-Controller.GetPosition()).Length();
@@ -1286,9 +1287,9 @@ bool IntersectsGravityZone(int count,Vector3D A,Vector3D B,out Zone GZ){
 bool IntersectsGravityZone(out Zone GZ){
 	if(InGravityZone(Controller.GetPosition(),out GZ))
 		return true;
-	if(InGravityZone(Target_Position,out GZ))
+	if(InGravityZone(Pseudo_Target,out GZ))
 		return true;
-	return IntersectsGravityZone(3,Controller.GetPosition(),Target_Position,out GZ);
+	return IntersectsGravityZone(3,Controller.GetPosition(),Pseudo_Target,out GZ);
 }
 
 void UpdateSectors(Sector S){
@@ -1424,7 +1425,7 @@ void SetThrusters(){
 	if(Match_Position){
 		double Relative_Speed=Relative_LinearVelocity.X;
 		double Relative_Target_Speed=RestingVelocity.X;
-		double Relative_Distance=Relative_Target_Position.X;
+		double Relative_Distance=Relative_Pseudo_Target.X;
 		double deacceleration=0;
 		if(Relative_Speed>0)
 			deacceleration=Math.Abs(Relative_Speed)/Left_Thrust;
@@ -1453,7 +1454,7 @@ void SetThrusters(){
 	if(Match_Position){
 		double Relative_Speed=Relative_LinearVelocity.Y;
 		double Relative_Target_Speed=RestingVelocity.Y;
-		double Relative_Distance=Relative_Target_Position.Y;
+		double Relative_Distance=Relative_Pseudo_Target.Y;
 		double deacceleration=0;
 		if(Relative_Speed>0)
 			deacceleration=Math.Abs(Relative_Speed)/Down_Thrust;
@@ -1482,7 +1483,7 @@ void SetThrusters(){
 	if(Match_Position){
 		double Relative_Speed=Relative_LinearVelocity.Z;
 		double Relative_Target_Speed=RestingVelocity.Z;
-		double Relative_Distance=Relative_Target_Position.Z;
+		double Relative_Distance=Relative_Pseudo_Target.Z;
 		double deacceleration=0;
 		if(Relative_Speed>0)
 			deacceleration=Math.Abs(Relative_Speed)/Backward_Thrust;
@@ -1572,6 +1573,21 @@ void UpdateSystemInfo(){
 		Asteroid.UpdateAges(seconds_since_last_update);
 	LinearVelocity=Controller.GetShipVelocities().LinearVelocity;
 	AngularVelocity=Controller.GetShipVelocities().AngularVelocity;
+	if(Match_Position){
+		Zone GZ;
+		if(IntersectsGravityZone(out GZ)){
+			Vector3D Direction=(Target_Position-Controller.GetPosition());
+			Direction.Normalize();
+			Pseudo_Target=Controller.GetPosition()+Direction*5000;
+			if(InGravityZone(Pseudo_Target,out GZ){
+				Direction=Pseudo_Target-GZ.Center;
+				Direction.Normalize();
+				Psuedo_Target=GZ.Center+Direction*GZ.Radius;
+			}
+		}
+		else
+			Pseudo_Target=Target_Position;
+	}
 }
 
 bool ProcessArgument(string argument){
@@ -1615,6 +1631,8 @@ public void Main(string argument, UpdateType updateSource)
 	if(MyDock!=null){
 		if(Cycle_Time+(Controller.GetPosition()-MyDock.Return).Length()/100+120>=10800){
 			//Return to base
+			
+			
 		}
 		if(Distance_To_Base.Length()<5000)
 			Antenna.Radius=Distance_To_Base+500;
@@ -1631,11 +1649,30 @@ public void Main(string argument, UpdateType updateSource)
 		else
 			Antenna.Radius=7500;
 	}
-	
+	if(Controller.GetNaturalGravity().Length()>0){
+		Vector3D Center;
+		if(Controller.TryGetPlanetPosition(out Center)){
+			double Radius=Controller.GetPosition()-Center+1000;
+			bool has=false;
+			for(int i=0;i<Zones.Count;i++){
+				if(Zones[i].Gravity&&(Zones[i].Center-Center).Length()<1){
+					has=true;
+					Zones[i].Radius=Math.Max(Zones[i].Radius,Radius);
+					break;
+				}
+			}
+			if(!has){
+				Zone z=new Zone(Center,Radius);
+				z.Gravity=true;
+				Zones.Add(z);
+			}
+		}
+	}
+	//Gravity Check
 	
 	
 	//Update AutoPilot
-	//Gravity Check
+	
 	
 	if(argument.Length>0)
 		ArgumentError=ProcessArgument(argument);
