@@ -2336,6 +2336,8 @@ public void Main(string argument, UpdateType updateSource)
 			else
 				Antenna.Radius=7500;
 		}
+		else
+			Write("No Dock on Record");
 		if(Controller.GetNaturalGravity().Length()>0){
 			Vector3D Center;
 			if(Controller.TryGetPlanetPosition(out Center)){
