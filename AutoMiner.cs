@@ -842,6 +842,7 @@ IMyRadioAntenna Antenna;
 List<IMyShipDrill> Drills;
 List<IMyConveyorSorter> Sorters;
 List<IMyShipConnector> Connectors;
+IMyShipConnector Docking_Connector;
 List<IMyBatteryBlock> Batteries;
 List<IMyCargoContainer> Cargos;
 
@@ -980,7 +981,6 @@ float Right_Thrust{
 	}
 }
 
-bool MyAutoPilot=false;
 bool Match_Direction=false;
 Vector3D Target_Direction;
 bool Match_Position=false;
@@ -1213,6 +1213,9 @@ public Program(){
 	Drills=GenericMethods<IMyShipDrill>.GetAllConstruct("");
 	Sorters=GenericMethods<IMyConveyorSorter>.GetAllConstruct("");
 	Connectors=GenericMethods<IMyShipConnector>.GetAllConstruct("Drone Connector");
+	Docking_Connector=GenericMethods<IMyShipConnector>.GetConstruct("Drone Connector (Back)");
+	if(Docking_Connector==null)
+		return;
 	Batteries=GenericMethods<IMyBatteryBlock>.GetAllConstruct("Drone");
 	Cargos=GenericMethods<IMyCargoContainer>.GetAllConstruct("Drone Cargo Container");
 	if(Drills.Count==0||Sorters.Count==0||Connectors.Count==0||Batteries.Count==0||Cargos.Count==0)
@@ -1330,9 +1333,8 @@ void NextTask(){
 		Tasks.Push(DroneTask.None);
 	switch(Last){
 		case DroneTask.Docked:
-			foreach(IMyBatteryBlock B in Batteries){
+			foreach(IMyBatteryBlock B in Batteries)
 				B.ChargeMode=ChargeMode.Auto;
-			}
 			foreach(IMyConveyorSorter S in Sorters){
 				S.Enabled=false;
 				S.SetFilter(MyConveyorSorterMode.Whitelist,new List<MyInventoryItemFilter>(){new MyInventoryItemFilter("Stone",false)});
@@ -1349,9 +1351,15 @@ void NextTask(){
 			Charging();
 			break;
 		case DroneTask.Returning:
+			Controller.ClearWaypoints();
+			Controller.SetAutoPilotEnabled(false);
+			
 			Returning();
 			break;
 		case DroneTask.Traveling:
+			Controller.ClearWaypoints();
+			Controller.SetAutoPilotEnabled(false);
+			
 			Traveling();
 			break;
 		case DroneTask.Exploring:
@@ -1380,8 +1388,7 @@ void Docked(){
 	}
 	bool Continue=false;
 	foreach(IMyShipConnector in Connectors){
-		Connector.Disconnect();
-		Connector.ThrowOut=true;
+		Connector.ThrowOut=false;
 		if(!Continue)
 			Continue=Connector.GetInventory().CurrentVolume>0;
 	}
@@ -1392,9 +1399,34 @@ void Docked(){
 	}
 	if(!Continue){
 		foreach(IMyCargoContainer C in Cargo){
-			if(C.)
+			if(C.GetInventory().CurrentVolume>0){
+				Continue=true;
+				break;
+			}
 		}
 	}
+	if(!Continue)
+		NextTask();
+	Runtime.UpdateFrequency=UpdateFrequency.Update100;
+}
+
+void Docking(){
+	Target_Direction=MyDock.Orientation;
+	Match_Direction=true;
+	Target_Position=MyDock.Position+10*MyDock.Orientation;
+	Match_Position=true;
+	Speed_Limit=5;
+	Vector3D angle=Controller.GetPosition()-MyDock.Position;
+	angle.Normalize();
+	if((Controller.GetPosition()-MyDock.Position).Length()<12&&GetAngle(MyDock.Orientation,angle)<5){
+		Target_Position=MyDock.Position+((Controller.GetPosition()-Docking_Connector.GetPosition())+1.5)*MyDock.Orientation;
+		Speed_Limit=2.5;
+	}
+	if(Docking_Connector.Status!=MyShipConnectorStatus.Unconnected)
+		Docking_Connector.Connect();
+	if(Docking_Connector.Status==MyShipConnectorStatus.Connected)
+		NextTask();
+	Runtime.UpdateFrequency=UpdateFrequency.Update1;
 }
 
 int GetUpdates(){
@@ -1439,7 +1471,7 @@ int GetUpdates(){
 }
 
 void SetGyroscopes(){
-	if((!Match_Direction)||Controller.IsUnderControl||((!MyAutoPilot)&&!Controller.IsAutoPilotEnabled)){
+	if((!Match_Direction)||Controller.IsUnderControl||!Controller.IsAutoPilotEnabled){
 		Gyroscope.GyroOverride=false;
 		return;
 	}
@@ -1482,7 +1514,7 @@ void SetGyroscopes(){
 }
 
 void SetThrusters(){
-	if((Resting_Velocity.Length()==0&&!Match_Position)||Controller.IsUnderControl||((!MyAutoPilot)&&!Controller.IsAutoPilotEnabled)){
+	if((Resting_Velocity.Length()==0&&!Match_Position)||Controller.IsUnderControl||!Controller.IsAutoPilotEnabled){
 		for(int i=0;i<6;i++){
 			foreach(IMyThrust T in All_Thrusters[i])
 				T.ThrustOverridePercentage=0;
@@ -1493,7 +1525,10 @@ void SetThrusters(){
 	float damp_multx=0.99f;
 	double ESL=Speed_Limit;
 		ESL=Math.Min(ESL,Speed_Limit*(Target_Distance-Distance_To_Resting*1.2))
-	ESL=Math.Max(ESL,5);
+	if(Speed_Limit<5)
+		ESL=Math.Max(ESL,2.5);
+	else
+		ESL=Math.Max(ESL,5);
 	
 	float input_right-=(float)((Relative_LinearVelocity.X-Relative_RestingVelocity.X)*ShipMass*damp_multx);
 	float input_up-=(float)((Relative_LinearVelocity.Y-Relative_RestingVelocity.Y)*ShipMass*damp_multx);
