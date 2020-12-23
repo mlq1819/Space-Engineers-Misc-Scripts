@@ -1367,7 +1367,10 @@ public Program(){
 	Runtime.UpdateFrequency=UpdateFrequency.Update1;
 }
 
+bool Factory_Reset=false;
 public void Save(){
+	if(Factory_Reset)
+		return;
 	if(Asteroid==null)
 		this.Storage="Ast:null";
 	else
@@ -1641,6 +1644,10 @@ void EndTask(bool do_pop=true){
 }
 
 void Docked(){
+	if(MyDock==null){
+		EndTask();
+		return;
+	}
 	foreach(IMyConveyorSorter S in Sorters){
 		if(S.CustomName.Contains("Back")){
 			S.Enabled=true;
@@ -1673,6 +1680,10 @@ void Docked(){
 }
 
 void Docking(){
+	if(MyDock==null){
+		EndTask();
+		return;
+	}
 	Target_Direction=MyDock.Orientation;
 	Match_Direction=true;
 	Target_Position=MyDock.Position+10*MyDock.Orientation;
@@ -1720,6 +1731,10 @@ void Charging(){
 
 void Returning(){
 	Match_Position=false;
+	if(MyDock==null){
+		EndTask();
+		return;
+	}
 	if(Asteroid!=null){
 		if((Controller.GetPosition()-Asteroid.Center).Length()<Asteroid.Size){
 			Match_Position=true;
@@ -1980,14 +1995,16 @@ void Scanning(){
 
 void Ejecting(){
 	Match_Position=false;
-	Target_Direction=Asteroid.Center-Controller.GetPosition();
-	Target_Direction.Normalize();
-	if((Controller.GetPosition()-Asteroid.Center).Length()<Asteroid.Size+150){
-		Match_Position=true;
-		Speed_Limit=20;
-		Target_Position=Controller.GetPosition()-Asteroid.Center;
-		Target_Position.Normalize();
-		Target_Position=(Asteroid.Size+200)*Target_Position+Asteroid.Center;
+	if(Asteroid!=null){
+		Target_Direction=Asteroid.Center-Controller.GetPosition();
+		Target_Direction.Normalize();
+		if((Controller.GetPosition()-Asteroid.Center).Length()<Asteroid.Size+150){
+			Match_Position=true;
+			Speed_Limit=20;
+			Target_Position=Controller.GetPosition()-Asteroid.Center;
+			Target_Position.Normalize();
+			Target_Position=(Asteroid.Size+200)*Target_Position+Asteroid.Center;
+		}
 	}
 	Match_Direction=Match_Position;
 	if(!Match_Position){
@@ -2028,6 +2045,10 @@ void Ejecting(){
 }
 
 void Mining(){
+	if(Asteroid==null){
+		EndTask();
+		return;
+	}
 	if(Sensor.DetectAsteroids&&!Sensor.IsActive){
 		if(Asteroid.RemoveAllInArea(Sensor.GetPosition(),50)>5){
 			EndTask();
@@ -2371,6 +2392,14 @@ bool ProcessArgument(string argument){
 		Zones.Add(output);
 		return true;
 	}
+	else if(argument.ToLower().Equals("factory reset")){
+		this.Storage="";
+		Me.CustomData="";
+		Runtime.UpdateFrequency=UpdateFrequency.None;
+		Me.Enabled=false;
+		Factory_Reset=true;
+		return true;
+	}
 	return false;
 }
 
@@ -2496,5 +2525,6 @@ public void Main(string argument, UpdateType updateSource)
 		AutoUndock=false;
 		Tasks.Push(DroneTask.Returning);
 		Me.CustomData+="\nFatal Error Occurred:\n"+e.Message;
+		throw e;
 	}
 }
