@@ -1340,6 +1340,11 @@ void SendUpdate(bool UpdateSectors=true){
 		Broadcast("Asteroid",Asteroid.ToString());
 }
 
+Sector NextSector(){
+	
+	
+}
+
 void NextTask(){
 	DroneTask Last=DroneTask.None;
 	if(Tasks.Count>0)
@@ -1377,8 +1382,6 @@ void NextTask(){
 		case DroneTask.Traveling:
 			Controller.ClearWaypoints();
 			Controller.SetAutoPilotEnabled(false);
-			
-			Traveling();
 			break;
 		case DroneTask.Exploring:
 			
@@ -1502,6 +1505,52 @@ void Returning(){
 		Runtime.UpdateFrequency=UpdateFrequency.Update10;
 }
 
+void Traveling(){
+	MyWaypointInfo Destination=new MyWaypointInfo("Base",MyDock.Return);
+	if(Asteroid!=null){
+		Target_Position=Controller.GetPosition()-Asteroid.Center;
+		Target_Position.Normalize();
+		Target_Position=(200+Asteroid.Size)*Target_Position+Asteroid.Center;
+		Destination=new MyWaypointInfo("Traveling to Asteroid",Target_Position);
+	}
+	else{
+		Sector S=NextSector();
+		if(S!=null){
+			double distance=double.MaxValue;
+			for(int i=0;i<4;i++)
+				distance=Math.Min(distance,(Controller.GetPosition()-S.Corners[i]).Length());
+			for(int i=0;i<4;i++){
+				if(distance>(Controller.GetPosition()-S.Corners[i]).Length()-.1){
+					Destination=new MyWaypointInfo("Traveling to Sector",S.Corners[i]);
+					break;
+				}
+			}
+		}
+	}
+	if(Destination.Name.Equals("Base")){
+		AutoUndock=false;
+		Tasks.Push(DroneTask.Docking);
+		Tasks.Push(DroneTask.Docked);
+		NextTask();
+		Runtime.UpdateFrequency=UpdateFrequency.Update1;
+		return;
+	}
+	if(Controller.CurrentWaypoint!=Destination||!Controller.IsAutoPilotEnabled){
+		Controller.ClearWaypoints();
+		Controller.AddWaypoint(Destination);
+		Controller.SetCollisionAvoidance(true);
+		Speed_Limit=Math.Min(100,(Controller.GetPosition()-Destination.Coords).Length()/15);
+		Controller.SpeedLimit=(float)Speed_Limit;
+		Controller.SetAutoPilotEnabled(true);
+	}
+	if((Controller.GetPosition()-Destination.Coords).Length()<2.5)
+		NextTask();
+	Runtime.UpdateFrequency=UpdateFrequency.Update10;
+}
+
+void Exploring(){
+	
+}
 
 
 
