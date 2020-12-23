@@ -1,4 +1,4 @@
-const string Program_Name = "AutoMiner AI"; //Name me!
+const string Program_Name = "AutoMiner Drone AI"; //Name me!
 Color DEFAULT_TEXT_COLOR=new Color(197,137,255,255);
 Color DEFAULT_BACKGROUND_COLOR=new Color(44,0,88,255);
 
@@ -331,7 +331,7 @@ class Sector{
 		;
 	}
 	
-	public Sector(int x,int y,int z,bool[625] subs):this(x,y,z){
+	public Sector(int x,int y,int z,bool[] subs):this(x,y,z){
 		for(int i=0;i<subs.Length;i++)
 			subsections[i]=subs[i];
 	}
@@ -343,6 +343,7 @@ class Sector{
 				output+=',';
 			output+=subsections[i].ToString();
 		}
+		return output;
 	}
 	
 	public int GetSubInt(Vector3D Coords){
@@ -373,7 +374,7 @@ class Sector{
 			subsections[i]=subsections[i]||O.subsections[i];
 	}
 	
-	public bool TryParse(string Parse,out Sector output){
+	public static bool TryParse(string Parse,out Sector output){
 		output=null;
 		try{
 			string[] parts=Parse.Split(')');
@@ -392,7 +393,7 @@ class Sector{
 				return false;
 			bool[] subsections=new bool[625];
 			for(int i=0;i<625;i++){
-				if(!bool.TryParse(str,out subsections[i]))
+				if(!bool.TryParse(bools[i],out subsections[i]))
 					return false;
 			}
 			output=new Sector(X,Y,Z,subsections);
@@ -516,21 +517,19 @@ class TerrainMap{
 		}
 	}
 	
-	public static Func<string,string,void> Broadcast;
+	public static Func<string,string,bool> Broadcast;
 	public static bool DoBroadcast=false;
 	
-	public Distance_From_Angle(double angle){
-		get{
-			return 2*Math.Sin(angle*Math.PI/360)*Size;
-		}
+	public double Distance_From_Angle(double angle){
+		return 2*Math.Sin(angle*Math.PI/360)*Size;
 	}
 	
-	public Distance(Vector3D v1,Vector3D v2){
+	public double Distance(Vector3D v1,Vector3D v2){
 		Vector3D d1=v1-Center;
 		Vector3D d2=v2-Center;
 		d1.Normalize();
 		d2.Normalize();
-		return Distance_From_Angle(GenericMethods.GetAngle(d1,d2));
+		return Distance_From_Angle(GenericMethods<IMyTerminalBlock>.GetAngle(d1,d2));
 	}
 	
 	public Vector3D Generated_Center{
@@ -650,7 +649,17 @@ class TerrainMap{
 	
 	public void UpdateAges(double seconds){
 		for(int i=0;i<Points.Count;i++)
-			Points.Age=Prog.UpdateTimeSpan(Points.Age,seconds);
+			Points[i].Age=Prog.UpdateTimeSpan(Points[i].Age,seconds);
+	}
+	
+	public void Add(TerrainPoint P){
+		for(int i=0;i<Points.Count;i++){
+			if((Points[i].Point-P.Point).Length()<0.1){
+				Points[i]=P;
+				return;
+			}
+		}
+		Points.Add(P);
 	}
 	
 	public void Add(Vector3D V){
@@ -668,7 +677,7 @@ class TerrainMap{
 	public bool Remove(TerrainPoint P){
 		if(DoBroadcast)
 			Broadcast("Ast-Rem",P.ToString());
-		foreach(IMyTerrainPoint P2 in Points){
+		foreach(TerrainPoint P2 in Points){
 			if(P2.Point==P.Point)
 				return Points.Remove(P2);
 		}
@@ -692,7 +701,7 @@ class TerrainMap{
 		string output=Center.ToString()+";(";
 		foreach(TerrainPoint P in Points)
 			output+=P.ToString()+',';
-		if(P.Count>0)
+		if(Points.Count>0)
 			output=output.Substring(0,output.Length-1);
 		return output+")";
 	}
@@ -715,7 +724,7 @@ class TerrainMap{
 				if(TerrainPoint.TryParse(arg,out P))
 					output.Add(P);
 			}
-			return output;
+			return true;
 		}catch(Exception){
 			return false;
 		}
@@ -738,7 +747,7 @@ class Dock{
 		return '('+Position.ToString()+';'+Orientation.ToString()+';'+Return.ToString()+')';
 	}
 	
-	public static bool TryParse(string Parse,Dock output){
+	public static bool TryParse(string Parse,out Dock output){
 		output=null;
 		if(Parse[0]!='('||Parse[Parse.Length-1]!=')')
 			return false;
@@ -871,6 +880,14 @@ void Write(string text,bool new_line=true,bool append=true){
 		Me.GetSurface(0).WriteText(text, append);
 }
 
+string GetRemovedString(string big_string, string small_string){
+	string output=big_string;
+	if(big_string.Contains(small_string)){
+		output=big_string.Substring(0, big_string.IndexOf(small_string))+big_string.Substring(big_string.IndexOf(small_string)+small_string.Length);
+	}
+	return output;
+}
+
 TimeSpan Time_Since_Start=new TimeSpan(0);
 long cycle=0;
 char loading_char='|';
@@ -900,7 +917,7 @@ List<IMyConveyorSorter> Sorters;
 List<IMyShipConnector> Connectors;
 IMyShipConnector Docking_Connector;
 List<IMyBatteryBlock> Batteries;
-List<IMyCargoContainer> Cargos;
+List<IMyCargoContainer> Cargo;
 IMySensorBlock Sensor;
 
 float Charge{
@@ -1012,6 +1029,25 @@ List<IMyThrust> Right_Thrusters{
 	}
 }
 
+Base6Directions.Direction Forward;
+Base6Directions.Direction Backward{
+	get{
+		return Base6Directions.GetOppositeDirection(Forward);
+	}
+}
+Base6Directions.Direction Up;
+Base6Directions.Direction Down{
+	get{
+		return Base6Directions.GetOppositeDirection(Up);
+	}
+}
+Base6Directions.Direction Left;
+Base6Directions.Direction Right{
+	get{
+		return Base6Directions.GetOppositeDirection(Left);
+	}
+}
+
 float GetThrust(int i){
 	float total=0;
 	foreach(IMyThrust T in All_Thrusters[i])
@@ -1052,7 +1088,7 @@ float Right_Thrust{
 bool Match_Direction=false;
 Vector3D Target_Direction=new Vector3D(0,1,0);
 bool Match_Position=false;
-Vector3D Pseudo_Target=new Vector3D(0,0,0)
+Vector3D Pseudo_Target=new Vector3D(0,0,0);
 Vector3D Relative_Pseudo_Target{
 	get{
 		return GlobalToLocalPosition(Pseudo_Target,Controller);
@@ -1113,6 +1149,25 @@ Vector3D AngularVelocity;
 Vector3D Relative_AngularVelocity{
 	get{
 		return GlobalToLocal(AngularVelocity,Controller);
+	}
+}
+
+Vector3D Forward_Vector;
+Vector3D Backward_Vector{
+	get{
+		return -1*Forward_Vector;
+	}
+}
+Vector3D Up_Vector;
+Vector3D Down_Vector{
+	get{
+		return -1*Up_Vector;
+	}
+}
+Vector3D Left_Vector;
+Vector3D Right_Vector{
+	get{
+		return -1*Left_Vector;
 	}
 }
 
@@ -1245,6 +1300,9 @@ public Program(){
 	Gyroscope=GenericMethods<IMyGyro>.GetConstruct("Control Gyroscope");
 	if(Controller==null||Gyroscope==null)
 		return;
+	Forward=Controller.Orientation.Forward;
+	Up=Controller.Orientation.Up;
+	Left=Controller.Orientation.Left;
 	List<IMyThrust> MyThrusters=GenericMethods<IMyThrust>.GetAllConstruct("");
 	for(int i=0;i<2;i++){
 		bool retry=!Me.CubeGrid.IsStatic;
@@ -1290,8 +1348,8 @@ public Program(){
 	if(Docking_Connector==null)
 		return;
 	Batteries=GenericMethods<IMyBatteryBlock>.GetAllConstruct("Drone");
-	Cargos=GenericMethods<IMyCargoContainer>.GetAllConstruct("Drone Cargo Container");
-	if(Drills.Count==0||Sorters.Count==0||Connectors.Count==0||Batteries.Count==0||Cargos.Count==0)
+	Cargo=GenericMethods<IMyCargoContainer>.GetAllConstruct("Drone Cargo Container");
+	if(Drills.Count==0||Sorters.Count==0||Connectors.Count==0||Batteries.Count==0||Cargo.Count==0)
 		return;
 	Sensor=GenericMethods<IMySensorBlock>.GetConstruct("Drone Sensor");
 	if(Sensor==null)
@@ -1350,6 +1408,7 @@ bool InGravityZone(Vector3D pos,out Zone GZ){
 bool IntersectsGravityZone(int count,Vector3D A,Vector3D B,out Zone GZ){
 	Vector3D middle=(A+B)/2;
 	Zone z;
+	GZ=null;
 	if(InGravityZone(middle,out z)){
 		GZ=z;
 		return true;
@@ -1385,12 +1444,12 @@ void UpdateSectors(Sector S){
 	Sectors.Add(S);
 }
 
-void Broadcast(string Command,string Subdata){
+bool Broadcast(string Command,string Subdata){
 	IGC.SendBroadcastMessage("AutoMiner",Command+":"+Subdata,TransmissionDistance.TransmissionDistanceMax);
+	return true;
 }
 
 void SendUpdate(bool UpdateSectors=true){
-	string Tag="AutoMiner";
 	if(UpdateSectors){
 		foreach(Sector S in Sectors)
 			Broadcast("Sector",S.ToString());
@@ -1420,7 +1479,7 @@ int GetUpdates(){
 				else if(Command.Contains("Ast-")&&Asteroid!=null){
 					TerrainPoint P=null;
 					if(TerrainPoint.TryParse(Subdata,out P)){
-						if((TerrainPoint.Point-Asteroid.Center).Length()<2500){
+						if((P.Point-Asteroid.Center).Length()<2500){
 							if(Command.Equals("Ast-Add"))
 								Asteroid.Add(P);
 							else if(Command.Equals("Ast-Rem"))
@@ -1454,7 +1513,7 @@ Sector FindSector(int distance_goal,Vector3D starting_point,Vector3D current_poi
 				return null;
 		}
 		foreach(Sector S in Sectors){
-			if(S.Same(Attempt)){
+			if(S.Same(attempt)){
 				found=true;
 				break;
 			}
@@ -1500,12 +1559,12 @@ Sector FindSector(int distance_goal,Vector3D starting_point,Vector3D current_poi
 
 Sector NextSector(){
 	Vector3D Coords_Start=MyDock.Return;
-	if(LastSector!=-1){
-		foreach(bool b in Sectors[LastSector].subsections){
+	if(Last_Sector!=-1){
+		foreach(bool b in Sectors[Last_Sector].subsections){
 			if(!b)
-				return Sectors[LastSector];
+				return Sectors[Last_Sector];
 		}
-		Coords_Start=Sectors[LastSector].Center;
+		Coords_Start=Sectors[Last_Sector].Center;
 	}
 	int distance_count=0;
 	Sector output=null;
@@ -1593,7 +1652,7 @@ void Docked(){
 		}
 	}
 	bool Continue=!AutoUndock;
-	foreach(IMyShipConnector in Connectors){
+	foreach(IMyShipConnector Connector in Connectors){
 		Connector.ThrowOut=false;
 		if(!Continue)
 			Continue=Connector.GetInventory().CurrentVolume>0;
@@ -1665,7 +1724,7 @@ void Charging(){
 void Returning(){
 	Match_Position=false;
 	if(Asteroid!=null){
-		if((Controller.GetPosition()-Asteroid.Center).Length()<Asterod.Size){
+		if((Controller.GetPosition()-Asteroid.Center).Length()<Asteroid.Size){
 			Match_Position=true;
 			Speed_Limit=20;
 			Target_Position=Controller.GetPosition()-Asteroid.Center;
@@ -1675,7 +1734,7 @@ void Returning(){
 	}
 	if(!Match_Position){
 		MyWaypointInfo Destination=new MyWaypointInfo("Return to Base",MyDock.Return);
-		if(Controller.CurrentWaypoint!=Destination||!Controller.IsAutoPilotEnabled){
+		if((!Controller.CurrentWaypoint.Equals(Destination))||!Controller.IsAutoPilotEnabled){
 			Controller.ClearWaypoints();
 			Controller.AddWaypoint(Destination);
 			Controller.SetCollisionAvoidance(true);
@@ -1723,7 +1782,7 @@ void Traveling(){
 		Runtime.UpdateFrequency=UpdateFrequency.Update1;
 		return;
 	}
-	if(Controller.CurrentWaypoint!=Destination||!Controller.IsAutoPilotEnabled){
+	if((!Controller.CurrentWaypoint.Equals(Destination))||!Controller.IsAutoPilotEnabled){
 		Controller.ClearWaypoints();
 		Controller.AddWaypoint(Destination);
 		Controller.SetCollisionAvoidance(true);
@@ -1784,10 +1843,10 @@ void Exploring(){
 			Target_Position=Start_Position;
 		}
 		else {
-			Resting_Velocity=d2*30;
+			RestingVelocity=d2*30;
 		}
 		if(GetAngle(Forward_Vector,Target_Direction)<1){
-			MyDetectedEntityInfo A=new MyDetectedEntityInfo(-1,MyDetectedEntityType.None,null,new MatrixD(0,0,0,0,0,0,0,0,0),new Vector3D(0,0,0),MyRelationsBetweenPlayerAndBlock.NoOwnership,new BoundingBoxD(new Vector3D(0,0,0),new Vector3D(0,0,0)),0);
+			MyDetectedEntityInfo A=new MyDetectedEntityInfo(-1,"null",MyDetectedEntityType.None,null,new MatrixD(0,0,0,0,0,0,0,0,0),new Vector3D(0,0,0),MyRelationsBetweenPlayerAndBlock.NoOwnership,new BoundingBoxD(new Vector3D(0,0,0),new Vector3D(0,0,0)),0);
 			for(int i=0;i<S.subsections.Length;i++){
 				if(!S.subsections[i]){
 					int x=i%25;
@@ -1848,24 +1907,24 @@ void Scanning(){
 	Target_Direction.Normalize();
 	int count=0;
 	bool found_spot=false;
-	int i=last_scan_index;
-	while(i<Asteroid.Points.Count&&count<100000){
-		int neighbors=Asteroid.CountNeighbors(Asteroid.Points[i]);
+	int index=last_scan_index;
+	while(index<Asteroid.Points.Count&&count<100000){
+		int neighbors=Asteroid.CountNeighbors(Asteroid.Points[index]);
 		count+=Asteroid.Points.Count;
 		if(neighbors<4){
 			found_spot=true;
 			last_scan_index=0;
 			break;
 		}
-		i++;
+		index++;
 	}
 	if(found_spot){
-		Target_Position=Asteroid.Points[i].Point-Asteroid.Center;
+		Target_Position=Asteroid.Points[index].Point-Asteroid.Center;
 		double distance=Target_Position.Length();
 		Target_Position.Normalize();
 		Target_Position=(50+distance)*Target_Position+Asteroid.Center;
-		if((Controller.GetPosition()-Target_Position).Length()<2.5&&GetAngle(Front_Vector,Target_Direction)<1){
-			List<TerrainPoint> Neighbors=Asteroid.GetNeighbors(Asteroid.Points[i]);
+		if((Controller.GetPosition()-Target_Position).Length()<2.5&&GetAngle(Forward_Vector,Target_Direction)<1){
+			List<TerrainPoint> Neighbors=Asteroid.GetNeighbors(Asteroid.Points[index]);
 			List<Vector3D> Targets=new List<Vector3D>();
 			for(int i=0;i<4;i++){
 				Vector3D Tweak=new Vector3D(0,0,0);
@@ -1884,35 +1943,38 @@ void Scanning(){
 						break;
 				}
 				Tweak*=5;
-				Targets.Add(Asteroid.Points[i].Point+Tweak)
+				Targets.Add(Asteroid.Points[index].Point+Tweak);
 			}
 			foreach(TerrainPoint P in Neighbors){
 				for(int i=0;i<Targets.Count;i++){
-					if(Math.Min((P.Point-Targets[i]).Length(),Asteroid.Distance(P.Point,Targets[i].Point))<=2.5)
+					if(Math.Min((P.Point-Targets[i]).Length(),Asteroid.Distance(P.Point,Targets[i]))<=2.5)
 						Targets.RemoveAt(i--);
 				}
 			}
-			int i=0;
+			int target_index=0;
 			foreach(IMyCameraBlock Camera in All_Cameras){
 				MyDetectedEntityInfo A;
 				Vector3D Target;
 				if(Camera==Forward_Camera)
-					Target=Asteroid.Points[i].Point;
+					Target=Asteroid.Points[index].Point;
 				else
-					Target=Targets[i++];
-				Target=(Camera.GetPosition()-Target);
+					Target=Targets[target_index++];
+				Target=(Target-Camera.GetPosition());
 				distance=Target.Length();
+				Target.Normalize();
+				Target=Target*(distance+25)+Camera.GetPosition();
+				A=Camera.Raycast(Target);
 				if(RaycastCheck(A)&&A.HitPosition!=null)
 					Asteroid.Add((Vector3D)A.HitPosition);
 			}
 		}
 	}
 	else if(Asteroid.Points.Count==0){
-		MyDetectedEntityInfo A=FrontCamera.Raycast(Asteroid.Center);
+		MyDetectedEntityInfo A=Forward_Camera.Raycast(Asteroid.Center);
 		if(RaycastCheck(A)&&A.HitPosition!=null)
 			Asteroid.Add((Vector3D)A.HitPosition);
 	}
-	else if(i>=Asteroid.Points.Count){
+	else if(index>=Asteroid.Points.Count){
 		EndTask();
 		Tasks.Push(DroneTask.Mining);
 	}
@@ -1984,14 +2046,14 @@ void Mining(){
 	float sum_stone=0;
 	float max=0;
 	foreach(IMyCargoContainer C in Cargo){
-		sum_all+=C.GetInventory().CurrentVolume;
-		max+=C.GetInventory().MaxVolume;
-		sum_stone+=0.00037f*C.GetInventory().GetItemAmount(new MyItemType("MyObjectBuilder_Ore","Stone"));
+		sum_all+=C.GetInventory().CurrentVolume.ToIntSafe();
+		max+=C.GetInventory().MaxVolume.ToIntSafe();
+		sum_stone+=0.00037f*C.GetInventory().GetItemAmount(new MyItemType("MyObjectBuilder_Ore","Stone")).ToIntSafe();
 	}
 	foreach(IMyShipConnector C in Connectors){
-		sum_all+=C.GetInventory().CurrentVolume;
-		max+=C.GetInventory().MaxVolume;
-		sum_stone+=0.00037f*C.GetInventory().GetItemAmount(new MyItemType("MyObjectBuilder_Ore","Stone"));
+		sum_all+=C.GetInventory().CurrentVolume.ToIntSafe();
+		max+=C.GetInventory().MaxVolume.ToIntSafe();
+		sum_stone+=0.00037f*C.GetInventory().GetItemAmount(new MyItemType("MyObjectBuilder_Ore","Stone")).ToIntSafe();
 	}
 	float sum_ore=sum_all-sum_stone;
 	float stone_percent=sum_stone/(max-sum_ore);
@@ -2018,7 +2080,7 @@ void Mining(){
 		if(GetAngle(direction,-1*Target_Direction)<1&&Asteroid.Distance(Controller.GetPosition(),P.Point)<2.5){
 			if((Controller.GetPosition()-Asteroid.Center).Length()<distance-5){
 				Asteroid.Remove(P);
-				MyDetectedEntityInfo A=Front_Camera.Raycast(distance,-1*direction);
+				MyDetectedEntityInfo A=Forward_Camera.Raycast(distance,-1*direction);
 				if(RaycastCheck(A)&&A.HitPosition!=null)
 					Asteroid.Add((Vector3D)A.HitPosition);
 			}
@@ -2062,7 +2124,7 @@ void SetGyroscopes(){
 		input_pitch-=(float)Math.Min(Math.Max(difference/5,-4),4)*gyro_multx;
 	
 	float input_yaw=current_yaw*0.99f;
-	double difference=GetAngle(Left_Vector,Target_Direction)-GetAngle(Right_Vector,Target_Direction);
+	difference=GetAngle(Left_Vector,Target_Direction)-GetAngle(Right_Vector,Target_Direction);
 	if(Math.Abs(difference)>.1)
 		input_yaw+=(float)Math.Min(Math.Max(difference/5,-4),4)*gyro_multx;
 	
@@ -2081,7 +2143,7 @@ void SetGyroscopes(){
 }
 
 void SetThrusters(){
-	if((Resting_Velocity.Length()==0&&!Match_Position)||Controller.IsUnderControl||!Controller.IsAutoPilotEnabled){
+	if((RestingVelocity.Length()==0&&!Match_Position)||Controller.IsUnderControl||!Controller.IsAutoPilotEnabled){
 		for(int i=0;i<6;i++){
 			foreach(IMyThrust T in All_Thrusters[i])
 				T.ThrustOverridePercentage=0;
@@ -2091,15 +2153,15 @@ void SetThrusters(){
 	
 	float damp_multx=0.99f;
 	double ESL=Speed_Limit;
-		ESL=Math.Min(ESL,Speed_Limit*(Target_Distance-Distance_To_Resting*1.2))
+		ESL=Math.Min(ESL,Speed_Limit*(Target_Distance-Distance_To_Resting*1.2));
 	if(Speed_Limit<5)
 		ESL=Math.Max(ESL,2.5);
 	else
 		ESL=Math.Max(ESL,5);
 	
-	float input_right-=(float)((Relative_LinearVelocity.X-Relative_RestingVelocity.X)*ShipMass*damp_multx);
-	float input_up-=(float)((Relative_LinearVelocity.Y-Relative_RestingVelocity.Y)*ShipMass*damp_multx);
-	float input_forward+=(float)((Relative_LinearVelocity.Z-Relative_RestingVelocity.Z)*ShipMass*damp_multx);
+	float input_right=-1*(float)((Relative_LinearVelocity.X-Relative_RestingVelocity.X)*ShipMass*damp_multx);
+	float input_up=-1*(float)((Relative_LinearVelocity.Y-Relative_RestingVelocity.Y)*ShipMass*damp_multx);
+	float input_forward=(float)((Relative_LinearVelocity.Z-Relative_RestingVelocity.Z)*ShipMass*damp_multx);
 	
 	bool matched_direction=!Match_Direction;
 	if(Match_Direction)
@@ -2252,6 +2314,15 @@ void UpdateProgramInfo(){
 
 void UpdateSystemInfo(){
 	Current_Time=DateTime.Now.TimeOfDay;
+	Vector3D base_vector=new Vector3D(0,0,-1);
+	Forward_Vector=LocalToGlobal(base_vector,Controller);
+	Forward_Vector.Normalize();
+	base_vector=new Vector3D(0,1,0);
+	Up_Vector=LocalToGlobal(base_vector,Controller);
+	Up_Vector.Normalize();
+	base_vector=new Vector3D(-1,0,0);
+	Left_Vector=LocalToGlobal(base_vector,Controller);
+	Left_Vector.Normalize();
 	if(Asteroid!=null)
 		Asteroid.UpdateAges(seconds_since_last_update);
 	LinearVelocity=Controller.GetShipVelocities().LinearVelocity;
@@ -2265,7 +2336,7 @@ void UpdateSystemInfo(){
 			if(InGravityZone(Pseudo_Target,out GZ)){
 				Direction=Pseudo_Target-GZ.Center;
 				Direction.Normalize();
-				Psuedo_Target=GZ.Center+Direction*GZ.Radius;
+				Pseudo_Target=GZ.Center+Direction*GZ.Radius;
 			}
 		}
 		else
@@ -2321,8 +2392,8 @@ public void Main(string argument, UpdateType updateSource)
 					Tasks.Push(DroneTask.Returning);
 				}
 			}
-			if(Distance_To_Base.Length()<5000)
-				Antenna.Radius=Distance_To_Base+500;
+			if(Distance_To_Base<5000)
+				Antenna.Radius=(float)Distance_To_Base+500;
 			else if(Cycle_Time%600<=10){
 				if(Cycle_Time%600<5){
 					Sent_Update=true;
@@ -2341,7 +2412,7 @@ public void Main(string argument, UpdateType updateSource)
 		if(Controller.GetNaturalGravity().Length()>0){
 			Vector3D Center;
 			if(Controller.TryGetPlanetPosition(out Center)){
-				double Radius=Controller.GetPosition()-Center+1000;
+				double Radius=(Controller.GetPosition()-Center).Length()+1000;
 				bool has=false;
 				for(int i=0;i<Zones.Count;i++){
 					if(Zones[i].Gravity&&(Zones[i].Center-Center).Length()<1){
@@ -2369,8 +2440,17 @@ public void Main(string argument, UpdateType updateSource)
 				Tasks.Push(DroneTask.Charging);
 			}
 		}
-		if(Cycle%10==0)
+		if(cycle%10==0)
 			GetUpdates();
+		bool active=true;
+		Write("Tasks");
+		foreach(DroneTask Task in Tasks){
+			if(active)
+				Write(" "+Task.ToString().ToUpper());
+			else
+				Write("  "+Task.ToString().ToLower());
+			
+		}
 		switch(Tasks.Peek()){
 			case DroneTask.None:
 				if(MyDock!=null){
