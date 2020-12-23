@@ -605,11 +605,23 @@ class TerrainMap{
 		while(true);
 	}
 	
-	public int GetNeighbors(TerrainPoint Point,double distance=5){
+	public List<TerrainPoint> GetNeighbors(TerrainPoint Point,double distance=7.5){
+		List<TerrainPoint> Output=new List<TerrainPoint>();
+		foreach(TerrainPoint P in Points){
+			double dif=(P.Point-Point.Point).Length();
+			if(dif<=distance&&dif>0.1)
+				Output.Add(P);
+		}
+		return Output;
+	}
+	
+	public int CountNeighbors(TerrainPoint Point,double distance=7.5){
 		int count=0;
-		foreach(TerrainPoint P in Points)
-			if((P.Point-Point.Point).Length()<=distance)
+		foreach(TerrainPoint P in Points){
+			double dif=(P.Point-Point.Point).Length();
+			if(dif<=distance&&dif>0.1)
 				count++;
+		}
 		return count;
 	}
 	
@@ -619,6 +631,12 @@ class TerrainMap{
 	}
 	
 	public void Add(Vector3D V){
+		for(int i=0;i<Points.Count;i++){
+			if((Points[i].Point-V).Length()<0.1){
+				Points[i]=new TerrainPoint(V);
+				return;
+			}
+		}
 		Points.Add(new TerrainPoint(V));
 	}
 	
@@ -1723,11 +1741,14 @@ void Exploring(){
 
 int last_scan_index=0;
 void Scanning(){
+	Match_Direction=true;
+	Target_Direction=Asteroid.Center-Controller.GetPosition();
+	Target_Direction.Normalize();
 	int count=0;
 	bool found_spot=false;
 	int i=last_scan_index;
 	while(i<Asteroid.Points.Count&&count<100000){
-		int neighbors=Asteroid.GetNeighbors(Asteroid.Points[i]);
+		int neighbors=Asteroid.CountNeighbors(Asteroid.Points[i]);
 		count+=Asteroid.Points.Count;
 		if(neighbors<4){
 			found_spot=true;
@@ -1737,11 +1758,60 @@ void Scanning(){
 		i++;
 	}
 	if(found_spot){
-		
+		Target_Position=Asteroid.Points[i].Point-Asteroid.Center;
+		double distance=Target_Position.Length();
+		Target_Position.Normalize();
+		Target_Position=(50+distance)*Target_Position+Asteroid.Center;
+		if((Controller.GetPosition()-Target_Position).Length()<2.5&&GetAngle(Front_Vector,Target_Direction)<1){
+			List<TerrainPoint> Neighbors=Asteroid.GetNeighbors(Asteroid.Points[i]);
+			List<Vector3D> Targets=new List<Vector3D>();
+			for(int i=0;i<4;i++){
+				Vector3D Tweak=new Vector3D(0,0,0);
+				switch(i){
+					case 0:
+						Tweak+=Up_Vector;
+						break;
+					case 1:
+						Tweak+=Down_Vector;
+						break;
+					case 2:
+						Tweak+=new Vector3D(-1,0,0);
+						break;
+					case 3:
+						Tweak+=new Vector3D(1,0,0);
+						break;
+				}
+				Tweak*=5;
+				Targets.Add(Asteroid.Points[i].Point+Tweak)
+			}
+			foreach(TerrainPoint P in Neighbors){
+				for(int i=0;i<Targets.Count;i++){
+					if((P.Point-Targets[i]).Length()<=2.5)
+						Targets.RemoveAt(i--);
+				}
+			}
+			int i=0;
+			foreach(IMyCameraBlock Camera in All_Cameras){
+				MyDetectedEntityInfo A;
+				Vector3D Target;
+				if(Camera==Forward_Camera)
+					Target=Asteroid.Points[i].Point;
+				else
+					Target=Targets[i++];
+				Target=(Camera.GetPosition()-Target);
+				distance=Target.Length();
+				if(RaycastCheck(A)&&A.HitPosition!=null)
+					Asteroid.Add((Vector3D)A.HitPosition);
+			}
+		}
 	}
-	else if(i>=Asteroid.Points.Count){
+	else if(Asteroid.Points.Count==0){
+		MyDetectedEntityInfo A=FrontCamera.Raycast(Asteroid.Center);
+		if(RaycastCheck(A)&&A.HitPosition!=null)
+			Asteroid.Add((Vector3D)A.HitPosition);
+	}
+	else if(i>=Asteroid.Points.Count)
 		EndTask();
-	}
 }
 
 
