@@ -1414,10 +1414,13 @@ Sector NextSector(){
 	return output;
 }
 
-void NextTask(){
+void EndTask(bool do_pop=true){
 	DroneTask Last=DroneTask.None;
-	if(Tasks.Count>0)
-		Last=Tasks.Pop();
+	if(Tasks.Count>0){
+		Last=Tasks.Peek();
+		if(do_pop)
+			Tasks.Pop();
+	}
 	if(Tasks.Count==0)
 		Tasks.Push(DroneTask.None);
 	switch(Last){
@@ -1446,7 +1449,6 @@ void NextTask(){
 			Match_Direction=false;
 			Controller.ClearWaypoints();
 			Controller.SetAutoPilotEnabled(false);
-			
 			break;
 		case DroneTask.Traveling:
 			Controller.ClearWaypoints();
@@ -1456,7 +1458,6 @@ void NextTask(){
 			Match_Position=false;
 			Match_Direction=false;
 			RestingVelocity=new Vector3D(0,0,0);
-			
 			break;
 		case DroneTask.Scanning:
 			
@@ -1468,8 +1469,6 @@ void NextTask(){
 			
 			break;
 	}
-	
-	
 }
 
 void Docked(){
@@ -1499,7 +1498,7 @@ void Docked(){
 		}
 	}
 	if(!Continue)
-		NextTask();
+		EndTask();
 	Runtime.UpdateFrequency=UpdateFrequency.Update100;
 }
 
@@ -1518,7 +1517,7 @@ void Docking(){
 	if(Docking_Connector.Status!=MyShipConnectorStatus.Unconnected)
 		Docking_Connector.Connect();
 	if(Docking_Connector.Status==MyShipConnectorStatus.Connected)
-		NextTask();
+		EndTask();
 	Runtime.UpdateFrequency=UpdateFrequency.Update1;
 }
 
@@ -1538,7 +1537,7 @@ void Charging(){
 		Target_Direction=new Vector3D(0,1,0);
 	}
 	if(Charge>0.75f)
-		NextTask();
+		EndTask();
 	if(Match_Position)
 		Runtime.UpdateFrequency=UpdateFrequency.Update1;
 	else if(Match_Direction)
@@ -1570,7 +1569,7 @@ void Returning(){
 		}
 	}
 	if((Controller.GetPosition()-MyDock.Return).Length()<2.5)
-		NextTask();
+		EndTask();
 	if(Match_Position)
 		Runtime.UpdateFrequency=UpdateFrequency.Update1;
 	else
@@ -1603,7 +1602,7 @@ void Traveling(){
 		AutoUndock=false;
 		Tasks.Push(DroneTask.Docking);
 		Tasks.Push(DroneTask.Docked);
-		NextTask();
+		EndTask();
 		Runtime.UpdateFrequency=UpdateFrequency.Update1;
 		return;
 	}
@@ -1616,7 +1615,7 @@ void Traveling(){
 		Controller.SetAutoPilotEnabled(true);
 	}
 	if((Controller.GetPosition()-Destination.Coords).Length()<2.5)
-		NextTask();
+		EndTask();
 	Runtime.UpdateFrequency=UpdateFrequency.Update10;
 }
 
@@ -1626,7 +1625,7 @@ bool RaycastCheck(MyDetectedEntityInfo e){
 void Exploring(){
 	Sector S=NextSector();
 	if(S==null){
-		NextTask();
+		EndTask();
 		return;
 	}
 	
@@ -1714,10 +1713,38 @@ void Exploring(){
 			}
 		}
 	}
-	if(Asteroid!=null)
-		NextTask();
+	if(Asteroid!=null){
+		EndTask(false);
+		Tasks.Push(DroneTask.Mining);
+		Tasks.Push(DroneTask.Scanning);
+	}
 	Runtime.UpdateFrequency=UpdateFrequency.Update1;
 }
+
+int last_scan_index=0;
+void Scanning(){
+	int count=0;
+	bool found_spot=false;
+	int i=last_scan_index;
+	while(i<Asteroid.Points.Count&&count<100000){
+		int neighbors=Asteroid.GetNeighbors(Asteroid.Points[i]);
+		count+=Asteroid.Points.Count;
+		if(neighbors<4){
+			found_spot=true;
+			last_scan_index=0;
+			break;
+		}
+		i++;
+	}
+	if(found_spot){
+		
+	}
+	else if(i>=Asteroid.Points.Count){
+		EndTask();
+	}
+}
+
+
 
 
 
@@ -2045,6 +2072,7 @@ public void Main(string argument, UpdateType updateSource)
 			if(Cycle_Time+(Controller.GetPosition()-MyDock.Return).Length()/100+120>=10800){
 				AutoUndock=false;
 				if((int)Tasks.Peek()>(int)DroneTask.Returning){
+					EndTask(false);
 					Tasks.Push(DroneTask.Docked);
 					Tasks.Push(DroneTask.Docking);
 					Tasks.Push(DroneTask.Returning);
@@ -2087,13 +2115,16 @@ public void Main(string argument, UpdateType updateSource)
 		else if((int)Tasks.Peek()>(int)DroneTask.Charging&&Charge<0.25f){
 			if(Distance_To_Base<2500){
 				if((int)Tasks.Peek()>(int)DroneTask.Returning){
+					EndTask(false);
 					Tasks.Push(DroneTask.Docked);
 					Tasks.Push(DroneTask.Docking);
 					Tasks.Push(DroneTask.Returning);
 				}
 			}
-			else
+			else{
+				EndTask(false);
 				Tasks.Push(DroneTask.Charging);
+			}
 		}
 		if(Cycle%10==0)
 			GetUpdates();
