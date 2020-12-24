@@ -2540,7 +2540,7 @@ public void Main(string argument, UpdateType updateSource)
 		if(Tasks.Count==0)
 			Tasks.Push(DroneTask.None);
 		if(MyDock!=null){
-			if(Cycle_Time+(Controller.GetPosition()-MyDock.Return).Length()/100+120>=10800){
+			if(Cycle_Time+(Controller.GetPosition()-MyDock.Return).Length()/95+120>=10800){
 				AutoUndock=false;
 				Write("Returning to Base; Drone Shift");
 				if((int)Tasks.Peek()>(int)DroneTask.Returning){
