@@ -1017,8 +1017,18 @@ int GetUpdates(){
 				}
 				else if(Command.Equals("Zone")){
 					Zone Z=null;
-					if(Zone.TryParse(Subdata,out Z))
-						Zones.Add(Z);
+					if(Zone.TryParse(Subdata,out Z)){
+						bool has=false;
+						for(int i=0;i<Zones.Count;i++){
+							if((Zones[i].Center-Z.Center).Length()<5){
+								has=true;
+								Zones[i].Radius=Math.Max(Zones[i].Radius,Z.Radius);
+								break;
+							}
+						}
+						if(!has)
+							Zones.Add(Z);
+					}
 				}
 				else if(Command.Contains("Ast-")&&Asteroid!=null){
 					TerrainPoint P=null;
@@ -1170,7 +1180,7 @@ public void Main(string argument, UpdateType updateSource)
 	}
 	else
 		Antenna.Radius=5000;
-	Write("Cycle Timer: "+Math.Round(Cycle_Time/60,2).ToString()+"/180 minutes");
+	Write("Drone Loop Timer: "+Math.Round(Cycle_Time/60,2).ToString()+"/180 minutes");
 	if(cycle%10==0)
 		update_count=GetUpdates();
 	Write("Received "+update_count.ToString()+" updates ("+(cycle%10).ToString()+"/10 cycles ago)");
