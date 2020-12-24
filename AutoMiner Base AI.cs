@@ -1045,6 +1045,7 @@ void UpdateProgramInfo(){
 }
 
 int Sent_AutoUndock=0;
+bool Sent_Update=true;
 public void Main(string argument, UpdateType updateSource)
 {
 	UpdateProgramInfo();
@@ -1055,17 +1056,20 @@ public void Main(string argument, UpdateType updateSource)
 		Vector3D c;
 		double r;
 		string[] args=argument.Substring(5).Split('•');
+		bool add=true;
 		if(args.Length!=2)
-			return false;
+			add=false;
 		if(!Vector3D.TryParse(args[0],out c))
-			return false;
+			add=false;
 		if(!double.TryParse(args[1],out r))
-			return false;
-		Zone output=new Zone(c,r);
-		output.Outpost=true;
-		Zones.Add(output);
+			add=false;
+		if(add){
+			Zone output=new Zone(c,r);
+			output.Outpost=true;
+			Zones.Add(output);
+		}
 	}
-	else if(argument.ToLower().Equals(autoundock)){
+	else if(argument.ToLower().Equals("autoundock")){
 		AutoUndock=!AutoUndock;
 	}
 	else if(argument.ToLower().Contains("set return:")){
@@ -1080,13 +1084,13 @@ public void Main(string argument, UpdateType updateSource)
 				if(found)
 					ReturnPosition=temp.Coords;
 			}
-		} 
+		}
 		catch(Exception){
 			;
 		}
 	}
 	else if(argument.ToLower().Contains("connector")){
-		if((ReturnPosition.Coords-Me.GetPosition()).Length()<1000){
+		if((ReturnPosition-Me.GetPosition()).Length()<1000){
 			IMyShipConnector Connector=GenericMethods<IMyShipConnector>.GetConstruct(argument);
 			if(Connector!=null&&Connector.CustomName.Equals(argument)){
 				//Me.CustomData="Dock:"+Connector.GetPosition()+'•';
@@ -1094,7 +1098,7 @@ public void Main(string argument, UpdateType updateSource)
 			}
 		}
 		else{
-			Me.CustomData=
+			Me.CustomData="Invalid Connector";
 		}
 	}
 	if(Cycle_Time>10800/2){
