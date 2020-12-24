@@ -943,6 +943,7 @@ public Program(){
 	if(Antenna==null)
 		return;
 	Me.CustomData="";
+	IGC.RegisterBroadcastListener("AutoMiner");
 	Write("Completed Initialization");
 	Runtime.UpdateFrequency=UpdateFrequency.Update100;
 }
