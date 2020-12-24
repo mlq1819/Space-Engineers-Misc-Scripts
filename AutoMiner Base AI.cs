@@ -1159,6 +1159,8 @@ public void Main(string argument, UpdateType updateSource)
 	}
 	else
 		Antenna.Radius=5000;
+	if(cycle%10==0)
+		GetUpdates();
 	Write("AutoUndock:"+AutoUndock.ToString());
 	Write(Zones.Count+" Zones");
 	Write(Sectors.Count+" Sectors");
