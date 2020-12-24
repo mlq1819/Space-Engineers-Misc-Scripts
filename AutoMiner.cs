@@ -2140,7 +2140,7 @@ void Mining(){
 }
 
 void SetGyroscopes(){
-	if((!Match_Direction)||Controller.IsUnderControl||!Controller.IsAutoPilotEnabled){
+	if((!Match_Direction)||Controller.IsUnderControl||Controller.IsAutoPilotEnabled){
 		Gyroscope.GyroOverride=false;
 		Write("Gyroscope Controls:Off");
 		return;
@@ -2187,7 +2187,7 @@ void SetGyroscopes(){
 }
 
 void SetThrusters(){
-	if((RestingVelocity.Length()==0&&!Match_Position)||Controller.IsUnderControl||!Controller.IsAutoPilotEnabled){
+	if((RestingVelocity.Length()==0&&!Match_Position)||Controller.IsUnderControl||Controller.IsAutoPilotEnabled||Relative_LinearVelocity.Length()>Speed_Limit){
 		for(int i=0;i<6;i++){
 			foreach(IMyThrust T in All_Thrusters[i])
 				T.ThrustOverridePercentage=0;
@@ -2197,7 +2197,7 @@ void SetThrusters(){
 	}
 	Write("Thruster Controls:On");
 	if(Match_Position)
-		Write("Match_Position:"+Math.Round((Target_Position-Controller.GetPosition()).Length(),1).ToString()+"meters");
+		Write("Match_Position:"+Math.Round((Target_Position-Controller.GetPosition()).Length(),1).ToString()+"meters\n   (X:"+Math.Round(Relative_Pseudo_Target.X,1).ToString()+" Y:"+Math.Round(Relative_Pseudo_Target.Y,1).ToString()+" Z:"+Math.Round(Relative_Pseudo_Target.Z,1).ToString()+")");
 	if(RestingVelocity.Length()>0)
 		Write("RestingVelocity:"+Math.Round(RestingVelocity.Length(),1).ToString()+"mps");
 	float damp_multx=0.99f;
@@ -2217,88 +2217,43 @@ void SetThrusters(){
 		matched_direction=Math.Abs(GetAngle(Target_Direction,Forward_Vector))<=5;
 	
 	if(Match_Position){
-		double Relative_Speed=Relative_LinearVelocity.X;
-		double Relative_Target_Speed=RestingVelocity.X;
 		double Relative_Distance=Relative_Pseudo_Target.X;
-		double deacceleration=0;
-		if(Relative_Speed>0)
-			deacceleration=Math.Abs(Relative_Speed)/Left_Thrust;
-		else if(Relative_Speed<0)
-			deacceleration=Math.Abs(Relative_Speed)/Right_Thrust;
-		if((Relative_Speed>0)^(Relative_Distance<0)){
-			double time=Relative_Speed/deacceleration;
-			time=(Relative_Distance-(Relative_Speed*time/2))/Relative_Speed;
-			if(time>0&&(matched_direction||!Match_Direction)){
-				if(Relative_Speed>0){
-					if((LinearVelocity+Left_Vector-RestingVelocity).Length()<=ESL)
-						input_right=-0.95f*Left_Thrust;
-					else
-						input_right=0;
-				}
-				else {
-					if((LinearVelocity+Right_Vector-RestingVelocity).Length()<=ESL)
-						input_right=0.95f*Right_Thrust;
-					else
-						input_right=0;
-				}
+		if(matched_direction||!Match_Direction){
+			if(Relative_Distance>0){
+				if((LinearVelocity+Left_Vector-RestingVelocity).Length()<=ESL)
+					input_right=0.95f*Left_Thrust;
+			}
+			else {
+				if((LinearVelocity+Right_Vector-RestingVelocity).Length()<=ESL)
+					input_right=-0.95f*Right_Thrust;
 			}
 		}
 	}
 	
 	if(Match_Position){
-		double Relative_Speed=Relative_LinearVelocity.Y;
-		double Relative_Target_Speed=RestingVelocity.Y;
 		double Relative_Distance=Relative_Pseudo_Target.Y;
-		double deacceleration=0;
-		if(Relative_Speed>0)
-			deacceleration=Math.Abs(Relative_Speed)/Down_Thrust;
-		else if(Relative_Speed<0)
-			deacceleration=Math.Abs(Relative_Speed)/Up_Thrust;
-		if((Relative_Speed>0)^(Relative_Distance<0)){
-			double time=Relative_Speed/deacceleration;
-			time=(Relative_Distance-(Relative_Speed*time/2))/Relative_Speed;
-			if(time>0&&(matched_direction||!Match_Direction)){
-				if(Relative_Speed>0){
-					if((LinearVelocity+Down_Vector-RestingVelocity).Length()<=ESL)
-						input_right=-0.95f*Down_Thrust;
-					else
-						input_right=0;
-				}
-				else {
-					if((LinearVelocity+Up_Vector-RestingVelocity).Length()<=ESL)
-						input_right=0.95f*Up_Thrust;
-					else
-						input_right=0;
-				}
+		if(matched_direction||!Match_Direction){
+			if(Relative_Distance>0){
+				if((LinearVelocity+Down_Vector-RestingVelocity).Length()<=ESL)
+					input_up=-0.95f*Down_Thrust;
+			}
+			else {
+				if((LinearVelocity+Up_Vector-RestingVelocity).Length()<=ESL)
+					input_up=0.95f*Up_Thrust;
 			}
 		}
 	}
 	
 	if(Match_Position){
-		double Relative_Speed=Relative_LinearVelocity.Z;
-		double Relative_Target_Speed=RestingVelocity.Z;
 		double Relative_Distance=Relative_Pseudo_Target.Z;
-		double deacceleration=0;
-		if(Relative_Speed>0)
-			deacceleration=Math.Abs(Relative_Speed)/Backward_Thrust;
-		else if(Relative_Speed<0)
-			deacceleration=Math.Abs(Relative_Speed)/Forward_Thrust;
-		if((Relative_Speed>0)^(Relative_Distance<0)){
-			double time=Relative_Speed/deacceleration;
-			time=(Relative_Distance-(Relative_Speed*time/2))/Relative_Speed;
-			if(time>0&&(matched_direction||!Match_Direction)){
-				if(Relative_Speed>0){
-					if((LinearVelocity+Backward_Vector-RestingVelocity).Length()<=ESL)
-						input_right=-0.95f*Backward_Thrust;
-					else
-						input_right=0;
-				}
-				else {
-					if((LinearVelocity+Forward_Vector-RestingVelocity).Length()<=ESL)
-						input_right=0.95f*Forward_Thrust;
-					else
-						input_right=0;
-				}
+		if(matched_direction||!Match_Direction){
+			if(Relative_Distance>0){
+				if((LinearVelocity+Backward_Vector-RestingVelocity).Length()<=ESL)
+					input_forward=-0.95f*Backward_Thrust;
+			}
+			else {
+				if((LinearVelocity+Forward_Vector-RestingVelocity).Length()<=ESL)
+					input_forward=0.95f*Forward_Thrust;
 			}
 		}
 	}
@@ -2424,6 +2379,12 @@ bool ProcessArgument(string argument){
 		Zones.Add(output);
 		return true;
 	}
+	else if(argument.ToLower().Equals("return")){
+		EndTask();
+		Tasks.Clear();
+		Tasks.Push(DroneTask.Returning);
+		return true;
+	}
 	else if(argument.ToLower().IndexOf("goto:")==0){
 		try{
 			string str=argument.Substring(5).Trim();
@@ -2472,6 +2433,7 @@ public void Main(string argument, UpdateType updateSource)
 {
 	TerrainMap.Update_Size=true;
 	UpdateProgramInfo();
+	UpdateSystemInfo();
 	try{
 		if(Tasks.Count==0)
 			Tasks.Push(DroneTask.None);
@@ -2552,7 +2514,7 @@ public void Main(string argument, UpdateType updateSource)
 				Write(" "+Task.ToString().ToUpper());
 			else
 				Write("  "+Task.ToString().ToLower());
-			
+			active=false;
 		}
 		switch(Tasks.Peek()){
 			case DroneTask.None:
