@@ -1581,7 +1581,7 @@ Sector FindSector(int distance_goal,Vector3D starting_point,Vector3D current_poi
 			}
 		}
 		if((!found)||incomplete){
-			if(incomplete&&!found){
+			if(!found){
 				Sectors.Add(attempt);
 				Last_Sector=Sectors.Count-1;
 			}
