@@ -2524,7 +2524,7 @@ public void Main(string argument, UpdateType updateSource)
 		}
 		if(cycle%10==0)
 			update_count=GetUpdates();
-		Write("Received "+update_count.ToString()+" updates ("+(cycle%10).ToString()+" cycles ago");
+		Write("Received "+update_count.ToString()+" updates ("+(cycle%10).ToString()+"/10 cycles ago)");
 		if(argument.Length>0)
 			ArgumentError=!ProcessArgument(argument);
 		if(LastArgument.Length>0)

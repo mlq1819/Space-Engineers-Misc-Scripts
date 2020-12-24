@@ -1071,6 +1071,7 @@ void UpdateProgramInfo(){
 int Sent_AutoUndock=0;
 bool Sent_Update=true;
 string Error_Message="";
+int update_count=0;
 public void Main(string argument, UpdateType updateSource)
 {
 	UpdateProgramInfo();
@@ -1170,7 +1171,8 @@ public void Main(string argument, UpdateType updateSource)
 	else
 		Antenna.Radius=5000;
 	if(cycle%10==0)
-		GetUpdates();
+		update_count=GetUpdates();
+	Write("Received "+update_count.ToString()+" updates ("+(cycle%10).ToString()+"/10 cycles ago)");
 	Write("AutoUndock:"+AutoUndock.ToString());
 	Write(Zones.Count+" Zones");
 	Write(Sectors.Count+" Sectors");
