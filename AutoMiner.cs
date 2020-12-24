@@ -298,6 +298,15 @@ class Sector{
 	}
 	
 	public bool[] subsections;
+	public bool Complete{
+		get{
+			foreach(bool b in subsections){
+				if(!b)
+					return false;
+			}
+			return true;
+		}
+	}
 	
 	public Sector(int x,int y,int z){
 		_X=x;
@@ -1561,20 +1570,23 @@ Sector FindSector(int distance_goal,Vector3D starting_point,Vector3D current_poi
 			}
 		}
 		bool incomplete=false;
-		foreach(Sector S in Sectors){
+		for(int i=0;i<Sectors.Count;i++){
+			Sector S=Sectors[i];
 			if(S.Same(attempt)){
 				found=true;
-				foreach(bool b in S.subsections){
-					if(!b){
-						incomplete=true;
-						break;
-					}
-				}
+				incomplete=!S.Complete;
+				if(incomplete)
+					Last_Sector=i;
 				break;
 			}
 		}
-		if((!found)||incomplete)
+		if((!found)||incomplete){
+			if(incomplete&&!found){
+				Sectors.Add(attempt);
+				Last_Sector=Sectors.Count-1;
+			}
 			return attempt;
+		}
 		return null;
 	}
 	Sector output=null;
@@ -1615,11 +1627,15 @@ Sector FindSector(int distance_goal,Vector3D starting_point,Vector3D current_poi
 Sector NextSector(){
 	Vector3D Coords_Start=MyDock.Return;
 	if(Last_Sector!=-1){
-		foreach(bool b in Sectors[Last_Sector].subsections){
-			if(!b)
-				return Sectors[Last_Sector];
-		}
+		if(!Sectors[Last_Sector].Complete)
+			return Sectors[Last_Sector];
 		Coords_Start=Sectors[Last_Sector].Center;
+	}
+	for(int i=0;i<Sectors.Count;i++){
+		if(!Sectors[i].Complete){
+			Last_Sector=i;
+			return Sectors[i];
+		}
 	}
 	int distance_count=0;
 	Sector output=null;
