@@ -1557,7 +1557,6 @@ Sector FindSector(int distance_goal,Vector3D starting_point,Vector3D current_poi
 		bool found=false;
 		foreach(Zone Z in Zones){
 			if(Z.Overlaps(attempt)){
-				Write("FindSector: "+attempt.NiceString(MyDock.Return)+" in "+Z.NiceString());
 				return null;
 			}
 		}
@@ -1571,10 +1570,6 @@ Sector FindSector(int distance_goal,Vector3D starting_point,Vector3D current_poi
 						break;
 					}
 				}
-				if(incomplete)
-					Write("FindSector: "+attempt.NiceString(MyDock.Return)+" is incomplete");
-				else
-					Write("FindSector: "+attempt.NiceString(MyDock.Return)+" already exists");
 				break;
 			}
 		}
@@ -1629,9 +1624,9 @@ Sector NextSector(){
 	int distance_count=0;
 	Sector output=null;
 	do{
-		FindSector(distance_count++,Coords_Start,Coords_Start);
+		output=FindSector(distance_count++,Coords_Start,Coords_Start);
 		if(distance_count<5&&output==null)
-			FindSector(distance_count,MyDock.Return,Controller.GetPosition());
+			output=FindSector(distance_count,MyDock.Return,Controller.GetPosition());
 	}
 	while(output==null&&distance_count<=17);
 	return output;
@@ -1844,6 +1839,7 @@ void Traveling(){
 			for(int i=0;i<4;i++){
 				if(distance>(Controller.GetPosition()-S.Corners[i]).Length()-.1){
 					Destination=new MyWaypointInfo("Traveling to Sector",S.Corners[i]);
+					Write("Traveling: "+S.NiceString(MyDock.Return));
 					break;
 				}
 			}
