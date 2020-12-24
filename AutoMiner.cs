@@ -2216,77 +2216,51 @@ void SetThrusters(){
 	if(Match_Direction)
 		matched_direction=Math.Abs(GetAngle(Target_Direction,Forward_Vector))<=5;
 	
+	Vector3D Movement_Direction=Relative_Pseudo_Target;
+	Movement_Direction.Normalize();
+	
 	if(Match_Position){
 		double Relative_Speed=Relative_LinearVelocity.X;
-		double Relative_Target_Speed=RestingVelocity.X;
 		double Relative_Distance=Relative_Pseudo_Target.X;
-		double deacceleration=0;
-		if(Relative_Speed>0)
-			deacceleration=Math.Abs(Relative_Speed)/Left_Thrust;
-		else if(Relative_Speed<0)
-			deacceleration=Math.Abs(Relative_Speed)/Right_Thrust;
-		if((Relative_Speed>0)^(Relative_Distance<0)){
-			double time=Relative_Speed/deacceleration;
-			time=(Relative_Distance-(Relative_Speed*time/2))/Relative_Speed;
-			if(time>0&&(matched_direction||!Match_Direction)){
-				if(Relative_Speed>0){
-					if((LinearVelocity+Left_Vector-RestingVelocity).Length()<=ESL)
-						input_right=-0.95f*Left_Thrust;
-				}
-				else {
-					if((LinearVelocity+Right_Vector-RestingVelocity).Length()<=ESL)
-						input_right=0.95f*Right_Thrust;
-				}
+		double Target_Speed=Math.Abs(Movement_Direction.X*ESL);
+		if(matched_direction||!Match_Direction){
+			if(Relative_Distance>0){
+				if((Relative_Speed+Left_Vector-RestingVelocity).Length()<=Target_Speed)
+					input_right=-0.95f*Left_Thrust;
+			}
+			else{
+				if((Relative_Speed+Right_Vector-RestingVelocity).Length()<=Target_Speed)
+					input_right=0.95f*Right_Thrust;
 			}
 		}
 	}
-	
 	if(Match_Position){
 		double Relative_Speed=Relative_LinearVelocity.Y;
-		double Relative_Target_Speed=RestingVelocity.Y;
 		double Relative_Distance=Relative_Pseudo_Target.Y;
-		double deacceleration=0;
-		if(Relative_Speed>0)
-			deacceleration=Math.Abs(Relative_Speed)/Down_Thrust;
-		else if(Relative_Speed<0)
-			deacceleration=Math.Abs(Relative_Speed)/Up_Thrust;
-		if((Relative_Speed>0)^(Relative_Distance<0)){
-			double time=Relative_Speed/deacceleration;
-			time=(Relative_Distance-(Relative_Speed*time/2))/Relative_Speed;
-			if(time>0&&(matched_direction||!Match_Direction)){
-				if(Relative_Speed>0){
-					if((LinearVelocity+Down_Vector-RestingVelocity).Length()<=ESL)
-						input_right=-0.95f*Down_Thrust;
-				}
-				else {
-					if((LinearVelocity+Up_Vector-RestingVelocity).Length()<=ESL)
-						input_right=0.95f*Up_Thrust;
-				}
+		double Target_Speed=Math.Abs(Movement_Direction.Y*ESL);
+		if(matched_direction||!Match_Direction){
+			if(Relative_Distance>0){
+				if((Relative_Speed+Down_Vector-RestingVelocity).Length()<=Target_Speed)
+					input_right=-0.95f*Down_Thrust;
+			}
+			else{
+				if((Relative_Speed+Up_Vector-RestingVelocity).Length()<=Target_Speed)
+					input_right=0.95f*Up_Thrust;
 			}
 		}
 	}
-	
 	if(Match_Position){
 		double Relative_Speed=Relative_LinearVelocity.Z;
-		double Relative_Target_Speed=RestingVelocity.Z;
 		double Relative_Distance=Relative_Pseudo_Target.Z;
-		double deacceleration=0;
-		if(Relative_Speed>0)
-			deacceleration=Math.Abs(Relative_Speed)/Backward_Thrust;
-		else if(Relative_Speed<0)
-			deacceleration=Math.Abs(Relative_Speed)/Forward_Thrust;
-		if((Relative_Speed>0)^(Relative_Distance<0)){
-			double time=Relative_Speed/deacceleration;
-			time=(Relative_Distance-(Relative_Speed*time/2))/Relative_Speed;
-			if(time>0&&(matched_direction||!Match_Direction)){
-				if(Relative_Speed>0){
-					if((LinearVelocity+Backward_Vector-RestingVelocity).Length()<=ESL)
-						input_up=-0.95f*Backward_Thrust;
-				}
-				else {
-					if((LinearVelocity+Forward_Vector-RestingVelocity).Length()<=ESL)
-						input_up=0.95f*Forward_Thrust;
-				}
+		double Target_Speed=Math.Abs(Movement_Direction.Z*ESL);
+		if(matched_direction||!Match_Direction){
+			if(Relative_Distance>0){
+				if((Relative_Speed+Backward_Vector-RestingVelocity).Length()<=Target_Speed)
+					input_right=-0.95f*Backward_Thrust;
+			}
+			else{
+				if((Relative_Speed+Forward_Vector-RestingVelocity).Length()<=Target_Speed)
+					input_right=0.95f*Forward_Thrust;
 			}
 		}
 	}
