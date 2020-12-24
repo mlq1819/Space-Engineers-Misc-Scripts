@@ -448,6 +448,18 @@ class Zone{
 		return'{'+Center.ToString()+';'+Math.Round(Radius,1).ToString()+';'+Outpost.ToString()+';'+Gravity.ToString()+';'+Explored.ToString()+'}';
 	}
 	
+	public string NiceString(){
+		string output="";
+		if(Outpost)
+			output+="Outpost ";
+		else if(Gravity)
+			output+="Gravity ";
+		else if(Explored)
+			output+="Explored ";
+		output+="Zone with Radius "+Math.Round(Radius/1000,1)+"kM";
+		return output;
+	}
+	
 	public static bool TryParse(string Parse,out Zone output){
 		output=null;
 		if(Parse[0]!='{'||Parse[Parse.Length-1]!='}')
@@ -1532,19 +1544,31 @@ Sector FindSector(int distance_goal,Vector3D starting_point,Vector3D current_poi
 		return null;
 	if(distance_goal==0){
 		Sector attempt=new Sector(current_point);
-		Write("FindSector: "+attempt.NiceString(MyDock.Return));
 		bool found=false;
 		foreach(Zone Z in Zones){
-			if(Z.Overlaps(attempt))
+			if(Z.Overlaps(attempt)){
+				Write("FindSector: "+attempt.NiceString(MyDock.Return)+" in "+Z.NiceString());
 				return null;
+			}
 		}
+		bool incomplete=false;
 		foreach(Sector S in Sectors){
 			if(S.Same(attempt)){
 				found=true;
+				foreach(bool b in S.subsections){
+					if(!b){
+						incomplete=true;
+						break;
+					}
+				}
+				if(incomplete)
+					Write("FindSector: "+attempt.NiceString(MyDock.Return)+" is incomplete");
+				else
+					Write("FindSector: "+attempt.NiceString(MyDock.Return)+" already exists");
 				break;
 			}
 		}
-		if(!found)
+		if((!found)||incomplete)
 			return attempt;
 		return null;
 	}
@@ -2544,6 +2568,7 @@ public void Main(string argument, UpdateType updateSource)
 				Tasks.Push(DroneTask.Charging);
 			}
 		}
+		Write("Cycle Timer: "+Math.Round(Cycle_Time/60,2).ToString()+"/180 minutes");
 		if(cycle%10==0)
 			update_count=GetUpdates();
 		Write("Received "+update_count.ToString()+" updates ("+(cycle%10).ToString()+"/10 cycles ago)");
