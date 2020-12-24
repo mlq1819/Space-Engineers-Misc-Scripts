@@ -1879,10 +1879,14 @@ void Traveling(){
 	}
 	if((Controller.GetPosition()-Destination.Coords).Length()<2.5){
 		EndTask();
-		if(Asteroid!=null)
-			Tasks.Push(DroneTask.Scanning);
-		else
-			Tasks.Push(DroneTask.Exploring);
+		if(Asteroid!=null){
+			if(Tasks.Peek()!=DroneTask.Scanning)
+				Tasks.Push(DroneTask.Scanning);
+		} 
+		else{
+			if(Tasks.Peek()!=DroneTask.Exploring)
+				Tasks.Push(DroneTask.Exploring);
+		}
 	}
 	Runtime.UpdateFrequency=UpdateFrequency.Update10;
 }
@@ -1919,7 +1923,7 @@ void Exploring(){
 	RestingVelocity=new Vector3D(0,0,0);
 	Match_Position=false;
 	if(incomplete&&Asteroid==null){
-		if((Controller.GetPosition()-Start_Position).Length()>1000){
+		if((Controller.GetPosition()-Start_Position).Length()>7500){
 			EndTask(false);
 			Tasks.Push(DroneTask.Traveling);
 		}
@@ -2632,6 +2636,7 @@ public void Main(string argument, UpdateType updateSource)
 		}
 		else
 			Write("Asteroid: ("+Math.Round((Controller.GetPosition()-Asteroid.Center).Length()/1000,1).ToString()+"kM)");
+		Write("Speed: "+Math.Round(LinearVelocity.Length(),1).ToString()+"mps");
 		bool active=true;
 		Write("Tasks");
 		foreach(DroneTask Task in Tasks){
