@@ -1693,14 +1693,15 @@ void Docking(){
 	Vector3D angle=Controller.GetPosition()-MyDock.Position;
 	angle.Normalize();
 	if((Controller.GetPosition()-MyDock.Position).Length()<12&&GetAngle(MyDock.Orientation,angle)<5){
-		Target_Position=MyDock.Position+((Controller.GetPosition()-Docking_Connector.GetPosition())+1.5)*MyDock.Orientation;
+		Target_Position=Controller.GetPosition()-Docking_Connector.GetPosition();
+		Target_Position=MyDock.Orientation*1.5+MyDock.Position+Target_Position;
 		Speed_Limit=2.5;
 	}
 	if(Docking_Connector.Status!=MyShipConnectorStatus.Unconnected)
 		Docking_Connector.Connect();
 	if(Docking_Connector.Status==MyShipConnectorStatus.Connected){
 		EndTask();
-		Tasks.Push(DroneTask.Docking);
+		Tasks.Push(DroneTask.Docked);
 	}
 	Runtime.UpdateFrequency=UpdateFrequency.Update1;
 }
@@ -2526,6 +2527,7 @@ public void Main(string argument, UpdateType updateSource)
 		}
 		else
 			ArgumentError_Message="";
+		Write("AutoUndock:"+AutoUndock.ToString());
 		bool active=true;
 		Write("Tasks");
 		foreach(DroneTask Task in Tasks){
