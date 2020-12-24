@@ -935,10 +935,14 @@ public Program(){
 		else if(arg.IndexOf("Und:")==0){
 			bool.TryParse(arg.Substring(4),out AutoUndock);
 		}
+		else if(arg.IndexOf("Ret:")==0){
+			Vector3D.TryParse(arg.Substring(4),out ReturnPosition);
+		}
 	}
 	Antenna=GenericMethods<IMyRadioAntenna>.GetConstruct("");
 	if(Antenna==null)
 		return;
+	Me.CustomData="";
 	Runtime.UpdateFrequency=UpdateFrequency.Update100;
 }
 
@@ -948,6 +952,7 @@ public void Save(){
 	else
 		this.Storage="Ast:"+Asteroid.ToString();
 	this.Storage+="•Und:"+AutoUndock.ToString();
+	this.Storage+="•Ret:"+ReturnPosition.ToString();
 	foreach(Sector sector in Sectors)
 		this.Storage+="•Sec:"+sector.ToString();
 	foreach(Zone zone in Zones)
@@ -1096,11 +1101,17 @@ public void Main(string argument, UpdateType updateSource)
 				//Me.CustomData="Dock:"+Connector.GetPosition().ToString()+'•'+LocalToGlobal(new Vector3D(-5,0,0),Connector).ToString()+"•"+ReturnPosition.ToString();
 				Me.CustomData=(new MyWaypointInfo("Forward",LocalToGlobalPosition(new Vector3D(-5,0,0),Connector))).ToString();
 			}
+			else{
+				Me.CustomData="Invalid Connector";
+			}
 		}
 		else
-			Me.CustomData="Invalid Connector";
+			Me.CustomData="Need ReturnPosition";
 	}
-	if(Sent_AudoUndock>0&&Cycle_Time>10800/2)
+	if((ReturnPosition-Me.GetPosition()).Length()>=1000){
+		Write("Invalid ReturnPosition");
+	}
+	if(Sent_AutoUndock>0&&Cycle_Time>10800/2)
 		Sent_AutoUndock=0;
 	if(Cycle_Time<10800/2){
 		if(AutoUndock&&Sent_AutoUndock<10){
