@@ -346,6 +346,23 @@ class Sector{
 		return output;
 	}
 	
+	public string NiceString(Vector3D Reference){
+		Sector current=new Sector(Reference);
+		int count=0;
+		int total=0;
+		foreach(bool b in subsections){
+			total++;
+			if(b)
+				count++;
+		}
+		float percent=((float)count)/total*100.0f;
+		return "Sector ("+(X-current.X).ToString()+","+(Y-current.Y).ToString()+","+(Z-current.Z).ToString()+") "+Math.Round(percent,1).ToString()+"%";
+	}
+	
+	public string NiceString(){
+		return NiceString(new Vector3D(0,0,0));
+	}
+	
 	public int GetSubInt(Vector3D Coords){
 		if(Math.Abs(Coords.Y-Corners[0].Y)>25)
 			return -1;
@@ -1515,6 +1532,7 @@ Sector FindSector(int distance_goal,Vector3D starting_point,Vector3D current_poi
 		return null;
 	if(distance_goal==0){
 		Sector attempt=new Sector(current_point);
+		Write("FindSector: "+attempt.NiceString(MyDock.Return));
 		bool found=false;
 		foreach(Zone Z in Zones){
 			if(Z.Overlaps(attempt))
@@ -1826,7 +1844,7 @@ void Exploring(){
 		EndTask();
 		return;
 	}
-	
+	Write("Exploring: "+S.NiceString(MyDock.Return));
 	bool incomplete=false;
 	Vector3D Start_Position=new Vector3D(0,0,0);
 	Vector3D End_Position=new Vector3D(0,0,0);
