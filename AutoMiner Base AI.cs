@@ -980,6 +980,9 @@ void SendUpdate(bool UpdateSectors=true){
 		foreach(Sector S in Sectors)
 			Broadcast("Sector",S.ToString());
 	}
+	foreach(Zone Z in Zones){
+		Broadcast("Zone",Z.ToString());
+	}
 	if(Asteroid!=null)
 		Broadcast("Asteroid",Asteroid.ToString());
 }
@@ -1001,6 +1004,11 @@ int GetUpdates(){
 					Sector S=null;
 					if(Sector.TryParse(Subdata,out S))
 						UpdateSectors(S);
+				}
+				else if(Command.Equals("Zone")){
+					Zone Z=null;
+					if(Zone.TryParse(Subdata,out Z))
+						Zones.Add(Z);
 				}
 				else if(Command.Contains("Ast-")&&Asteroid!=null){
 					TerrainPoint P=null;
