@@ -1052,34 +1052,46 @@ void UpdateProgramInfo(){
 
 int Sent_AutoUndock=0;
 bool Sent_Update=true;
+string Error_Message="";
 public void Main(string argument, UpdateType updateSource)
 {
 	UpdateProgramInfo();
 	Current_Time=DateTime.Now.TimeOfDay;
 	if(Asteroid!=null)
 		Asteroid.UpdateAges(seconds_since_last_update);
+	if(argument.Length>0)
+		Error_Message="";
 	if(argument.ToLower().IndexOf("zone:")==0){
 		Vector3D c;
-		double r;
+		double r=5000;
 		string[] args=argument.Substring(5).Split('•');
 		bool add=true;
-		if(args.Length!=2)
+		if(args.Length<1||args.Length>2)
 			add=false;
+		if(!add)
+			Error_Message+="Incorrect Argument Count\n";
 		if(!Vector3D.TryParse(args[0],out c)){
 			MyWaypointInfo temp=new MyWaypointInfo("bad",new Vector3D(0,0,0));
-			add=add&&MyWaypointInfo.TryParse(args[0],out temp);
-			if(!add)
-				add=add&&MyWaypointInfo.TryParse(args[0].Substring(0,args[0].Length-10),out temp);
-			if(add)
+			bool found=MyWaypointInfo.TryParse(args[0],out temp);
+			if(!found)
+				found=MyWaypointInfo.TryParse(args[0].Substring(0,args[0].Length-10),out temp);
+			if(found)
 				c=temp.Coords;
+			else
+				Error_Message+="Failed to parse Vector3D\n";
+			add=add&&found;
 		}
-		if(!double.TryParse(args[1],out r))
-			add=false;
+		if(args.Length==2){
+			if(!double.TryParse(args[1],out r))
+				add=false;
+		}
 		if(add){
 			Zone output=new Zone(c,r);
 			output.Outpost=true;
 			Zones.Add(output);
 		}
+		else
+			Error_Message+="Failed to parse Zone";
 	}
 	else if(argument.ToLower().Equals("autoundock")){
 		AutoUndock=!AutoUndock;
@@ -1114,6 +1126,8 @@ public void Main(string argument, UpdateType updateSource)
 		else
 			Me.CustomData="Need ReturnPosition";
 	}
+	else if(argument.ToLower().Equals("share"))
+		SendUpdate();
 	if((ReturnPosition-Me.GetPosition()).Length()>=1000){
 		Write("Invalid ReturnPosition");
 	}
@@ -1140,4 +1154,6 @@ public void Main(string argument, UpdateType updateSource)
 	Write("AutoUndock:"+AutoUndock.ToString());
 	Write(Zones.Count+" Zones");
 	Write(Sectors.Count+" Sectors");
+	if(Error_Message.Length>0)
+		Write(Error_Message);
 }
