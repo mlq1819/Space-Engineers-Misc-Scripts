@@ -2392,6 +2392,10 @@ bool ProcessArgument(string argument){
 		MyDock=new Dock(p,o,r);
 		return true;
 	}
+	else if(argument.ToLower().Equals("autoundock")){
+		AutoUndock=!AutoUndock;
+		return true;
+	}
 	else if(argument.ToLower().IndexOf("zone:")==0){
 		Vector3D c;
 		double r;
