@@ -364,8 +364,7 @@ class Sector{
 			if(b)
 				count++;
 		}
-		float percent=((float)count)/total*100.0f;
-		return "Sector ("+(X-current.X).ToString()+","+(Y-current.Y).ToString()+","+(Z-current.Z).ToString()+") "+Math.Round(percent,1).ToString()+"%";
+		return "Sector ("+(X-current.X).ToString()+","+(Y-current.Y).ToString()+","+(Z-current.Z).ToString()+") "+count+"/"+total;
 	}
 	
 	public string NiceString(){
@@ -1918,6 +1917,7 @@ void Exploring(){
 				Start_Position=End_Position;
 				End_Position=temp;
 			}
+			break;
 		}
 	}
 	RestingVelocity=new Vector3D(0,0,0);
