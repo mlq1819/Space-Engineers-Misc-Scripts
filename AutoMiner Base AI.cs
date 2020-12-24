@@ -943,6 +943,7 @@ public Program(){
 	if(Antenna==null)
 		return;
 	Me.CustomData="";
+	Write("Completed Initialization");
 	Runtime.UpdateFrequency=UpdateFrequency.Update100;
 }
 
@@ -1064,8 +1065,14 @@ public void Main(string argument, UpdateType updateSource)
 		bool add=true;
 		if(args.Length!=2)
 			add=false;
-		if(!Vector3D.TryParse(args[0],out c))
-			add=false;
+		if(!Vector3D.TryParse(args[0],out c)){
+			MyWaypointInfo temp=new MyWaypointInfo("bad",new Vector3D(0,0,0));
+			add=add&&MyWaypointInfo.TryParse(args[0],out temp);
+			if(!add)
+				add=add&&MyWaypointInfo.TryParse(args[0].Substring(0,args[0].Length-10),out temp);
+			if(add)
+				c=temp.Coords;
+		}
 		if(!double.TryParse(args[1],out r))
 			add=false;
 		if(add){
@@ -1131,4 +1138,6 @@ public void Main(string argument, UpdateType updateSource)
 	else
 		Antenna.Radius=5000;
 	Write("AutoUndock:"+AutoUndock.ToString());
+	Write(Zones.Count+" Zones");
+	Write(Sectors.Count+" Sectors");
 }

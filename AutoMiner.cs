@@ -2528,6 +2528,8 @@ public void Main(string argument, UpdateType updateSource)
 		else
 			ArgumentError_Message="";
 		Write("AutoUndock:"+AutoUndock.ToString());
+		Write(Zones.Count+" Zones");
+		Write(Sectors.Count+" Sectors");
 		bool active=true;
 		Write("Tasks");
 		foreach(DroneTask Task in Tasks){
