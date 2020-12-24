@@ -1472,7 +1472,7 @@ int GetUpdates(){
 			string Data=message.Data.ToString();
 			int index=Data.IndexOf(":");
 			if(index!=-1){
-				string Command=Data.Substring(0,index-1);
+				string Command=Data.Substring(0,index);
 				string Subdata=Data.Substring(index+1);
 				if(Command.Equals("Sector")){
 					Sector S=null;
@@ -2457,6 +2457,7 @@ bool ArgumentError=false;
 string ArgumentError_Message="";
 string LastArgument="";
 bool Sent_Update=true;
+int update_count=0;
 public void Main(string argument, UpdateType updateSource)
 {
 	TerrainMap.Update_Size=true;
@@ -2522,7 +2523,8 @@ public void Main(string argument, UpdateType updateSource)
 			}
 		}
 		if(cycle%10==0)
-			GetUpdates();
+			update_count=GetUpdates();
+		Write("Received "+update_count.ToString()+" updates ("+(cycle%10).ToString()+" cycles ago");
 		if(argument.Length>0)
 			ArgumentError=!ProcessArgument(argument);
 		if(LastArgument.Length>0)

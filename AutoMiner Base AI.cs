@@ -977,15 +977,24 @@ bool Broadcast(string Command,string Subdata){
 }
 
 void SendUpdate(bool UpdateSectors=true){
+	Me.CustomData="";
 	if(UpdateSectors){
-		foreach(Sector S in Sectors)
+		Me.CustomData+="Sectors:\n";
+		foreach(Sector S in Sectors){
 			Broadcast("Sector",S.ToString());
+			Me.CustomData+="   "+S.ToString()+"\n";
+		}
 	}
+	Me.CustomData+="Zones:\n";
 	foreach(Zone Z in Zones){
 		Broadcast("Zone",Z.ToString());
+		Me.CustomData+="   "+Z.ToString()+"\n";
 	}
-	if(Asteroid!=null)
+	if(Asteroid!=null){
 		Broadcast("Asteroid",Asteroid.ToString());
+		Me.CustomData+="Asteroid:\n   "+Asteroid.ToString()+"\n";
+		
+	}
 }
 
 int GetUpdates(){
@@ -999,7 +1008,7 @@ int GetUpdates(){
 			string Data=message.Data.ToString();
 			int index=Data.IndexOf(":");
 			if(index!=-1){
-				string Command=Data.Substring(0,index-1);
+				string Command=Data.Substring(0,index);
 				string Subdata=Data.Substring(index+1);
 				if(Command.Equals("Sector")){
 					Sector S=null;
