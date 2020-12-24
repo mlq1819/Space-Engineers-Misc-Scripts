@@ -2543,6 +2543,8 @@ public void Main(string argument, UpdateType updateSource)
 	UpdateProgramInfo();
 	UpdateSystemInfo();
 	try{
+		if(Last_Sector>=Sectors.Count)
+			Last_Sector=-1;
 		if(Tasks.Count==0)
 			Tasks.Push(DroneTask.None);
 		if(MyDock!=null){
@@ -2681,8 +2683,15 @@ public void Main(string argument, UpdateType updateSource)
 	catch (Exception e){
 		Tasks.Clear();
 		AutoUndock=false;
-		Tasks.Push(DroneTask.Returning);
-		Me.CustomData+="\nFatal Error Occurred:\n"+e.Message;
-		//throw e;
+		if(Distance_To_Base>500)
+			Tasks.Push(DroneTask.Returning);
+		Me.CustomData+="\nFatal Error Occurred:\n"+e.ToString();
+	}
+	if(Me.CustomData.Length>0){
+		Echo("Previous Errors:");
+		string[] args=Me.CustomData.Split('\n');
+		foreach(string arg in args)
+			Echo("  "+arg+'\n');
+		Echo("End Errors");
 	}
 }
