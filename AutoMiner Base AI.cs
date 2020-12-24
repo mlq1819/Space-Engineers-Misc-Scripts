@@ -1093,17 +1093,15 @@ public void Main(string argument, UpdateType updateSource)
 		if((ReturnPosition-Me.GetPosition()).Length()<1000){
 			IMyShipConnector Connector=GenericMethods<IMyShipConnector>.GetConstruct(argument);
 			if(Connector!=null&&Connector.CustomName.Equals(argument)){
-				//Me.CustomData="Dock:"+Connector.GetPosition()+'•';
-				Me.CustomData=(new MyWaypointInfo("Forward", LocalToGlobal(new Vector3D(-5,0,0),Connector))).ToString();
+				//Me.CustomData="Dock:"+Connector.GetPosition().ToString()+'•'+LocalToGlobal(new Vector3D(-5,0,0),Connector).ToString()+"•"+ReturnPosition.ToString();
+				Me.CustomData=(new MyWaypointInfo("Forward",LocalToGlobalPosition(new Vector3D(-5,0,0),Connector))).ToString();
 			}
 		}
-		else{
+		else
 			Me.CustomData="Invalid Connector";
-		}
 	}
-	if(Cycle_Time>10800/2){
+	if(Sent_AudoUndock>0&&Cycle_Time>10800/2)
 		Sent_AutoUndock=0;
-	}
 	if(Cycle_Time<10800/2){
 		if(AutoUndock&&Sent_AutoUndock<10){
 			Broadcast("AutoUndock",true.ToString());
