@@ -2530,6 +2530,7 @@ public void Main(string argument, UpdateType updateSource)
 		if(MyDock!=null){
 			if(Cycle_Time+(Controller.GetPosition()-MyDock.Return).Length()/100+120>=10800){
 				AutoUndock=false;
+				Write("Returning to Base; Drone Shift");
 				if((int)Tasks.Peek()>(int)DroneTask.Returning){
 					EndTask(false);
 					Tasks.Push(DroneTask.Returning);
@@ -2538,6 +2539,7 @@ public void Main(string argument, UpdateType updateSource)
 			if(Distance_To_Base<5000)
 				Antenna.Radius=(float)Distance_To_Base+500;
 			else if(Cycle_Time%600<=10){
+				Write("Broadcasting Data");
 				if(Cycle_Time%600<5){
 					Sent_Update=true;
 					Antenna.Radius=50000;
@@ -2583,7 +2585,7 @@ public void Main(string argument, UpdateType updateSource)
 				Tasks.Push(DroneTask.Charging);
 			}
 		}
-		Write("Drone Loop Timer: "+Math.Round(Cycle_Time/60,2).ToString()+"/180 minutes");
+		Write("Drone Shift Timer: "+Math.Round(Cycle_Time/60,2).ToString()+"/180 minutes");
 		if(cycle%10==0)
 			update_count=GetUpdates();
 		Write("Received "+update_count.ToString()+" updates ("+(cycle%10).ToString()+"/10 cycles ago)");

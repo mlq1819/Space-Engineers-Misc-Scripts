@@ -1164,11 +1164,13 @@ public void Main(string argument, UpdateType updateSource)
 		Sent_AutoUndock=0;
 	if(Cycle_Time<10800/2){
 		if(AutoUndock&&Sent_AutoUndock<10){
+			Write("Start of Drone Shift");
 			Broadcast("AutoUndock",true.ToString());
 			Sent_AutoUndock++;
 		}
 	}
 	if(Cycle_Time%600<=10){
+		Write("Broadcasting Data");
 		if(Cycle_Time%600<5){
 			Sent_Update=true;
 			Antenna.Radius=50000;
@@ -1180,7 +1182,7 @@ public void Main(string argument, UpdateType updateSource)
 	}
 	else
 		Antenna.Radius=5000;
-	Write("Drone Loop Timer: "+Math.Round(Cycle_Time/60,2).ToString()+"/180 minutes");
+	Write("Drone Shift Timer: "+Math.Round(Cycle_Time/60,2).ToString()+"/180 minutes");
 	if(cycle%10==0)
 		update_count=GetUpdates();
 	Write("Received "+update_count.ToString()+" updates ("+(cycle%10).ToString()+"/10 cycles ago)");
