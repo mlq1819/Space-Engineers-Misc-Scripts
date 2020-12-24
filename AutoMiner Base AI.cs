@@ -380,6 +380,7 @@ class Sector{
 			string[] parts=Parse.Split(')');
 			if(parts.Length!=2||parts[0].IndexOf('(')!=0)
 				return false;
+			parts[0]=parts[0].Substring(1);
 			string[] coords=parts[0].Split(',');
 			int X,Y,Z;
 			if(!Int32.TryParse(coords[0],out X))
@@ -1157,6 +1158,9 @@ public void Main(string argument, UpdateType updateSource)
 	}
 	else if(argument.ToLower().Equals("share"))
 		SendUpdate();
+	else if(argument.ToLower().Equals("test")){
+		Me.CustomData="";
+	}
 	if((ReturnPosition-Me.GetPosition()).Length()>=1000){
 		Write("Invalid ReturnPosition");
 	}

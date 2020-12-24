@@ -406,6 +406,7 @@ class Sector{
 			string[] parts=Parse.Split(')');
 			if(parts.Length!=2||parts[0].IndexOf('(')!=0)
 				return false;
+			parts[0]=parts[0].Substring(1);
 			string[] coords=parts[0].Split(',');
 			int X,Y,Z;
 			if(!Int32.TryParse(coords[0],out X))
@@ -1876,8 +1877,13 @@ void Traveling(){
 		Controller.SpeedLimit=(float)Speed_Limit;
 		Controller.SetAutoPilotEnabled(true);
 	}
-	if((Controller.GetPosition()-Destination.Coords).Length()<2.5)
+	if((Controller.GetPosition()-Destination.Coords).Length()<2.5){
 		EndTask();
+		if(Asteroid!=null)
+			Tasks.Push(DroneTask.Scanning);
+		else
+			Tasks.Push(DroneTask.Exploring);
+	}
 	Runtime.UpdateFrequency=UpdateFrequency.Update10;
 }
 
@@ -2616,6 +2622,14 @@ public void Main(string argument, UpdateType updateSource)
 		Write("AutoUndock:"+AutoUndock.ToString());
 		Write(Zones.Count+" Zones");
 		Write(Sectors.Count+" Sectors");
+		if(Asteroid==null){
+			Write(Last_Sector.ToString()+" / "+Sectors.Count.ToString());
+			if(Last_Sector>=0&&Last_Sector<Sectors.Count){
+				Write("Last_Sector: "+Sectors[Last_Sector].NiceString(MyDock.Return));
+			}
+		}
+		else
+			Write("Asteroid: ("+Math.Round((Controller.GetPosition()-Asteroid.Center).Length()/1000,1).ToString()+"kM)");
 		bool active=true;
 		Write("Tasks");
 		foreach(DroneTask Task in Tasks){
@@ -2669,6 +2683,6 @@ public void Main(string argument, UpdateType updateSource)
 		AutoUndock=false;
 		Tasks.Push(DroneTask.Returning);
 		Me.CustomData+="\nFatal Error Occurred:\n"+e.Message;
-		throw e;
+		//throw e;
 	}
 }
