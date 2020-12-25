@@ -1689,7 +1689,7 @@ void EndTask(bool do_pop=true){
 		case DroneTask.Exploring:
 			Match_Position=false;
 			Match_Direction=false;
-			RestingVelocity=new Vector3D(0,0,0);
+			Speed_Limit=100;
 			break;
 		case DroneTask.Scanning:
 			Match_Position=false;
@@ -1903,44 +1903,39 @@ void Exploring(){
 	bool incomplete=false;
 	Vector3D Start_Position=new Vector3D(0,0,0);
 	Vector3D End_Position=new Vector3D(0,0,0);
+	double min_distance=double.MaxValue;
 	for(int i=0;i<S.subsections.Length;i++){
 		if(!S.subsections[i]){
 			incomplete=true;
 			int x=i%25;
 			int z=i/25;
-			Start_Position=S.Corners[0]+new Vector3D(x*200,0,z*200);
-			End_Position=S.Corners[0]+new Vector3D(4800,0,z*200);
-			double start_distance=(Start_Position-Controller.GetPosition()).Length();
-			double end_distance=(End_Position-Controller.GetPosition()).Length();
-			if(end_distance<start_distance){
-				Vector3D temp=Start_Position;
-				Start_Position=End_Position;
-				End_Position=temp;
-			}
-			break;
+			Target_Position=S.Corners[0]+new Vector3D(x*200,0,z*200);
+			min_distance=Math.Min(min_distance,(Controller.GetPosition()-Target_Position).Length());
 		}
 	}
-	RestingVelocity=new Vector3D(0,0,0);
+	for(int i=0;i<S.subsections.Length;i++){
+		if(!S.subsections[i]){
+			incomplete=true;
+			int x=i%25;
+			int z=i/25;
+			Target_Position=S.Corners[0]+new Vector3D(x*200,0,z*200);
+			if((Controller.GetPosition()-Target_Position).Length()<min_distance+0.1){
+				Write("Next Section: subsections["+i+"]");
+				break;
+			}
+		}
+	}
+	Speed_Limit=34;
 	Match_Position=false;
 	if(incomplete&&Asteroid==null){
-		if((Controller.GetPosition()-Start_Position).Length()>7500){
+		if((Controller.GetPosition()-Target_Position).Length()>7500){
 			EndTask(false);
 			Tasks.Push(DroneTask.Traveling);
 		}
+		Match_Position=true;
+		Write("Target: "+Math.Round((Controller.GetPosition()-Target_Position).Length(),0).ToString()+"m");
 		Match_Direction=true;
 		Target_Direction=new Vector3D(0,1,0);
-		Vector3D d1,d2;
-		d1=Controller.GetPosition()-Start_Position;
-		d1.Normalize();
-		d2=End_Position-Start_Position;
-		d2.Normalize();
-		if(GetAngle(d1,d2)>1||GetAngle(Forward_Vector,Target_Direction)>1){
-			Match_Position=true;
-			Target_Position=Start_Position;
-		}
-		else {
-			RestingVelocity=d2*30;
-		}
 		if(GetAngle(Forward_Vector,Target_Direction)<1){
 			MyDetectedEntityInfo A=new MyDetectedEntityInfo(-1,"null",MyDetectedEntityType.None,null,new MatrixD(0,0,0,0,0,0,0,0,0),new Vector3D(0,0,0),MyRelationsBetweenPlayerAndBlock.NoOwnership,new BoundingBoxD(new Vector3D(0,0,0),new Vector3D(0,0,0)),0);
 			for(int i=0;i<S.subsections.Length;i++){
@@ -1948,7 +1943,10 @@ void Exploring(){
 					int x=i%25;
 					int z=i/25;
 					Vector3D Coordinates=S.Corners[0]+(new Vector3D(x*200,0,z*200));
-					if((Controller.GetPosition()-Coordinates).Length()<5){
+					double distance=(Controller.GetPosition()-Coordinates).Length();
+					if(distance<250)
+						Write("Subsections["+i+"]:"+Math.Round((Controller.GetPosition()-Coordinates).Length(),0)+"m");
+					if(distance<5){
 						MyDetectedEntityInfo O;
 						Vector3D Target=Coordinates+(new Vector3D(0,5000,0));
 						O=Forward_Camera.Raycast(Target);
@@ -1966,6 +1964,7 @@ void Exploring(){
 						O=Right_Camera.Raycast(Target+(new Vector3D(200,0,0)));
 						if(RaycastCheck(O))
 							A=O;
+						S.subsections[i]=true;
 					}
 					if(RaycastCheck(A))
 						break;
