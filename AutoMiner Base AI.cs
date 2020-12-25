@@ -346,6 +346,22 @@ class Sector{
 		return output;
 	}
 	
+	public string NiceString(Vector3D Reference){
+		Sector current=new Sector(Reference);
+		int count=0;
+		int total=0;
+		foreach(bool b in subsections){
+			total++;
+			if(b)
+				count++;
+		}
+		return "Sector ("+(X-current.X).ToString()+","+(Y-current.Y).ToString()+","+(Z-current.Z).ToString()+") "+count+"/"+total;
+	}
+	
+	public string NiceString(){
+		return NiceString(new Vector3D(0,0,0));
+	}
+	
 	public int GetSubInt(Vector3D Coords){
 		if(Math.Abs(Coords.Y-Corners[0].Y)>25)
 			return -1;
