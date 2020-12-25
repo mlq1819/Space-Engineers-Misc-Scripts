@@ -1124,6 +1124,7 @@ float Right_Thrust{
 }
 
 bool Match_Direction=false;
+bool Slow_Down=true;
 Vector3D Target_Direction=new Vector3D(0,1,0);
 bool Match_Position=false;
 Vector3D Pseudo_Target=new Vector3D(0,0,0);
@@ -1690,6 +1691,7 @@ void EndTask(bool do_pop=true){
 			Match_Position=false;
 			Match_Direction=false;
 			Speed_Limit=100;
+			Slow_Down=true;
 			break;
 		case DroneTask.Scanning:
 			Match_Position=false;
@@ -1927,12 +1929,14 @@ void Exploring(){
 	}
 	Speed_Limit=34;
 	Match_Position=false;
+	Slow_Down=true;
 	if(incomplete&&Asteroid==null){
 		if((Controller.GetPosition()-Target_Position).Length()>7500){
 			EndTask(false);
 			Tasks.Push(DroneTask.Traveling);
 		}
 		Match_Position=true;
+		Slow_Down=false;
 		Write("Target: "+Math.Round((Controller.GetPosition()-Target_Position).Length(),0).ToString()+"m");
 		Match_Direction=true;
 		Target_Direction=new Vector3D(0,1,0);
@@ -2287,6 +2291,7 @@ void SetThrusters(){
 		Write("RestingVelocity:"+Math.Round(RestingVelocity.Length(),1).ToString()+"mps");
 	float damp_multx=0.99f;
 	double ESL=Speed_Limit;
+	if(Slow_Down)
 		ESL=Math.Min(ESL,Speed_Limit*(Target_Distance-Distance_To_Resting*1.2));
 	if(Speed_Limit<5)
 		ESL=Math.Max(ESL,2.5);
