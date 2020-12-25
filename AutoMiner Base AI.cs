@@ -1206,6 +1206,10 @@ public void Main(string argument, UpdateType updateSource)
 	if(cycle%10==0)
 		update_count=GetUpdates();
 	Write("Received "+update_count.ToString()+" updates ("+(cycle%10).ToString()+"/10 cycles ago)");
+	if((600-Cycle_Time%600)/60>1)
+		Write("Next Long-Range Update in "+Math.Round((600-Cycle_Time%600)/60,1)+" minutes");
+	else
+		Write("Next Long-Range Update in "+Math.Round((600-Cycle_Time%600),0)+" seconds");
 	Write("AutoUndock:"+AutoUndock.ToString());
 	Write(Zones.Count+" Zones");
 	Write(Sectors.Count+" Sectors");
