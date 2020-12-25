@@ -1193,6 +1193,8 @@ public void Main(string argument, UpdateType updateSource)
 	Write("AutoUndock:"+AutoUndock.ToString());
 	Write(Zones.Count+" Zones");
 	Write(Sectors.Count+" Sectors");
+	for(int i=Math.Max(0,Sectors.Count-4);i<Sectors.Count;i++)
+		Write("  "+Sectors[i].NiceString(Me.GetPosition()));
 	if(Error_Message.Length>0)
 		Write(Error_Message);
 }
