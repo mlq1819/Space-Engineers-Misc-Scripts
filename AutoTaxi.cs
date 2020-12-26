@@ -701,6 +701,183 @@ public void Save(){
 		this.Storage+="•Tas:"+((int)T).ToString();
 }
 
+void SetGyroscopes(){
+	if((!Match_Direction)||Controller.IsUnderControl||Controller.IsAutoPilotEnabled){
+		Gyroscope.GyroOverride=false;
+		Write("Gyroscope Controls:Off");
+		return;
+	}
+	Write("Gyroscope Controls:On");
+	if(Match_Direction)
+		Write("Match_Direction:"+Math.Round(GetAngle(Target_Direction,Forward_Vector),1).ToString()+'°');
+	Gyroscope.GyroOverride=(AngularVelocity.Length()<3);
+	float current_pitch=(float) Relative_AngularVelocity.X;
+	float current_yaw=(float) Relative_AngularVelocity.Y;
+	float current_roll=(float) Relative_AngularVelocity.Z;
+	
+	float gyro_count = 0;
+	List<IMyGyro> AllGyros=new List<IMyGyro>();
+	GridTerminalSystem.GetBlocksOfType<IMyGyro>(AllGyros);
+	foreach(IMyGyro Gyro in AllGyros){
+		if(Gyro.IsWorking)
+			gyro_count+=Gyro.GyroPower/100.0f;
+	}
+	float gyro_multx=(float)Math.Max(0.1f,Math.Min(1,1.5f/(ShipMass/gyro_count/1000000)));
+	
+	float input_pitch=current_pitch*0.99f;
+	double difference=GetAngle(Down_Vector,Target_Direction)-GetAngle(Up_Vector,Target_Direction);
+	if(Math.Abs(difference)>.1)
+		input_pitch-=(float)Math.Min(Math.Max(difference/5,-4),4)*gyro_multx;
+	
+	float input_yaw=current_yaw*0.99f;
+	difference=GetAngle(Left_Vector,Target_Direction)-GetAngle(Right_Vector,Target_Direction);
+	if(Math.Abs(difference)>.1)
+		input_yaw+=(float)Math.Min(Math.Max(difference/5,-4),4)*gyro_multx;
+	
+	float input_roll=current_roll*0.99f;
+	if(MyDock!=null&&MyDock.DoUp&&Tasks.Peek()==DroneTask.Docking){
+		difference=GetAngle(Left_Vector,MyDock.Up)-GetAngle(Right_Vector,MyDock.Up);
+		if(Math.Abs(difference)>.1)
+			input_roll-=(float)Math.Min(Math.Max(difference/5,-4),1)*gyro_multx;
+	}
+	
+	Vector3D input=new Vector3D(input_pitch,input_yaw,input_roll);
+	
+	Vector3D global=Vector3D.TransformNormal(input,Controller.WorldMatrix);
+	Vector3D output=Vector3D.TransformNormal(global,MatrixD.Invert(Gyroscope.WorldMatrix));
+	output.Normalize();
+	output*=input.Length();
+	
+	Gyroscope.Pitch=(float)output.X;
+	Gyroscope.Yaw=(float)output.Y;
+	Gyroscope.Roll=(float)output.Z;
+}
+
+void SetThrusters(){
+	if((RestingVelocity.Length()==0&&!Match_Position)||Controller.IsUnderControl||Controller.IsAutoPilotEnabled||Relative_LinearVelocity.Length()>Speed_Limit){
+		for(int i=0;i<6;i++){
+			foreach(IMyThrust T in All_Thrusters[i])
+				T.ThrustOverridePercentage=0;
+		}
+		Write("Thruster Controls:Off");
+		if(Controller.IsAutoPilotEnabled){
+			Write("   AutoPilot: "+Math.Round((Controller.GetPosition()-Controller.CurrentWaypoint.Coords).Length(),1).ToString()+" meters");
+		}
+		return;
+	}
+	Write("Thruster Controls:On");
+	if(Match_Position)
+		Write("Match_Position:"+Math.Round((Target_Position-Controller.GetPosition()).Length(),1).ToString()+"meters\n   (X:"+Math.Round(Relative_Pseudo_Target.X,1).ToString()+" Y:"+Math.Round(Relative_Pseudo_Target.Y,1).ToString()+" Z:"+Math.Round(Relative_Pseudo_Target.Z,1).ToString()+")");
+	if(RestingVelocity.Length()>0)
+		Write("RestingVelocity:"+Math.Round(RestingVelocity.Length(),1).ToString()+"mps");
+	float damp_multx=0.99f;
+	double ESL=Speed_Limit;
+	if(Slow_Down)
+		ESL=Math.Min(ESL,Speed_Limit*(Target_Distance-Distance_To_Resting*1.2));
+	if(Speed_Limit<5)
+		ESL=Math.Max(ESL,2.5);
+	else
+		ESL=Math.Max(ESL,5);
+	
+	float input_right=-1*(float)((Relative_LinearVelocity.X-Relative_RestingVelocity.X)*ShipMass*damp_multx);
+	float input_up=-1*(float)((Relative_LinearVelocity.Y-Relative_RestingVelocity.Y)*ShipMass*damp_multx);
+	float input_forward=(float)((Relative_LinearVelocity.Z-Relative_RestingVelocity.Z)*ShipMass*damp_multx);
+	
+	bool matched_direction=!Match_Direction;
+	if(Match_Direction)
+		matched_direction=Math.Abs(GetAngle(Target_Direction,Forward_Vector))<=5;
+	
+	Vector3D Movement_Direction=Relative_Pseudo_Target;
+	Movement_Direction.Normalize();
+	
+	if(Match_Position){
+		double Relative_Distance=Relative_Pseudo_Target.X;
+		double Target_Speed=Math.Abs(Movement_Direction.X*ESL);
+		if(matched_direction||!Match_Direction){
+			if(Relative_Distance>0){
+				if(Math.Abs((Relative_LinearVelocity+Left_Vector-RestingVelocity).X)<=Target_Speed)
+					input_right=0.95f*Left_Thrust;
+				else
+					input_right=0;
+			}
+			else{
+				if(Math.Abs((Relative_LinearVelocity+Right_Vector-RestingVelocity).X)<=Target_Speed)
+					input_right=-0.95f*Right_Thrust;
+				else
+					input_right=0;
+			}
+		}
+	}
+	if(Match_Position){
+		double Relative_Distance=Relative_Pseudo_Target.Y;
+		double Target_Speed=Math.Abs(Movement_Direction.Y*ESL);
+		if(matched_direction||!Match_Direction){
+			if(Relative_Distance>0){
+				if(Math.Abs((Relative_LinearVelocity+Down_Vector-RestingVelocity).Y)<=Target_Speed)
+					input_up=0.95f*Down_Thrust;
+				else
+					input_up=0;
+			}
+			else{
+				if(Math.Abs((Relative_LinearVelocity+Up_Vector-RestingVelocity).Y)<=Target_Speed)
+					input_up=-0.95f*Up_Thrust;
+				else
+					input_up=0;
+			}
+		}
+	}
+	if(Match_Position){
+		double Relative_Distance=Relative_Pseudo_Target.Z;
+		double Target_Speed=Math.Abs(Movement_Direction.Z*ESL);
+		if(matched_direction||!Match_Direction){
+			if(Relative_Distance>0){
+				if(Math.Abs((Relative_LinearVelocity+Backward_Vector-RestingVelocity).Z)<=Target_Speed)
+					input_forward=-0.95f*Backward_Thrust;
+				else
+					input_forward=0;
+			}
+			else{
+				if(Math.Abs((Relative_LinearVelocity+Forward_Vector-RestingVelocity).Z)<=Target_Speed)
+					input_forward=0.95f*Forward_Thrust;
+				else
+					input_forward=0;
+			}
+		}
+	}
+	
+	float output_forward=0.0f;
+	float output_backward=0.0f;
+	if(input_forward/Forward_Thrust>0.05f)
+		output_forward=Math.Min(Math.Abs(input_forward/Forward_Thrust),1);
+	else if(input_forward/Backward_Thrust<-0.05f)
+		output_backward=Math.Min(Math.Abs(input_forward/Backward_Thrust),1);
+	float output_up=0.0f;
+	float output_down=0.0f;
+	if(input_up/Up_Thrust > 0.05f)
+		output_up=Math.Min(Math.Abs(input_up/Up_Thrust),1);
+	else if(input_up/Down_Thrust<-0.05f)
+		output_down=Math.Min(Math.Abs(input_up/Down_Thrust),1);
+	float output_right=0.0f;
+	float output_left=0.0f;
+	if(input_right/Right_Thrust>0.05f)
+		output_right=Math.Min(Math.Abs(input_right/Right_Thrust),1);
+	else if(input_right/Left_Thrust<-0.05f)
+		output_left=Math.Min(Math.Abs(input_right/Left_Thrust),1);
+	
+	foreach(IMyThrust Thruster in Forward_Thrusters)
+		Thruster.ThrustOverridePercentage=output_forward;
+	foreach(IMyThrust Thruster in Backward_Thrusters)
+		Thruster.ThrustOverridePercentage=output_backward;
+	foreach(IMyThrust Thruster in Up_Thrusters)
+		Thruster.ThrustOverridePercentage=output_up;
+	foreach(IMyThrust Thruster in Down_Thrusters)
+		Thruster.ThrustOverridePercentage=output_down;
+	foreach(IMyThrust Thruster in Right_Thrusters)
+		Thruster.ThrustOverridePercentage=output_right;
+	foreach(IMyThrust Thruster in Left_Thrusters)
+		Thruster.ThrustOverridePercentage=output_left;
+}
+
 void UpdateProgramInfo(){
 	cycle=(++cycle)%long.MaxValue;
 	switch(loading_char){
@@ -725,6 +902,115 @@ void UpdateProgramInfo(){
 	Time_Since_Start=UpdateTimeSpan(Time_Since_Start,seconds_since_last_update);
 	Echo(ToString(Time_Since_Start)+" since last reboot\n");
 	Me.GetSurface(1).WriteText("\n"+ToString(Time_Since_Start)+" since last reboot",true);
+}
+
+void UpdateSystemInfo(){
+	Current_Time=DateTime.Now.TimeOfDay;
+	Vector3D base_vector=new Vector3D(0,0,-1);
+	Forward_Vector=LocalToGlobal(base_vector,Controller);
+	Forward_Vector.Normalize();
+	base_vector=new Vector3D(0,1,0);
+	Up_Vector=LocalToGlobal(base_vector,Controller);
+	Up_Vector.Normalize();
+	base_vector=new Vector3D(-1,0,0);
+	Left_Vector=LocalToGlobal(base_vector,Controller);
+	Left_Vector.Normalize();
+	if(Asteroid!=null)
+		Asteroid.UpdateAges(seconds_since_last_update);
+	LinearVelocity=Controller.GetShipVelocities().LinearVelocity;
+	AngularVelocity=Controller.GetShipVelocities().AngularVelocity;
+	Pseudo_Target=Target_Position;
+}
+
+bool ProcessArgument(string argument){
+	LastArgument=argument;
+	if(argument.ToLower().IndexOf("dock:")==0){
+		Vector3D p,o,r;
+		string[] args=argument.Substring(5).Split('•');
+		if(args.Length!=3&&args.Length!=4)
+			return false;
+		if(!Vector3D.TryParse(args[0],out p))
+			return false;
+		if(!Vector3D.TryParse(args[1],out o))
+			return false;
+		if(!Vector3D.TryParse(args[2],out r))
+			return false;
+		MyDock=new Dock(p,o,r);
+		Vector3D u;
+		if(args.Length==4&&Vector3D.TryParse(args[3],out u)){
+			MyDock.Up=u;
+			MyDock.DoUp=true;
+		}
+		return true;
+	}
+	else if(argument.ToLower().Equals("autoundock")){
+		AutoUndock=!AutoUndock;
+		return true;
+	}
+	else if(argument.ToLower().IndexOf("zone:")==0){
+		Vector3D c;
+		double r;
+		string[] args=argument.Substring(5).Split('•');
+		if(args.Length!=2)
+			return false;
+		if(!Vector3D.TryParse(args[0],out c))
+			return false;
+		if(!double.TryParse(args[1],out r))
+			return false;
+		Zone output=new Zone(c,r);
+		output.Outpost=true;
+		Zones.Add(output);
+		return true;
+	}
+	else if(argument.ToLower().Equals("return")){
+		EndTask();
+		Tasks.Clear();
+		Tasks.Push(DroneTask.Returning);
+		return true;
+	}
+	else if(argument.ToLower().Equals("wipe")){
+		Zones.Clear();
+		Sectors.Clear();
+		return true;
+	}
+	else if(argument.ToLower().IndexOf("goto:")==0){
+		try{
+			string str=argument.Substring(5).Trim();
+			bool found=Vector3D.TryParse(str,out Target_Position);
+			if(!found){
+				MyWaypointInfo temp;
+				found=MyWaypointInfo.TryParse(str,out temp);
+				if(!found)
+					found=MyWaypointInfo.TryParse(str.Substring(0,str.Length-10),out temp);
+				if(found)
+					Target_Position=temp.Coords;
+			}
+			if(found){
+				Match_Position=true;
+				return true;
+			}
+			else
+				ArgumentError_Message=str;
+		} 
+		catch(Exception){
+			ArgumentError_Message=argument.Substring(5).Trim();
+			return false;
+		}
+	}
+	else if(argument.ToLower().Equals("stop")){
+		Match_Position=false;
+		Match_Direction=false;
+		return true;
+	}
+	else if(argument.ToLower().Equals("factory reset")){
+		this.Storage="";
+		Me.CustomData="";
+		Runtime.UpdateFrequency=UpdateFrequency.None;
+		Me.Enabled=false;
+		Factory_Reset=true;
+		return true;
+	}
+	return false;
 }
 
 public void Main(string argument, UpdateType updateSource)
