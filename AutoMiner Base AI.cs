@@ -1181,7 +1181,7 @@ public void Main(string argument, UpdateType updateSource)
 		if((ReturnPosition-Me.GetPosition()).Length()<1000){
 			IMyShipConnector Connector=GenericMethods<IMyShipConnector>.GetConstruct(argument);
 			if(Connector!=null&&Connector.CustomName.Equals(argument)){
-				Me.CustomData="Dock:"+Connector.GetPosition().ToString()+'•'+LocalToGlobal(new Vector3D(0,0,-1),Connector).ToString()+"•"+ReturnPosition.ToString();
+				Me.CustomData="Dock:"+Connector.GetPosition().ToString()+'•'+LocalToGlobal(new Vector3D(0,0,-1),Connector).ToString()+"•"+ReturnPosition.ToString()+"•"+LocalToGlobal(new Vector3D(0,1,0),Connector).ToString();
 			}
 			else{
 				Me.CustomData="Invalid Connector";
