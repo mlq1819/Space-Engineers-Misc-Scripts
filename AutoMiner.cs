@@ -2494,7 +2494,7 @@ bool ProcessArgument(string argument){
 	if(argument.ToLower().IndexOf("dock:")==0){
 		Vector3D p,o,r;
 		string[] args=argument.Substring(5).Split('•');
-		if(args.Length!=3)
+		if(args.Length!=3&&args.Length!=4)
 			return false;
 		if(!Vector3D.TryParse(args[0],out p))
 			return false;
@@ -2503,6 +2503,11 @@ bool ProcessArgument(string argument){
 		if(!Vector3D.TryParse(args[2],out r))
 			return false;
 		MyDock=new Dock(p,o,r);
+		Vector3D u;
+		if(args.Length==4&&Vector3D.TryParse(args[3],out u)){
+			MyDock.Up=u;
+			MyDock.DoUp=true;
+		}
 		return true;
 	}
 	else if(argument.ToLower().Equals("autoundock")){
