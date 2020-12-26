@@ -462,7 +462,7 @@ IMyShipConnector Connector;
 List<IMyBatteryBlock> Batteries;
 List<IMyTextPanel> LCDs;
 List<IMyDoor> Doors;
-IMyInteriorLight Light;
+IMyBeacon Beacon;
 IMySoundBlock Sound;
 
 bool Running=false;
@@ -788,8 +788,43 @@ public Program(){
 	Connector=GenericMethods<IMyShipConnector>.GetConstruct("Taxi Connector");
 	if(Controller==null||Gyroscope==null||Connector==null)
 		return;
+	Forward=Controller.Orientation.Forward;
+	Up=Controller.Orientation.Up;
+	Left=Controller.Orientation.Left;
+	List<IMyThrust> MyThrusters=GenericMethods<IMyThrust>.GetAllConstruct("");
+	for(int i=0;i<6;i++)
+		All_Thrusters[i]=new List<IMyThrust>();
+	for(int i=0;i<2;i++){
+		bool retry=!Me.CubeGrid.IsStatic;
+		foreach(IMyThrust Thruster in MyThrusters){
+			if(Thruster.CubeGrid!=Controller.CubeGrid)
+				continue;
+			retry=false;
+			Base6Directions.Direction ThrustDirection=Thruster.Orientation.Forward;
+			if(ThrustDirection==Backward)
+				Forward_Thrusters.Add(Thruster);
+			else if(ThrustDirection==Forward)
+				Backward_Thrusters.Add(Thruster);
+			else if(ThrustDirection==Down)
+				Up_Thrusters.Add(Thruster);
+			else if(ThrustDirection==Up)
+				Down_Thrusters.Add(Thruster);
+			else if(ThrustDirection==Right)
+				Left_Thrusters.Add(Thruster);
+			else if(ThrustDirection==Left)
+				Right_Thrusters.Add(Thruster);
+		}
+		if(!retry)
+			break;
+	}
+	SetThrusterList(Forward_Thrusters,"Forward");
+	SetThrusterList(Backward_Thrusters,"Backward");
+	SetThrusterList(Up_Thrusters,"Up");
+	SetThrusterList(Down_Thrusters,"Down");
+	SetThrusterList(Left_Thrusters,"Left");
+	SetThrusterList(Right_Thrusters,"Right");
 	Sound=GenericMethods<IMySoundBlock>.GetConstruct("Taxi Sound Block");
-	Light=GenericMethods<IMyInteriorLight>.GetConstruct("Taxi Light");
+	Beacon=GenericMethods<IMyBeacon>.GetConstruct("Taxi Beacon");
 	Doors=GenericMethods<IMyDoor>.GetAllConstruct("Taxi Door");
 	Antenna=GenericMethods<IMyRadioAntenna>.GetConstruct("Taxi Antenna");
 	Batteries=GenericMethods<IMyBatteryBlock>.GetAllConstruct("Taxi");
@@ -857,7 +892,7 @@ void Docked(){
 		B.ChargeMode=ChargeMode.Recharge;
 	foreach(IMyDoor Door in Doors)
 		Door.OpenDoor();
-	Runtime.UpdateFrequency=UpdateFrequency.Update100;
+	Runtime.UpdateFrequency=UpdateFrequency.Update10;
 }
 
 void Docking(){
@@ -1172,6 +1207,8 @@ string LastArgument="";
 bool switched=false;
 public void Main(string argument, UpdateType updateSource)
 {
+	if(Tasks.Count==0)
+		Tasks.Push(DroneTask.None);
 	UpdateProgramInfo();
 	UpdateSystemInfo();
 	double Time_To_Embark=600-Cycle_Time;
@@ -1196,24 +1233,36 @@ public void Main(string argument, UpdateType updateSource)
 			Write(Math.Round(Time_To_Embark/60,1)+" minutes to departure");
 		else
 			Write(Math.Round(Time_To_Embark,0)+" seconds to departure");
+		string minutes="";
+		string seconds="";
+		int min=(int)(Time_To_Embark/60);
+		int sec=(int)(Time_To_Embark%60);
+		if(min<10)
+			minutes+="0";
+		minutes+=min.ToString();
+		if(sec<10)
+			seconds+="0";
+		seconds+=sec.ToString();
 		foreach(IMyTextPanel Panel in LCDs){
-			string minutes="";
-			string seconds="";
-			int min=(int)(Time_To_Embark/60);
-			int sec=(int)(Time_To_Embark%60);
-			if(min<10)
-				minutes+="0";
-			minutes+=min.ToString();
-			if(sec<10)
-				seconds+="0";
-			seconds+=sec.ToString();
 			Panel.WriteText(minutes+":"+seconds,false);
+		}
+		if(Beacon!=null){
+			Beacon.HudText=minutes+":"+seconds;
+			Beacon.Radius=100;
 		}
 	}
 	else {
 		foreach(IMyTextPanel Panel in LCDs)
 			Panel.WriteText("Out of Service",false);
+		if(Beacon!=null){
+			Beacon.HudText="Out of Service";
+			Beacon.Radius=25;
+		}
 	}
+	if(MyDock!=null)
+		Antenna.Radius=Math.Min(5000,500+(float)Distance_To_Base);
+	else
+		Antenna.Radius=500;
 	if(argument.Length>0)
 		ArgumentError=!ProcessArgument(argument);
 	if(LastArgument.Length>0)
@@ -1226,7 +1275,6 @@ public void Main(string argument, UpdateType updateSource)
 	}
 	else
 		ArgumentError_Message="";
-	Antenna.Radius=Math.Min(5000,500+Distance_To_Base);
 	Write("Speed: "+Math.Round(LinearVelocity.Length(),1).ToString()+"mps");
 	bool active=true;
 	Write("Tasks");
