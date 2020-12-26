@@ -2680,9 +2680,7 @@ public void Main(string argument, UpdateType updateSource)
 				Docking();
 				break;
 			case DroneTask.Charging:
-				EndTask();
-				Tasks.Push(DroneTask.Returning);
-				//Charging();
+				Returning();
 				break;
 			case DroneTask.Returning:
 				Returning();
