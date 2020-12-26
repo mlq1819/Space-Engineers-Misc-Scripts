@@ -1636,7 +1636,7 @@ Sector NextSector(){
 	if(Last_Sector!=-1){
 		if(!Sectors[Last_Sector].Complete)
 			return Sectors[Last_Sector];
-		Coords_Start=Sectors[Last_Sector].Center;
+		Coords_Start=(Sectors[Last_Sector].Center-MyDock.Return)/2+MyDock.Return;
 	}
 	for(int i=0;i<Sectors.Count;i++){
 		if(!Sectors[i].Complete){
