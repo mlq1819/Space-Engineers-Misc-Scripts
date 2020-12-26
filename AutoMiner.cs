@@ -2577,6 +2577,14 @@ public void Main(string argument, UpdateType updateSource)
 					Tasks.Push(DroneTask.Returning);
 				}
 			}
+			else if((int)Tasks.Peek()>(int)DroneTask.Returning){
+				double Time_To_Return=(Controller.GetPosition()-MyDock.Return).Length()/95+120;
+				Time_To_Return=Math.Max(0,10800-Time_To_Return-Cycle_Time);
+				if(Time_To_Return>60)
+					Write("Time to Return: "+Math.Round(Time_To_Return/60,1)+" minutes");
+				else
+					Write("Time to Return: "+Math.Round(Time_To_Return,0)+" seconds");
+			}
 			if(Distance_To_Base<5000)
 				Antenna.Radius=(float)Distance_To_Base+500;
 			else if(Cycle_Time%600<=10){
