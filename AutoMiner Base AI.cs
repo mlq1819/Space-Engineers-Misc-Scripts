@@ -1182,6 +1182,7 @@ public void Main(string argument, UpdateType updateSource)
 			IMyShipConnector Connector=GenericMethods<IMyShipConnector>.GetConstruct(argument);
 			if(Connector!=null&&Connector.CustomName.Equals(argument)){
 				Me.CustomData="Dock:"+Connector.GetPosition().ToString()+'•'+LocalToGlobal(new Vector3D(0,0,-1),Connector).ToString()+"•"+ReturnPosition.ToString()+"•"+LocalToGlobal(new Vector3D(0,1,0),Connector).ToString();
+				Me.CustomData+="\n"+(new MyWaypointInfo("Up",LocalToGlobalPosition(new Vector3D(0,1,0),Connector))).ToString();
 			}
 			else{
 				Me.CustomData="Invalid Connector";
