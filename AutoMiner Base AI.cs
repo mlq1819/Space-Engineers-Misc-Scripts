@@ -1218,6 +1218,16 @@ public void Main(string argument, UpdateType updateSource)
 		Write("Next Long-Range Update in "+Math.Round((600-Cycle_Time%600)/60,1)+" minutes");
 	else
 		Write("Next Long-Range Update in "+Math.Round((600-Cycle_Time%600),0)+" seconds");
+	double Time_To_Return=Math.Max(0,(10800-Cycle_Time-120));
+	double Distance_To_Return=Time_To_Return*95;
+	if(Distance_To_Return>0){
+		if(Distance_To_Return>=1000)
+			Write("Ships at "+Math.Round(Distance_To_Return/1000,1)+" kM should now begin returning");
+		else
+			Write("Ships at "+Math.Round(Distance_To_Return,0)+" meters should now begin returning");
+	}
+	else
+		Write("All ships should now be returning");
 	Write("AutoUndock:"+AutoUndock.ToString());
 	Write(Zones.Count+" Zones");
 	Write(Sectors.Count+" Sectors");
