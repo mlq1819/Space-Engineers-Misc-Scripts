@@ -1099,6 +1099,7 @@ int Sent_AutoUndock=0;
 bool Sent_Update=true;
 string Error_Message="";
 int update_count=0;
+bool SendReturn=false;
 public void Main(string argument, UpdateType updateSource)
 {
 	UpdateProgramInfo();
@@ -1177,6 +1178,9 @@ public void Main(string argument, UpdateType updateSource)
 	else if(argument.ToLower().Equals("test")){
 		Me.CustomData="";
 	}
+	else if(argument.ToLower().Equals("return")){
+		SendReturn=true;
+	}
 	if((ReturnPosition-Me.GetPosition()).Length()>=1000){
 		Write("Invalid ReturnPosition");
 	}
@@ -1198,6 +1202,10 @@ public void Main(string argument, UpdateType updateSource)
 		else if(Sent_Update){
 			SendUpdate();
 			Sent_Update=false;
+		}
+		if(SendReturn){
+			Broadcast("Return","");
+			SendReturn=false;
 		}
 	}
 	else

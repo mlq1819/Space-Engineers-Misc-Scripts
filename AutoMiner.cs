@@ -1553,6 +1553,12 @@ int GetUpdates(){
 					if(Me.CustomData.Length==0)
 						bool.TryParse(Subdata,out AutoUndock);
 				}
+				else if(Command.Equals("Return")){
+					EndTask();
+					Tasks.Clear();
+					AutoUndock=false;
+					Tasks.Push(DroneTask.Returning);
+				}
 			}
 		}
 	}
