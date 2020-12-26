@@ -2429,7 +2429,7 @@ void UpdateProgramInfo(){
 	Write("",false,false);
 	Echo(Program_Name+" OS Cycle-"+cycle.ToString()+" ("+loading_char+")");
 	Me.GetSurface(1).WriteText(Program_Name+" OS Cycle-"+cycle.ToString()+" ("+loading_char+")",false);
-	seconds_since_last_update=Runtime.TimeSinceLastRun.TotalSeconds + (Runtime.LastRunTimeMs / 1000);
+	seconds_since_last_update=Runtime.TimeSinceLastRun.TotalSeconds+(Runtime.LastRunTimeMs/1000);
 	Echo(ToString(FromSeconds(seconds_since_last_update))+" since last cycle");
 	Time_Since_Start=UpdateTimeSpan(Time_Since_Start,seconds_since_last_update);
 	Echo(ToString(Time_Since_Start)+" since last reboot\n");
@@ -2650,7 +2650,7 @@ public void Main(string argument, UpdateType updateSource)
 		Write(Zones.Count+" Zones");
 		Write(Sectors.Count+" Sectors");
 		if(Asteroid==null){
-			Write(Last_Sector.ToString()+" / "+Sectors.Count.ToString());
+			Write((Last_Sector+1).ToString()+" / "+Sectors.Count.ToString());
 			if(Last_Sector>=0&&Last_Sector<Sectors.Count){
 				Write("Last_Sector: "+Sectors[Last_Sector].NiceString(MyDock.Return));
 			}
