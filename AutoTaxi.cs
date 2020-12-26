@@ -1202,6 +1202,11 @@ bool ProcessArgument(string argument){
 		Docks.Clear();
 		return true;
 	}
+	else if(argument.ToLower().Equals("return")){
+		Tasks.Clear();
+		Tasks.Push(DroneTask.Traveling);
+		return true;
+	}
 	return false;
 }
 
