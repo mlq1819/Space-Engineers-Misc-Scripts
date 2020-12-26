@@ -1204,6 +1204,13 @@ bool ProcessArgument(string argument){
 		Tasks.Push(DroneTask.Traveling);
 		return true;
 	}
+	else if(argument.ToLower().Equals("switch")){
+		Docks.Enqueue(Docks.Dequeue());
+		EndTask();
+		Tasks.Clear();
+		Tasks.Push(DroneTask.Traveling);
+		switched=true;
+	}
 	return false;
 }
 
@@ -1226,6 +1233,7 @@ public void Main(string argument, UpdateType updateSource)
 		else if((!switched)&&Cycle_Time<150){
 			if(Charge>=0.95f){
 				Docks.Enqueue(Docks.Dequeue());
+				EndTask();
 				Tasks.Clear();
 				Tasks.Push(DroneTask.Traveling);
 				switched=true;
@@ -1253,7 +1261,7 @@ public void Main(string argument, UpdateType updateSource)
 			Panel.WriteText(minutes+":"+seconds,false);
 		}
 		if(Beacon!=null){
-			Beacon.HudText=minutes+":"+seconds;
+			Beacon.HudText="Taxi --- "+minutes+":"+seconds;
 			Beacon.Radius=100;
 		}
 	}
@@ -1271,7 +1279,7 @@ public void Main(string argument, UpdateType updateSource)
 		Antenna.Radius=500;
 	Write(Docks.Count+" Docks");
 	for(int i=0;i<Docks.ToArray().Length;i++){
-		double distance=(Connector.GetPosition()-Docks.ToArray()[i].Position).Length();
+		double distance=Math.Max(0,(Connector.GetPosition()-Docks.ToArray()[i].Position).Length()-1.75);
 		if(distance>=1000)
 			Write("   Dock "+(i+1).ToString()+": "+Math.Round(distance/1000,1)+"kM");
 		else
