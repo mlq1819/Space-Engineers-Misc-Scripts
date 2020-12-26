@@ -1568,6 +1568,8 @@ int GetUpdates(){
 Sector FindSector(int distance_goal,Vector3D starting_point,Vector3D current_point){
 	if(distance_goal>17)
 		return null;
+	if((current_point-MyDock.Return).Length()>87500)
+		return null;
 	if(distance_goal==0){
 		Sector attempt=new Sector(current_point);
 		bool found=false;
