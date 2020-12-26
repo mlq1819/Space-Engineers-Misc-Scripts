@@ -449,7 +449,9 @@ Stack<DroneTask> Tasks;
 Queue<Dock> Docks;
 Dock MyDock{
 	get{
-		return Docks.Peek();
+		if(Docks.Count>0)
+			return Docks.Peek();
+		return null;
 	}
 }
 
@@ -686,6 +688,13 @@ public Program(){
 	Antenna=GenericMethods<IMyRadioAntenna>.GetConstruct("Taxi Antenna");
 	Batteries=GenericMethods<IMyBatteryBlock>.GetAllConstruct("Taxi");
 	LCDs=GenericMethods<IMyTextPanel>.GetAllConstruct("Taxi LCD");
+	foreach(IMyTextPanel Panel in LCDs){
+		Panel.FontColor=DEFAULT_TEXT_COLOR;
+		Panel.BackgroundColor=DEFAULT_BACKGROUND_COLOR;
+		Panel.Alignment=TextAlignment.CENTER;
+		Panel.ContentType=ContentType.TEXT_AND_IMAGE;
+		Panel.Write("Taxi Service",false);
+	}
 	if(Batteries.Count==0)
 		return;
 	Runtime.UpdateFrequency=UpdateFrequency.Update1;
@@ -699,6 +708,100 @@ public void Save(){
 		temp.Push(T);
 	foreach(DroneTask T in temp)
 		this.Storage+="•Tas:"+((int)T).ToString();
+}
+
+void EndTask(bool do_pop=true){
+	DroneTask Last=DroneTask.None;
+	if(Tasks.Count>0){
+		Last=Tasks.Peek();
+		if(do_pop)
+			Tasks.Pop();
+	}
+	if(Tasks.Count==0)
+		Tasks.Push(DroneTask.None);
+	switch(Last){
+		case DroneTask.Docked:
+			foreach(IMyBatteryBlock B in Batteries)
+				B.ChargeMode=ChargeMode.Auto;
+			Connector.Disconnect();
+			foreach(IMyDoor Door in Doors)
+				Door.CloseDoor();
+			break;
+		case DroneTask.Docking:
+			Match_Position=false;
+			Match_Direction=false;
+			break;
+		case DroneTask.Traveling:
+			Match_Position=false;
+			Match_Direction=false;
+			Controller.ClearWaypoints();
+			Controller.SetAutoPilotEnabled(false);
+			Sound.Play();
+			break;
+	}
+}
+
+void Docked(){
+	if(MyDock==null){
+		EndTask();
+		return;
+	}
+	foreach(IMyBatteryBlock B in Batteries)
+		B.ChargeMode=ChargeMode.Recharge;
+	foreach(IMyDoor Door in Doors)
+		Door.OpenDoor();
+	Runtime.UpdateFrequency=UpdateFrequency.Update100;
+}
+
+void Docking(){
+	if(MyDock==null){
+		EndTask();
+		return;
+	}
+	Target_Direction=MyDock.Orientation;
+	Match_Direction=true;
+	Target_Position=MyDock.Position+10*MyDock.Orientation;
+	Match_Position=true;
+	Speed_Limit=5;
+	Vector3D angle=Controller.GetPosition()-MyDock.Position;
+	angle.Normalize();
+	if((Controller.GetPosition()-MyDock.Position).Length()<12&&GetAngle(MyDock.Orientation,angle)<5){
+		Target_Position=Controller.GetPosition()-Connector.GetPosition();
+		Target_Position=MyDock.Orientation*1.5+MyDock.Position+Target_Position;
+		Speed_Limit=2.5;
+	}
+	if(Connector.Status!=MyShipConnectorStatus.Unconnected)
+		Connector.Connect();
+	if(Connector.Status==MyShipConnectorStatus.Connected){
+		EndTask();
+		Tasks.Push(DroneTask.Docked);
+	}
+	Runtime.UpdateFrequency=UpdateFrequency.Update1;
+}
+
+void Traveling(){
+	Match_Position=false;
+	if(MyDock==null){
+		EndTask();
+		return;
+	}
+	MyWaypointInfo Destination=new MyWaypointInfo("Return to Base",MyDock.Return);
+	if((!Controller.CurrentWaypoint.Equals(Destination))||!Controller.IsAutoPilotEnabled){
+		Controller.ClearWaypoints();
+		Controller.AddWaypoint(Destination);
+		Controller.SetCollisionAvoidance(true);
+		Speed_Limit=Math.Max(5,Math.Min(100,Distance_To_Base/15));
+		Controller.SpeedLimit=(float)Speed_Limit;
+		Controller.SetAutoPilotEnabled(true);
+	}
+	if((Controller.GetPosition()-MyDock.Return).Length()<2.5){
+		EndTask();
+		Tasks.Push(DroneTask.Docking);
+	}
+	if(Match_Position)
+		Runtime.UpdateFrequency=UpdateFrequency.Update1;
+	else
+		Runtime.UpdateFrequency=UpdateFrequency.Update10;
 }
 
 void SetGyroscopes(){
@@ -925,6 +1028,7 @@ void UpdateSystemInfo(){
 bool ProcessArgument(string argument){
 	LastArgument=argument;
 	if(argument.ToLower().IndexOf("dock:")==0){
+		Dock D=null;
 		Vector3D p,o,r;
 		string[] args=argument.Substring(5).Split('•');
 		if(args.Length!=3&&args.Length!=4)
@@ -935,92 +1039,117 @@ bool ProcessArgument(string argument){
 			return false;
 		if(!Vector3D.TryParse(args[2],out r))
 			return false;
-		MyDock=new Dock(p,o,r);
+		D=new Dock(p,o,r);
 		Vector3D u;
 		if(args.Length==4&&Vector3D.TryParse(args[3],out u)){
-			MyDock.Up=u;
-			MyDock.DoUp=true;
+			D.Up=u;
+			D.DoUp=true;
 		}
+		Docks.Enqueue(D);
+		if(Docks.Count>2)
+			Docks.Dequeue();
 		return true;
 	}
-	else if(argument.ToLower().Equals("autoundock")){
-		AutoUndock=!AutoUndock;
-		return true;
-	}
-	else if(argument.ToLower().IndexOf("zone:")==0){
-		Vector3D c;
-		double r;
-		string[] args=argument.Substring(5).Split('•');
-		if(args.Length!=2)
-			return false;
-		if(!Vector3D.TryParse(args[0],out c))
-			return false;
-		if(!double.TryParse(args[1],out r))
-			return false;
-		Zone output=new Zone(c,r);
-		output.Outpost=true;
-		Zones.Add(output);
-		return true;
-	}
-	else if(argument.ToLower().Equals("return")){
-		EndTask();
-		Tasks.Clear();
-		Tasks.Push(DroneTask.Returning);
+	else if(argument.ToLower().Equals("running")){
+		Running=!Running;
 		return true;
 	}
 	else if(argument.ToLower().Equals("wipe")){
-		Zones.Clear();
-		Sectors.Clear();
-		return true;
-	}
-	else if(argument.ToLower().IndexOf("goto:")==0){
-		try{
-			string str=argument.Substring(5).Trim();
-			bool found=Vector3D.TryParse(str,out Target_Position);
-			if(!found){
-				MyWaypointInfo temp;
-				found=MyWaypointInfo.TryParse(str,out temp);
-				if(!found)
-					found=MyWaypointInfo.TryParse(str.Substring(0,str.Length-10),out temp);
-				if(found)
-					Target_Position=temp.Coords;
-			}
-			if(found){
-				Match_Position=true;
-				return true;
-			}
-			else
-				ArgumentError_Message=str;
-		} 
-		catch(Exception){
-			ArgumentError_Message=argument.Substring(5).Trim();
-			return false;
-		}
-	}
-	else if(argument.ToLower().Equals("stop")){
-		Match_Position=false;
-		Match_Direction=false;
-		return true;
-	}
-	else if(argument.ToLower().Equals("factory reset")){
-		this.Storage="";
-		Me.CustomData="";
-		Runtime.UpdateFrequency=UpdateFrequency.None;
-		Me.Enabled=false;
-		Factory_Reset=true;
+		Docks.Clear();
 		return true;
 	}
 	return false;
 }
 
+bool ArgumentError=false;
+string ArgumentError_Message="";
+string LastArgument="";
+bool switched=false;
 public void Main(string argument, UpdateType updateSource)
 {
 	UpdateProgramInfo();
-    // The main entry point of the script, invoked every time
-    // one of the programmable block's Run actions are invoked,
-    // or the script updates itself. The updateSource argument
-    // describes where the update came from.
-    // 
-    // The method itself is required, but the arguments above
-    // can be removed if not needed.
+	UpdateSystemInfo();
+	double Time_To_Embark=600-Cycle_Time;
+	Write("Running: "+Running.ToString());
+	if(MyDock!=null&&Running){
+		if(switched&&Cycle_Timer>300){
+			switched=false;
+		}
+		else if((!switched)&&Cycle_Timer<150){
+			if(Charge>=0.95f){
+				Docks.Enqueue(Docks.Dequeue());
+				Tasks.Clear();
+				Tasks.Push(DroneTask.Traveling);
+				switched=true;
+			}
+		}
+		if(Distance_To_Base>1000)
+			Write(Math.Round(Distance_To_Base/1000,1)+"kM from Destination");
+		else
+			Write(Math.Round(Distance_To_Base,0)+" meters from Destination");
+		if(Time_To_Embark>60)
+			Write(Math.Round(Time_To_Embark/60,1)+" minutes to departure");
+		else
+			Write(Math.Round(Time_To_Embark,0)+" seconds to departure");
+		foreach(IMyTextPanel Panel in LCDs){
+			string minutes="";
+			string seconds="";
+			int min=(int)(Time_To_Embark/60);
+			int sec=(int)(Time_To_Embark%60);
+			if(min<10)
+				minutes+="0";
+			minutes+=min.ToString();
+			if(sec<10)
+				seconds+="0";
+			seconds+=sec.ToString();
+			Panel.WriteText(minutes+":"+seconds,false);
+		}
+	}
+	else {
+		foreach(IMyTextPanel Panel in LCDs)
+			Panel.WriteText("Out of Service",false);
+	}
+	if(argument.Length>0)
+		ArgumentError=!ProcessArgument(argument);
+	if(LastArgument.Length>0)
+		Write("Last Argument: "+LastArgument);
+	if(ArgumentError){
+		if(ArgumentError_Message.Length>0)
+			Write("Invalid Argument: "+ArgumentError_Message);
+		else
+			Write("Invalid Argument");
+	}
+	else
+		ArgumentError_Message="";
+	Antenna.Radius=Math.Min(5000,500+Distance_To_Base);
+	Write("Speed: "+Math.Round(LinearVelocity.Length(),1).ToString()+"mps");
+	bool active=true;
+	Write("Tasks");
+	foreach(DroneTask Task in Tasks){
+		if(active)
+			Write(" "+Task.ToString().ToUpper());
+		else
+			Write("  "+Task.ToString().ToLower());
+		active=false;
+	}
+	switch(Tasks.Peek()){
+		case DroneTask.None:
+			Runtime.UpdateFrequency=UpdateFrequency.Update100;
+			if(MyDock!=null){
+				EndTask();
+				Tasks.Push(DroneTask.Traveling);
+			}
+			break;
+		case DroneTask.Docked:
+			Docked();
+			break;
+		case DroneTask.Docking:
+			Docking();
+			break;
+		case DroneTask.Traveling:
+			Traveling();
+			break;
+	}
+	SetGyroscopes();
+	SetThrusters();
 }
