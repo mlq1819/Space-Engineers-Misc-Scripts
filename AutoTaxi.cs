@@ -1,4 +1,4 @@
-const string Program_Name = ""; //Name me!
+const string Program_Name = "AutoTaxi Drone AI"; //Name me!
 Color DEFAULT_TEXT_COLOR=new Color(197,137,255,255);
 Color DEFAULT_BACKGROUND_COLOR=new Color(44,0,88,255);
 
@@ -264,6 +264,68 @@ class GenericMethods<T> where T : class, IMyTerminalBlock{
 	}
 }
 
+class Dock{
+	public Vector3D Position;
+	public Vector3D Orientation;
+	public Vector3D Return;
+	public bool DoUp;
+	public Vector3D Up;
+	
+	public Dock(Vector3D p,Vector3D o,Vector3D r){
+		Position=p;
+		Orientation=o;
+		Orientation.Normalize();
+		Return=r;
+		Up=new Vector3D(0,0,1);
+		DoUp=false;
+	}
+	
+	public Dock(Vector3D p,Vector3D o,Vector3D r,Vector3D u):this(p,o,r){
+		Up=u;
+		DoUp=true;
+	}
+	
+	public override string ToString(){
+		if(DoUp)
+			return '('+Position.ToString()+';'+Orientation.ToString()+';'+Return.ToString()+';'+Up.ToString()+')';
+		else
+			return '('+Position.ToString()+';'+Orientation.ToString()+';'+Return.ToString()+')';
+	}
+	
+	public static bool TryParse(string Parse,out Dock output){
+		output=null;
+		if(Parse[0]!='('||Parse[Parse.Length-1]!=')')
+			return false;
+		Parse=Parse.Substring(1,Parse.Length-2);
+		string[] args=Parse.Split(';');
+		if(args.Length!=3&&args.Length!=4)
+			return false;
+		Vector3D p;
+		if(!Vector3D.TryParse(args[0],out p))
+			return false;
+		Vector3D o;
+		if((!Vector3D.TryParse(args[1],out o))||o.Length()==0)
+			return false;
+		Vector3D r;
+		if(!Vector3D.TryParse(args[2],out r))
+			return false;
+		output=new Dock(p,o,r);
+		Vector3D u;
+		if(args.Length==4&&Vector3D.TryParse(args[3],out u)){
+			output.Up=u;
+			output.DoUp=true;
+		}
+		return true;
+	}
+}
+
+enum DroneTask{
+	None=0,
+	Docked=1,
+	Docking=2,
+	Traveling=3
+}
+
 TimeSpan FromSeconds(double seconds){
 	return (new TimeSpan(0,0,0,(int)seconds,(int)(seconds*1000)%1000));
 }
@@ -362,10 +424,224 @@ void Write(string text,bool new_line=true,bool append=true){
 		Me.GetSurface(0).WriteText(text, append);
 }
 
+string GetRemovedString(string big_string, string small_string){
+	string output=big_string;
+	if(big_string.Contains(small_string)){
+		output=big_string.Substring(0, big_string.IndexOf(small_string))+big_string.Substring(big_string.IndexOf(small_string)+small_string.Length);
+	}
+	return output;
+}
+
 TimeSpan Time_Since_Start=new TimeSpan(0);
 long cycle=0;
 char loading_char='|';
 double seconds_since_last_update=0;
+
+TimeSpan Current_Time;
+double Cycle_Time{
+	get{
+		return Current_Time.TotalSeconds%600;
+	}
+}
+
+Stack<DroneTask> Tasks;
+
+Queue<Dock> Docks;
+Dock MyDock{
+	get{
+		return Docks.Peek();
+	}
+}
+
+IMyRemoteControl Controller;
+IMyGyro Gyroscope;
+IMyRadioAntenna Antenna;
+IMyShipConnector Connector;
+List<IMyBatteryBlock> Batteries;
+List<IMyTextPanel> LCDs;
+List<IMyDoor> Doors;
+IMyInteriorLight Light;
+IMySoundBlock Sound;
+
+bool Running=false;
+
+float Charge{
+	get{
+		float current=0,max=0;
+		foreach(IMyBatteryBlock B in Batteries){
+			current+=B.CurrentStoredPower;
+			max+=B.MaxStoredPower;
+		}
+		return current/max;
+	}
+}
+
+double ShipMass{
+	get{
+		return Controller.CalculateShipMass().TotalMass;
+	}
+}
+
+bool Match_Direction=false;
+bool Slow_Down=true;
+Vector3D Target_Direction=new Vector3D(0,1,0);
+bool Match_Position=false;
+Vector3D Pseudo_Target=new Vector3D(0,0,0);
+Vector3D Relative_Pseudo_Target{
+	get{
+		return GlobalToLocalPosition(Pseudo_Target,Controller);
+	}
+}
+Vector3D Target_Position=new Vector3D(0,0,0);
+double Target_Distance{
+	get{
+		return (Target_Position-Controller.GetPosition()).Length();
+	}
+}
+
+Vector3D RestingVelocity=new Vector3D(0,0,0);
+Vector3D Relative_RestingVelocity{
+	get{
+		return GlobalToLocal(RestingVelocity,Controller);
+	}
+}
+Vector3D LinearVelocity;
+Vector3D Relative_LinearVelocity{
+	get{
+		Vector3D output=Vector3D.Transform(LinearVelocity+Controller.GetPosition(),MatrixD.Invert(Controller.WorldMatrix));
+		output.Normalize();
+		output*=LinearVelocity.Length();
+		return output;
+	}
+}
+double Speed_Deviation{
+	get{
+		return (LinearVelocity-RestingVelocity).Length();
+	}
+}
+double Acceleration{
+	get{
+		return (Forward_Thrust+Backward_Thrust)/(2*ShipMass);
+	}
+}
+double Time_To_Resting{
+	get{
+		return (RestingVelocity-LinearVelocity).Length()/Acceleration;
+	}
+}
+double Distance_To_Resting{
+	get{
+		return Acceleration*Math.Pow(Time_To_Resting,2)/2;
+	}
+}
+
+double Distance_To_Base{
+	get{
+		return (Controller.GetPosition()-MyDock.Return).Length();
+	}
+}
+
+double Speed_Limit=100;
+
+Vector3D AngularVelocity;
+Vector3D Relative_AngularVelocity{
+	get{
+		return GlobalToLocal(AngularVelocity,Controller);
+	}
+}
+
+Vector3D Forward_Vector;
+Vector3D Backward_Vector{
+	get{
+		return -1*Forward_Vector;
+	}
+}
+Vector3D Up_Vector;
+Vector3D Down_Vector{
+	get{
+		return -1*Up_Vector;
+	}
+}
+Vector3D Left_Vector;
+Vector3D Right_Vector{
+	get{
+		return -1*Left_Vector;
+	}
+}
+
+string GetThrustTypeName(IMyThrust Thruster){
+	string block_type=Thruster.BlockDefinition.SubtypeName;
+	if(block_type.Contains("LargeBlock"))
+		block_type=GetRemovedString(block_type,"LargeBlock");
+	else if(block_type.Contains("SmallBlock"))
+		block_type=GetRemovedString(block_type,"SmallBlock");
+	if(block_type.Contains("Thrust"))
+		block_type=GetRemovedString(block_type,"Thrust");
+	string size="";
+	if(block_type.Contains("Small")){
+		size="Small";
+		block_type=GetRemovedString(block_type,size);
+	}
+	else if(block_type.Contains("Large")){
+		size="Large";
+		block_type=GetRemovedString(block_type,size);
+	}
+	if((!block_type.ToLower().Contains("atmospheric"))||(!block_type.ToLower().Contains("hydrogen")))
+		block_type+="Ion";
+	return (size+" "+block_type).Trim();
+}
+struct NameTuple{
+	public string Name;
+	public int Count;
+	
+	public NameTuple(string n,int c=0){
+		Name=n;
+		Count=c;
+	}
+}
+void SetThrusterList(List<IMyThrust> Thrusters,string Direction){
+	List<NameTuple> Thruster_Types=new List<NameTuple>();
+	foreach(IMyThrust Thruster in Thrusters){
+		if(!HasBlockData(Thruster,"DefaultOverride"))
+			SetBlockData(Thruster,"DefaultOverride",Thruster.ThrustOverridePercentage.ToString());
+		SetBlockData(Thruster,"Owner",Me.CubeGrid.EntityId.ToString());
+		SetBlockData(Thruster,"DefaultName",Thruster.CustomName);
+		string name=GetThrustTypeName(Thruster);
+		bool found=false;
+		for(int i=0;i<Thruster_Types.Count;i++){
+			if(name.Equals(Thruster_Types[i].Name)){
+				found=true;
+				Thruster_Types[i]=new NameTuple(name,Thruster_Types[i].Count+1);
+				break;
+			}
+		}
+		if(!found)
+			Thruster_Types.Add(new NameTuple(name,1));
+	}
+	foreach(IMyThrust Thruster in Thrusters){
+		string name=GetThrustTypeName(Thruster);
+		for(int i=0;i<Thruster_Types.Count;i++){
+			if(name.Equals(Thruster_Types[i].Name)){
+				Thruster.CustomName=(Direction+" "+name+" Thruster "+(Thruster_Types[i].Count).ToString()).Trim();
+				Thruster_Types[i]=new NameTuple(name,Thruster_Types[i].Count-1);
+				break;
+			}
+		}
+	}
+}
+void ResetThruster(IMyThrust Thruster){
+	if(HasBlockData(Thruster,"DefaultOverride")){
+		float ThrustOverride=0.0f;
+		if(float.TryParse(GetBlockData(Thruster,"DefaultOverride"),out ThrustOverride))
+			Thruster.ThrustOverridePercentage=ThrustOverride;
+		else
+			Thruster.ThrustOverridePercentage=0.0f;
+	}
+	if(HasBlockData(Thruster,"DefaultName")){
+		Thruster.CustomName=GetBlockData(Thruster,"DefaultName");
+	}
+	SetBlockData(Thruster,"Owner","0");
+}
 
 public Program(){
 	Prog.P=this;
@@ -379,25 +655,50 @@ public Program(){
 	Me.GetSurface(1).FontSize=2.2f;
 	Me.GetSurface(1).TextPadding=40.0f;
 	Echo("Beginning initialization");
-	// The constructor, called only once every session and
-    // always before any other method is called. Use it to
-    // initialize your script. 
-    //     
-    // The constructor is optional and can be removed if not
-    // needed.
-    // 
-    // It's recommended to set RuntimeInfo.UpdateFrequency 
-    // here, which will allow your script to run itself without a 
-    // timer block.
+	Docks=new Queue<Dock>();
+	Tasks=new Stack<DroneTask>();
+	string[] args=this.Storage.Split('•');
+	foreach(string arg in args){
+		if(arg.IndexOf("Tas:")==0){
+			int t;
+			if(Int32.TryParse(arg.Substring(4),out t))
+				Tasks.Push((DroneTask)t);
+		}
+		else if(arg.IndexOf("Doc:")==0){
+			Dock D;
+			if(!arg.Substring(4).Equals("null")){
+				Dock.TryParse(arg.Substring(4),out D);
+				Docks.Enqueue(D);
+			}
+		}
+		else if(arg.IndexOf("Run:")==0){
+			bool.TryParse(arg.Substring(4),out Running);
+		}
+	}
+	Controller=GenericMethods<IMyRemoteControl>.GetConstruct("Taxi Remote Control");
+	Gyroscope=GenericMethods<IMyGyro>.GetConstruct("Control Gyroscope");
+	Connector=GenericMethods<IMyShipConnector>.GetConstruct("Taxi Connector");
+	if(Controller==null||Gyroscope==null||Connector==null)
+		return;
+	Sound=GenericMethods<IMySoundBlock>.GetConstruct("Taxi Sound Block");
+	Light=GenericMethods<IMyInteriorLight>.GetConstruct("Taxi Light");
+	Doors=GenericMethods<IMyDoor>.GetAllConstruct("Taxi Door");
+	Antenna=GenericMethods<IMyRadioAntenna>.GetConstruct("Taxi Antenna");
+	Batteries=GenericMethods<IMyBatteryBlock>.GetAllConstruct("Taxi");
+	LCDs=GenericMethods<IMyTextPanel>.GetAllConstruct("Taxi LCD");
+	if(Batteries.Count==0)
+		return;
+	Runtime.UpdateFrequency=UpdateFrequency.Update1;
 }
 
 public void Save(){
-    // Called when the program needs to save its state. Use
-    // this method to save your state to the Storage field
-    // or some other means. 
-    // 
-    // This method is optional and can be removed if not
-    // needed.
+	this.Storage="•Run:"+Running.ToString();
+	foreach(Dock dock in Docks)
+		this.Storage+="•Doc:"+dock.ToString();
+    foreach(DroneTask T in Tasks)
+		temp.Push(T);
+	foreach(DroneTask T in temp)
+		this.Storage+="•Tas:"+((int)T).ToString();
 }
 
 void UpdateProgramInfo(){
