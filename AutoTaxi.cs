@@ -1269,6 +1269,14 @@ public void Main(string argument, UpdateType updateSource)
 		Antenna.Radius=Math.Min(5000,500+(float)Distance_To_Base);
 	else
 		Antenna.Radius=500;
+	Write(Docks.Count+" Docks");
+	for(int i=0;i<Docks.ToArray().Length;i++){
+		double distance=(Connector.GetPosition()-Docks.ToArray()[i].Position).Length();
+		if(distance>=1000)
+			Write("   Dock "+(i+1).ToString()+": "+Math.Round(distance/1000,1)+"kM");
+		else
+			Write("   Dock "+(i+1).ToString()+": "+Math.Round(distance,0)+"M");
+	}
 	if(argument.Length>0)
 		ArgumentError=!ProcessArgument(argument);
 	if(LastArgument.Length>0)
