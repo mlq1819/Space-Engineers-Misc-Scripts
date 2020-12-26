@@ -2001,6 +2001,11 @@ void Exploring(){
 
 int last_scan_index=0;
 void Scanning(){
+	//TEST CODE
+	EndTask();
+	Tasks.Push(DroneTask.Returning);
+	//TEST CODE
+	
 	Match_Direction=true;
 	Target_Direction=Asteroid.Center-Controller.GetPosition();
 	Target_Direction.Normalize();
