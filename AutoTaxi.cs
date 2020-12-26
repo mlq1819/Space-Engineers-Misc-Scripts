@@ -552,6 +552,112 @@ Vector3D Relative_AngularVelocity{
 	}
 }
 
+List<IMyThrust>[] All_Thrusters=new List<IMyThrust>[6];
+List<IMyThrust> Forward_Thrusters{
+	set{
+		All_Thrusters[0]=value;
+	}
+	get{
+		return All_Thrusters[0];
+	}
+}
+List<IMyThrust> Backward_Thrusters{
+	set{
+		All_Thrusters[1]=value;
+	}
+	get{
+		return All_Thrusters[1];
+	}
+}
+List<IMyThrust> Up_Thrusters{
+	set{
+		All_Thrusters[2]=value;
+	}
+	get{
+		return All_Thrusters[2];
+	}
+}
+List<IMyThrust> Down_Thrusters{
+	set{
+		All_Thrusters[3]=value;
+	}
+	get{
+		return All_Thrusters[3];
+	}
+}
+List<IMyThrust> Left_Thrusters{
+	set{
+		All_Thrusters[4]=value;
+	}
+	get{
+		return All_Thrusters[4];
+	}
+}
+List<IMyThrust> Right_Thrusters{
+	set{
+		All_Thrusters[5]=value;
+	}
+	get{
+		return All_Thrusters[5];
+	}
+}
+
+Base6Directions.Direction Forward;
+Base6Directions.Direction Backward{
+	get{
+		return Base6Directions.GetOppositeDirection(Forward);
+	}
+}
+Base6Directions.Direction Up;
+Base6Directions.Direction Down{
+	get{
+		return Base6Directions.GetOppositeDirection(Up);
+	}
+}
+Base6Directions.Direction Left;
+Base6Directions.Direction Right{
+	get{
+		return Base6Directions.GetOppositeDirection(Left);
+	}
+}
+
+float GetThrust(int i){
+	float total=0;
+	foreach(IMyThrust T in All_Thrusters[i])
+		total+=T.MaxEffectiveThrust;
+	return Math.Max(total,1);
+}
+float Forward_Thrust{
+	get{
+		return GetThrust(0);
+	}
+}
+float Backward_Thrust{
+	get{
+		return GetThrust(1);
+	}
+}
+float Up_Thrust{
+	get{
+		return GetThrust(2);
+	}
+}
+float Down_Thrust{
+	get{
+		return GetThrust(3);
+	}
+}
+float Left_Thrust{
+	get{
+		return GetThrust(4);
+	}
+}
+float Right_Thrust{
+	get{
+		return GetThrust(5);
+	}
+}
+
 Vector3D Forward_Vector;
 Vector3D Backward_Vector{
 	get{
@@ -693,7 +799,7 @@ public Program(){
 		Panel.BackgroundColor=DEFAULT_BACKGROUND_COLOR;
 		Panel.Alignment=TextAlignment.CENTER;
 		Panel.ContentType=ContentType.TEXT_AND_IMAGE;
-		Panel.Write("Taxi Service",false);
+		Panel.WriteText("Taxi Service",false);
 	}
 	if(Batteries.Count==0)
 		return;
@@ -704,6 +810,7 @@ public void Save(){
 	this.Storage="•Run:"+Running.ToString();
 	foreach(Dock dock in Docks)
 		this.Storage+="•Doc:"+dock.ToString();
+	Stack<DroneTask> temp=new Stack<DroneTask>();
     foreach(DroneTask T in Tasks)
 		temp.Push(T);
 	foreach(DroneTask T in temp)
@@ -1018,8 +1125,6 @@ void UpdateSystemInfo(){
 	base_vector=new Vector3D(-1,0,0);
 	Left_Vector=LocalToGlobal(base_vector,Controller);
 	Left_Vector.Normalize();
-	if(Asteroid!=null)
-		Asteroid.UpdateAges(seconds_since_last_update);
 	LinearVelocity=Controller.GetShipVelocities().LinearVelocity;
 	AngularVelocity=Controller.GetShipVelocities().AngularVelocity;
 	Pseudo_Target=Target_Position;
@@ -1072,10 +1177,10 @@ public void Main(string argument, UpdateType updateSource)
 	double Time_To_Embark=600-Cycle_Time;
 	Write("Running: "+Running.ToString());
 	if(MyDock!=null&&Running){
-		if(switched&&Cycle_Timer>300){
+		if(switched&&Cycle_Time>300){
 			switched=false;
 		}
-		else if((!switched)&&Cycle_Timer<150){
+		else if((!switched)&&Cycle_Time<150){
 			if(Charge>=0.95f){
 				Docks.Enqueue(Docks.Dequeue());
 				Tasks.Clear();
