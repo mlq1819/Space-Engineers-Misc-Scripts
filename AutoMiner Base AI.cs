@@ -752,16 +752,28 @@ class Dock{
 	public Vector3D Position;
 	public Vector3D Orientation;
 	public Vector3D Return;
+	public bool DoUp;
+	public Vector3D Up;
 	
 	public Dock(Vector3D p,Vector3D o,Vector3D r){
 		Position=p;
 		Orientation=o;
 		Orientation.Normalize();
 		Return=r;
+		Up=new Vector3D(0,0,1);
+		DoUp=false;
+	}
+	
+	public Dock(Vector3D p,Vector3D o,Vector3D r,Vector3D u):this(p,o,r){
+		Up=u;
+		DoUp=true;
 	}
 	
 	public override string ToString(){
-		return '('+Position.ToString()+';'+Orientation.ToString()+';'+Return.ToString()+')';
+		if(DoUp)
+			return '('+Position.ToString()+';'+Orientation.ToString()+';'+Return.ToString()+';'+Up.ToString()+')';
+		else
+			return '('+Position.ToString()+';'+Orientation.ToString()+';'+Return.ToString()+')';
 	}
 	
 	public static bool TryParse(string Parse,out Dock output){
@@ -770,7 +782,7 @@ class Dock{
 			return false;
 		Parse=Parse.Substring(1,Parse.Length-2);
 		string[] args=Parse.Split(';');
-		if(args.Length!=3)
+		if(args.Length!=3&&args.Length!=4)
 			return false;
 		Vector3D p;
 		if(!Vector3D.TryParse(args[0],out p))
@@ -782,6 +794,11 @@ class Dock{
 		if(!Vector3D.TryParse(args[2],out r))
 			return false;
 		output=new Dock(p,o,r);
+		Vector3D u;
+		if(args.Length==4&&Vector3D.TryParse(args[3],out u)){
+			output.Up=u;
+			output.DoUp=true;
+		}
 		return true;
 	}
 }
