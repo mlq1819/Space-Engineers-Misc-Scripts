@@ -2291,12 +2291,8 @@ void SetGyroscopes(){
 	float input_roll=current_roll*0.99f;
 	if(MyDock!=null&&MyDock.DoUp&&Tasks.Peek()==DroneTask.Docking){
 		difference=GetAngle(Left_Vector,MyDock.Up)-GetAngle(Right_Vector,MyDock.Up);
-		if(Math.Abs(difference)>.1){
-			if(GetAngle(Down_Vector,MyDock.Up)>GetAngle(Down_Vector,MyDock.Up))
-				input_roll+=(float)Math.Min(Math.Max(difference/5,-4),1)*gyro_multx;
-			else
-				input_roll-=(float)Math.Min(Math.Max(difference/5,-4),1)*gyro_multx;
-		}
+		if(Math.Abs(difference)>.1)
+			input_roll+=(float)Math.Min(Math.Max(difference/5,-4),1)*gyro_multx;
 	}
 	
 	Vector3D input=new Vector3D(input_pitch,input_yaw,input_roll);
