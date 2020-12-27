@@ -1229,7 +1229,9 @@ public void Main(string argument, UpdateType updateSource)
 			switched=false;
 		}
 		else if((!switched)&&Cycle_Time<150){
-			if(Charge>=0.95f){
+			if(Tasks.Peek()!=DroneTask.Docked)
+				switched=true;
+			else if(Charge>=0.95f){
 				Docks.Enqueue(Docks.Dequeue());
 				EndTask();
 				Tasks.Clear();
