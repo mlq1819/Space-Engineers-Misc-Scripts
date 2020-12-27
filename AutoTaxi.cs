@@ -904,13 +904,13 @@ void Docking(){
 	Match_Direction=true;
 	Target_Position=MyDock.Position+10*MyDock.Orientation;
 	Match_Position=true;
-	Speed_Limit=5;
+	Speed_Limit=2.5;
 	Vector3D angle=Controller.GetPosition()-MyDock.Position;
 	angle.Normalize();
 	if((Controller.GetPosition()-MyDock.Position).Length()<12&&GetAngle(MyDock.Orientation,angle)<5){
 		Target_Position=Controller.GetPosition()-Connector.GetPosition();
 		Target_Position=MyDock.Orientation*1.5+MyDock.Position+Target_Position;
-		Speed_Limit=2.5;
+		Speed_Limit=1;
 	}
 	if(Connector.Status!=MyShipConnectorStatus.Unconnected)
 		Connector.Connect();
@@ -1019,9 +1019,7 @@ void SetThrusters(){
 	double ESL=Speed_Limit;
 	if(Slow_Down)
 		ESL=Math.Min(ESL,Speed_Limit*(Target_Distance-Distance_To_Resting*1.2));
-	if(Speed_Limit<5)
-		ESL=Math.Max(ESL,2.5);
-	else
+	if(Speed_Limit!=1&&Speed_Limit!=2.5)
 		ESL=Math.Max(ESL,5);
 	
 	float input_right=-1*(float)((Relative_LinearVelocity.X-Relative_RestingVelocity.X)*ShipMass*damp_multx);
