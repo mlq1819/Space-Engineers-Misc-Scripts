@@ -336,6 +336,14 @@ class Sector{
 			subsections[i]=false;
 	}
 	
+	public static Vector3D GetStart(Vector3D input){
+		Vector3D output=input;
+		output.X=((int)(input.X/5000))*5000;
+		output.Y=((int)(input.Y/5000))*5000;
+		output.Z=((int)(input.Z/5000))*5000;
+		return output;
+	}
+	
 	public Sector(Vector3D Point):this((int)(Point.X/5000),(int)(Point.Y/5000),(int)(Point.Z/5000)){
 		;
 	}
@@ -356,7 +364,8 @@ class Sector{
 	}
 	
 	public string NiceString(Vector3D Reference){
-		Sector current=new Sector(Reference);
+		Vector3D R=Sector.GetStart(Reference);
+		R/=5000;
 		int count=0;
 		int total=0;
 		foreach(bool b in subsections){
@@ -364,7 +373,7 @@ class Sector{
 			if(b)
 				count++;
 		}
-		return "Sector ("+(X-current.X).ToString()+","+(Y-current.Y).ToString()+","+(Z-current.Z).ToString()+") "+count+"/"+total;
+		return "Sector ("+(X-((int)R.X)).ToString()+","+(Y-((int)R.Y)).ToString()+","+(Z-((int)R.Z)).ToString()+") "+count+"/"+total;
 	}
 	
 	public string NiceString(){
@@ -372,8 +381,9 @@ class Sector{
 	}
 	
 	public int Distance(Vector3D Reference){
-		Sector current=new Sector(Reference);
-		return Math.Abs(X-current.X)+Math.Abs(Y-current.Y)+Math.Abs(Z-current.Z);
+		Vector3D R=Sector.GetStart(Reference);
+		R/=5000;
+		return Math.Abs(X-((int)R.X))+Math.Abs(Y-((int)R.Y))+Math.Abs(Z-((int)R.Z));
 	}
 	
 	public int GetSubInt(Vector3D Coords){
@@ -393,6 +403,11 @@ class Sector{
 		if(output<0||output>=25)
 			return -1;
 		return output;
+	}
+	
+	public bool Same(Vector3D I){
+		Vector3D O=Sector.GetStart(I);
+		return X==((int)O.X)&&Y==((int)O.Y)&&Z==((int)O.Z);
 	}
 	
 	public bool Same(Sector O){
@@ -446,6 +461,25 @@ class Zone{
 	public Zone(Vector3D c,double r){
 		Center=c;
 		Radius=Math.Max(5000,r);
+	}
+	
+	public bool Overlaps(Vector3D S){
+		Vector3D center=S+2500*(new Vector3D(1,1,1));
+		if((Center-center).Length()<Radius+2500)
+			return true;
+		for(int i=0;i<8;i++){
+			Vector3D Tweak=new Vector3D(0,0,0);
+			if(i%2==1)
+				Tweak.X=1;
+			if((i/2)%2==1)
+				Tweak.Z=1;
+			if(i>=4)
+				Tweak.Y=1;
+			Tweak*=5000;
+			if(((S+Tweak)-Center).Length()<Radius+2500)
+				return true;
+		}
+		return false;
 	}
 	
 	public bool Overlaps(Sector S){
@@ -1587,13 +1621,16 @@ int GetUpdates(){
 	return count;
 }
 
-Sector FindOneSector(Vector3D starting_point,Vector3D current_point){
-	Sector attempt=new Sector(current_point);
-	Write("  FindOneSector: "+attempt.NiceString(starting_point));
+Sector FindOneSector(Vector3D starting_point,Vector3D current_point,int depth){
+	Vector3D attempt=Sector.GetStart(current_point);
+	string dep="  ";
+	for(int i=0;i<depth;i++)
+		dep+=" ";
+	Write(dep+"FindOneSector");
 	bool found=false;
 	foreach(Zone Z in Zones){
 		if(Z.Overlaps(attempt)){
-			Write("   Zone Overlap");
+			Write(dep+" Zone Overlap");
 			return null;
 		}
 	}
@@ -1606,33 +1643,37 @@ Sector FindOneSector(Vector3D starting_point,Vector3D current_point){
 			if(incomplete)
 				Last_Sector=i;
 			else
-				Write("   Completed");
+				Write(dep+" Completed");
 			break;
 		}
 	}
 	if((!found)||incomplete){
+		Sector output=new Sector(current_point);
 		if(!found){
-			Sectors.Add(attempt);
+			Sectors.Add(output);
 			Last_Sector=Sectors.Count-1;
 		}
-		Write("   Valid");
-		return attempt;
+		Write(dep+" Valid");
+		return output;
 	}
 	return null;
 }
 
-List<Sector> FindSector(int distance_goal,Vector3D starting_point,Vector3D current_point){
-	Write("Start FindSector("+distance_goal.ToString()+", ..., ...)");
+List<Sector> FindSector(int distance_goal,Vector3D starting_point,Vector3D current_point,int depth=0){
+	string dep="";
+	for(int i=0;i<depth;i++)
+		dep+=" ";
+	Write(dep+"Start FindSector("+distance_goal.ToString()+","+depth.ToString()+")");
 	List<Sector> output=new List<Sector>();
 	if(distance_goal>17)
 		return output;
 	if((current_point-MyDock.Return).Length()>87500)
 		return output;
 	if(distance_goal==0){
-		Sector attempt=FindOneSector(starting_point,current_point);
+		Sector attempt=FindOneSector(starting_point,current_point,depth);
 		if(attempt!=null)
 			output.Add(attempt);
-		Write("End FindSector("+distance_goal.ToString()+", ..., ...)");
+		Write(dep+"End FindSector("+distance_goal.ToString()+","+depth.ToString()+")");
 		return output;
 	}
 	for(int i=0;i<6;i++){
@@ -1657,17 +1698,16 @@ List<Sector> FindSector(int distance_goal,Vector3D starting_point,Vector3D curre
 				Tweak.Z=1;
 				break;
 		}
-		Write(" "+Tweak.ToString());
 		Tweak*=5000;
-		if((new Sector(current_point+Tweak)).Distance(starting_point)>(new Sector(current_point)).Distance(starting_point)){
-			List<Sector> input=FindSector(distance_goal-1,starting_point,current_point+Tweak);
+		if((Sector.GetStart(current_point+Tweak)-starting_point).Length()>(Sector.GetStart(current_point)-starting_point).Length()){
+			List<Sector> input=FindSector(distance_goal-1,starting_point,current_point+Tweak,depth+1);
 			foreach(Sector S in input){
 				if(S!=null)
 					output.Add(S);
 			}
 		}
 	}
-	Write("End FindSector("+distance_goal.ToString()+", ..., ...)");
+	Write(dep+"End FindSector("+distance_goal.ToString()+","+depth.ToString()+")");
 	return output;
 }
 
