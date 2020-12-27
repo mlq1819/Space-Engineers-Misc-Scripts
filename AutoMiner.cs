@@ -1621,16 +1621,11 @@ int GetUpdates(){
 	return count;
 }
 
-Sector FindOneSector(Vector3D starting_point,Vector3D current_point,int depth){
+Sector FindOneSector(Vector3D starting_point,Vector3D current_point){
 	Vector3D attempt=Sector.GetStart(current_point);
-	string dep="  ";
-	for(int i=0;i<depth;i++)
-		dep+=" ";
-	Write(dep+"FindOneSector");
 	bool found=false;
 	foreach(Zone Z in Zones){
 		if(Z.Overlaps(attempt)){
-			Write(dep+" Zone Overlap");
 			return null;
 		}
 	}
@@ -1642,8 +1637,6 @@ Sector FindOneSector(Vector3D starting_point,Vector3D current_point,int depth){
 			incomplete=!S.Complete;
 			if(incomplete)
 				Last_Sector=i;
-			else
-				Write(dep+" Completed");
 			break;
 		}
 	}
@@ -1653,27 +1646,21 @@ Sector FindOneSector(Vector3D starting_point,Vector3D current_point,int depth){
 			Sectors.Add(output);
 			Last_Sector=Sectors.Count-1;
 		}
-		Write(dep+" Valid");
 		return output;
 	}
 	return null;
 }
 
-List<Sector> FindSector(int distance_goal,Vector3D starting_point,Vector3D current_point,int depth=0){
-	string dep="";
-	for(int i=0;i<depth;i++)
-		dep+=" ";
-	Write(dep+"Start FindSector("+distance_goal.ToString()+","+depth.ToString()+")");
+List<Sector> FindSector(int distance_goal,Vector3D starting_point,Vector3D current_point){
 	List<Sector> output=new List<Sector>();
 	if(distance_goal>17)
 		return output;
 	if((current_point-MyDock.Return).Length()>87500)
 		return output;
 	if(distance_goal==0){
-		Sector attempt=FindOneSector(starting_point,current_point,depth);
+		Sector attempt=FindOneSector(starting_point,current_point);
 		if(attempt!=null)
 			output.Add(attempt);
-		Write(dep+"End FindSector("+distance_goal.ToString()+","+depth.ToString()+")");
 		return output;
 	}
 	for(int i=0;i<6;i++){
@@ -1700,14 +1687,13 @@ List<Sector> FindSector(int distance_goal,Vector3D starting_point,Vector3D curre
 		}
 		Tweak*=5000;
 		if((Sector.GetStart(current_point+Tweak)-starting_point).Length()>(Sector.GetStart(current_point)-starting_point).Length()){
-			List<Sector> input=FindSector(distance_goal-1,starting_point,current_point+Tweak,depth+1);
+			List<Sector> input=FindSector(distance_goal-1,starting_point,current_point+Tweak);
 			foreach(Sector S in input){
 				if(S!=null)
 					output.Add(S);
 			}
 		}
 	}
-	Write(dep+"End FindSector("+distance_goal.ToString()+","+depth.ToString()+")");
 	return output;
 }
 
