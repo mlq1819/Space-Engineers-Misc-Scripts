@@ -371,6 +371,11 @@ class Sector{
 		return NiceString(new Vector3D(0,0,0));
 	}
 	
+	public int Distance(Vector3D Reference){
+		Sector current=new Sector(Reference);
+		return Math.Abs(X-current.X)+Math.Abs(Y-current.Y)+Math.Abs(Z-current.Z);
+	}
+	
 	public int GetSubInt(Vector3D Coords){
 		if(Math.Abs(Coords.Y-Corners[0].Y)>25)
 			return -1;
@@ -1582,41 +1587,54 @@ int GetUpdates(){
 	return count;
 }
 
-Sector FindSector(int distance_goal,Vector3D starting_point,Vector3D current_point){
-	if(distance_goal>17)
-		return null;
-	if((current_point-MyDock.Return).Length()>87500)
-		return null;
-	if(distance_goal==0){
-		Sector attempt=new Sector(current_point);
-		bool found=false;
-		foreach(Zone Z in Zones){
-			if(Z.Overlaps(attempt)){
-				return null;
-			}
+Sector FindOneSector(Vector3D starting_point,Vector3D current_point){
+	Sector attempt=new Sector(current_point);
+	Write("  FindOneSector: "+attempt.NiceString(starting_point));
+	bool found=false;
+	foreach(Zone Z in Zones){
+		if(Z.Overlaps(attempt)){
+			Write("   Zone Overlap");
+			return null;
 		}
-		bool incomplete=false;
-		for(int i=0;i<Sectors.Count;i++){
-			Sector S=Sectors[i];
-			if(S.Same(attempt)){
-				found=true;
-				incomplete=!S.Complete;
-				if(incomplete)
-					Last_Sector=i;
-				break;
-			}
-		}
-		if((!found)||incomplete){
-			if(!found){
-				Sectors.Add(attempt);
-				Last_Sector=Sectors.Count-1;
-			}
-			return attempt;
-		}
-		return null;
 	}
-	Sector output=null;
-	double current_distance=(current_point-starting_point).Length();
+	bool incomplete=false;
+	for(int i=0;i<Sectors.Count;i++){
+		Sector S=Sectors[i];
+		if(S.Same(attempt)){
+			found=true;
+			incomplete=!S.Complete;
+			if(incomplete)
+				Last_Sector=i;
+			else
+				Write("   Completed");
+			break;
+		}
+	}
+	if((!found)||incomplete){
+		if(!found){
+			Sectors.Add(attempt);
+			Last_Sector=Sectors.Count-1;
+		}
+		Write("   Valid");
+		return attempt;
+	}
+	return null;
+}
+
+List<Sector> FindSector(int distance_goal,Vector3D starting_point,Vector3D current_point){
+	Write("Start FindSector("+distance_goal.ToString()+", ..., ...)");
+	List<Sector> output=new List<Sector>();
+	if(distance_goal>17)
+		return output;
+	if((current_point-MyDock.Return).Length()>87500)
+		return output;
+	if(distance_goal==0){
+		Sector attempt=FindOneSector(starting_point,current_point);
+		if(attempt!=null)
+			output.Add(attempt);
+		Write("End FindSector("+distance_goal.ToString()+", ..., ...)");
+		return output;
+	}
 	for(int i=0;i<6;i++){
 		Vector3D Tweak=new Vector3D(0,0,0);
 		switch(i){
@@ -1639,14 +1657,17 @@ Sector FindSector(int distance_goal,Vector3D starting_point,Vector3D current_poi
 				Tweak.Z=1;
 				break;
 		}
+		Write(" "+Tweak.ToString());
 		Tweak*=5000;
-		double distance=(current_point+Tweak-starting_point).Length();
-		if(distance>=current_distance-.1){
-			output=FindSector(distance_goal-1,starting_point,current_point+Tweak);
-			if(output!=null)
-				return output;
+		if((new Sector(current_point+Tweak)).Distance(starting_point)>(new Sector(current_point)).Distance(starting_point)){
+			List<Sector> input=FindSector(distance_goal-1,starting_point,current_point+Tweak);
+			foreach(Sector S in input){
+				if(S!=null)
+					output.Add(S);
+			}
 		}
 	}
+	Write("End FindSector("+distance_goal.ToString()+", ..., ...)");
 	return output;
 }
 
@@ -1664,14 +1685,23 @@ Sector NextSector(){
 		}
 	}
 	int distance_count=0;
-	Sector output=null;
+	List<Sector> output=new List<Sector>();
 	do{
-		output=FindSector(distance_count++,Coords_Start,Coords_Start);
-		//if(distance_count<5&&output==null)
-			//output=FindSector(distance_count,MyDock.Return,Controller.GetPosition());
+		List<Sector> input=FindSector(distance_count++,Coords_Start,Coords_Start);
+		foreach(Sector S in input)
+			output.Add(S);
 	}
-	while(output==null&&distance_count<=17);
-	return output;
+	while(output.Count==0&&distance_count<=17);
+	double min=double.MaxValue;
+	foreach(Sector S in output){
+		if(S!=null)
+			min=Math.Min(min,(S.Center-MyDock.Return).Length());
+	}
+	foreach(Sector S in output){
+		if(S!=null&&(S.Center-MyDock.Return).Length()<min+0.1)
+			return S;
+	}
+	return null;
 }
 
 void EndTask(bool do_pop=true){
@@ -2680,6 +2710,9 @@ public void Main(string argument, UpdateType updateSource)
 		}
 		else
 			ArgumentError_Message="";
+		for(int i=1;i<4;i++){
+			FindSector(i,MyDock.Return,MyDock.Return);
+		}
 		Write("AutoUndock:"+AutoUndock.ToString());
 		Write(Zones.Count+" Zones");
 		Write(Sectors.Count+" Sectors");
