@@ -2736,9 +2736,6 @@ public void Main(string argument, UpdateType updateSource)
 		}
 		else
 			ArgumentError_Message="";
-		for(int i=1;i<4;i++){
-			FindSector(i,MyDock.Return,MyDock.Return);
-		}
 		Write("AutoUndock:"+AutoUndock.ToString());
 		Write(Zones.Count+" Zones");
 		Write(Sectors.Count+" Sectors");
