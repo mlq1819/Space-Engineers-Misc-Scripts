@@ -1,136 +1,156 @@
 /*
-* Vigilance Targeting System 
+* Cosmic Engineering Vigilance Targeting System 
 * Built by mlq1616
 * https://github.com/mlq1819
 */
 //Name me!
-private const string Program_Name="Vigilance AI";
+const string Program_Name="Vigilance AI";
 //Sets the maximum firing distance
-private const double FIRING_DISTANCE=10000; //Recommended between 5k and 20k; works best within range
+const double FIRING_DISTANCE=20000; //Recommended between 5k and 20k; works best within range
 //The distance the scanners will default to during AutoScan; the lower the faster it scans
-private const double AUTOSCAN_DISTANCE=5000;//Recommended between 2k and 10k
+const double AUTOSCAN_DISTANCE=20000;//Recommended between 2k and 10k
 //Sets whether the AI starts out scanning or whether it has to wait to be told to autoscan
-private const bool DEFAULT_AUTOSCAN=false;
+const bool DEFAULT_AUTOSCAN=true;
 //Sets whether the AI starts out automatically shooting enemies or whether it has to wait to be told to autofire
-private const bool DEFAULT_AUTOFIRE=true;
+const bool DEFAULT_AUTOFIRE=false;
 //Set to the maximum time you expect the cannon to take to aim and print
-private const double AIM_TIME=15;
-private Color DEFAULT_TEXT_COLOR=new Color(197,137,255,255);
-private Color DEFAULT_BACKGROUND_COLOR=new Color(44,0,88,255);
+const double AIM_TIME=15;
+Color DEFAULT_TEXT_COLOR=new Color(197,137,255,255);
+Color DEFAULT_BACKGROUND_COLOR=new Color(44,0,88,255);
 
 
-public class GenericMethods<T> where T : class, IMyTerminalBlock{
-	private IMyGridTerminalSystem TerminalSystem;
-	private IMyTerminalBlock Prog;
-	private MyGridProgram Program;
-	
-	public GenericMethods(MyGridProgram Program){
-		this.Program = Program;
-		TerminalSystem = Program.GridTerminalSystem;
-		Prog = Program.Me;
+class Prog{
+	public static MyGridProgram P;
+}
+
+class GenericMethods<T> where T : class, IMyTerminalBlock{
+	static IMyGridTerminalSystem TerminalSystem{
+		get{
+			return P.GridTerminalSystem;
+		}
+	}
+	public static MyGridProgram P{
+		get{
+			return Prog.P;
+		}
 	}
 	
-	public T GetFull(string name, double max_distance, Vector3D Reference){
-		List<T> AllBlocks = new List<T>();
-		List<T> MyBlocks = new List<T>();
+	public static T GetFull(string name,Vector3D Ref,double mx_d=double.MaxValue){
+		List<T> AllBlocks=new List<T>();
+		List<T> MyBlocks=new List<T>();
 		TerminalSystem.GetBlocksOfType<T>(AllBlocks);
-		double min_distance = max_distance;
+		double min_distance=mx_d;
 		foreach(T Block in AllBlocks){
 			if(Block.CustomName.Equals(name)){
-				double distance = (Reference - Block.GetPosition()).Length();
-				min_distance = Math.Min(min_distance, distance);
+				double distance=(Ref-Block.GetPosition()).Length();
+				min_distance=Math.Min(min_distance, distance);
 				MyBlocks.Add(Block);
 			}
 		}
 		foreach(T Block in MyBlocks){
-			double distance = (Reference - Block.GetPosition()).Length();
-			if(distance <= min_distance + 0.1){
+			double distance=(Ref-Block.GetPosition()).Length();
+			if(distance<=min_distance+0.1)
 				return Block;
-			}
 		}
 		return null;
 	}
 	
-	public T GetFull(string name, double max_distance, IMyTerminalBlock Reference){
-		return GetFull(name, max_distance, Reference.GetPosition());
+	public static T GetFull(string name,IMyTerminalBlock Ref,double mx_d=double.MaxValue){
+		return GetFull(name,Ref.GetPosition(),mx_d);
 	}
 	
-	public T GetFull(string name, double max_distance){
-		return GetFull(name, max_distance, Prog);
+	public static T GetFull(string name,double mx_d=double.MaxValue){
+		return GetFull(name,P.Me,mx_d);
 	}
 	
-	public T GetFull(string name){
-		return GetFull(name, double.MaxValue);
+	public static T GetConstruct(string name,IMyTerminalBlock Ref,double mx_d=double.MaxValue){
+		List<T> input=GetAllConstruct(name,Ref,mx_d);
+		if(input.Count>0)
+			return input[0];
+		return null;
 	}
 	
-	public T GetContaining(string name, Vector3D Reference, double max_distance){
-		List<T> AllBlocks = new List<T>();
-		List<T> MyBlocks = new List<T>();
+	public static T GetConstruct(string name,double mx_d=double.MaxValue){
+		return GetConstruct(name,P.Me,mx_d);
+	}
+	
+	public static List<T> GetAllConstruct(string name,IMyTerminalBlock Ref,double mx_d=double.MaxValue){
+		List<T> input=GetAllContaining(name,Ref,mx_d);
+		List<T> output=new List<T>();
+		foreach(T Block in input){
+			if(Ref.IsSameConstructAs(Block))
+				output.Add(Block);
+		}
+		return output;
+	}
+	
+	public static List<T> GetAllConstruct(string name){
+		return GetAllConstruct(name,P.Me);
+	}
+	
+	public static T GetContaining(string name,Vector3D Ref,double mx_d){
+		List<T> AllBlocks=new List<T>();
+		List<T> MyBlocks=new List<T>();
 		TerminalSystem.GetBlocksOfType<T>(AllBlocks);
-		double min_distance = max_distance;
+		double min_distance=mx_d;
 		foreach(T Block in AllBlocks){
 			if(Block.CustomName.Contains(name)){
-				double distance = (Reference - Block.GetPosition()).Length();
-				min_distance = Math.Min(min_distance, distance);
+				double distance=(Ref-Block.GetPosition()).Length();
+				min_distance=Math.Min(min_distance,distance);
 				MyBlocks.Add(Block);
 			}
 		}
 		foreach(T Block in MyBlocks){
-			double distance = (Reference - Block.GetPosition()).Length();
-			if(distance <= min_distance + 0.1){
+			double distance=(Ref-Block.GetPosition()).Length();
+			if(distance<=min_distance+0.1)
 				return Block;
-			}
 		}
 		return null;
 	}
 	
-	public T GetContaining(string name, IMyTerminalBlock Reference, double max_distance){
-		return GetContaining(name, Reference.GetPosition(), max_distance);
+	public static T GetContaining(string name,IMyTerminalBlock Ref,double mx_d){
+		return GetContaining(name,Ref.GetPosition(),mx_d);
 	}
 	
-	public T GetContaining(string name, double max_distance){
-		return GetContaining(name, Prog, max_distance);
+	public static T GetContaining(string name,double mx_d=double.MaxValue){
+		return GetContaining(name,P.Me,mx_d);
 	}
 	
-	public T GetContaining(string name){
-		return GetContaining(name, double.MaxValue);
-	}
-	
-	public List<T> GetAllContaining(string name, double max_distance, Vector3D Reference){
-		List<T> AllBlocks = new List<T>();
-		List<List<T>> MyLists = new List<List<T>>();
-		List<T> MyBlocks = new List<T>();
+	public static List<T> GetAllContaining(string name,Vector3D Ref,double mx_d){
+		List<T> AllBlocks=new List<T>();
+		List<List<T>> MyLists=new List<List<T>>();
+		List<T> MyBlocks=new List<T>();
 		TerminalSystem.GetBlocksOfType<T>(AllBlocks);
 		foreach(T Block in AllBlocks){
 			if(Block.CustomName.Contains(name)){
-				bool has_with_name = false;
-				for(int i=0; i<MyLists.Count && !has_with_name; i++){
+				bool has_with_name=false;
+				for(int i=0;i<MyLists.Count&&!has_with_name;i++){
 					if(Block.CustomName.Equals(MyLists[i][0].CustomName)){
 						MyLists[i].Add(Block);
-						has_with_name = true;
+						has_with_name=true;
 						break;
 					}
 				}
 				if(!has_with_name){
-					List<T> new_list = new List<T>();
+					List<T> new_list=new List<T>();
 					new_list.Add(Block);
 					MyLists.Add(new_list);
 				}
 			}
 		}
 		foreach(List<T> list in MyLists){
-			if(list.Count == 1){
+			if(list.Count==1){
 				MyBlocks.Add(list[0]);
 				continue;
 			}
-			double min_distance = max_distance;
+			double min_distance=mx_d;
 			foreach(T Block in list){
-				double distance = (Reference - Block.GetPosition()).Length();
-				min_distance = Math.Min(min_distance, distance);
+				double distance=(Ref-Block.GetPosition()).Length();
+				min_distance=Math.Min(min_distance, distance);
 			}
 			foreach(T Block in list){
-				double distance = (Reference - Block.GetPosition()).Length();
-				if(distance <= min_distance + 0.1){
+				double distance=(Ref-Block.GetPosition()).Length();
+				if(distance<=min_distance+0.1){
 					MyBlocks.Add(Block);
 					break;
 				}
@@ -139,90 +159,104 @@ public class GenericMethods<T> where T : class, IMyTerminalBlock{
 		return MyBlocks;
 	}
 	
-	public List<T> GetAllIncluding(string name, Vector3D Reference, double max_distance = double.MaxValue){
-		List<T> AllBlocks = new List<T>();
-		List<T> MyBlocks = new List<T>();
+	public static List<T> GetAllIncluding(string name,Vector3D Ref,double mx_d=double.MaxValue){
+		List<T> AllBlocks=new List<T>();
+		List<T> MyBlocks=new List<T>();
 		TerminalSystem.GetBlocksOfType<T>(AllBlocks);
 		foreach(T Block in AllBlocks){
-			double distance = (Reference - Block.GetPosition()).Length();
-			if(Block.CustomName.Contains(name) && distance <= max_distance){
+			double distance=(Ref-Block.GetPosition()).Length();
+			if(Block.CustomName.Contains(name)&&distance<=mx_d)
 				MyBlocks.Add(Block);
-			}
 		}
 		return MyBlocks;
 	}
 	
-	public List<T> GetAllIncluding(string name, IMyTerminalBlock Reference, double max_distance = double.MaxValue){
-		return GetAllIncluding(name, Reference.GetPosition(), max_distance);
+	public static List<T> GetAllIncluding(string name,IMyTerminalBlock Ref,double mx_d=double.MaxValue){
+		return GetAllIncluding(name,Ref.GetPosition(),mx_d);
 	}
 	
-	public List<T> GetAllIncluding(string name, double max_distance = double.MaxValue){
-		return GetAllIncluding(name, Prog, max_distance);
+	public static List<T> GetAllIncluding(string name,double mx_d=double.MaxValue){
+		return GetAllIncluding(name,P.Me,mx_d);
 	}
 	
-	public List<T> GetAllContaining(string name, double max_distance, IMyTerminalBlock Reference){
-		return GetAllContaining(name, max_distance, Reference.GetPosition());
+	public static List<T> GetAllContaining(string name,IMyTerminalBlock Ref,double mx_d=double.MaxValue){
+		return GetAllContaining(name,Ref.GetPosition(),mx_d);
 	}
 	
-	public List<T> GetAllContaining(string name, double max_distance){
-		return GetAllContaining(name, max_distance, Prog);
+	public static List<T> GetAllContaining(string name,double mx_d=double.MaxValue){
+		return GetAllContaining(name,P.Me,mx_d);
 	}
 	
-	public List<T> GetAllContaining(string name){
-		return GetAllContaining(name, double.MaxValue);
-	}
-	
-	public List<T> GetAllFunc(Func<T, bool> f){
-		List<T> AllBlocks = new List<T>();
-		List<T> MyBlocks = new List<T>();
+	public static List<T> GetAllFunc(Func<T,bool> f){
+		List<T> AllBlocks=new List<T>();
+		List<T> MyBlocks=new List<T>();
 		TerminalSystem.GetBlocksOfType<T>(AllBlocks);
 		foreach(T Block in AllBlocks){
-			if(f(Block)){
+			if(f(Block))
 				MyBlocks.Add(Block);
-			}
 		}
 		return MyBlocks;
 	}
 	
-	public T GetClosestFunc(Func<T, bool> f, double max_distance, Vector3D Reference){
-		List<T> MyBlocks = GetAllFunc(f);
-		double min_distance = max_distance;
+	public static T GetClosestFunc(Func<T,bool> f,Vector3D Ref,double mx_d=double.MaxValue){
+		List<T> MyBlocks=GetAllFunc(f);
+		double min_distance=mx_d;
 		foreach(T Block in MyBlocks){
-			double distance = (Reference - Block.GetPosition()).Length();
-			min_distance = Math.Min(min_distance, distance);
+			double distance=(Ref-Block.GetPosition()).Length();
+			min_distance=Math.Min(min_distance,distance);
 		}
 		foreach(T Block in MyBlocks){
-			double distance = (Reference - Block.GetPosition()).Length();
-			if(distance <= min_distance + 0.1){
+			double distance=(Ref-Block.GetPosition()).Length();
+			if(distance<=min_distance+0.1)
 				return Block;
-			}
 		}
 		return null;
 	}
 	
-	public T GetClosestFunc(Func<T, bool> f, double max_distance, IMyTerminalBlock Reference){
-		return GetClosestFunc(f, max_distance, Reference.GetPosition());
+	public static T GetClosestFunc(Func<T,bool> f,IMyTerminalBlock Ref,double mx_d=double.MaxValue){
+		return GetClosestFunc(f,Ref.GetPosition(),mx_d);
 	}
 	
-	public T GetClosestFunc(Func<T, bool> f, double max_distance){
-		return GetClosestFunc(f, max_distance, Program.Me);
+	public static T GetClosestFunc(Func<T,bool> f,double mx_d=double.MaxValue){
+		return GetClosestFunc(f,P.Me,mx_d);
 	}
 	
-	public T GetClosestFunc(Func<T, bool> f){
-		return GetClosestFunc(f, double.MaxValue);
+	public static T GetGrid(string name,IMyCubeGrid Grid,IMyTerminalBlock Ref,double mx_d=double.MaxValue){
+		List<T> input=GetAllGrid(name,Grid,Ref,mx_d);
+		if(input.Count>0)
+			return input[0];
+		return null;
 	}
 	
-	public static List<T> SortByDistance(List<T> unsorted, Vector3D Reference){
-		List<T> output = new List<T>();
-		while(unsorted.Count > 0){
-			double min_distance = double.MaxValue;
+	public static T GetGrid(string name,IMyCubeGrid Grid,double mx_d=double.MaxValue){
+		return GetGrid(name,Grid,P.Me,mx_d);
+	}
+	
+	public static List<T> GetAllGrid(string name,IMyCubeGrid Grid,IMyTerminalBlock Ref,double mx_d){
+		List<T> output=new List<T>();
+		List<T> input=GetAllContaining(name,Ref,mx_d);
+		foreach(T Block in input){
+			if(Block.CubeGrid==Grid)
+				output.Add(Block);
+		}
+		return output;
+	}
+	
+	public static List<T> GetAllGrid(string name,IMyCubeGrid Grid,double mx_d=double.MaxValue){
+		return GetAllGrid(name,Grid,P.Me,mx_d);
+	}
+	
+	public static List<T> SortByDistance(List<T> unsorted,Vector3D Ref){
+		List<T> output=new List<T>();
+		while(unsorted.Count>0){
+			double min_distance=double.MaxValue;
 			foreach(T Block in unsorted){
-				double distance = (Reference - Block.GetPosition()).Length();
-				min_distance = Math.Min(min_distance, distance);
+				double distance=(Ref-Block.GetPosition()).Length();
+				min_distance=Math.Min(min_distance,distance);
 			}
 			for(int i=0; i<unsorted.Count; i++){
-				double distance = (Reference - unsorted[i].GetPosition()).Length();
-				if(distance <= min_distance + 0.1){
+				double distance=(Ref-unsorted[i].GetPosition()).Length();
+				if(distance<=min_distance+0.1){
 					output.Add(unsorted[i]);
 					unsorted.RemoveAt(i);
 					break;
@@ -232,26 +266,26 @@ public class GenericMethods<T> where T : class, IMyTerminalBlock{
 		return output;
 	}
 	
-	public static List<T> SortByDistance(List<T> unsorted, IMyTerminalBlock Reference){
-		return SortByDistance(unsorted, Reference.GetPosition());
+	public static List<T> SortByDistance(List<T> unsorted,IMyTerminalBlock Ref){
+		return SortByDistance(unsorted, Ref.GetPosition());
 	}
 	
-	public List<T> SortByDistance(List<T> unsorted){
-		return SortByDistance(unsorted, Prog);
+	public static List<T> SortByDistance(List<T> unsorted){
+		return SortByDistance(unsorted,P.Me);
 	}
 	
 	public static double GetAngle(Vector3D v1, Vector3D v2){
 		v1.Normalize();
 		v2.Normalize();
-		return Math.Round(Math.Acos(v1.X*v2.X + v1.Y*v2.Y + v1.Z*v2.Z) * 57.295755, 5);
+		return Math.Round(Math.Acos(v1.X*v2.X + v1.Y*v2.Y + v1.Z*v2.Z)*57.295755,5);
 	}
 }
 
-public class EntityInfo{
+class EntityInfo{
 	public long ID;
 	public string Name;
 	public MyDetectedEntityType Type;
-	private Vector3D? _hitposition;
+	Vector3D? _hitposition;
 	public Vector3D? HitPosition{
 		get{
 			return _hitposition;
@@ -263,7 +297,7 @@ public class EntityInfo{
 			}
 		}
 	}
-	private Vector3D _velocity;
+	Vector3D _velocity;
 	public Vector3D Velocity{
 		get{
 			return _velocity;
@@ -277,6 +311,13 @@ public class EntityInfo{
 	public Vector3D Position;
 	public double Size=0;
 	public TimeSpan Age=TimeSpan.Zero;
+	public Vector3D TargetPosition{
+		get{
+			if(HitPosition!=null)
+				return (Vector3D)HitPosition;
+			return Position;
+		}
+	}
 	
 	public EntityInfo(long id, string name, MyDetectedEntityType type, Vector3D? hitposition, Vector3D velocity, MyRelationsBetweenPlayerAndBlock relationship, Vector3D position){
 		ID=id;
@@ -319,10 +360,6 @@ public class EntityInfo{
 		Velocity=entity_info.Velocity;
 		Relationship=entity_info.Relationship;
 		Age=TimeSpan.Zero;
-	}
-	
-	public EntityInfo(Vector3D position,Vector3D velocity,long id=-1):this(id,"unknown",MyDetectedEntityType.Unknown,null,velocity,MyRelationsBetweenPlayerAndBlock.Enemies,position){
-		;
 	}
 	
 	public static bool TryParse(string Parse, out EntityInfo Entity){
@@ -417,21 +454,16 @@ public class EntityInfo{
 	}
 	
 	public void Update(double seconds){
-		TimeSpan time=new TimeSpan((int)(seconds/60/60/24), ((int)(seconds/60/60))%24, ((int)(seconds/60))%60, ((int)(seconds))%60, ((int)(seconds*1000))%1000);
-		Age.Add(time);
-		Position+=seconds*Velocity;
-		if(HitPosition!=null){
-			HitPosition=(Vector3D?) (((Vector3D)HitPosition)+seconds*Velocity);
-		}
+		Age=Prog.UpdateTimeSpan(Age,seconds);
 	}
 	
 	public double GetDistance(Vector3D Reference){
-		return (Position-Reference).Length();
+		return (TargetPosition-Reference).Length();
 	}
 }
 
-public class EntityList : IEnumerable<EntityInfo>{
-	private List<EntityInfo> E_List;
+class EntityList:IEnumerable<EntityInfo>{
+	List<EntityInfo> E_List;
 	public IEnumerator<EntityInfo> GetEnumerator(){
 		return E_List.GetEnumerator();
 	}
@@ -459,14 +491,13 @@ public class EntityList : IEnumerable<EntityInfo>{
 	}
 	
 	public void UpdatePositions(double seconds){
-		foreach(EntityInfo entity in E_List){
+		foreach(EntityInfo entity in E_List)
 			entity.Update(seconds);
-		}
 	}
 	
 	public bool UpdateEntry(EntityInfo Entity){
 		for(int i=0; i<E_List.Count; i++){
-			if(E_List[i].ID==Entity.ID || Entity.GetDistance(E_List[i].Position)<=0.5f){
+			if(E_List[i].ID==Entity.ID || (Entity.GetDistance(E_List[i].Position)<=0.5f&&Entity.Type==E_List[i].Type)){
 				if(E_List[i].Age >= Entity.Age){
 					E_List[i]=Entity;
 					return true;
@@ -478,6 +509,16 @@ public class EntityList : IEnumerable<EntityInfo>{
 		return true;
 	}
 	
+	public bool RemoveEntry(EntityInfo Entity){
+		for(int i=0; i<E_List.Count; i++){
+			if(E_List[i].ID==Entity.ID || (Entity.GetDistance(E_List[i].Position)<=0.5f&&Entity.Type==E_List[i].Type)){
+				E_List.RemoveAt(i);
+				return true;
+			}
+		}
+		return false;
+	}
+	
 	public EntityInfo Get(long ID){
 		foreach(EntityInfo entity in E_List){
 			if(entity.ID==ID)
@@ -486,22 +527,20 @@ public class EntityList : IEnumerable<EntityInfo>{
 		return null;
 	}
 	
-	public double ClosestDistance(MyGridProgram P, MyRelationsBetweenPlayerAndBlock Relationship, double min_size=0){
+	public double ClosestDistance(MyRelationsBetweenPlayerAndBlock Relationship, double min_size=0){
 		double min_distance=double.MaxValue;
 		foreach(EntityInfo entity in E_List){
-			if(entity.Size >= min_size && entity.Relationship==Relationship){
-				min_distance=Math.Min(min_distance, (P.Me.GetPosition()-entity.Position).Length()-entity.Size);
-			}
+			if(entity.Size >= min_size && entity.Relationship==Relationship)
+				min_distance=Math.Min(min_distance, (Prog.P.Me.GetPosition()-entity.Position).Length()-entity.Size);
 		}
 		return min_distance;
 	}
 	
-	public double ClosestDistance(MyGridProgram P, double min_size=0){
+	public double ClosestDistance(double min_size=0){
 		double min_distance=double.MaxValue;
 		foreach(EntityInfo entity in E_List){
-			if(entity.Size >= min_size){
-				min_distance=Math.Min(min_distance, (P.Me.GetPosition()-entity.Position).Length()-entity.Size);
-			}
+			if(entity.Size >= min_size)
+				min_distance=Math.Min(min_distance, (Prog.P.Me.GetPosition()-entity.Position).Length()-entity.Size);
 		}
 		return min_distance;
 	}
@@ -510,59 +549,64 @@ public class EntityList : IEnumerable<EntityInfo>{
 		E_List.Clear();
 	}
 	
-	public void RemoveAt(int index){
-		E_List.RemoveAt(index);
-	}
-	
 	public void Sort(Vector3D Reference){
-		List<EntityInfo> Sorted=new List<EntityInfo>();
-		List<EntityInfo> Unsorted=new List<EntityInfo>();
-		foreach(EntityInfo Entity in E_List){
-			double distance=Entity.GetDistance(Reference);
-			double last_distance=0;
-			if(Sorted.Count>0)
-				last_distance=Sorted[Sorted.Count-1].GetDistance(Reference);
-			if(distance>=last_distance)
-				Sorted.Add(Entity);
-			else
-				Unsorted.Add(Entity);
-		}
-		while(Unsorted.Count>0){
-			double distance=Unsorted[0].GetDistance(Reference);
-			if(distance>=Sorted[Sorted.Count-1].GetDistance(Reference)){
-				Sorted.Add(Unsorted[0]);
-				Unsorted.RemoveAt(0);
+		Queue<EntityInfo> Unsorted=new Queue<EntityInfo>();
+		double last_distance=0;
+		for(int i=0;i<E_List.Count;i++){
+			double distance=E_List[i].GetDistance(Reference);
+			if(distance<last_distance){
+				Unsorted.Enqueue(E_List[i]);
+				E_List.RemoveAt(i);
+				i--;
 				continue;
 			}
-			for(int i=0;i<Sorted.Count;i++){
-				if(distance<=Sorted[i].GetDistance(Reference)){
-					Sorted.Insert(i,Unsorted[0]);
-					Unsorted.RemoveAt(0);
-					break;
-				}
-			}
+			last_distance=distance;
 		}
-		E_List=Sorted;
+		while(Unsorted.Count>0){
+			double distance=Unsorted.Peek().GetDistance(Reference);
+			int upper=E_List.Count;
+			int lower=0;
+			int index;
+			double down;
+			double up;
+			do{
+				index=(upper-lower)/2+lower;
+				down=0;
+				if(index>0)
+					down=E_List[index-1].GetDistance(Reference);
+				up=E_List[index].GetDistance(Reference);
+				if(down>distance)
+					upper=index-1;
+				else
+					lower=index-1;
+				if(up<distance)
+					lower=index;
+				else
+					upper=index;
+			}
+			while((down>distance||up<distance)&&upper!=lower);
+			E_List.Insert(index,Unsorted.Dequeue());
+		}
+		if(E_List.Count>128)
+			E_List.RemoveRange(128,E_List.Count-128);
 	}
 }
 
-public void Write(string text, bool new_line=true, bool append=true){
+void Write(string text, bool new_line=true, bool append=true){
 	Echo(text);
 	if(new_line){
 		Me.GetSurface(0).WriteText(text+'\n', append);
-		foreach(IMyTextPanel Panel in StatusPanels){
+		foreach(IMyTextPanel Panel in StatusPanels)
 			Panel.WriteText(text+'\n', append);
-		}
 	}
 	else{
 		Me.GetSurface(0).WriteText(text, append);
-		foreach(IMyTextPanel Panel in StatusPanels){
+		foreach(IMyTextPanel Panel in StatusPanels)
 			Panel.WriteText(text, append);
-		}
 	}
 }
 
-private bool HasBlockData(IMyTerminalBlock Block, string Name){
+bool HasBlockData(IMyTerminalBlock Block, string Name){
 	if(Name.Contains(':'))
 		return false;
 	string[] args=Block.CustomData.Split('•');
@@ -574,7 +618,7 @@ private bool HasBlockData(IMyTerminalBlock Block, string Name){
 	return false;
 }
 
-private string GetBlockData(IMyTerminalBlock Block, string Name){
+string GetBlockData(IMyTerminalBlock Block, string Name){
 	if(Name.Contains(':'))
 		return "";
 	string[] args=Block.CustomData.Split('•');
@@ -586,7 +630,7 @@ private string GetBlockData(IMyTerminalBlock Block, string Name){
 	return "";
 }
 
-private bool SetBlockData(IMyTerminalBlock Block, string Name, string Data){
+bool SetBlockData(IMyTerminalBlock Block, string Name, string Data){
 	if(Name.Contains(':'))
 		return false;
 	string[] args=Block.CustomData.Split('•');
@@ -605,15 +649,16 @@ private bool SetBlockData(IMyTerminalBlock Block, string Name, string Data){
 	return true;
 }
 
-private enum CannonTask{
+enum CannonTask{
 	None=0,
 	Scan=1,
 	Reset=2,
 	Search=3,
-	Fire=4
+	Fire=4,
+	Manual=5
 }
 
-private enum FireStatus{
+enum FireStatus{
 	Idle=0,
 	Printing=1,
 	Aiming=2,
@@ -622,7 +667,7 @@ private enum FireStatus{
 	Firing=5
 }
 
-private enum PrintStatus{
+enum PrintStatus{
 	StartingPrint=0,
 	Printing=1,
 	WaitingResources=2,
@@ -630,40 +675,41 @@ private enum PrintStatus{
 	Ready=4
 }
 
-private long cycle_long = 1;
-private long cycle = 0;
-private char loading_char = '|';
-private double seconds_since_last_update = 0;
-private Random Rnd;
+long cycle_long = 1;
+long cycle = 0;
+char loading_char = '|';
+double seconds_since_last_update = 0;
+Random Rnd;
 
-private IMyRemoteControl Controller;
-private IMyProjector Projector;
-private IMyMotorStator YawRotor;
-private IMyMotorStator PitchRotor;
-private IMyMotorStator ShellRotor;
-private IMyShipWelder Welder;
-private IMySensorBlock Sensor;
-private IMyShipMergeBlock Merge;
-private List<IMyCameraBlock> Cameras;
-private List<IMyGravityGenerator> Generators;
+IMyRemoteControl Controller;
+IMyProjector Projector;
+IMyMotorStator YawRotor;
+IMyMotorStator PitchRotor;
+IMyMotorStator ShellRotor;
+IMyShipWelder Welder;
+IMySensorBlock Sensor;
+IMyShipMergeBlock Merge;
+List<IMyCameraBlock> Cameras;
+List<IMyGravityGenerator> Generators;
+IMyCockpit Cockpit;
 
 
-private List<IMyInteriorLight> FiringLights;
-private List<List<IMyInteriorLight>> StatusLights;
-private List<IMyTextPanel> StatusPanels;
+List<IMyInteriorLight> FiringLights;
+List<List<IMyInteriorLight>> StatusLights;
+List<IMyTextPanel> StatusPanels;
 
-private EntityList Targets=new EntityList();
+EntityList Targets=new EntityList();
 
-private bool AutoFire=DEFAULT_AUTOFIRE;
-private bool AutoScan=DEFAULT_AUTOSCAN;
-private EntityInfo Target{
+bool AutoFire=DEFAULT_AUTOFIRE;
+bool AutoScan=DEFAULT_AUTOSCAN;
+EntityInfo Target{
 	get{
 		if(Targets.Count>0)
 			return Targets[0];
 		return new EntityInfo(0, "invalid", MyDetectedEntityType.None, null, new Vector3D(0,0,0), MyRelationsBetweenPlayerAndBlock.Neutral, new Vector3D(0,0,0), 0);
 	}
 }
-private Vector3D Target_Position{
+Vector3D Target_Position{
 	get{
 		if(Target.HitPosition!=null)
 			return(Vector3D)Target.HitPosition;
@@ -671,115 +717,115 @@ private Vector3D Target_Position{
 	}
 }
 
-private Vector3D Aim_Position=new Vector3D(0,0,0);
-private Vector3D Aim_Direction{
+Vector3D Aim_Position=new Vector3D(0,0,0);
+Vector3D Aim_Direction{
 	get{
 		Vector3D output=Aim_Position-Controller.GetPosition();
 		output.Normalize();
 		return output;
 	}
 }
-private double Aim_Distance{
+double Aim_Distance{
 	get{
 		return (Aim_Position-Controller.GetPosition()).Length();
 	}
 }
 
-private Vector3D Suspect_Position=new Vector3D(0,0,0);
-private Vector3D Suspect_Velocity=new Vector3D(0,0,0);
-private Vector3D Suspect_Direction{
+Vector3D Suspect_Position=new Vector3D(0,0,0);
+Vector3D Suspect_Velocity=new Vector3D(0,0,0);
+Vector3D Suspect_Direction{
 	get{
 		Vector3D output=Suspect_Position-Controller.GetPosition();
 		output.Normalize();
 		return output;
 	}
 }
-private double Suspect_Distance{
+double Suspect_Distance{
 	get{
 		return (Suspect_Position-Controller.GetPosition()).Length();
 	}
 }
 
-private double Time_To_Hit{
+double Time_To_Hit{
 	get{
 		double distance=20;
 		return (Aim_Distance-distance+distance*1.5657)/104.38;
 	}
 }
-private double Time_To_Position{
+double Time_To_Position{
 	get{
 		return (Target_Position-Aim_Position).Length()/Target.Velocity.Length();
 	}
 }
 
-private double Precision{
+double Precision{
 	get{
 		return Math.Min(1,50/Aim_Distance);
 	}
 }
 
-private int Fire_Count=0;
+int Fire_Count=0;
 
-private Vector3D Forward_Vector;
-private Vector3D Backward_Vector{
+Vector3D Forward_Vector;
+Vector3D Backward_Vector{
 	get{
 		return -1*Forward_Vector;
 	}
 }
-private Vector3D Up_Vector;
-private Vector3D Down_Vector{
+Vector3D Up_Vector;
+Vector3D Down_Vector{
 	get{
 		return -1*Up_Vector;
 	}
 }
-private Vector3D Left_Vector;
-private Vector3D Right_Vector{
+Vector3D Left_Vector;
+Vector3D Right_Vector{
 	get{
 		return -1*Left_Vector;
 	}
 }
 
-private Queue<CannonTask> TaskQueue=new Queue<CannonTask>();
-private CannonTask CurrentTask{
+Queue<CannonTask> TaskQueue=new Queue<CannonTask>();
+CannonTask CurrentTask{
 	get{
+		if(Controller.IsUnderControl)
+			return CannonTask.Manual;
 		if(TaskQueue.Count==0)
 			return CannonTask.None;
 		return TaskQueue.Peek();
 	}
 }
 
-private PrintStatus CurrentPrintStatus;
-private FireStatus CurrentFireStatus;
+PrintStatus CurrentPrintStatus;
+FireStatus CurrentFireStatus;
 
-public Vector3D GlobalToLocal(Vector3D Global){
-	Vector3D Local=Vector3D.Transform(Global+Controller.GetPosition(), MatrixD.Invert(Controller.WorldMatrix));
+Vector3D GlobalToLocal(Vector3D Global,IMyCubeBlock Ref){
+	Vector3D Local=Vector3D.Transform(Global+Ref.GetPosition(), MatrixD.Invert(Ref.WorldMatrix));
 	Local.Normalize();
 	return Local*Global.Length();
 }
-
-public Vector3D GlobalToLocalPosition(Vector3D Global){
-	Vector3D Local=Vector3D.Transform(Global, MatrixD.Invert(Controller.WorldMatrix));
+Vector3D GlobalToLocalPosition(Vector3D Global,IMyCubeBlock Ref){
+	Vector3D Local=Vector3D.Transform(Global, MatrixD.Invert(Ref.WorldMatrix));
 	Local.Normalize();
-	return Local*(Global-Controller.GetPosition()).Length();
+	return Local*(Global-Ref.GetPosition()).Length();
 }
-
-public Vector3D LocalToGlobal(Vector3D Local){
-	Vector3D Global=Vector3D.Transform(Local, Controller.WorldMatrix)-Controller.GetPosition();
+Vector3D LocalToGlobal(Vector3D Local,IMyCubeBlock Ref){
+	Vector3D Global=Vector3D.Transform(Local, Ref.WorldMatrix)-Ref.GetPosition();
 	Global.Normalize();
 	return Global*Local.Length();
 }
-
-public Vector3D LocalToGlobalPosition(Vector3D Local){
-	return Vector3D.Transform(Local,Controller.WorldMatrix);
+Vector3D LocalToGlobalPosition(Vector3D Local,IMyCubeBlock Ref){
+	return Vector3D.Transform(Local,Ref.WorldMatrix);
 }
 
-private double GetAngle(Vector3D v1, Vector3D v2){
+double GetAngle(Vector3D v1,Vector3D v2){
 	return GenericMethods<IMyTerminalBlock>.GetAngle(v1,v2);
 }
 
-private bool Operational=false;
+bool Operational=false;
 public Program(){
 	Rnd=new Random();
+	Prog.P=this;
     Me.CustomName=(Program_Name+" Programmable block").Trim();
 	for(int i=0;i<Me.SurfaceCount;i++){
 		Me.GetSurface(i).FontColor=DEFAULT_TEXT_COLOR;
@@ -791,7 +837,7 @@ public Program(){
 	Me.GetSurface(1).TextPadding=40.0f;
 	Echo("Beginning initialization");
 	Me.Enabled=true;
-	StatusPanels=(new GenericMethods<IMyTextPanel>(this)).GetAllContaining("Cannon Status Panel ");
+	StatusPanels=GenericMethods<IMyTextPanel>.GetAllContaining("Cannon Status Panel ");
 	foreach(IMyTextPanel Panel in StatusPanels){
 		Panel.FontColor=DEFAULT_TEXT_COLOR;
 		Panel.BackgroundColor=DEFAULT_BACKGROUND_COLOR;
@@ -803,43 +849,56 @@ public Program(){
 	
 	Operational=false;
 	
-	Controller=(new GenericMethods<IMyRemoteControl>(this)).GetFull("Driver Controller");
+	Cockpit=GenericMethods<IMyCockpit>.GetFull("Vigilance Control Cockpit");
+	if(Cockpit!=null){
+		for(int i=0;i<Cockpit.SurfaceCount;i++){
+			if(i<3)
+				Cockpit.GetSurface(i).ContentType=ContentType.TEXT_AND_IMAGE;
+			Cockpit.GetSurface(i).FontColor=DEFAULT_TEXT_COLOR;
+			Cockpit.GetSurface(i).BackgroundColor=DEFAULT_BACKGROUND_COLOR;
+			Cockpit.GetSurface(i).Alignment=TextAlignment.CENTER;
+			Cockpit.GetSurface(i).ScriptForegroundColor=DEFAULT_TEXT_COLOR;
+			Cockpit.GetSurface(i).ScriptBackgroundColor=DEFAULT_BACKGROUND_COLOR;
+		}
+	}
+	
+	Controller=GenericMethods<IMyRemoteControl>.GetFull("Driver Controller");
 	if(Controller==null)
 		return;
-	Projector=(new GenericMethods<IMyProjector>(this)).GetFull("Shell Projector");
+	Projector=GenericMethods<IMyProjector>.GetFull("Shell Projector");
 	if(Projector==null)
 		return;
-	YawRotor=(new GenericMethods<IMyMotorStator>(this)).GetFull("Yaw Rotor");
+	YawRotor=GenericMethods<IMyMotorStator>.GetFull("Yaw Rotor");
 	if(YawRotor==null)
 		return;
-	PitchRotor=(new GenericMethods<IMyMotorStator>(this)).GetFull("Pitch Rotor");
+	PitchRotor=GenericMethods<IMyMotorStator>.GetFull("Pitch Rotor");
 	if(PitchRotor==null)
 		return;
-	ShellRotor=(new GenericMethods<IMyMotorStator>(this)).GetFull("Shell Rotor");
+	ShellRotor=GenericMethods<IMyMotorStator>.GetFull("Shell Rotor");
 	if(ShellRotor==null)
 		return;
-	Sensor=(new GenericMethods<IMySensorBlock>(this)).GetFull("Driver Sensor");
+	Sensor=GenericMethods<IMySensorBlock>.GetFull("Driver Sensor");
 	if(Sensor==null)
 		return;
-	Welder=(new GenericMethods<IMyShipWelder>(this)).GetFull("Driver Shell Welder");
+	Welder=GenericMethods<IMyShipWelder>.GetFull("Driver Shell Welder");
 	if(Welder==null)
 		return;
-	Merge=(new GenericMethods<IMyShipMergeBlock>(this)).GetFull("Shell Printer Merge Block");
+	Merge=GenericMethods<IMyShipMergeBlock>.GetFull("Shell Printer Merge Block");
 	if(Merge==null)
 		return;
-	Generators=(new GenericMethods<IMyGravityGenerator>(this)).GetAllContaining("Driver Generator ");
+	Generators=GenericMethods<IMyGravityGenerator>.GetAllContaining("Driver Generator ");
 	if(Generators.Count==0)
 		return;
-	Cameras=(new GenericMethods<IMyCameraBlock>(this)).GetAllContaining("Driver Camera ");
+	Cameras=GenericMethods<IMyCameraBlock>.GetAllContaining("Driver Camera ");
 	if(Cameras.Count==0)
 		return;
 	foreach(IMyCameraBlock Camera in Cameras)
 		Camera.EnableRaycast=true;
 	
-	FiringLights=(new GenericMethods<IMyInteriorLight>(this)).GetAllContaining("Driver Firing Light ");
+	FiringLights=GenericMethods<IMyInteriorLight>.GetAllContaining("Driver Firing Light ");
 	StatusLights=new List<List<IMyInteriorLight>>();
 	for(int i=1;i<=3;i++){
-		StatusLights.Add((new GenericMethods<IMyInteriorLight>(this)).GetAllContaining("Driver Status Light "+i.ToString()));
+		StatusLights.Add(GenericMethods<IMyInteriorLight>.GetAllContaining("Driver Status Light "+i.ToString()));
 	}
 	
 	TaskQueue=new Queue<CannonTask>();
@@ -913,7 +972,7 @@ public void Save(){
 	Me.CustomData=this.Storage;
 }
 
-private void AddTask(CannonTask Task){
+void AddTask(CannonTask Task){
 	if(Task==CannonTask.None||TaskQueue.Contains(Task))
 		return;
 	if(((int)Task)>((int)CurrentTask)){
@@ -935,7 +994,7 @@ private void AddTask(CannonTask Task){
 	}
 }
 
-private void NextTask(){
+void NextTask(){
 	bool remove=true;
 	CannonTask last_task=CurrentTask;
 	CurrentFireStatus=FireStatus.Idle;
@@ -969,7 +1028,7 @@ private void NextTask(){
 	}
 }
 
-private void UpdateProgramInfo(){
+void UpdateProgramInfo(){
 	cycle_long += ((++cycle)/long.MaxValue)%long.MaxValue;
 	cycle = cycle % long.MaxValue;
 	switch(loading_char){
@@ -1010,25 +1069,25 @@ private void UpdateProgramInfo(){
 	}
 }
 
-private void UpdatePositionalInfo(){
+void UpdatePositionalInfo(){
 	Vector3D base_vector=new Vector3D(0,0,-1);
-	Forward_Vector=LocalToGlobal(base_vector);
+	Forward_Vector=LocalToGlobal(base_vector,Controller);
 	Forward_Vector.Normalize();
 	
 	base_vector=new Vector3D(0,1,0);
-	Up_Vector=LocalToGlobal(base_vector);
+	Up_Vector=LocalToGlobal(base_vector,Controller);
 	Up_Vector.Normalize();
 	
 	base_vector=new Vector3D(-1,0,0);
-	Left_Vector=LocalToGlobal(base_vector);
+	Left_Vector=LocalToGlobal(base_vector,Controller);
 	Left_Vector.Normalize();
 	
 	Targets.UpdatePositions(seconds_since_last_update);
 	Suspect_Position+=Suspect_Velocity*seconds_since_last_update;
 }
 
-private double Print_Timer=0.0;
-private void Print(){
+double Print_Timer=0.0;
+void Print(){
 	double rotor_angle=ShellRotor.Angle/Math.PI*180;
 	bool is_forward=Math.Abs(rotor_angle-180)<1;
 	bool is_backward=Math.Abs((rotor_angle+360)%360)<1;
@@ -1073,8 +1132,8 @@ private void Print(){
 	}
 }
 
-private double Aim_Timer=AIM_TIME;
-private void SetAimed(double time=AIM_TIME){
+double Aim_Timer=AIM_TIME;
+void SetAimed(double time=AIM_TIME){
 	Aim_Timer=Math.Min(Math.Max(0,time),AIM_TIME);
 	Aim_Position=Target_Position;
 	if(Target.Velocity.Length()<0.1)
@@ -1097,15 +1156,15 @@ private void SetAimed(double time=AIM_TIME){
 	}
 }
 
-private void SendAllListeners(string Message){
+void SendAllListeners(string Message){
 	List<IMyBroadcastListener> listeners=new List<IMyBroadcastListener>();
 	IGC.GetBroadcastListeners(listeners);
 	foreach(IMyBroadcastListener Listener in listeners){
 		IGC.SendBroadcastMessage(Listener.Tag, Message, TransmissionDistance.TransmissionDistanceMax);
 	}
 }
-private double Standard_Scan_Time=3;
-private void Standard_Scan(){
+double Standard_Scan_Time=3;
+void Standard_Scan(){
 	EntityList DetectedEntities=new EntityList();
 	List<IMyLargeTurretBase> AllTurrets=new List<IMyLargeTurretBase>();
 	GridTerminalSystem.GetBlocksOfType<IMyLargeTurretBase>(AllTurrets);
@@ -1181,7 +1240,7 @@ private void Standard_Scan(){
 	Standard_Scan_Time=0;
 }
 
-private void ArgumentProcessor(string argument){
+void ArgumentProcessor(string argument){
 	if(argument.ToLower().Equals("scan")){
 		AddTask(CannonTask.Scan);
 	}
@@ -1323,7 +1382,7 @@ private void ArgumentProcessor(string argument){
 	}
 }
 
-private bool CanAim(Vector3D Direction){
+bool CanAim(Vector3D Direction){
 	double Yaw_Difference=Math.Abs(GetAngle(Left_Vector,Direction)-GetAngle(Right_Vector,Direction));
 	if(Yaw_Difference>30){
 		return true;
@@ -1338,7 +1397,7 @@ private bool CanAim(Vector3D Direction){
 	return true;
 }
 
-private void Aim(Vector3D Direction, double precision){
+void Aim(Vector3D Direction, double precision){
 	double Pitch_Difference=GetAngle(Up_Vector,Direction)-GetAngle(Down_Vector,Direction);
 	PitchRotor.TargetVelocityRPM=(float)(Pitch_Difference*Math.Min(1,Math.Max(Math.Abs(Pitch_Difference)/10,precision*10)));
 	if(Math.Abs(Pitch_Difference)<precision/2)
@@ -1349,11 +1408,11 @@ private void Aim(Vector3D Direction, double precision){
 		YawRotor.TargetVelocityRPM=0;
 }
 
-private void Aim(Vector3D Direction){
+void Aim(Vector3D Direction){
 	Aim(Direction, Precision);
 }
 
-private void Aim(){
+void Aim(){
 	Aim(Aim_Direction,Precision);
 }
 
@@ -1392,11 +1451,11 @@ public void Reset(){
 	Targets.Clear();
 }
 
-private double Scan_Timer=AUTOSCAN_DISTANCE/1000;
-private double Scan_Aim_Time=10;
-private bool Has_Done_Scan=false;
-private int Detection_Count=0;
-private void Perform_Search_Scan(Vector3D Direction, double Scan_Distance){
+double Scan_Timer=AUTOSCAN_DISTANCE/1000;
+double Scan_Aim_Time=10;
+bool Has_Done_Scan=false;
+int Detection_Count=0;
+void Perform_Search_Scan(Vector3D Direction, double Scan_Distance){
 	Aim(Direction, 1);
 	if(GetAngle(Direction,Forward_Vector)<1){
 		PitchRotor.TargetVelocityRPM=0;
@@ -1475,7 +1534,7 @@ private void Perform_Search_Scan(Vector3D Direction, double Scan_Distance){
 	}
 }
 
-private Vector3D Scan_Direction=new Vector3D(0,0,0);
+Vector3D Scan_Direction=new Vector3D(0,0,0);
 public void Scan(){
 	Write("Scan_Timer:"+Math.Round(Scan_Timer,1)+"/"+Math.Round(AUTOSCAN_DISTANCE/1000,1)+" seconds");
 	if(Scan_Timer>=AUTOSCAN_DISTANCE/1000||!CanAim(Scan_Direction)||Scan_Aim_Time>=5){
@@ -1503,9 +1562,9 @@ public void Scan(){
 	Perform_Search_Scan(Scan_Direction,AUTOSCAN_DISTANCE);
 }
 
-private Vector3D Search_Direction=new Vector3D(0,0,0);
-private double Search_Distance=0;
-private double Search_Timer=0;
+Vector3D Search_Direction=new Vector3D(0,0,0);
+double Search_Distance=0;
+double Search_Timer=0;
 public void Search(){
 	Write("Scan_Timer:"+Math.Round(Scan_Timer,1)+"/"+Math.Round(AUTOSCAN_DISTANCE/1000,1)+" seconds");
 	if(!CanAim(Suspect_Direction)||Suspect_Distance>AUTOSCAN_DISTANCE||Search_Timer>180){
@@ -1536,10 +1595,10 @@ public void Search(){
 	Perform_Search_Scan(Search_Direction,Search_Distance+100);
 }
 
-private List<double> ShellCountdowns=new List<double>();
-private bool Called_Next_Fire=true;
-private double Fire_Scan_Timer=AUTOSCAN_DISTANCE/1000;
-private bool DoFire(){
+List<double> ShellCountdowns=new List<double>();
+bool Called_Next_Fire=true;
+double Fire_Scan_Timer=AUTOSCAN_DISTANCE/1000;
+bool DoFire(){
 	foreach(IMyCameraBlock Camera in Cameras){
 		double distance=Camera.AvailableScanRange;
 		string distance_string=Math.Round(distance,0).ToString()+"M";
@@ -1558,10 +1617,10 @@ private bool DoFire(){
 	else
 		return false;
 	
-	IMySpaceBall ShellMass=(new GenericMethods<IMySpaceBall>(this)).GetFull("Shell Mass Block");
+	IMySpaceBall ShellMass=GenericMethods<IMySpaceBall>.GetFull("Shell Mass Block");
 	if(ShellMass==null||!ShellMass.IsFunctional)
 		return false;
-	IMyTimerBlock ShellTimer=(new GenericMethods<IMyTimerBlock>(this)).GetFull("Shell Activation Block");
+	IMyTimerBlock ShellTimer=GenericMethods<IMyTimerBlock>.GetFull("Shell Activation Block");
 	if(ShellTimer==null||!ShellTimer.IsFunctional)
 		return false;
 	
@@ -1571,7 +1630,7 @@ private bool DoFire(){
 	}
 	
 	
-	List<IMyWarhead> Warheads=(new GenericMethods<IMyWarhead>(this)).GetAllContaining("Shell Warhead ");
+	List<IMyWarhead> Warheads=GenericMethods<IMyWarhead>.GetAllContaining("Shell Warhead ");
 	double DetonationTime=(Time_To_Hit+0.05);
 	ShellCountdowns.Add(DetonationTime);
 	foreach(IMyWarhead Warhead in Warheads){
@@ -1588,7 +1647,7 @@ private bool DoFire(){
 	return true;
 }
 
-private double Fire_Timer=1.0;
+double Fire_Timer=1.0;
 public void Fire(){
 	if(Aim_Position.Length()<1)
 		SetAimed();
@@ -1644,7 +1703,30 @@ public void Fire(){
 	}
 }
 
-private void TimerUpdate(){
+void Manual(){
+	float input_pitch=Math.Min(Math.Max(Controller.RotationIndicator.X/100,-1),1);
+	float input_yaw=Math.Min(Math.Max(Controller.RotationIndicator.Y/100,-1),1);
+	
+	if(Math.Abs(input_pitch)>0.05f){
+		PitchRotor.RotorLock=false;
+		PitchRotor=TargetVelocityRPM=input_pitch;
+	}
+	else{
+		PitchRotor.RotorLock=true;
+		PitchRotor=TargetVelocityRPM=0;
+	}
+	
+	if(Math.Abs(input_yaw)>0.05f){
+		YawRotor.RotorLock=false;
+		YawRotor=TargetVelocityRPM=input_pitch;
+	}
+	else{
+		YawRotor.RotorLock=true;
+		YawRotor=TargetVelocityRPM=0;
+	}
+}
+
+void TimerUpdate(){
 	if(Print_Timer<=30&&CurrentPrintStatus!=PrintStatus.Ready){
 		Print_Timer+=seconds_since_last_update;
 		Write("Print_Timer:"+Math.Round(Print_Timer,2)+" seconds");
@@ -1711,6 +1793,9 @@ public void Main(string argument, UpdateType updateSource)
 			break;
 		case CannonTask.Fire:
 			Fire();
+			break;
+		case CannonTask.Manual:
+			Manual();
 			break;
 	}
 	PitchRotor.Enabled=(CurrentTask!=CannonTask.None);
