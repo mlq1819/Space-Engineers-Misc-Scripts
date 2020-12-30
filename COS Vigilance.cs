@@ -10,7 +10,7 @@ const double FIRING_DISTANCE=20000; //Recommended between 5k and 20k; works best
 //The distance the scanners will default to during AutoScan; the lower the faster it scans
 const double AUTOSCAN_DISTANCE=20000;//Recommended between 2k and 10k
 //Sets whether the AI starts out scanning or whether it has to wait to be told to autoscan
-const bool DEFAULT_AUTOSCAN=true;
+const bool DEFAULT_AUTOSCAN=false;
 //Sets whether the AI starts out automatically shooting enemies or whether it has to wait to be told to autofire
 const bool DEFAULT_AUTOFIRE=false;
 //Set to the maximum time you expect the cannon to take to aim and print
@@ -18,11 +18,27 @@ const double AIM_TIME=15;
 Color DEFAULT_TEXT_COLOR=new Color(197,137,255,255);
 Color DEFAULT_BACKGROUND_COLOR=new Color(44,0,88,255);
 
+Color Green_Text=new Color(137,255,137,255);
+Color Green_Back=new Color(0,151,0,255);
+Color Blue_Text=new Color(137,239,255,255);
+Color Blue_Back=new Color(0,88,151,255);
+Color Yellow_Text=new Color(255,239,137,255);
+Color Yellow_Back=new Color(66,66,0,255);
+Color Orange_Text=new Color(255,197,0,255);
+Color Orange_Back=new Color(88,44,0,255);
+Color Red_Text=new Color(255,137,137,255);
+Color Red_Back=new Color(151,0,0,255);
 
 class Prog{
 	public static MyGridProgram P;
-}
+	public static TimeSpan FromSeconds(double seconds){
+		return (new TimeSpan(0,0,0,(int)seconds,(int)(seconds*1000)%1000));
+	}
 
+	public static TimeSpan UpdateTimeSpan(TimeSpan old,double seconds){
+		return old+FromSeconds(seconds);
+	}
+}
 class GenericMethods<T> where T : class, IMyTerminalBlock{
 	static IMyGridTerminalSystem TerminalSystem{
 		get{
@@ -362,6 +378,10 @@ class EntityInfo{
 		Age=TimeSpan.Zero;
 	}
 	
+	public EntityInfo(Vector3D position,Vector3D velocity,long id=-1):this(id,"unknown",MyDetectedEntityType.Unknown,null,velocity,MyRelationsBetweenPlayerAndBlock.Enemies,position){
+		;
+	}
+	
 	public static bool TryParse(string Parse, out EntityInfo Entity){
 		Entity=new EntityInfo(-1,"bad", MyDetectedEntityType.None, null, new Vector3D(0,0,0), MyRelationsBetweenPlayerAndBlock.NoOwnership, new Vector3D(0,0,0));
 		try{
@@ -519,6 +539,10 @@ class EntityList:IEnumerable<EntityInfo>{
 		return false;
 	}
 	
+	public void RemoveAt(int index){
+		E_List.RemoveAt(index);
+	}
+	
 	public EntityInfo Get(long ID){
 		foreach(EntityInfo entity in E_List){
 			if(entity.ID==ID)
@@ -590,6 +614,27 @@ class EntityList:IEnumerable<EntityInfo>{
 		if(E_List.Count>128)
 			E_List.RemoveRange(128,E_List.Count-128);
 	}
+}
+
+TimeSpan FromSeconds(double seconds){
+	return Prog.FromSeconds(seconds);
+}
+
+TimeSpan UpdateTimeSpan(TimeSpan old,double seconds){
+	return old+FromSeconds(seconds);
+}
+
+string ToString(TimeSpan ts){
+	if(ts.TotalDays>=1)
+		return Math.Round(ts.TotalDays,2).ToString()+" days";
+	else if(ts.TotalHours>=1)
+		return Math.Round(ts.TotalHours,2).ToString()+" hours";
+	else if(ts.TotalMinutes>=1)
+		return Math.Round(ts.TotalMinutes,2).ToString()+" minutes";
+	else if(ts.TotalSeconds>=1)
+		return Math.Round(ts.TotalSeconds,3).ToString()+" seconds";
+	else 
+		return Math.Round(ts.TotalMilliseconds,0).ToString()+" milliseconds";
 }
 
 void Write(string text, bool new_line=true, bool append=true){
@@ -675,10 +720,10 @@ enum PrintStatus{
 	Ready=4
 }
 
-long cycle_long = 1;
-long cycle = 0;
-char loading_char = '|';
-double seconds_since_last_update = 0;
+TimeSpan Time_Since_Start=new TimeSpan(0);
+long cycle=0;
+char loading_char='|';
+double seconds_since_last_update=0;
 Random Rnd;
 
 IMyRemoteControl Controller;
@@ -854,6 +899,8 @@ public Program(){
 		for(int i=0;i<Cockpit.SurfaceCount;i++){
 			if(i<3)
 				Cockpit.GetSurface(i).ContentType=ContentType.TEXT_AND_IMAGE;
+			Cockpit.GetSurface(i).FontSize=2.2f;
+			Cockpit.GetSurface(i).TextPadding=20;
 			Cockpit.GetSurface(i).FontColor=DEFAULT_TEXT_COLOR;
 			Cockpit.GetSurface(i).BackgroundColor=DEFAULT_BACKGROUND_COLOR;
 			Cockpit.GetSurface(i).Alignment=TextAlignment.CENTER;
@@ -1029,8 +1076,7 @@ void NextTask(){
 }
 
 void UpdateProgramInfo(){
-	cycle_long += ((++cycle)/long.MaxValue)%long.MaxValue;
-	cycle = cycle % long.MaxValue;
+	cycle=(++cycle)%long.MaxValue;
 	switch(loading_char){
 		case '|':
 			loading_char='\\';
@@ -1045,25 +1091,14 @@ void UpdateProgramInfo(){
 			loading_char='|';
 			break;
 	}
-	Echo(Program_Name+" OS "+cycle_long.ToString()+'-'+cycle.ToString()+" ("+loading_char+")");
-	Me.GetSurface(1).WriteText(Program_Name+" OS "+cycle_long.ToString()+'-'+cycle.ToString()+" ("+loading_char+")", false);
-	Me.GetSurface(0).WriteText("", false);
-	seconds_since_last_update = Runtime.TimeSinceLastRun.TotalSeconds + (Runtime.LastRunTimeMs / 1000);
-	if(seconds_since_last_update<1){
-		Echo(Math.Round(seconds_since_last_update*1000, 0).ToString() + " milliseconds\n");
-	}
-	else if(seconds_since_last_update<60){
-		Echo(Math.Round(seconds_since_last_update, 3).ToString() + " seconds\n");
-	}
-	else if(seconds_since_last_update/60<60){
-		Echo(Math.Round(seconds_since_last_update/60, 2).ToString() + " minutes\n");
-	}
-	else if(seconds_since_last_update/60/60<24){
-		Echo(Math.Round(seconds_since_last_update/60/60, 2).ToString() + " hours\n");
-	}
-	else {
-		Echo(Math.Round(seconds_since_last_update/60/60/24, 2).ToString() + " days\n");
-	}
+	Write("",false,false);
+	Echo(Program_Name+" OS Cycle-"+cycle.ToString()+" ("+loading_char+")");
+	Me.GetSurface(1).WriteText(Program_Name+" OS Cycle-"+cycle.ToString()+" ("+loading_char+")",false);
+	seconds_since_last_update=Runtime.TimeSinceLastRun.TotalSeconds + (Runtime.LastRunTimeMs / 1000);
+	Echo(ToString(FromSeconds(seconds_since_last_update))+" since last cycle");
+	Time_Since_Start=UpdateTimeSpan(Time_Since_Start,seconds_since_last_update);
+	Echo(ToString(Time_Since_Start)+" since last reboot\n");
+	Me.GetSurface(1).WriteText("\n"+ToString(Time_Since_Start)+" since last reboot",true);
 	foreach(IMyTextPanel Panel in StatusPanels){
 		Panel.WriteText("",false);
 	}
@@ -1709,20 +1744,20 @@ void Manual(){
 	
 	if(Math.Abs(input_pitch)>0.05f){
 		PitchRotor.RotorLock=false;
-		PitchRotor=TargetVelocityRPM=input_pitch;
+		PitchRotor.TargetVelocityRPM=input_pitch*30;
 	}
 	else{
 		PitchRotor.RotorLock=true;
-		PitchRotor=TargetVelocityRPM=0;
+		PitchRotor.TargetVelocityRPM=0;
 	}
 	
 	if(Math.Abs(input_yaw)>0.05f){
 		YawRotor.RotorLock=false;
-		YawRotor=TargetVelocityRPM=input_pitch;
+		YawRotor.TargetVelocityRPM=input_yaw*30;
 	}
 	else{
 		YawRotor.RotorLock=true;
-		YawRotor=TargetVelocityRPM=0;
+		YawRotor.TargetVelocityRPM=0;
 	}
 }
 
@@ -1822,6 +1857,91 @@ public void Main(string argument, UpdateType updateSource)
 	else
 		Write("AutoFire:Off");
 	Write("Current Task:"+CurrentTask.ToString());
+	if(Cockpit!=null){
+		if(Cockpit.SurfaceCount>=1){
+			Color Text_Color=Green_Text;
+			Color Back_Color=Green_Back;
+			Cockpit.GetSurface(0).WriteText("Current Task\n"+CurrentTask.ToString(),false);
+			switch(CurrentTask){
+				case CannonTask.Scan:
+					Text_Color=Blue_Text;
+					Back_Color=Blue_Back;
+					break;
+				case CannonTask.Reset:
+					Text_Color=Yellow_Text;
+					Back_Color=Yellow_Back;
+					break;
+				case CannonTask.Search:
+					Text_Color=Orange_Text;
+					Back_Color=Orange_Back;
+					break;
+				case CannonTask.Fire:
+					Text_Color=Red_Text;
+					Back_Color=Red_Back;
+					break;
+				case CannonTask.Manual:
+					Text_Color=Blue_Text;
+					Back_Color=Blue_Back;
+					break;
+			}
+			Cockpit.GetSurface(0).FontColor=Text_Color;
+			Cockpit.GetSurface(0).BackgroundColor=Back_Color;
+		}
+		if(Cockpit.SurfaceCount>=2){
+			Color Text_Color=Green_Text;
+			Color Back_Color=Green_Back;
+			Cockpit.GetSurface(1).WriteText("Firing Status\n"+CurrentFireStatus.ToString(),false);
+			switch(CurrentFireStatus){
+				case FireStatus.WaitingClear:
+					Text_Color=Blue_Text;
+					Back_Color=Blue_Back;
+					break;
+				case FireStatus.Printing:
+					Text_Color=Yellow_Text;
+					Back_Color=Yellow_Back;
+					break;
+				case FireStatus.Aiming:
+					Text_Color=Orange_Text;
+					Back_Color=Orange_Back;
+					break;
+				case FireStatus.WaitingTarget:
+					Text_Color=Orange_Text;
+					Back_Color=Orange_Back;
+					break;
+				case FireStatus.Firing:
+					Text_Color=Red_Text;
+					Back_Color=Red_Back;
+					break;
+			}
+			Cockpit.GetSurface(1).FontColor=Text_Color;
+			Cockpit.GetSurface(1).BackgroundColor=Back_Color;
+		}
+		if(Cockpit.SurfaceCount>=3){
+			Color Text_Color=Green_Text;
+			Color Back_Color=Green_Back;
+			Cockpit.GetSurface(2).WriteText("Print Status\n"+CurrentPrintStatus.ToString(),false);
+			switch(CurrentPrintStatus){
+				case PrintStatus.StartingPrint:
+					Text_Color=Blue_Text;
+					Back_Color=Blue_Back;
+					break;
+				case PrintStatus.EndingPrint:
+					Text_Color=Blue_Text;
+					Back_Color=Blue_Back;
+					break;
+				case PrintStatus.Printing:
+					Text_Color=Yellow_Text;
+					Back_Color=Yellow_Back;
+					break;
+				case PrintStatus.WaitingResources:
+					Text_Color=Red_Text;
+					Back_Color=Red_Back;
+					break;
+			}
+			Cockpit.GetSurface(2).FontColor=Text_Color;
+			Cockpit.GetSurface(2).BackgroundColor=Back_Color;
+		}
+	}
 	if(CurrentTask==CannonTask.Fire)
 		Write("Fire_Count:"+Fire_Count.ToString());
 	Write("PrintStatus:"+CurrentPrintStatus.ToString());
