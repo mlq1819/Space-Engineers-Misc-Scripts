@@ -1124,8 +1124,8 @@ void UpdatePositionalInfo(){
 double Print_Timer=0.0;
 void Print(){
 	double rotor_angle=ShellRotor.Angle/Math.PI*180;
-	bool is_forward=Math.Abs(rotor_angle-180)<1;
-	bool is_backward=Math.Abs((rotor_angle+360)%360)<1;
+	bool is_forward=Math.Abs((rotor_angle+365)%360)-5<1;
+	bool is_backward=Math.Abs(rotor_angle-180)<1;
 	bool is_printed=Projector.RemainingBlocks==0;
 	
 	ShellRotor.RotorLock=false;
@@ -1289,6 +1289,8 @@ void ArgumentProcessor(string argument){
 			AutoScan=false;
 		if(AutoScan&&CurrentTask==CannonTask.None)
 			AddTask(CannonTask.Scan);
+		else if((!AutoScan)&&CurrentTask==CannonTask.Scan)
+			NextTask();
 	}
 	else if(argument.ToLower().IndexOf("autofire")==0){
 		string word=argument.ToLower().Substring("autofire".Length);
@@ -1434,11 +1436,11 @@ bool CanAim(Vector3D Direction){
 
 void Aim(Vector3D Direction, double precision){
 	double Pitch_Difference=GetAngle(Up_Vector,Direction)-GetAngle(Down_Vector,Direction);
-	PitchRotor.TargetVelocityRPM=(float)(Pitch_Difference*Math.Min(1,Math.Max(Math.Abs(Pitch_Difference)/10,precision*10)));
+	PitchRotor.TargetVelocityRPM=(float)Math.Min(Math.Max((Pitch_Difference*Math.Min(1,Math.Max(Math.Abs(Pitch_Difference)/10,precision*10))),-15),15);
 	if(Math.Abs(Pitch_Difference)<precision/2)
 		PitchRotor.TargetVelocityRPM=0;
 	double Yaw_Difference=GetAngle(Left_Vector,Direction)-GetAngle(Right_Vector,Direction);
-	YawRotor.TargetVelocityRPM=(float)(Yaw_Difference*Math.Min(1,Math.Max(Math.Abs(Yaw_Difference)/10,precision*10)));
+	YawRotor.TargetVelocityRPM=(float)Math.Min(Math.Max((Yaw_Difference*Math.Min(1,Math.Max(Math.Abs(Yaw_Difference)/10,precision*10))),-15),15);
 	if(Math.Abs(Yaw_Difference)<precision/2)
 		YawRotor.TargetVelocityRPM=0;
 }
@@ -1572,6 +1574,8 @@ void Perform_Search_Scan(Vector3D Direction, double Scan_Distance){
 Vector3D Scan_Direction=new Vector3D(0,0,0);
 public void Scan(){
 	Write("Scan_Timer:"+Math.Round(Scan_Timer,1)+"/"+Math.Round(AUTOSCAN_DISTANCE/1000,1)+" seconds");
+	double Angle=GetAngle(Scan_Direction,Forward_Vector);
+	Write(Math.Round(Angle,1).ToString()+"°");
 	if(Scan_Timer>=AUTOSCAN_DISTANCE/1000||!CanAim(Scan_Direction)||Scan_Aim_Time>=5){
 		Has_Done_Scan=false;
 		Scan_Aim_Time=0;
@@ -1742,23 +1746,31 @@ void Manual(){
 	float input_pitch=Math.Min(Math.Max(Controller.RotationIndicator.X/100,-1),1);
 	float input_yaw=Math.Min(Math.Max(Controller.RotationIndicator.Y/100,-1),1);
 	
-	if(Math.Abs(input_pitch)>0.05f){
+	input_pitch=Math.Min(Math.Max(((input_pitch*2)*Math.Abs(input_pitch*2))/2,-1),1);
+	input_yaw=Math.Min(Math.Max(((input_yaw*2)*Math.Abs(input_yaw*2))/2,-1),1);
+	
+	if(Math.Abs(input_pitch)>0.001f){
 		PitchRotor.RotorLock=false;
-		PitchRotor.TargetVelocityRPM=input_pitch*30;
+		PitchRotor.TargetVelocityRPM=input_pitch*-10;
 	}
 	else{
 		PitchRotor.RotorLock=true;
 		PitchRotor.TargetVelocityRPM=0;
 	}
 	
-	if(Math.Abs(input_yaw)>0.05f){
+	if(Math.Abs(input_yaw)>0.001f){
 		YawRotor.RotorLock=false;
-		YawRotor.TargetVelocityRPM=input_yaw*30;
+		YawRotor.TargetVelocityRPM=input_yaw*10;
 	}
 	else{
 		YawRotor.RotorLock=true;
 		YawRotor.TargetVelocityRPM=0;
 	}
+	
+	Write("Input_Pitch: "+Math.Round(input_pitch,1).ToString());
+	Write("Pitch RPM: "+Math.Round(PitchRotor.TargetVelocityRPM,1).ToString());
+	Write("Input_Yaw: "+Math.Round(input_pitch,1).ToString());
+	Write("Yaw RPM: "+Math.Round(YawRotor.TargetVelocityRPM,1).ToString());
 }
 
 void TimerUpdate(){
@@ -1804,6 +1816,8 @@ public void Main(string argument, UpdateType updateSource)
 	}
 	if(Standard_Scan_Time>=1)
 		Standard_Scan();
+	if(AutoScan&&CurrentTask==CannonTask.None)
+		NextTask();
 	Print();
 	switch(CurrentTask){
 		case CannonTask.None:
@@ -1856,6 +1870,16 @@ public void Main(string argument, UpdateType updateSource)
 		Write("AutoFire:On");
 	else
 		Write("AutoFire:Off");
+	bool active=true;
+	foreach(CannonTask task in TaskQueue){
+		if(active){
+			Write("--"+task.ToString().ToUpper());
+			active=false;
+		}
+		else
+			Write(" -"+task.ToString().ToLower());
+	}
+	
 	Write("Current Task:"+CurrentTask.ToString());
 	if(Cockpit!=null){
 		if(Cockpit.SurfaceCount>=1){
