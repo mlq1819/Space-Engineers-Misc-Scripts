@@ -1623,12 +1623,13 @@ public void Scan(){
 		Scan_Aim_Time=0;
 		Scan_Timer=0;
 		Detection_Count=0;
-		Vector3D r_Forward=LocalToGlobal(new Vector3D(0,0,-1),YawRotor);
-		r_Forward.Normalize();
-		Vector3D r_Left=LocalToGlobal(new Vector3D(-1,0,0),YawRotor);
-		r_Left.Normalize();
+		//Vector3D r_Forward=LocalToGlobal(new Vector3D(0,0,-1),YawRotor);
+		//r_Forward.Normalize();
+		//Vector3D r_Left=LocalToGlobal(new Vector3D(-1,0,0),YawRotor);
+		//r_Left.Normalize();
 		do{
-			double Pitch_Angle=PitchRotor.Angle/Math.PI*180;
+			Scan_Direction=new Vector3D(Rnd.Next(-36,36),Rnd.Next(-36,36),Rnd.Next(-36,36));
+			/*double Pitch_Angle=PitchRotor.Angle/Math.PI*180;
 			if(Pitch_Angle>180)
 				Pitch_Angle-=360;
 			Scan_Direction=new Vector3D(0,0,0);
@@ -1637,7 +1638,7 @@ public void Scan(){
 			if(Pitch_Angle>=0)
 				Scan_Direction+=Rnd.Next((int)(Pitch_Angle-30),30)*Rnd.Next(1,5)*r_Up/20;
 			else
-				Scan_Direction+=Rnd.Next(-30,(int)(30+Pitch_Angle))*Rnd.Next(1,5)*r_Up/20;
+				Scan_Direction+=Rnd.Next(-30,(int)(30+Pitch_Angle))*Rnd.Next(1,5)*r_Up/20;*/
 			if(Scan_Direction.Length()==0)
 				Scan_Direction=new Vector3D(1,1,1);
 			Scan_Direction.Normalize();
