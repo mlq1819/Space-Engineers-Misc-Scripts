@@ -1627,6 +1627,7 @@ public void Scan(){
 		//r_Forward.Normalize();
 		//Vector3D r_Left=LocalToGlobal(new Vector3D(-1,0,0),YawRotor);
 		//r_Left.Normalize();
+		Vector3D Last_Direction=Scan_Direction;
 		do{
 			Scan_Direction=new Vector3D(Rnd.Next(-36,36),Rnd.Next(-36,36),Rnd.Next(-36,36));
 			/*double Pitch_Angle=PitchRotor.Angle/Math.PI*180;
@@ -1643,7 +1644,7 @@ public void Scan(){
 				Scan_Direction=new Vector3D(1,1,1);
 			Scan_Direction.Normalize();
 		}
-		while(!CanAim(Scan_Direction));
+		while((!CanAim(Scan_Direction))||GetAngle(Last_Direction,Scan_Direction)<30);
 	}
 	Vector3D Redesigned=GlobalToLocal(Scan_Direction,YawRotor);
 	Redesigned.Normalize();
