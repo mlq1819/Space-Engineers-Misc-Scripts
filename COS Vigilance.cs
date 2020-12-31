@@ -1222,8 +1222,10 @@ void Standard_Scan(){
 	foreach(IMyLargeTurretBase Turret in AllTurrets){
 		if(Turret.HasTarget){
 			MyDetectedEntityInfo Detected=Turret.GetTargetedEntity();
-			if(Detected.Type!=MyDetectedEntityType.None&&Detected.EntityId!=Controller.CubeGrid.EntityId)
+			if(Detected.Type!=MyDetectedEntityType.None&&Detected.EntityId!=Controller.CubeGrid.EntityId){
 				DetectedEntities.UpdateEntry(new EntityInfo(Detected));
+				BroadcastEntity(Detected);
+			}
 		}
 	}
 	if(CurrentTask!=CannonTask.Scan&&Targets.Count>0){
@@ -1233,6 +1235,7 @@ void Standard_Scan(){
 				MyDetectedEntityInfo Detected=Camera.Raycast(Target_Position);
 				if(Detected.Type!=MyDetectedEntityType.None&&Detected.EntityId!=Controller.CubeGrid.EntityId){
 					DetectedEntities.UpdateEntry(new EntityInfo(Detected));
+					BroadcastEntity(Detected);
 					hit=true;
 					break;
 				}
@@ -1253,6 +1256,7 @@ void Standard_Scan(){
 							MyDetectedEntityInfo Detected=Camera.Raycast(distance,(float)(Precision*10*p_x),(float)(Precision*10*y_x));
 							if(Detected.Type!=MyDetectedEntityType.None&&Detected.EntityId!=Controller.CubeGrid.EntityId){
 								DetectedEntities.UpdateEntry(new EntityInfo(Detected));
+								BroadcastEntity(Detected);
 								hit=true;
 								break;
 							}
@@ -1274,7 +1278,7 @@ void Standard_Scan(){
 			}
 		}
 	}
-	EntityInfo Myself = new EntityInfo(Controller.CubeGrid.EntityId,Controller.CubeGrid.CustomName,MyDetectedEntityType.LargeGrid,(Vector3D?)(Controller.GetPosition()),new Vector3D(0,0,0),MyRelationsBetweenPlayerAndBlock.Owner,Controller.CubeGrid.GetPosition());
+	EntityInfo Myself=new EntityInfo(Controller.CubeGrid.EntityId,Controller.CubeGrid.CustomName,MyDetectedEntityType.LargeGrid,(Vector3D?)(Controller.GetPosition()),new Vector3D(0,0,0),MyRelationsBetweenPlayerAndBlock.Owner,Controller.CubeGrid.GetPosition());
 	SendAllListeners(Myself.ToString());
 	foreach(EntityInfo Entity in DetectedEntities){
 		SendAllListeners(Entity.ToString());
@@ -1514,6 +1518,14 @@ public void Reset(){
 	Targets.Clear();
 }
 
+void BroadcastEntity(EntityInfo Entity){
+	SendAllListeners(Entity.ToString());
+}
+
+void BroadcastEntity(MyDetectedEntityInfo Entity){
+	BroadcastEntity(new EntityInfo(Entity));
+}
+
 double Scan_Timer=AUTOSCAN_DISTANCE/1000;
 double Scan_Aim_Time=10;
 bool Has_Done_Scan=false;
@@ -1549,8 +1561,10 @@ void Perform_Search_Scan(Vector3D Direction, double Scan_Distance){
 			IMyCameraBlock Camera=Cameras[i];
 			if(i==0){
 				MyDetectedEntityInfo Entity=Camera.Raycast(Math.Min(Scan_Distance,Camera.AvailableScanRange),0,0);
-				if(Entity.Type!=MyDetectedEntityType.None&&Entity.EntityId!=Controller.CubeGrid.EntityId)
+				if(Entity.Type!=MyDetectedEntityType.None&&Entity.EntityId!=Controller.CubeGrid.EntityId){
 					DetectedEntities.UpdateEntry(new EntityInfo(Entity));
+					BroadcastEntity(Entity);
+				}
 				continue;
 			}
 			double distance=Math.Min(Camera.AvailableScanRange/(4*i),Scan_Distance);
