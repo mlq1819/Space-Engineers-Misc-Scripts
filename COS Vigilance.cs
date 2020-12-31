@@ -1228,7 +1228,7 @@ void Standard_Scan(){
 			}
 		}
 	}
-	if(CurrentTask!=CannonTask.Scan&&Targets.Count>0){
+	if(Targets.Count>0){
 		bool hit=false;
 		foreach(IMyCameraBlock Camera in Cameras){
 			if(Camera.CanScan(Target_Position)){
