@@ -1715,7 +1715,7 @@ bool DoFire(){
 		Fire_Scan_Timer=0;
 		foreach(IMyCameraBlock Camera in Cameras){
 			MyDetectedEntityInfo Entity=Camera.Raycast(Math.Min(AUTOSCAN_DISTANCE,Math.Max(50,Aim_Distance/10*9)),0,0);
-			if(Entity.Type!=MyDetectedEntityType.None&&Entity.Relationship!=MyRelationsBetweenPlayerAndBlock.Enemies&&(((Vector3D) Target.HitPosition)-Aim_Position).Length()>5)
+			if(Entity.Type!=MyDetectedEntityType.None&&Entity.Relationship!=MyRelationsBetweenPlayerAndBlock.Enemies&&(Target.HitPosition!=null&&(((Vector3D) Target.HitPosition)-Aim_Position).Length()>5))
 				return false;
 		}
 	}
