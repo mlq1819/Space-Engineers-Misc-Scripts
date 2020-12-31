@@ -1124,8 +1124,8 @@ void UpdatePositionalInfo(){
 double Print_Timer=0.0;
 void Print(){
 	double rotor_angle=ShellRotor.Angle/Math.PI*180;
-	bool is_forward=Math.Abs(((rotor_angle+365)%360)-5)<1.5;
-	bool is_backward=Math.Abs(rotor_angle-180)<1.5;
+	bool is_forward=Math.Abs(((rotor_angle+365)%360)-5)<1;
+	bool is_backward=Math.Abs(rotor_angle-180)<1;
 	bool is_printed=Projector.RemainingBlocks==0;
 	ShellRotor.RotorLock=false;
 	if(is_printed){
@@ -1146,6 +1146,8 @@ void Print(){
 	if(is_printed){
 		Welder.Enabled=false;
 		ShellRotor.TargetVelocityRPM=-30.0f;
+		if(ShellRotor.Angle>1.5*Math.PI)
+			ShellRotor.TargetVelocityRPM=1;
 		if(is_forward){
 			ShellRotor.TargetVelocityRPM=0;
 			ShellRotor.RotorLock=true;
@@ -1224,7 +1226,7 @@ void Standard_Scan(){
 				DetectedEntities.UpdateEntry(new EntityInfo(Detected));
 		}
 	}
-	if(Targets.Count>0){
+	if(CurrentTask!=CannonTask.Scan&&Targets.Count>0){
 		bool hit=false;
 		foreach(IMyCameraBlock Camera in Cameras){
 			if(Camera.CanScan(Target_Position)){
@@ -1443,18 +1445,28 @@ bool CanAim(Vector3D Direction){
 	if(Pitch_Angle>180)
 		Pitch_Angle-=360;
 	double From_Top=Pitch_Angle-Pitch_Difference;
-	if(Math.Abs(From_Top)>45+Yaw_Difference)
-		return false;
+	double Pitch_Range=Math.Abs(PitchRotor.UpperLimitDeg-PitchRotor.LowerLimitDeg);
+	Vector3D r_Up=LocalToGlobal(new Vector3D(0,1,0),YawRotor);
+	r_Up.Normalize();
+	Vector3D r_Down=-1*r_Up;
+	double OOB_Range=(90-(Pitch_Range/2))*1.2;
+	if(OOB_Range>0){
+		if(GetAngle(Direction,r_Down)<=(90+PitchRotor.LowerLimitDeg)*1.2||GetAngle(Direction,r_Up)<=(90-PitchRotor.UpperLimitDeg)*1.2)
+			return false;
+	}
+	//if(Math.Abs(From_Top)>Math.Sqrt(Math.Pow(Pitch_Range/2,2)+Math.Pow(Yaw_Difference,2)))
+		//return false;
 	return true;
 }
 
 void Aim(Vector3D Direction, double precision){
-	double Pitch_Difference=GetAngle(Up_Vector,Direction)-GetAngle(Down_Vector,Direction);
-	PitchRotor.TargetVelocityRPM=(float)Math.Min(Math.Max((Pitch_Difference*Math.Min(1,Math.Max(Math.Abs(Pitch_Difference)/10,precision*10))),-15),15);
+	double max_speed=10;
+	double Pitch_Difference=(GetAngle(Up_Vector,Direction)-GetAngle(Down_Vector,Direction));
+	PitchRotor.TargetVelocityRPM=(float)Math.Min(Math.Max((Pitch_Difference*Math.Min(1,Math.Max(Math.Abs(Pitch_Difference)/10,precision*10))),-1*max_speed),max_speed)*-1;
 	if(Math.Abs(Pitch_Difference)<precision/2)
 		PitchRotor.TargetVelocityRPM=0;
-	double Yaw_Difference=GetAngle(Left_Vector,Direction)-GetAngle(Right_Vector,Direction);
-	YawRotor.TargetVelocityRPM=(float)Math.Min(Math.Max((Yaw_Difference*Math.Min(1,Math.Max(Math.Abs(Yaw_Difference)/10,precision*10))),-15),15);
+	double Yaw_Difference=(GetAngle(Left_Vector,Direction)-GetAngle(Right_Vector,Direction));
+	YawRotor.TargetVelocityRPM=(float)Math.Min(Math.Max((Yaw_Difference*Math.Min(1,Math.Max(Math.Abs(Yaw_Difference)/10,precision*10))),-1*max_speed),max_speed);
 	if(Math.Abs(Yaw_Difference)<precision/2)
 		YawRotor.TargetVelocityRPM=0;
 }
@@ -1476,7 +1488,7 @@ public void Reset(){
 	if(Math.Abs(YawAngle)>0.1){
 		moving=true;
 		YawRotor.RotorLock=false;
-		float target_rpm=(float)Math.Max(-30,Math.Min(30, YawAngle*-.1));
+		float target_rpm=(float)Math.Max(-20,Math.Min(20, YawAngle*-.1));
 		YawRotor.TargetVelocityRPM=target_rpm;
 		Write("Yaw Target:"+Math.Round(target_rpm,1).ToString()+"RPM");
 	}
@@ -1489,7 +1501,7 @@ public void Reset(){
 	if(Math.Abs(PitchAngle)>0.1){
 		moving=true;
 		PitchRotor.RotorLock=false;
-		float target_rpm=(float)Math.Max(-30,Math.Min(30, PitchAngle*-.1));
+		float target_rpm=(float)Math.Max(-15,Math.Min(15,PitchAngle*-.1));
 		PitchRotor.TargetVelocityRPM=target_rpm;
 		Write("Pitch Target:"+Math.Round(target_rpm,1).ToString()+"RPM");
 	}
@@ -1590,28 +1602,52 @@ public void Scan(){
 	Write("Scan_Timer:"+Math.Round(Scan_Timer,1)+"/"+Math.Round(AUTOSCAN_DISTANCE/1000,1)+" seconds");
 	double Angle=GetAngle(Scan_Direction,Forward_Vector);
 	Write(Math.Round(Angle,1).ToString()+"°");
+	Vector3D r_Up=LocalToGlobal(new Vector3D(0,1,0),YawRotor);
+	r_Up.Normalize();
 	if(Scan_Timer>=AUTOSCAN_DISTANCE/1000||!CanAim(Scan_Direction)||Scan_Aim_Time>=5){
 		Has_Done_Scan=false;
 		Scan_Aim_Time=0;
 		Scan_Timer=0;
 		Detection_Count=0;
+		Vector3D r_Forward=LocalToGlobal(new Vector3D(0,0,-1),YawRotor);
+		r_Forward.Normalize();
+		Vector3D r_Left=LocalToGlobal(new Vector3D(-1,0,0),YawRotor);
+		r_Left.Normalize();
 		do{
 			double Pitch_Angle=PitchRotor.Angle/Math.PI*180;
 			if(Pitch_Angle>180)
 				Pitch_Angle-=360;
 			Scan_Direction=new Vector3D(0,0,0);
-			Scan_Direction+=Rnd.Next(0,36)*Forward_Vector;
-			Scan_Direction+=Rnd.Next(-36,36)*Left_Vector;
+			Scan_Direction+=Rnd.Next(0,18)*r_Forward;
+			Scan_Direction+=Rnd.Next(-6,6)*Rnd.Next(1,6)*r_Left;
 			if(Pitch_Angle>=0)
-				Scan_Direction+=Rnd.Next((int)(Pitch_Angle-30),30)*Up_Vector;
+				Scan_Direction+=Rnd.Next((int)(Pitch_Angle-30),30)*Rnd.Next(1,5)*r_Up/20;
 			else
-				Scan_Direction+=Rnd.Next(-30,(int)(30+Pitch_Angle))*Up_Vector;
+				Scan_Direction+=Rnd.Next(-30,(int)(30+Pitch_Angle))*Rnd.Next(1,5)*r_Up/20;
 			if(Scan_Direction.Length()==0)
 				Scan_Direction=new Vector3D(1,1,1);
 			Scan_Direction.Normalize();
 		}
 		while(!CanAim(Scan_Direction));
 	}
+	Vector3D Redesigned=GlobalToLocal(Scan_Direction,YawRotor);
+	Redesigned.Normalize();
+	Redesigned*=100;
+	Write("Scan Direction:");
+	if(Redesigned.X>0)
+		Write("  Right:"+Math.Round(Redesigned.X,1).ToString()+"%");
+	else
+		Write("  Left:"+Math.Round(-1*Redesigned.X,1).ToString()+"%");
+	if(Redesigned.Y>0)
+		Write("  Up:"+Math.Round(Redesigned.Y,1).ToString()+"%");
+	else
+		Write("  Down:"+Math.Round(-1*Redesigned.Y,1).ToString()+"%");
+	if(Redesigned.Z>0)
+		Write("  Backward:"+Math.Round(Redesigned.Z,1).ToString()+"%");
+	else
+		Write("  Forward:"+Math.Round(-1*Redesigned.Z,1).ToString()+"%");
+	Write(Math.Round(GetAngle(Scan_Direction,r_Up),1)+"° from Top");
+	Write(Math.Round(GetAngle(Scan_Direction,r_Up*-1),1)+"° from Bottom");
 	Perform_Search_Scan(Scan_Direction,AUTOSCAN_DISTANCE);
 }
 
@@ -2014,7 +2050,7 @@ public void Main(string argument, UpdateType updateSource)
 		}
 	}
 	if(((int)CurrentTask)>=((int)CannonTask.Scan))
-		Runtime.UpdateFrequency=UpdateFrequency.Update10;
+		Runtime.UpdateFrequency=UpdateFrequency.Update1;
 	else
 		Runtime.UpdateFrequency=UpdateFrequency.Update100;
 }
