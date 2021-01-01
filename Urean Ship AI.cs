@@ -2495,7 +2495,6 @@ List<IMyCameraBlock> GetValidCameras(){
 			SetBlockData(Camera,"RaycastTestCount","0");
 		}
 		if(GetBlockData(Camera,"DoRaycast").Equals("false")){
-			Camera.EnableRaycast=false;
 			continue;
 		}
 		Camera.EnableRaycast=true;
