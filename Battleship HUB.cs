@@ -606,6 +606,12 @@ Vector2 Target=new Vector2(0,0);
 List<Vector2> Parts=new List<Vector2>();
 Color Worm=new Color(0,0,0,255);
 void DisplayCheck(DisplayArray Da){
+	if(Parts.Count==0){
+		Parts.Add(new Vector2(0,0));
+		Parts.Add(new Vector2(0,0));
+		Target=new Vector2(Rnd.Next(0,8),Rnd.Next(0,8));
+		Worm=new Color(Rnd.Next(0,255),Rnd.Next(0,255),Rnd.Next(0,255),255);
+	}
 	if(DisplayIdleTimer>0.1){
 		DisplayIdleTimer=0;
 		bool Can_Left=true;
@@ -614,16 +620,16 @@ void DisplayCheck(DisplayArray Da){
 		bool Can_Down=true;
 		Vector2 Left=Parts[0]+(new Vector2(-1,0));
 		if(Left.X<0)
-			Left.X=7;
+			Can_Left=false;
 		Vector2 Right=Parts[0]+(new Vector2(1,0));
 		if(Right.X>7)
-			Right.X=0;
+			Can_Right=false;
 		Vector2 Up=Parts[0]+(new Vector2(0,-1));
 		if(Up.Y<0)
-			Up.Y=7;
+			Can_Up=false;
 		Vector2 Down=Parts[0]+(new Vector2(0,1));
 		if(Down.Y>7)
-			Down.Y=0;
+			Can_Down=false;
 		if(Parts[0]==Target){
 			Parts.Add(Parts[Parts.Count-1]);
 			Target=new Vector2(Rnd.Next(0,8),Rnd.Next(0,8));
@@ -679,6 +685,7 @@ void DisplayCheck(DisplayArray Da){
 	}
 	if(Parts.Count==0){
 		Parts.Add(new Vector2(0,0));
+		Parts.Add(new Vector2(0,0));
 		Target=new Vector2(Rnd.Next(0,8),Rnd.Next(0,8));
 		Worm=new Color(Rnd.Next(0,255),Rnd.Next(0,255),Rnd.Next(0,255),255);
 	}
@@ -688,15 +695,18 @@ void DisplayCheck(DisplayArray Da){
 				Da.Panels[i][j].BackgroundColor=new Color(Rnd.Next(25,75),Rnd.Next(25,75),Rnd.Next(25,75),255);
 			}
 			else{
-				bool overlapped=false;
-				foreach(Vector2 Part in Parts){
+				int overlapped=-1;
+				for(int k=0;k<Parts.Count;k++){
+					Vector2 Part=Parts[k];
 					if((int)Part.Y==i&&(int)Part.X==j){
-						overlapped=true;
+						overlapped=k;
 						break;
 					}
 				}
-				if(overlapped)
-					Da.Panels[i][j].BackgroundColor=Worm;
+				if(overlapped>=0){
+					float multx=1-(overlapped/(2.0f*(Parts.Count-1)));
+					Da.Panels[i][j].BackgroundColor=Color.Multiply(Worm,multx);
+				}
 				else
 					Da.Panels[i][j].BackgroundColor=new Color(10,10,10,255);
 			}
