@@ -633,7 +633,18 @@ void DisplayCheck(DisplayArray Da){
 			Can_Down=false;
 		if(Parts[0]==Target){
 			Parts.Add(Parts[Parts.Count-1]);
-			Target=new Vector2(Rnd.Next(0,8),Rnd.Next(0,8));
+			bool in_worm=false;
+			do{
+				Target=new Vector2(Rnd.Next(0,8),Rnd.Next(0,8));
+				in_worm=false;
+				foreach(Vector2 Part in Parts){
+					if(Target==Part){
+						in_worm=true;
+						break;
+					}
+				}
+			}
+			while(in_worm);
 			Worm=new Color(Rnd.Next(100,255),Rnd.Next(100,255),Rnd.Next(100,255),255);
 		}
 		foreach(Vector2 part in Parts){
