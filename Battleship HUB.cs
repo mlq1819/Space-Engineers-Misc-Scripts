@@ -664,10 +664,10 @@ void DisplayCheck(DisplayArray Da){
 				Parts[0]=Options[0];
 			}
 			else{
-				int pick=Rnd.Next(0,Options.Count);
+				int pick=Rnd.Next(0,Options.Count+1);
 				int chance=Rnd.Next(0,2);
 				while(pick<Options.Count&&chance>0&&Vector2.Distance(Parts[0],Target)>3){
-					pick=Rnd.Next(0,Options.Count);
+					pick=Rnd.Next(0,Options.Count+1);
 					chance=Rnd.Next(0,2);
 				}
 				if(pick<Options.Count){
