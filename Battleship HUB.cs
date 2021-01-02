@@ -612,7 +612,7 @@ void DisplayCheck(DisplayArray Da){
 		Target=new Vector2(Rnd.Next(0,8),Rnd.Next(0,8));
 		Worm=new Color(Rnd.Next(100,255),Rnd.Next(100,255),Rnd.Next(100,255),255);
 	}
-	if(DisplayIdleTimer>0.1){
+	if(DisplayIdleTimer>Math.Min(0.4,0.02*Math.Pow(Parts.Count,2))){
 		DisplayIdleTimer=0;
 		bool Can_Left=true;
 		bool Can_Right=true;
