@@ -658,24 +658,29 @@ void DisplayCheck(DisplayArray Da){
 			Parts.Clear();
 		}
 		else{
-			int pick=Rnd.Next(0,Options.Count);
 			Vector2 Last_V=Parts[0];
-			int chance=Rnd.Next(0,2);
-			while(pick<Options.Count&&chance>0&&Vector2.Distance(Parts[0],Target)>3){
-				pick=Rnd.Next(0,Options.Count);
-				chance=Rnd.Next(0,2);
-			}
-			if(pick<Options.Count){
-				Parts[0]=Options[pick];
+			if(Options.Count==1){
+				Parts[0]=Options[0];
 			}
 			else{
-				double min_distance=double.MaxValue;
-				foreach(Vector2 v in Options)
-					min_distance=Math.Min(min_distance,Vector2.Distance(Parts[0],v));
-				foreach(Vector2 v in Options){
-					if(min_distance>=Vector2.Distance(Parts[0],v)-0.1){
-						Parts[0]=v;
-						break;
+				int pick=Rnd.Next(0,Options.Count);
+				int chance=Rnd.Next(0,2);
+				while(pick<Options.Count&&chance>0&&Vector2.Distance(Parts[0],Target)>3){
+					pick=Rnd.Next(0,Options.Count);
+					chance=Rnd.Next(0,2);
+				}
+				if(pick<Options.Count){
+					Parts[0]=Options[pick];
+				}
+				else{
+					double min_distance=double.MaxValue;
+					foreach(Vector2 v in Options)
+						min_distance=Math.Min(min_distance,Vector2.Distance(Parts[0],v));
+					foreach(Vector2 v in Options){
+						if(min_distance>=Vector2.Distance(Parts[0],v)-0.1){
+							Parts[0]=v;
+							break;
+						}
 					}
 				}
 			}
