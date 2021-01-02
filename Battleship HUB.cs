@@ -610,7 +610,7 @@ void DisplayCheck(DisplayArray Da){
 		Parts.Add(new Vector2(0,0));
 		Parts.Add(new Vector2(0,0));
 		Target=new Vector2(Rnd.Next(0,8),Rnd.Next(0,8));
-		Worm=new Color(Rnd.Next(0,255),Rnd.Next(0,255),Rnd.Next(0,255),255);
+		Worm=new Color(Rnd.Next(100,255),Rnd.Next(100,255),Rnd.Next(100,255),255);
 	}
 	if(DisplayIdleTimer>0.1){
 		DisplayIdleTimer=0;
@@ -633,7 +633,7 @@ void DisplayCheck(DisplayArray Da){
 		if(Parts[0]==Target){
 			Parts.Add(Parts[Parts.Count-1]);
 			Target=new Vector2(Rnd.Next(0,8),Rnd.Next(0,8));
-			Worm=new Color(Rnd.Next(0,255),Rnd.Next(0,255),Rnd.Next(0,255),255);
+			Worm=new Color(Rnd.Next(100,255),Rnd.Next(100,255),Rnd.Next(100,255),255);
 		}
 		foreach(Vector2 part in Parts){
 			if(part==Left)
@@ -692,7 +692,7 @@ void DisplayCheck(DisplayArray Da){
 		Parts.Add(new Vector2(0,0));
 		Parts.Add(new Vector2(0,0));
 		Target=new Vector2(Rnd.Next(0,8),Rnd.Next(0,8));
-		Worm=new Color(Rnd.Next(0,255),Rnd.Next(0,255),Rnd.Next(0,255),255);
+		Worm=new Color(Rnd.Next(100,255),Rnd.Next(100,255),Rnd.Next(100,255),255);
 	}
 	for(int i=0;i<Da.Panels.Count;i++){
 		for(int j=0;j<Da.Panels[i].Count;j++){
