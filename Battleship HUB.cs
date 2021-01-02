@@ -1,4 +1,4 @@
-const string Program_Name = ""; //Name me!
+const string Program_Name = "Battleship HUB AI"; //Name me!
 Color DEFAULT_TEXT_COLOR=new Color(197,137,255,255);
 Color DEFAULT_BACKGROUND_COLOR=new Color(44,0,88,255);
 
@@ -264,6 +264,48 @@ class GenericMethods<T> where T : class, IMyTerminalBlock{
 	}
 }
 
+class DisplayArray{
+	public List<List<IMyTextPanel>> Panels;
+	public string Name;
+	
+	DisplayArray(string name,List<List<IMyTextPanel>> panels){
+		Name=name;
+		Panels=panels;
+	}
+	
+	static IMyTextPanel GetFromList(List<IMyTextPanel> list,string name){
+		for(int i=0;i<list.Count;i++){
+			if(list[i].CustomName.Equals(name)){
+				IMyTextPanel panel=list[i];
+				list.RemoveAt(i);
+				return panel;
+			}
+		}
+		return null;
+	}
+	
+	public static bool GetArray(string name,out DisplayArray output){
+		output=null;
+		List<List<IMyTextPanel>> panels=new List<List<IMyTextPanel>>();
+		List<IMyTextPanel> all_panels=GenericMethods<IMyTextPanel>.GetAllContaining(name);
+		for(int i=0;i<8;i++){
+			char s='A';
+			s=(char)(((int)s)+i);
+			List<IMyTextPanel> input=new List<IMyTextPanel>();
+			for(int j=1;j<=8;j++){
+				IMyTextPanel panel=GetFromList(all_panels,name.Trim()+" "+s+j.ToString());
+				if(panel==null)
+					return false;
+				input.Add(panel);
+			}
+			panels.Add(input);
+		}
+		output=new DisplayArray(name.Trim(),panels);
+		return true;
+	}
+	
+}
+
 TimeSpan FromSeconds(double seconds){
 	return (new TimeSpan(0,0,0,(int)seconds,(int)(seconds*1000)%1000));
 }
@@ -367,6 +409,12 @@ long cycle=0;
 char loading_char='|';
 double seconds_since_last_update=0;
 
+DisplayArray Player1Enemy;
+DisplayArray Player1Own;
+DisplayArray Player2Enemy;
+DisplayArray Player2Own;
+
+
 public Program(){
 	Prog.P=this;
 	Me.CustomName=(Program_Name+" Programmable block").Trim();
@@ -379,6 +427,17 @@ public Program(){
 	Me.GetSurface(1).FontSize=2.2f;
 	Me.GetSurface(1).TextPadding=40.0f;
 	Echo("Beginning initialization");
+	
+	if(!DisplayArray.GetArray("Room 1 Enemy LCD",out Player1Enemy))
+		Write("Failed to get R1E");
+	if(!DisplayArray.GetArray("Room 1 Own LCD",out Player1Own))
+		Write("Failed to get R1O");
+	if(!DisplayArray.GetArray("Room 2 Enemy LCD",out Player2Enemy))
+		Write("Failed to get R2E");
+	if(!DisplayArray.GetArray("Room 2 Own LCD",out Player2Own))
+		Write("Failed to get R2O");
+	
+	
 	// The constructor, called only once every session and
     // always before any other method is called. Use it to
     // initialize your script. 
@@ -389,6 +448,8 @@ public Program(){
     // It's recommended to set RuntimeInfo.UpdateFrequency 
     // here, which will allow your script to run itself without a 
     // timer block.
+	Write("Completed Initialization");
+	Runtime.UpdateFrequency=UpdateFrequency.Update10;//60tps
 }
 
 public void Save(){
@@ -426,9 +487,32 @@ void UpdateProgramInfo(){
 	Me.GetSurface(1).WriteText("\n"+ToString(Time_Since_Start)+" since last reboot",true);
 }
 
+
+void DisplayCheck(DisplayArray Da,double time){
+	double slice=24.0/64;
+	Write(Da.Name+":"+Da.Panels.Count.ToString()+"X"+Da.Panels[0].Count.ToString());
+	for(int i=0;i<Da.Panels.Count;i++){
+		for(int j=0;j<Da.Panels[i].Count;j++){
+			int num=i*8+j;
+			double difference=time-(num*slice);
+			if(difference<0&&difference+slice*1.2>0)
+				Da.Panels[i][j].BackgroundColor=new Color(50,50,50,255);
+			else
+				Da.Panels[i][j].BackgroundColor=new Color(10,10,10,10);
+		}
+	}
+}
+
+double DisplayCheckTimer=0;
 public void Main(string argument, UpdateType updateSource)
 {
 	UpdateProgramInfo();
+	DisplayCheckTimer=(DisplayCheckTimer+seconds_since_last_update)%24;
+	Write("DisplayCheckTimer: "+Math.Round(DisplayCheckTimer,3)+"s / 24s");
+	DisplayCheck(Player1Enemy,DisplayCheckTimer);
+	DisplayCheck(Player1Own,DisplayCheckTimer);
+	DisplayCheck(Player2Enemy,DisplayCheckTimer);
+	DisplayCheck(Player2Own,DisplayCheckTimer);
     // The main entry point of the script, invoked every time
     // one of the programmable block's Run actions are invoked,
     // or the script updates itself. The updateSource argument
