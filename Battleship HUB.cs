@@ -404,16 +404,37 @@ void Write(string text,bool new_line=true,bool append=true){
 		Me.GetSurface(0).WriteText(text, append);
 }
 
+string GetCommand(string parser){
+	int index=parser.IndexOf(':');
+	if(index<0)
+		return "";
+	return parser.Substring(0,index);
+}
+string GetData(string parser){
+	int index=parser.IndexOf(':');
+	if(index<0)
+		return "";
+	return parser.Substring(index+1);
+}
+
 TimeSpan Time_Since_Start=new TimeSpan(0);
 long cycle=0;
 char loading_char='|';
 double seconds_since_last_update=0;
 
+int Player_Count=1;
+double Turn_Timer=90;
+bool Use_Real_Ships=false;
+bool Destroy_Ships=false;
+bool See_Opponent_Choice=false;
+
 DisplayArray Player1Enemy;
 DisplayArray Player1Own;
 DisplayArray Player2Enemy;
 DisplayArray Player2Own;
-
+List<IMyTextPanel> Player1StatusPanels;
+List<IMyTextPanel> Player2StatusPanels;
+List<IMyTextPanel> HubStatusPanels;
 
 public Program(){
 	Prog.P=this;
@@ -436,7 +457,33 @@ public Program(){
 		Write("Failed to get R2E");
 	if(!DisplayArray.GetArray("Room 2 Own LCD",out Player2Own))
 		Write("Failed to get R2O");
+	Player1StatusPanels=GenericMethods<IMyTextPanel>.GetAllContaining("Room 1 Game Status Panel");
+	Player2StatusPanels=GenericMethods<IMyTextPanel>.GetAllContaining("Room 2 Game Status Panel");
+	HubStatusPanels=GenericMethods<IMyTextPanel>.GetAllContaining("Hub Game Status Panel");
 	
+	
+	string[] args=this.Storage.Split('•');
+	foreach(string arg in args){
+		string command=GetCommand(arg);
+		string data=GetData(arg);
+		switch(command){
+			case "Player_Count":
+				Int32.TryParse(data,out Player_Count);
+				break;
+			case "Turn_Timer":
+				double.TryParse(data,out Turn_Timer);
+				break;
+			case "Use_Real_Ships":
+				bool.TryParse(data,out Use_Real_Ships);
+				break;
+			case "Destroy_Ships":
+				bool.TryParse(data,out Destroy_Ships);
+				break;
+			case "See_Opponent_Choice":
+				bool.TryParse(data,out See_Opponent_Choice);
+				break;
+		}
+	}
 	
 	// The constructor, called only once every session and
     // always before any other method is called. Use it to
@@ -453,7 +500,14 @@ public Program(){
 }
 
 public void Save(){
-    // Called when the program needs to save its state. Use
+    this.Storage="";
+	this.Storage+="•Player_Count:"+Player_Count.ToString();
+	this.Storage+="•Turn_Timer:"+Turn_Timer.ToString();
+	this.Storage+="•Use_Real_Ships:"+Use_Real_Ships.ToString();
+	this.Storage+="•Destroy_Ships:"+Destroy_Ships.ToString();
+	this.Storage+="•See_Opponent_Choice:"+See_Opponent_Choice.ToString();
+	
+	// Called when the program needs to save its state. Use
     // this method to save your state to the Storage field
     // or some other means. 
     // 
@@ -490,7 +544,6 @@ void UpdateProgramInfo(){
 
 void DisplayCheck(DisplayArray Da,double time){
 	double slice=24.0/64;
-	Write(Da.Name+":"+Da.Panels.Count.ToString()+"X"+Da.Panels[0].Count.ToString());
 	for(int i=0;i<Da.Panels.Count;i++){
 		for(int j=0;j<Da.Panels[i].Count;j++){
 			int num=i*8+j;
@@ -503,16 +556,121 @@ void DisplayCheck(DisplayArray Da,double time){
 	}
 }
 
-double DisplayCheckTimer=0;
+double DisplayIdleTimer=0;
+int Selection=0;
+void Argument_Processor(string argument){
+	if(argument.ToLower().Equals("prev")){
+		do{
+			Selection=(Selection-1+6)%6;
+		}
+		while(Selection==4&&!Use_Real_Ships);
+	}
+	else if(argument.ToLower().Equals("next")){
+		do{
+			Selection=(Selection+1)%6;
+		}
+		while(Selection==4&&!Use_Real_Ships);
+	}
+	else if(argument.ToLower().Equals("down")){
+		switch(Selection){
+			case 1:
+				Player_Count=Math.Max(0,Player_Count-1);
+				break;
+			case 2:
+				Turn_Timer-=10;
+				if(Turn_Timer<30)
+					Turn_Timer=0;
+				break;
+			case 3:
+				Use_Real_Ships=false;
+				Destroy_Ships=false;
+				break;
+			case 4:
+				Destroy_Ships=false;
+				break;
+			case 5:
+				See_Opponent_Choice=false;
+				break;
+		}
+	}
+	else if(argument.ToLower().Equals("up")){
+		switch(Selection){
+			case 0:
+				//Start Game
+				break;
+			case 1:
+				Player_Count=Math.Min(2,Player_Count+1);
+				break;
+			case 2:
+				if(Turn_Timer<30)
+					Turn_Timer=30;
+				else
+					Turn_Timer=Math.Min(300,Turn_Timer+10);
+				break;
+			case 3:
+				Use_Real_Ships=true;
+				break;
+			case 4:
+				Destroy_Ships=true;
+				break;
+			case 5:
+				See_Opponent_Choice=true;
+				break;
+		}
+	}
+}
+
 public void Main(string argument, UpdateType updateSource)
 {
 	UpdateProgramInfo();
-	DisplayCheckTimer=(DisplayCheckTimer+seconds_since_last_update)%24;
-	Write("DisplayCheckTimer: "+Math.Round(DisplayCheckTimer,3)+"s / 24s");
-	DisplayCheck(Player1Enemy,DisplayCheckTimer);
-	DisplayCheck(Player1Own,DisplayCheckTimer);
-	DisplayCheck(Player2Enemy,DisplayCheckTimer);
-	DisplayCheck(Player2Own,DisplayCheckTimer);
+	DisplayIdleTimer=(DisplayIdleTimer+seconds_since_last_update)%24;
+	DisplayCheck(Player1Enemy,DisplayIdleTimer);
+	DisplayCheck(Player1Own,DisplayIdleTimer);
+	DisplayCheck(Player2Enemy,DisplayIdleTimer);
+	DisplayCheck(Player2Own,DisplayIdleTimer);
+	if(argument.Length>0){
+		Argument_Processor(argument);
+		while(Selection==4&&!Use_Real_Ships){
+			Selection=(Selection-1+6)%6;
+		}
+	}
+	
+	string s="";
+	if(Selection==0)
+		s="> ";
+	else
+		s="";
+	Write(s+"Start Game");
+	if(Selection==1)
+		s="> ";
+	else
+		s="";
+	Write(s+"Player_Count: "+Player_Count.ToString());
+	if(Selection==2)
+		s="> ";
+	else
+		s="";
+	if(Turn_Timer<30)
+		Write(s+"Turn_Timer: Off");
+	else
+		Write(s+"Turn_Timer: "+Math.Round(Turn_Timer,0).ToString()+"s");
+	if(Selection==3)
+		s="> ";
+	else
+		s="";
+	Write(s+"Use_Real_Ships: "+Use_Real_Ships.ToString());
+	if(Selection==4)
+		s="> ";
+	else
+		s="";
+	if(Use_Real_Ships)
+		Write(s+"Destroy_Ships: "+Destroy_Ships.ToString());
+	if(Selection==5)
+		s="> ";
+	else
+		s="";
+	Write(s+"See_Opponent_Choice: "+See_Opponent_Choice.ToString());
+	
     // The main entry point of the script, invoked every time
     // one of the programmable block's Run actions are invoked,
     // or the script updates itself. The updateSource argument
