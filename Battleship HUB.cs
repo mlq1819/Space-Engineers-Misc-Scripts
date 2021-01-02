@@ -417,16 +417,31 @@ string GetData(string parser){
 	return parser.Substring(index+1);
 }
 
+enum GameStatus{
+	Waiting=0,
+	Ready=1,
+	Awaiting=2,
+	InProgress=3,
+	Paused=4
+}
+
 TimeSpan Time_Since_Start=new TimeSpan(0);
 long cycle=0;
 char loading_char='|';
 double seconds_since_last_update=0;
 
+Random Rnd;
+
 int Player_Count=1;
 double Turn_Timer=90;
+bool Allow_Pause=true;
 bool Use_Real_Ships=false;
 bool Destroy_Ships=false;
 bool See_Opponent_Choice=false;
+GameStatus Status=GameStatus.Ready;
+
+bool Player_1_Ready=false;
+bool Player_2_Ready=false;
 
 DisplayArray Player1Enemy;
 DisplayArray Player1Own;
@@ -435,6 +450,10 @@ DisplayArray Player2Own;
 List<IMyTextPanel> Player1StatusPanels;
 List<IMyTextPanel> Player2StatusPanels;
 List<IMyTextPanel> HubStatusPanels;
+
+List<IMyDoor> Room1Doors;
+List<IMyDoor> Room2Doors;
+
 
 public Program(){
 	Prog.P=this;
@@ -449,19 +468,50 @@ public Program(){
 	Me.GetSurface(1).TextPadding=40.0f;
 	Echo("Beginning initialization");
 	
-	if(!DisplayArray.GetArray("Room 1 Enemy LCD",out Player1Enemy))
+	if(!DisplayArray.GetArray("Room 1 Enemy LCD",out Player1Enemy)){
 		Write("Failed to get R1E");
-	if(!DisplayArray.GetArray("Room 1 Own LCD",out Player1Own))
+		return;
+	}
+	if(!DisplayArray.GetArray("Room 1 Own LCD",out Player1Own)){
 		Write("Failed to get R1O");
-	if(!DisplayArray.GetArray("Room 2 Enemy LCD",out Player2Enemy))
+		return;
+	}
+	if(!DisplayArray.GetArray("Room 2 Enemy LCD",out Player2Enemy)){
 		Write("Failed to get R2E");
-	if(!DisplayArray.GetArray("Room 2 Own LCD",out Player2Own))
+		return;
+	}
+	if(!DisplayArray.GetArray("Room 2 Own LCD",out Player2Own)){
 		Write("Failed to get R2O");
+		return;
+	}
 	Player1StatusPanels=GenericMethods<IMyTextPanel>.GetAllContaining("Room 1 Game Status Panel");
+	foreach(IMyTextPanel Panel in Player1StatusPanels){
+		Panel.FontColor=new Color(255,137,137,255);
+		Panel.BackgroundColor=new Color(151,0,0,255);
+		Panel.Alignment=TextAlignment.CENTER;
+		Panel.ContentType=ContentType.TEXT_AND_IMAGE;
+		Panel.FontSize=1.2f;
+		Panel.TextPadding=10;
+	}
 	Player2StatusPanels=GenericMethods<IMyTextPanel>.GetAllContaining("Room 2 Game Status Panel");
+	foreach(IMyTextPanel Panel in Player2StatusPanels){
+		Panel.FontColor=new Color(137,137,255,255);
+		Panel.BackgroundColor=new Color(0,0,151,255);
+		Panel.Alignment=TextAlignment.CENTER;
+		Panel.ContentType=ContentType.TEXT_AND_IMAGE;
+		Panel.FontSize=1.2f;
+		Panel.TextPadding=10;
+	}
 	HubStatusPanels=GenericMethods<IMyTextPanel>.GetAllContaining("Hub Game Status Panel");
-	
-	
+	foreach(IMyTextPanel Panel in HubStatusPanels){
+		Panel.FontColor=new Color(255,255,255,255);
+		Panel.BackgroundColor=new Color(0,0,0,0);
+		Panel.Alignment=TextAlignment.CENTER;
+		Panel.ContentType=ContentType.TEXT_AND_IMAGE;
+		Panel.FontSize=1.2f;
+		Panel.TextPadding=10;
+	}
+	Rnd=new Random();
 	string[] args=this.Storage.Split('•');
 	foreach(string arg in args){
 		string command=GetCommand(arg);
@@ -473,6 +523,9 @@ public Program(){
 			case "Turn_Timer":
 				double.TryParse(data,out Turn_Timer);
 				break;
+			case "Allow_Pause":
+				bool.TryParse(data,out Allow_Pause);
+				break;
 			case "Use_Real_Ships":
 				bool.TryParse(data,out Use_Real_Ships);
 				break;
@@ -482,8 +535,15 @@ public Program(){
 			case "See_Opponent_Choice":
 				bool.TryParse(data,out See_Opponent_Choice);
 				break;
+			case "Status":
+				int o;
+				if(Int32.TryParse(data,out o))
+					Status=(GameStatus)o;
+				break;
 		}
 	}
+	Room1Doors=GenericMethods<IMyDoor>.GetAllContaining("Room 1 Door");
+	Room2Doors=GenericMethods<IMyDoor>.GetAllContaining("Room 2 Door");
 	
 	// The constructor, called only once every session and
     // always before any other method is called. Use it to
@@ -500,9 +560,10 @@ public Program(){
 }
 
 public void Save(){
-    this.Storage="";
+    this.Storage="Status:"+((int)Status).ToString();
 	this.Storage+="•Player_Count:"+Player_Count.ToString();
 	this.Storage+="•Turn_Timer:"+Turn_Timer.ToString();
+	this.Storage+="•Allow_Pause"+Allow_Pause.ToString();
 	this.Storage+="•Use_Real_Ships:"+Use_Real_Ships.ToString();
 	this.Storage+="•Destroy_Ships:"+Destroy_Ships.ToString();
 	this.Storage+="•See_Opponent_Choice:"+See_Opponent_Choice.ToString();
@@ -541,17 +602,105 @@ void UpdateProgramInfo(){
 	Me.GetSurface(1).WriteText("\n"+ToString(Time_Since_Start)+" since last reboot",true);
 }
 
-
-void DisplayCheck(DisplayArray Da,double time){
-	double slice=24.0/64;
+Vector2 Target=new Vector2(0,0);
+List<Vector2> Parts=new List<Vector2>();
+Color Worm=new Color(0,0,0,255);
+void DisplayCheck(DisplayArray Da){
+	if(DisplayIdleTimer>0.1){
+		DisplayIdleTimer=0;
+		bool Can_Left=true;
+		bool Can_Right=true;
+		bool Can_Up=true;
+		bool Can_Down=true;
+		Vector2 Left=Parts[0]+(new Vector2(-1,0));
+		if(Left.X<0)
+			Left.X=7;
+		Vector2 Right=Parts[0]+(new Vector2(1,0));
+		if(Right.X>7)
+			Right.X=0;
+		Vector2 Up=Parts[0]+(new Vector2(0,-1));
+		if(Up.Y<0)
+			Up.Y=7;
+		Vector2 Down=Parts[0]+(new Vector2(0,1));
+		if(Down.Y>7)
+			Down.Y=0;
+		if(Parts[0]==Target){
+			Parts.Add(Parts[Parts.Count-1]);
+			Target=new Vector2(Rnd.Next(0,8),Rnd.Next(0,8));
+			Worm=new Color(Rnd.Next(0,255),Rnd.Next(0,255),Rnd.Next(0,255),255);
+		}
+		foreach(Vector2 part in Parts){
+			if(part==Left)
+				Can_Left=false;
+			if(part==Right)
+				Can_Right=false;
+			if(part==Up)
+				Can_Up=false;
+			if(part==Down)
+				Can_Down=false;
+		}
+		List<Vector2> Options=new List<Vector2>();
+		if(Can_Left)
+			Options.Add(Left);
+		if(Can_Right)
+			Options.Add(Right);
+		if(Can_Up)
+			Options.Add(Up);
+		if(Can_Down)
+			Options.Add(Down);
+		if(Options.Count==0){
+			Parts.Clear();
+		}
+		else{
+			int pick=Rnd.Next(0,Options.Count);
+			Vector2 Last_V=Parts[0];
+			if(pick<Options.Count){
+				Parts[0]=Options[pick];
+			}
+			else{
+				double min_distance=double.MaxValue;
+				foreach(Vector2 v in Options)
+					min_distance=Math.Min(min_distance,Vector2.Distance(Parts[0],v));
+				foreach(Vector2 v in Options){
+					if(min_distance>=Vector2.Distance(Parts[0],v)-0.1){
+						Parts[0]=v;
+						break;
+					}
+				}
+			}
+			for(int i=1;i<Parts.Count;i++){
+				if(Parts[i]!=Parts[i-1]){
+					Vector2 temp=Parts[i];
+					Parts[i]=Last_V;
+					Last_V=temp;
+				}
+			}
+		}
+	}
+	if(Parts.Count==0){
+		Parts.Add(new Vector2(0,0));
+		Target=new Vector2(Rnd.Next(0,8),Rnd.Next(0,8));
+		Worm=new Color(Rnd.Next(0,255),Rnd.Next(0,255),Rnd.Next(0,255),255);
+	}
 	for(int i=0;i<Da.Panels.Count;i++){
 		for(int j=0;j<Da.Panels[i].Count;j++){
-			int num=i*8+j;
-			double difference=time-(num*slice);
-			if(difference<0&&difference+slice*1.2>0)
-				Da.Panels[i][j].BackgroundColor=new Color(50,50,50,255);
-			else
-				Da.Panels[i][j].BackgroundColor=new Color(10,10,10,10);
+			if((int)Target.Y==i&&(int)Target.X==j){
+				Da.Panels[i][j].BackgroundColor=new Color(Rnd.Next(25,75),Rnd.Next(25,75),Rnd.Next(25,75),255);
+			}
+			else{
+				bool overlapped=false;
+				foreach(Vector2 Part in Parts){
+					if((int)Part.Y==i&&(int)Part.X==j){
+						overlapped=true;
+						break;
+					}
+				}
+				if(overlapped)
+					Da.Panels[i][j].BackgroundColor=Worm;
+				else
+					Da.Panels[i][j].BackgroundColor=new Color(10,10,10,255);
+			}
+			
 		}
 	}
 }
@@ -559,123 +708,264 @@ void DisplayCheck(DisplayArray Da,double time){
 double DisplayIdleTimer=0;
 int Selection=0;
 void Argument_Processor(string argument){
-	if(argument.ToLower().Equals("prev")){
-		do{
-			Selection=(Selection-1+6)%6;
+	if(((int)Status)<((int)GameStatus.Awaiting)){
+		if(argument.ToLower().Equals("prev")){
+			do{
+				Selection=(Selection-1+7)%7;
+			}
+			while((Selection==5&&!Use_Real_Ships)||(Selection==0&&Status!=GameStatus.Ready)||(Selection==3&&Turn_Timer<30));
 		}
-		while(Selection==4&&!Use_Real_Ships);
-	}
-	else if(argument.ToLower().Equals("next")){
-		do{
-			Selection=(Selection+1)%6;
+		else if(argument.ToLower().Equals("next")){
+			do{
+				Selection=(Selection+1)%7;
+			}
+			while((Selection==5&&!Use_Real_Ships)||(Selection==0&&Status!=GameStatus.Ready)||(Selection==3&&Turn_Timer<30));
 		}
-		while(Selection==4&&!Use_Real_Ships);
-	}
-	else if(argument.ToLower().Equals("down")){
-		switch(Selection){
-			case 1:
-				Player_Count=Math.Max(0,Player_Count-1);
-				break;
-			case 2:
-				Turn_Timer-=10;
-				if(Turn_Timer<30)
-					Turn_Timer=0;
-				break;
-			case 3:
-				Use_Real_Ships=false;
-				Destroy_Ships=false;
-				break;
-			case 4:
-				Destroy_Ships=false;
-				break;
-			case 5:
-				See_Opponent_Choice=false;
-				break;
+		else if(argument.ToLower().Equals("down")){
+			switch(Selection){
+				case 1:
+					Player_Count=Math.Max(0,Player_Count-1);
+					break;
+				case 2:
+					Turn_Timer-=10;
+					if(Turn_Timer<30)
+						Turn_Timer=0;
+					break;
+				case 3:
+					Allow_Pause=false;
+					break;
+				case 4:
+					Use_Real_Ships=false;
+					Destroy_Ships=false;
+					break;
+				case 5:
+					Destroy_Ships=false;
+					break;
+				case 6:
+					See_Opponent_Choice=false;
+					break;
+			}
+		}
+		else if(argument.ToLower().Equals("up")){
+			switch(Selection){
+				case 0:
+					if(Status==GameStatus.Ready){
+						Player_1_Ready=Player_Count<1;
+						Player_2_Ready=Player_Count<2;
+						Status=GameStatus.Awaiting;
+					}
+					break;
+				case 1:
+					Player_Count=Math.Min(2,Player_Count+1);
+					break;
+				case 2:
+					if(Turn_Timer<30)
+						Turn_Timer=30;
+					else
+						Turn_Timer=Math.Min(300,Turn_Timer+10);
+					break;
+				case 3:
+					Allow_Pause=true;
+					break;
+				case 4:
+					Use_Real_Ships=true;
+					break;
+				case 5:
+					Destroy_Ships=true;
+					break;
+				case 6:
+					See_Opponent_Choice=true;
+					break;
+			}
 		}
 	}
-	else if(argument.ToLower().Equals("up")){
-		switch(Selection){
-			case 0:
-				//Start Game
-				break;
-			case 1:
-				Player_Count=Math.Min(2,Player_Count+1);
-				break;
-			case 2:
-				if(Turn_Timer<30)
-					Turn_Timer=30;
-				else
-					Turn_Timer=Math.Min(300,Turn_Timer+10);
-				break;
-			case 3:
-				Use_Real_Ships=true;
-				break;
-			case 4:
-				Destroy_Ships=true;
-				break;
-			case 5:
-				See_Opponent_Choice=true;
-				break;
+	else if(argument.ToLower().Equals("down")&&Status==GameStatus.Awaiting){
+		Status=GameStatus.Ready;
+	}
+	if(argument.IndexOf("Player ")==0){
+		int player_num=-1;
+		string command=GetCommand(argument);
+		string data=GetData(argument);
+		if(command.Equals("Player 1"))
+			player_num=1;
+		else if(command.Equals("Player 2"))
+			player_num=2;
+		if(player_num>0){
+			switch(data){
+				case "Left":
+					;
+					break;
+				case "Up":
+					;
+					break;
+				case "Down":
+					;
+					break;
+				case "Right":
+					;
+					break;
+				case "Confirm":
+					;
+					break;
+				case "Pause":
+					if(Status==GameStatus.InProgress&&Allow_Pause)
+						Status=GameStatus.Paused;
+					else if(Status==GameStatus.Paused)
+						Status=GameStatus.InProgress;
+					break;
+				case "Cancel":
+					;
+					break;
+				case "Forfeit":
+					;
+					break;
+			}
 		}
 	}
+	
 }
 
 public void Main(string argument, UpdateType updateSource)
 {
 	UpdateProgramInfo();
-	DisplayIdleTimer=(DisplayIdleTimer+seconds_since_last_update)%24;
-	DisplayCheck(Player1Enemy,DisplayIdleTimer);
-	DisplayCheck(Player1Own,DisplayIdleTimer);
-	DisplayCheck(Player2Enemy,DisplayIdleTimer);
-	DisplayCheck(Player2Own,DisplayIdleTimer);
+	if(DisplayIdleTimer<5)
+		DisplayIdleTimer+=seconds_since_last_update;
+	DisplayCheck(Player1Enemy);
+	DisplayCheck(Player1Own);
+	DisplayCheck(Player2Enemy);
+	DisplayCheck(Player2Own);
 	if(argument.Length>0){
 		Argument_Processor(argument);
-		while(Selection==4&&!Use_Real_Ships){
-			Selection=(Selection-1+6)%6;
+		while((Selection==5&&!Use_Real_Ships)||(Selection==0&&Status!=GameStatus.Ready)||(Selection==3&&Turn_Timer<30)){
+			Selection=(Selection+1)%7;
 		}
 	}
 	
-	string s="";
-	if(Selection==0)
-		s="> ";
-	else
-		s="";
-	Write(s+"Start Game");
-	if(Selection==1)
-		s="> ";
-	else
-		s="";
-	Write(s+"Player_Count: "+Player_Count.ToString());
-	if(Selection==2)
-		s="> ";
-	else
-		s="";
-	if(Turn_Timer<30)
-		Write(s+"Turn_Timer: Off");
-	else
-		Write(s+"Turn_Timer: "+Math.Round(Turn_Timer,0).ToString()+"s");
-	if(Selection==3)
-		s="> ";
-	else
-		s="";
-	Write(s+"Use_Real_Ships: "+Use_Real_Ships.ToString());
-	if(Selection==4)
-		s="> ";
-	else
-		s="";
-	if(Use_Real_Ships)
-		Write(s+"Destroy_Ships: "+Destroy_Ships.ToString());
-	if(Selection==5)
-		s="> ";
-	else
-		s="";
-	Write(s+"See_Opponent_Choice: "+See_Opponent_Choice.ToString());
+	string HubText="";
+	string Player1Text="";
+	string Player2Text="";
 	
-    // The main entry point of the script, invoked every time
-    // one of the programmable block's Run actions are invoked,
-    // or the script updates itself. The updateSource argument
-    // describes where the update came from.
-    // 
-    // The method itself is required, but the arguments above
-    // can be removed if not needed.
+	if(((int)Status)<((int)GameStatus.Awaiting)){
+		Player1Text="Start game in Lobby";
+		Player2Text="Start game in Lobby";
+		HubText="Start game in Lobby\n";
+		foreach(IMyDoor Door in Room1Doors){
+			double Timer=5;
+			if(HasBlockData(Door,"LastOpened")){
+				double.TryParse(GetBlockData(Door,"LastOpened"),out Timer);
+				if(Timer<7.5)
+					Timer+=seconds_since_last_update;
+				if(Door.Status==DoorStatus.Opening||(Timer>7.5&&Door.Status==DoorStatus.Open))
+					Timer=0;
+			}
+			if(Timer>5)
+				Door.CloseDoor();
+			SetBlockData(Door,"LastOpened",Timer.ToString());
+		}
+		foreach(IMyDoor Door in Room2Doors){
+			double Timer=5;
+			if(HasBlockData(Door,"LastOpened")){
+				double.TryParse(GetBlockData(Door,"LastOpened"),out Timer);
+				if(Timer<7.5)
+					Timer+=seconds_since_last_update;
+				if(Door.Status==DoorStatus.Opening||(Timer>7.5&&Door.Status==DoorStatus.Open))
+					Timer=0;
+			}
+			if(Timer>5)
+				Door.CloseDoor();
+			SetBlockData(Door,"LastOpened",Timer.ToString());
+		}
+		string s="";
+		if(Selection==0)
+			s="> ";
+		else
+			s="";
+		if(Status==GameStatus.Ready)
+			Write(s+"Start Game");
+		if(Selection==1)
+			s="> ";
+		else
+			s="";
+		Write(s+"Player Count: "+Player_Count.ToString());
+		if(Selection==2)
+			s="> ";
+		else
+			s="";
+		if(Turn_Timer<30)
+			Write(s+"Turn Timer: Off");
+		else
+			Write(s+"Turn Timer: "+Math.Round(Turn_Timer,0).ToString()+"s");
+		if(Turn_Timer>=30){
+			if(Selection==3)
+				s="> ";
+			else
+				s="";
+			Write(s+"Allow Pause: "+Allow_Pause.ToString());
+		}
+		if(Selection==4)
+			s="> ";
+		else
+			s="";
+		Write(s+"Use Real Ships: "+Use_Real_Ships.ToString());
+		if(Selection==5)
+			s="> ";
+		else
+			s="";
+		if(Use_Real_Ships)
+			Write(s+"Destroy Ships: "+Destroy_Ships.ToString());
+		if(Selection==6)
+			s="> ";
+		else
+			s="";
+		Write(s+"See Opponent's Choice: "+See_Opponent_Choice.ToString());
+	}
+	if(Status==GameStatus.Awaiting){
+		HubText=Player_Count+" human players\n";
+		HubText+="Player 1: ";
+		if(!Player_1_Ready){
+			foreach(IMyDoor Door in Room1Doors){
+				Door.Enabled=true;
+				Door.OpenDoor();
+			}
+			Player1Text="Press Confirm to ready-up\n";
+			HubText+="Waiting...";
+		}
+		else{
+			foreach(IMyDoor Door in Room1Doors){
+				Door.Enabled=Door.Status!=DoorStatus.Closed;
+				Door.CloseDoor();
+			}
+			Player1Text="Waiting for Player 2...\n";
+			HubText+="Ready!";
+		}
+		HubText+="\nPlayer 2: ";
+		if(!Player_2_Ready){
+			foreach(IMyDoor Door in Room2Doors){
+				Door.Enabled=true;
+				Door.OpenDoor();
+			}
+			Player2Text="Press Confirm to ready-up\n";
+			HubText+="Waiting...";
+		}
+		else{
+			foreach(IMyDoor Door in Room2Doors){
+				Door.Enabled=Door.Status!=DoorStatus.Closed;
+				Door.CloseDoor();
+			}
+			Player2Text="Waiting for Player 1...\n";
+			HubText+="Ready!";
+		}
+		if(Player_1_Ready&&Player_2_Ready){
+			Status=GameStatus.InProgress;
+		}
+	}
+	
+	
+	
+	foreach(IMyTextPanel Panel in Player1StatusPanels)
+		Panel.WriteText(Player1Text,false);
+	foreach(IMyTextPanel Panel in Player2StatusPanels)
+		Panel.WriteText(Player2Text,false);
+	foreach(IMyTextPanel Panel in HubStatusPanels)
+		Panel.WriteText(HubText,false);
 }
