@@ -609,6 +609,7 @@ void DisplayCheck(DisplayArray Da){
 	if(Parts.Count==0){
 		Parts.Add(new Vector2(0,0));
 		Parts.Add(new Vector2(0,0));
+		Parts.Add(new Vector2(0,0));
 		Target=new Vector2(Rnd.Next(0,8),Rnd.Next(0,8));
 		Worm=new Color(Rnd.Next(100,255),Rnd.Next(100,255),Rnd.Next(100,255),255);
 	}
@@ -694,6 +695,7 @@ void DisplayCheck(DisplayArray Da){
 		}
 	}
 	if(Parts.Count==0){
+		Parts.Add(new Vector2(0,0));
 		Parts.Add(new Vector2(0,0));
 		Parts.Add(new Vector2(0,0));
 		Target=new Vector2(Rnd.Next(0,8),Rnd.Next(0,8));
