@@ -612,7 +612,7 @@ void DisplayCheck(DisplayArray Da){
 		Target=new Vector2(Rnd.Next(0,8),Rnd.Next(0,8));
 		Worm=new Color(Rnd.Next(100,255),Rnd.Next(100,255),Rnd.Next(100,255),255);
 	}
-	if(DisplayIdleTimer>Math.Min(0.4,0.02*Math.Pow(Parts.Count,2))){
+	if(DisplayIdleTimer>0.1+0.01*Parts.Count){
 		DisplayIdleTimer=0;
 		bool Can_Left=true;
 		bool Can_Right=true;
@@ -859,7 +859,6 @@ public void Main(string argument, UpdateType updateSource)
 	string HubText="";
 	string Player1Text="";
 	string Player2Text="";
-	
 	if(((int)Status)<((int)GameStatus.Awaiting)){
 		Player1Text="Start game in Lobby";
 		Player2Text="Start game in Lobby";
