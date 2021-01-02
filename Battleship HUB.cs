@@ -660,6 +660,11 @@ void DisplayCheck(DisplayArray Da){
 		else{
 			int pick=Rnd.Next(0,Options.Count);
 			Vector2 Last_V=Parts[0];
+			int chance=Rnd.Next(0,2);
+			while(pick<Options.Count&&chance>0&&Vector2.Distance(Parts[0],Target)>3){
+				pick=Rnd.Next(0,Options.Count);
+				chance=Rnd.Next(0,2);
+			}
 			if(pick<Options.Count){
 				Parts[0]=Options[pick];
 			}
