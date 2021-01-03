@@ -19,6 +19,13 @@ class Prog{
 		}
 		return 0;
 	}
+	public static void Write(string text,bool new_line=true,bool append=true){
+		P.Echo(text);
+		if(new_line)
+			P.Me.GetSurface(0).WriteText(text+'\n', append);
+		else
+			P.Me.GetSurface(0).WriteText(text, append);
+	}
 }
 
 class GenericMethods<T> where T : class, IMyTerminalBlock{
@@ -668,6 +675,7 @@ class Board{
 			bool possible=true;
 			for(int dy=0;dy<Prog.ShipSize(Type);dy++){
 				int y=Y-i+dy;
+				InstructionCount++;
 				if(y<0||y>7){
 					possible=false;
 					break;
@@ -684,6 +692,7 @@ class Board{
 			bool possible=true;
 			for(int dx=0;dx<Prog.ShipSize(Type);dx++){
 				int x=X-i+dx;
+				InstructionCount++;
 				if(x<0||x>7){
 					possible=false;
 					break;
@@ -699,42 +708,60 @@ class Board{
 		return count;
 	}
 	
-	public List<Vector2> GetBestChoices(int stupidity=0){
+	long InstructionCount=0;
+	public int Section=0;
+	List<Vector3> Choices=new List<Vector3>;
+	public List<Vector2> GetBestChoices(int stupidity){
 		List<Vector2> output=new List<Vector2>();
+		if(Section>7){
+			Section=0;
+			InstructionCount=0;
+			int max_pos=0;
+			foreach(Vector3 Choice in Choices){
+				max_pos=Math.Max(max_pos,(int)Choice.Z);
+			}
+			foreach(Vector3 Choice in Choices){
+				if(((int)Choice.Z)>=max_pos-stupidity)
+					output.Add(new Vector2(Choice.X,Choice.Y));
+			}
+			Choices.Clear();
+			return output;
+		}
+		foreach(Vector3 V in GetBestChoices(Section++,stupidity))
+			Choices.Add(V);
+		return output;
+	}
+	
+	public List<Vector3> GetBestChoices(int section,int stupidity){
+		List<Vector3> output=new List<Vector3>();
 		if(CountShips(MyShip.Unknown)==0)
 			return output;
-		List<List<int>> Pos=new List<List<int>>();
-		bool D_Carrier=CountShips(MyShip.Carrier)>0;
-		bool D_Frigate=CountShips(MyShip.Frigate)>0;
-		bool D_Cruiser=CountShips(MyShip.Cruiser)>0;
-		bool D_Prowler=CountShips(MyShip.Prowler)>0;
-		bool D_Destroyer=CountShips(MyShip.Destroyer)>0;
-		int max_pos=0;
-		for(int y=0;y<8;y++){
+		int my_y=section;
+		if(y<8)
 			List<int> Row=new List<int>();
+			int max_pos=0;
 			for(int x=0;x<8;x++){
 				int Cell=0;
 				if(Grid[y][x].Ship==MyShip.Unknown){
-					if(!D_Carrier)
+					try{
 						Cell+=GetPossibilitiesForShip(MyShip.Carrier,x,y);
-					if(!D_Frigate)
 						Cell+=GetPossibilitiesForShip(MyShip.Frigate,x,y);
-					if(!D_Cruiser)
 						Cell+=GetPossibilitiesForShip(MyShip.Cruiser,x,y);
-					if(!D_Prowler)
 						Cell+=GetPossibilitiesForShip(MyShip.Prowler,x,y);
-					if(!D_Destroyer)
 						Cell+=GetPossibilitiesForShip(MyShip.Destroyer,x,y);
+						float percent=(y*8+x)/64.0f*100;
+						Prog.Write("("+x.ToString()+","+y.ToString()+") ("+Math.Round(percent,1).ToString()+"%): "+InstructionCount.ToString());
+					}
+					catch(Exception e){
+						Prog.Write(e.ToString());
+					}
 				}
 				max_pos=Math.Max(max_pos,Cell);
 				Row.Add(Cell);
 			}
-			Pos.Add(Row);
-		}
-		for(int y=0;y<8;y++){
 			for(int x=0;x<8;x++){
-				if(Pos[y][x]>=Math.Max(1,max_pos-stupidity))
-					output.Add(new Vector2(x,y));
+				if(Row[x]>=Math.Max(1,max_pos-stupidity))
+					output.Add(new Vector3(x,y,Row[x]));
 			}
 		}
 		return output;
@@ -1832,12 +1859,6 @@ public void Main(string argument, UpdateType updateSource)
 			DisplayIdleTimer+=seconds_since_last_update;
 		if(AI_Timer<5)
 			AI_Timer+=seconds_since_last_update;
-		if(argument.Length>0){
-			Argument_Processor(argument);
-			while((Selection==6&&!Use_Real_Ships)||(Selection==0&&Status!=GameStatus.Ready)||(Selection==4&&Turn_Timer<30)||(Selection==2&&Player_Count==2)){
-				Selection=(Selection+1)%8;
-			}
-		}
 		
 		string HubText="";
 		string Player1Text="";
@@ -2170,7 +2191,8 @@ public void Main(string argument, UpdateType updateSource)
 				if(!Player1.IsHuman){
 					if(AI_Selection.X<0){
 						List<Vector2> pos=Player1.EnemyBoard.GetBestChoices(AI_Difficulty);
-						AI_Selection=pos[Rnd.Next(0,pos.Count-1)];
+						if(pos.Count>0)
+							AI_Selection=pos[Rnd.Next(0,pos.Count-1)];
 					}
 					if(AI_Timer>0.75){
 						AI_Timer=0;
@@ -2196,7 +2218,8 @@ public void Main(string argument, UpdateType updateSource)
 				if(!Player2.IsHuman){
 					if(AI_Selection.X<0){
 						List<Vector2> pos=Player2.EnemyBoard.GetBestChoices(AI_Difficulty);
-						AI_Selection=pos[Rnd.Next(0,pos.Count-1)];
+						if(pos.Count>0)
+							AI_Selection=pos[Rnd.Next(0,pos.Count-1)];
 					}
 					if(AI_Timer>0.75){
 						AI_Timer=0;
@@ -2251,6 +2274,13 @@ public void Main(string argument, UpdateType updateSource)
 			}
 		}
 		
+		if(argument.Length>0){
+			Argument_Processor(argument);
+			while((Selection==6&&!Use_Real_Ships)||(Selection==0&&Status!=GameStatus.Ready)||(Selection==4&&Turn_Timer<30)||(Selection==2&&Player_Count==2)){
+				Selection=(Selection+1)%8;
+			}
+		}
+		
 		if(Player1!=null&&Player1.Forfeiting)
 			Player1Text="Press Confirm to Forfeit\n"+Player1Text;
 		if(Player2!=null&&Player2.Forfeiting)
@@ -2268,18 +2298,23 @@ public void Main(string argument, UpdateType updateSource)
 			Panel.WriteText(HubText,false);
 	}
 	catch (Exception e){
-		Room1Sound.Block.SelectedSound="Malfunction DetectedId";
-		Room1Sound.Block.Play();
-		Room2Sound.Block.SelectedSound="Malfunction DetectedId";
-		Room2Sound.Block.Play();
-		HubSound.Block.SelectedSound="Malfunction DetectedId";
-		HubSound.Block.Play();
-		foreach(IMyTextPanel Panel in Player1StatusPanels)
-			Panel.WriteText(e.ToString(),false);
-		foreach(IMyTextPanel Panel in Player2StatusPanels)
-			Panel.WriteText(e.ToString(),false);
-		foreach(IMyTextPanel Panel in HubStatusPanels)
-			Panel.WriteText(e.ToString(),false);
+		try{
+			Room1Sound.Block.SelectedSound="Malfunction DetectedId";
+			Room1Sound.Block.Play();
+			Room2Sound.Block.SelectedSound="Malfunction DetectedId";
+			Room2Sound.Block.Play();
+			HubSound.Block.SelectedSound="Malfunction DetectedId";
+			HubSound.Block.Play();
+			foreach(IMyTextPanel Panel in Player1StatusPanels)
+				Panel.WriteText(e.ToString(),false);
+			foreach(IMyTextPanel Panel in Player2StatusPanels)
+				Panel.WriteText(e.ToString(),false);
+			foreach(IMyTextPanel Panel in HubStatusPanels)
+				Panel.WriteText(e.ToString(),false);
+		}
+		catch(Exception){
+			;
+		}
 		throw e;
 	}
 }
