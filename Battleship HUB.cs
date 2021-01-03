@@ -932,7 +932,7 @@ double Turn_Timer=90;
 bool Allow_Pause=true;
 bool Use_Real_Ships=false;
 bool Destroy_Ships=false;
-bool See_Opponent_Choice=false;
+bool See_Opponent_Choice=true;
 GameStatus Status=GameStatus.Ready;
 int AI_Difficulty=1;
 
