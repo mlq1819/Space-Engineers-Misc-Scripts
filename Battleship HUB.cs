@@ -1175,8 +1175,8 @@ void DisplayOwn(DisplayArray Da,Player P,Vector2 EnemyPos){
 			if(Da.Panels[y][x].CurrentlyShownImage!=null)
 				Da.Panels[y][x].ClearImagesFromSelection();
 			if(x==((int)EnemyPos.X)&&y==((int)EnemyPos.Y))
-				Da.Panels[y][x].AddImageToSelection("LCD_Economy_Trinity");
-			else if(Status==GameStatus.SettingUp&&P.CanMove&&x==((int)P.Selection.X)&&y==((int)P.Selection.Y))
+				Da.Panels[y][x].AddImageToSelection("LCD_Economy_Faction_1");
+			if(Status==GameStatus.SettingUp&&P.CanMove&&x==((int)P.Selection.X)&&y==((int)P.Selection.Y))
 				Da.Panels[y][x].AddImageToSelection("LCD_Economy_Trinity");
 			else if(x==((int)P.End1.X)&&y==((int)P.End1.Y))
 				Da.Panels[y][x].AddImageToSelection("LCD_Economy_Trinity");
@@ -1444,6 +1444,7 @@ void Argument_Processor(string argument){
 						Player1=new Player(Player_Count>=1);
 						Player2=new Player(Player_Count>=2);
 						HubSound.Sounds.Enqueue("Access GrantedId");
+						Last_Winner=-1;
 						if(Player_Count>0)
 							HubSound.Sounds.Enqueue("OpeningId");
 					}
@@ -2222,7 +2223,7 @@ public void Main(string argument, UpdateType updateSource)
 						if(pos.Count>0)
 							AI_Selection=pos[Rnd.Next(0,pos.Count-1)];
 					}
-					if(AI_Selection.X>=0&&AI_Timer>0.75){
+					if(AI_Selection.X>=0&&AI_Timer>0.25){
 						AI_Timer=0;
 						string s="Player 1:";
 						if(AI_Selection==Player1.Selection)
@@ -2249,7 +2250,7 @@ public void Main(string argument, UpdateType updateSource)
 						if(pos.Count>0)
 							AI_Selection=pos[Rnd.Next(0,pos.Count-1)];
 					}
-					if(AI_Selection.X>=0&&AI_Timer>0.75){
+					if(AI_Selection.X>=0&&AI_Timer>0.25){
 						AI_Timer=0;
 						string s="Player 2:";
 						if(AI_Selection==Player2.Selection)
