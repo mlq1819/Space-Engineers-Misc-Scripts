@@ -2340,8 +2340,15 @@ public void Main(string argument, UpdateType updateSource)
 			Panel.WriteText(Player1Text,false);
 		foreach(IMyTextPanel Panel in Player2StatusPanels)
 			Panel.WriteText(Player2Text,false);
-		foreach(IMyTextPanel Panel in HubStatusPanels)
+		foreach(IMyTextPanel Panel in HubStatusPanels){
 			Panel.WriteText(HubText,false);
+			if(Player_Turn==1)
+				Panel.FontColor=new Color(255,137,137,255);
+			else if(Player_Turn==2)
+				Panel.FontColor=new Color(137,137,255,255);
+			else
+				Panel.FontColor=new Color(255,255,255,255);
+		}
 	}
 	catch (Exception e){
 		try{
