@@ -918,6 +918,9 @@ public Program(){
 				else 
 					Player.TryParse(data,out Player2);
 				break;
+			case "Player_Turn":
+				Int32.TryParse(data,out Player_Turn);
+				break;
 		}
 	}
 	Room1Doors=GenericMethods<IMyDoor>.GetAllContaining("Room 1 Door");
@@ -943,6 +946,7 @@ public void Save(){
 		this.Storage+="•Player2:null";
 	else
 		this.Storage+="•Player2:"+Player2.ToString();
+	this.Storage+="•Player_Turn:"+Player_Turn.ToString();
 }
 
 void UpdateProgramInfo(){
@@ -1970,6 +1974,8 @@ public void Main(string argument, UpdateType updateSource)
 			}
 		}
 		if(Status==GameStatus.InProgress){
+			if(Player_Turn<0||Player_Turn>2)
+				Player_Turn=1;
 			if(Turn_Timer>=30){
 				Player_Timer-=seconds_since_last_update;
 				if(Player_Timer<0){
@@ -2035,12 +2041,12 @@ public void Main(string argument, UpdateType updateSource)
 				Player1Text+=timer;
 				Player2Text+=timer;
 			}
-			if(See_Opponent_Choice)
+			if(See_Opponent_Choice&&Player_Turn==2)
 				DisplayOwn(Player1Own,Player1,Player2.Selection);
 			else
 				DisplayOwn(Player1Own,Player1);
 			DisplayEnemy(Player1Enemy,Player1);
-			if(See_Opponent_Choice)
+			if(See_Opponent_Choice&&Player_Turn==1)
 				DisplayOwn(Player2Own,Player2,Player1.Selection);
 			else
 				DisplayOwn(Player2Own,Player2);
