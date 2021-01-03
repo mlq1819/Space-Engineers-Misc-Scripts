@@ -749,8 +749,6 @@ class Board{
 						Cell+=GetPossibilitiesForShip(MyShip.Cruiser,x,y);
 						Cell+=GetPossibilitiesForShip(MyShip.Prowler,x,y);
 						Cell+=GetPossibilitiesForShip(MyShip.Destroyer,x,y);
-						float percent=(y*8+x)/64.0f*100;
-						Prog.Write("("+x.ToString()+","+y.ToString()+") ("+Math.Round(percent,1).ToString()+"%): "+InstructionCount.ToString());
 					}
 					catch(Exception e){
 						Prog.Write(e.ToString());
@@ -1094,24 +1092,27 @@ public Program(){
 	Runtime.UpdateFrequency=UpdateFrequency.Update10;//60tps
 }
 
+bool Factory_Reset=false;
 public void Save(){
-    this.Storage="Status:"+((int)Status).ToString();
-	this.Storage+="•Player_Count:"+Player_Count.ToString();
-	this.Storage+="•AI_Difficulty:"+AI_Difficulty.ToString();
-	this.Storage+="•Turn_Timer:"+Turn_Timer.ToString();
-	this.Storage+="•Allow_Pause"+Allow_Pause.ToString();
-	this.Storage+="•Use_Real_Ships:"+Use_Real_Ships.ToString();
-	this.Storage+="•Destroy_Ships:"+Destroy_Ships.ToString();
-	this.Storage+="•See_Opponent_Choice:"+See_Opponent_Choice.ToString();
-	if(Player1==null)
-		this.Storage+="•Player1:null";
-	else
-		this.Storage+="•Player1:"+Player1.ToString();
-	if(Player2==null)
-		this.Storage+="•Player2:null";
-	else
-		this.Storage+="•Player2:"+Player2.ToString();
-	this.Storage+="•Player_Turn:"+Player_Turn.ToString();
+    if(!Factory_Reset){
+		this.Storage="Status:"+((int)Status).ToString();
+		this.Storage+="•Player_Count:"+Player_Count.ToString();
+		this.Storage+="•AI_Difficulty:"+AI_Difficulty.ToString();
+		this.Storage+="•Turn_Timer:"+Turn_Timer.ToString();
+		this.Storage+="•Allow_Pause"+Allow_Pause.ToString();
+		this.Storage+="•Use_Real_Ships:"+Use_Real_Ships.ToString();
+		this.Storage+="•Destroy_Ships:"+Destroy_Ships.ToString();
+		this.Storage+="•See_Opponent_Choice:"+See_Opponent_Choice.ToString();
+		if(Player1==null)
+			this.Storage+="•Player1:null";
+		else
+			this.Storage+="•Player1:"+Player1.ToString();
+		if(Player2==null)
+			this.Storage+="•Player2:null";
+		else
+			this.Storage+="•Player2:"+Player2.ToString();
+		this.Storage+="•Player_Turn:"+Player_Turn.ToString();
+	}
 }
 
 void UpdateProgramInfo(){
@@ -1377,6 +1378,11 @@ void DisplayCheck(DisplayArray Da){
 double DisplayIdleTimer=0;
 int Selection=0;
 void Argument_Processor(string argument){
+	if(argument.ToLower().Equals("reset")){
+		this.Storage="";
+		Factory_Reset=true;
+		Runtime.UpdateFrequency=UpdateFrequency.None;
+	}
 	if(((int)Status)<((int)GameStatus.Awaiting)){
 		if(argument.ToLower().Equals("prev")){
 			do{
