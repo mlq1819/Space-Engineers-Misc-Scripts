@@ -531,7 +531,6 @@ class Board{
 		return count;
 	}
 	
-	
 	Board(List<List<GridSpace>> grid){
 		Grid=grid;
 	}
@@ -862,6 +861,31 @@ class Player{
 	}
 }
 
+class Sound{
+	public IMySoundBlock Block;
+	public Queue<string> Sounds;
+	public double Timer;
+	
+	public Sound(IMySoundBlock b){
+		Block=b;
+		Timer=2;
+		Sounds=new Queue<string>();
+	}
+	
+	public void Update(double seconds){
+		if(Timer<2){
+			Timer+=seconds;
+		}
+		if(Timer>=2){
+			if(Sounds.Count>0){
+				Block.Stop();
+				Block.SelectedSound=Sounds.Dequeue();
+				Block.Play();
+			}
+		}
+	}
+}
+
 TimeSpan Time_Since_Start=new TimeSpan(0);
 long cycle=0;
 char loading_char='|';
@@ -891,6 +915,9 @@ DisplayArray Player2Own;
 List<IMyTextPanel> Player1StatusPanels;
 List<IMyTextPanel> Player2StatusPanels;
 List<IMyTextPanel> HubStatusPanels;
+Sound Room1Sound;
+Sound Room2Sound;
+Sound HubSound;
 
 List<IMyDoor> Room1Doors;
 List<IMyDoor> Room2Doors;
@@ -1005,6 +1032,37 @@ public Program(){
 	}
 	Room1Doors=GenericMethods<IMyDoor>.GetAllContaining("Room 1 Door");
 	Room2Doors=GenericMethods<IMyDoor>.GetAllContaining("Room 2 Door");
+	IMySoundBlock s=GenericMethods<IMySoundBlock>.GetFull("Room 1 Sound Block");
+	if(s!=null)
+		Room1Sound=new Sound(s);
+	else
+		return;
+	s=GenericMethods<IMySoundBlock>.GetFull("Room 2 Sound Block");
+	if(s!=null)
+		Room2Sound=new Sound(s);
+	else
+		return;
+	s=GenericMethods<IMySoundBlock>.GetFull("Hub Sound Block");
+	if(s!=null)
+		HubSound=new Sound(s);
+	else
+		return;
+	double time=DateTime.Now.TimeOfDay.TotalHours%24;
+	if(time>4.5&&time<12){
+		Room1Sound.Sounds.Enqueue("Good MorningId");
+		Room2Sound.Sounds.Enqueue("Good MorningId");
+		HubSound.Sounds.Enqueue("Good MorningId");
+	}
+	else if(time>12&&time<18){
+		Room1Sound.Sounds.Enqueue("Good AfternoonId");
+		Room2Sound.Sounds.Enqueue("Good AfternoonId");
+		HubSound.Sounds.Enqueue("Good AfternoonId");
+	}
+	else{
+		Room1Sound.Sounds.Enqueue("Hello EngineerId");
+		Room2Sound.Sounds.Enqueue("Hello EngineerId");
+		HubSound.Sounds.Enqueue("Hello EngineerId");
+	}
 	Write("Completed Initialization");
 	Runtime.UpdateFrequency=UpdateFrequency.Update10;//60tps
 }
@@ -1342,6 +1400,9 @@ void Argument_Processor(string argument){
 						Status=GameStatus.Awaiting;
 						Player1=new Player(Player_Count>=1);
 						Player2=new Player(Player_Count>=2);
+						HubSound.Sounds.Enqueue("Access GrantedId");
+						if(Player_Count>0)
+							HubSound.Sounds.Enqueue("OpeningId");
 					}
 					break;
 				case 1:
@@ -1569,6 +1630,9 @@ void Argument_Processor(string argument){
 						Status=GameStatus.Ready;
 						Player1=null;
 						Player2=null;
+						Room1Sound.Sounds.Enqueue("Shutting DownId");
+						Room2Sound.Sounds.Enqueue("SoundBlockObjectiveComplete");
+						HubSound.Sounds.Enqueue("Objective CompleteId");
 					}
 					else if(player_num==2&&Player2!=null&&Player2.Forfeiting){
 						Last_Winner=1;
@@ -1576,6 +1640,9 @@ void Argument_Processor(string argument){
 						Status=GameStatus.Ready;
 						Player1=null;
 						Player2=null;
+						Room2Sound.Sounds.Enqueue("Shutting DownId");
+						Room1Sound.Sounds.Enqueue("SoundBlockObjectiveComplete");
+						HubSound.Sounds.Enqueue("Objective CompleteId");
 					}
 					else{
 						if(Status==GameStatus.Awaiting){
@@ -1650,6 +1717,18 @@ void Argument_Processor(string argument){
 										Player_Timer=Turn_Timer;
 										AI_Selection=new Vector2(-1,-1);
 										Player1.CanMove=false;
+										Room1Sound.Sounds.Enqueue("CompletedId");
+										Room2Sound.Sounds.Enqueue("CompletedId");
+										if(Player2.OwnBoard.Grid[y][x].Ship!=MyShip.None){
+											int size=Prog.ShipSize(Player2.OwnBoard.Grid[y][x].Ship);
+											if(size>3)
+												Room1Sound.Sounds.Enqueue("Large Ship DetectedId");
+											else if(size>0)
+												Room1Sound.Sounds.Enqueue("Small ship detectedId");
+											Room2Sound.Sounds.Enqueue("Damage detectedId");
+										}
+										else
+											Room2Sound.Sounds.Enqueue("Enemy threat detectedId");
 									}
 								}
 								else if(player_num==2){
@@ -1662,6 +1741,18 @@ void Argument_Processor(string argument){
 										Player_Timer=Turn_Timer;
 										AI_Selection=new Vector2(-1,-1);
 										Player2.CanMove=false;
+										Room2Sound.Sounds.Enqueue("CompletedId");
+										Room1Sound.Sounds.Enqueue("CompletedId");
+										if(Player1.OwnBoard.Grid[y][x].Ship!=MyShip.None){
+											int size=Prog.ShipSize(Player1.OwnBoard.Grid[y][x].Ship);
+											if(size>3)
+												Room2Sound.Sounds.Enqueue("Large Ship DetectedId");
+											else if(size>0)
+												Room2Sound.Sounds.Enqueue("Small ship detectedId");
+											Room1Sound.Sounds.Enqueue("Damage detectedId");
+										}
+										else
+											Room1Sound.Sounds.Enqueue("Enemy threat detectedId");
 									}
 								}
 							}
@@ -1770,6 +1861,10 @@ public void Main(string argument, UpdateType updateSource)
 		}
 		Echo("AI_Timer:"+Math.Round(AI_Timer,2).ToString()+"s");
 		Echo("AI_Selection:"+AI_Selection.ToString());
+		Echo("Sound1:"+Room1Sound.Block.SelectedSound);
+		Echo("Sound2:"+Room2Sound.Block.SelectedSound);
+		Echo("SoundH:"+HubSound.Block.SelectedSound);
+		
 		
 		if(((int)Status)<((int)GameStatus.Awaiting)){
 			Player1Text="Start game in Lobby";
@@ -2070,6 +2165,8 @@ public void Main(string argument, UpdateType updateSource)
 			if(Player_Turn==1){
 				Player1Text="Your Turn!\n";
 				Player2Text=HubText;
+				if(Turn_Timer>=30&&Math.Abs(Player_Turn-5.5)<1&&Room1Sound.Sounds.Count==0)
+					Room1Sound.Sounds.Enqueue("5 Second CountdownId");
 				if(!Player1.IsHuman){
 					if(AI_Selection.X<0){
 						List<Vector2> pos=Player1.EnemyBoard.GetBestChoices(AI_Difficulty);
@@ -2094,6 +2191,8 @@ public void Main(string argument, UpdateType updateSource)
 			else{
 				Player1Text=HubText;
 				Player2Text="Your Turn!\n";
+				if(Turn_Timer>=30&&Math.Abs(Player_Turn-5.5)<1&&Room2Sound.Sounds.Count==0)
+					Room2Sound.Sounds.Enqueue("5 Second CountdownId");
 				if(!Player2.IsHuman){
 					if(AI_Selection.X<0){
 						List<Vector2> pos=Player2.EnemyBoard.GetBestChoices(AI_Difficulty);
@@ -2136,12 +2235,19 @@ public void Main(string argument, UpdateType updateSource)
 				Status=GameStatus.Ready;
 				Player1=null;
 				Player2=null;
+				Room1Sound.Sounds.Enqueue("Shutting DownId");
+				Room2Sound.Sounds.Enqueue("SoundBlockObjectiveComplete");
+				HubSound.Sounds.Enqueue("Objective CompleteId");
+				
 			}
 			else if(Player2.OwnBoard.RemainingSpaces==0){
 				Last_Winner=1;
 				Status=GameStatus.Ready;
 				Player1=null;
 				Player2=null;
+				Room2Sound.Sounds.Enqueue("Shutting DownId");
+				Room1Sound.Sounds.Enqueue("SoundBlockObjectiveComplete");
+				HubSound.Sounds.Enqueue("Objective CompleteId");
 			}
 		}
 		
@@ -2149,6 +2255,10 @@ public void Main(string argument, UpdateType updateSource)
 			Player1Text="Press Confirm to Forfeit\n"+Player1Text;
 		if(Player2!=null&&Player2.Forfeiting)
 			Player2Text="Press Confirm to Forfeit\n"+Player2Text;
+		
+		Room1Sound.Update(seconds_since_last_update);
+		Room2Sound.Update(seconds_since_last_update);
+		HubSound.Update(seconds_since_last_update);
 		
 		foreach(IMyTextPanel Panel in Player1StatusPanels)
 			Panel.WriteText(Player1Text,false);
@@ -2158,6 +2268,12 @@ public void Main(string argument, UpdateType updateSource)
 			Panel.WriteText(HubText,false);
 	}
 	catch (Exception e){
+		Room1Sound.Block.SelectedSound="Malfunction DetectedId";
+		Room1Sound.Block.Play();
+		Room2Sound.Block.SelectedSound="Malfunction DetectedId";
+		Room2Sound.Block.Play();
+		HubSound.Block.SelectedSound="Malfunction DetectedId";
+		HubSound.Block.Play();
 		foreach(IMyTextPanel Panel in Player1StatusPanels)
 			Panel.WriteText(e.ToString(),false);
 		foreach(IMyTextPanel Panel in Player2StatusPanels)
