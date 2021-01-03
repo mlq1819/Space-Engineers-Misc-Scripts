@@ -661,7 +661,87 @@ class Board{
 		return false;
 	}
 	
+	public int GetPossibilitiesForShip(MyShip Type,int X,int Y){
+		int count=0;
+		if(!IsPossible(Type,X,Y))
+			return 0;
+		for(int i=0;i<Prog.ShipSize(Type);i++){
+			bool possible=true;
+			for(int dy=0;dy<Prog.ShipSize(Type);dy++){
+				int y=Y-i+dy;
+				if(y<0||y>7){
+					possible=false;
+					break;
+				}
+				if(Grid[y][X]!=Type&&Grid[y][X]!=MyShip.Unknown){
+					possible=false;
+					break;
+				}
+			}
+			if(possible)
+				count++;
+		}
+		for(int i=0;i<Prog.ShipSize(Type);i++){
+			bool possible=true;
+			for(int dx=0;dx<Prog.ShipSize(Type);dx++){
+				int x=X-i+dx;
+				if(x<0||x>7){
+					possible=false;
+					break;
+				}
+				if(Grid[Y][x]!=Type&&Grid[Y][x]!=MyShip.Unknown){
+					possible=false;
+					break;
+				}
+			}
+			if(possible)
+				count++;
+		}
+		return count;
+	}
+	
 	public List<Vector2> GetBestChoices(int stupidity=0){
+		List<Vector2> output=new List<Vector2>();
+		if(CountShips(MyShip.Unknown)==0)
+			return output;
+		List<List<int>> Pos=new List<List<int>>();
+		bool D_Carrier=CountShips(MyShip.Carrier)>0;
+		bool D_Frigate=CountShips(MyShip.Frigate)>0;
+		bool D_Cruiser=CountShips(MyShip.Cruiser)>0;
+		bool D_Prowler=CountShips(MyShip.Prowler)>0;
+		bool D_Destroyer=CountShips(MyShip.Destroyer)>0;
+		int max_pos=0;
+		for(int y=0;y<8;y++){
+			List<int> Row=new List<int>();
+			for(int x=0;x<8;x++){
+				int Cell=0;
+				if(Grid[y][x].Ship==MyShip.Unknown){
+					if(!D_Carrier)
+						Cell+=GetPossibilitiesForShip(MyShip.Carrier);
+					if(!D_Frigate)
+						Cell+=GetPossibilitiesForShip(MyShip.Frigate);
+					if(!D_Cruiser)
+						Cell+=GetPossibilitiesForShip(MyShip.Cruiser);
+					if(!D_Prowler)
+						Cell+=GetPossibilitiesForShip(MyShip.Prowler);
+					if(!D_Destroyer)
+						Cell+=GetPossibilitiesForShip(MyShip.Destroyer);
+				}
+				max_pos=Math.Max(max_pos,Cell.Count);
+				Row.Add(Cell);
+			}
+			Pos.Add(Row);
+		}
+		for(int y=0;y<8;y++){
+			for(int x=0;x<8;x++){
+				if(Pos[y][x]>=Math.Max(1,max_pos-stupidity))
+					output.Add(new Vector2(x,y));
+			}
+		}
+		return output;
+	}
+	
+	/*public List<Vector2> GetBestChoices(int stupidity=0){
 		if(CountShips(MyShip.Unknown)==0)
 			return null;
 		List<List<List<MyShip>>> Possibilities=new List<List<List<MyShip>>>();
@@ -700,7 +780,7 @@ class Board{
 			}
 		}
 		return output;
-	}
+	}*/
 }
 
 class Player{
