@@ -1863,15 +1863,15 @@ public void Main(string argument, UpdateType updateSource)
 					AI_Timer=0;
 					string s="Player1:";
 					if(AI_Selection==Player1.Selection)
-						ArgumentProcessor(s+"Confirm");
+						Argument_Processor(s+"Confirm");
 					else if(AI_Selection.X<Player1.Selection.X)
-						ArgumentProcessor(s+"Left");
+						Argument_Processor(s+"Left");
 					else if(AI_Selection.X>Player1.Selection.X)
-						ArgumentProcessor(s+"Right");
+						Argument_Processor(s+"Right");
 					else if(AI_Selection.Y<Player1.Selection.Y)
-						ArgumentProcessor(s+"Up");
+						Argument_Processor(s+"Up");
 					else if(AI_Selection.Y>Player1.Selection.Y)
-						ArgumentProcessor(s+"Down");
+						Argument_Processor(s+"Down");
 				}
 			}
 		}
@@ -1887,15 +1887,15 @@ public void Main(string argument, UpdateType updateSource)
 					AI_Timer=0;
 					string s="Player2:";
 					if(AI_Selection==Player2.Selection)
-						ArgumentProcessor(s+"Confirm");
+						Argument_Processor(s+"Confirm");
 					else if(AI_Selection.X<Player2.Selection.X)
-						ArgumentProcessor(s+"Left");
+						Argument_Processor(s+"Left");
 					else if(AI_Selection.X>Player2.Selection.X)
-						ArgumentProcessor(s+"Right");
+						Argument_Processor(s+"Right");
 					else if(AI_Selection.Y<Player2.Selection.Y)
-						ArgumentProcessor(s+"Up");
+						Argument_Processor(s+"Up");
 					else if(AI_Selection.Y>Player2.Selection.Y)
-						ArgumentProcessor(s+"Down");
+						Argument_Processor(s+"Down");
 				}
 			}
 		}
