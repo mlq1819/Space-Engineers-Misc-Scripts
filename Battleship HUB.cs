@@ -756,8 +756,7 @@ class Player{
 	}
 	
 	public override string ToString(){
-		string output="";
-		output+="◘"+IsHuman.ToString();
+		string output=IsHuman.ToString();
 		output+="◘"+OwnBoard.ToString();
 		output+="◘"+EnemyBoard.ToString();
 		return output;
@@ -908,13 +907,13 @@ public Program(){
 			case "Player1":
 				if(data==null)
 					Player1=null;
-				else
+				else 
 					Player.TryParse(data,out Player1);
 				break;
 			case "Player2":
 				if(data==null)
 					Player2=null;
-				else
+				else 
 					Player.TryParse(data,out Player2);
 				break;
 		}
@@ -994,6 +993,8 @@ void DisplayOwn(DisplayArray Da,Player P,Vector2 EnemyPos){
 			if(Da.Panels[y][x].CurrentlyShownImage!=null)
 				Da.Panels[y][x].ClearImagesFromSelection();
 			if(x==((int)EnemyPos.X)&&y==((int)EnemyPos.Y))
+				Da.Panels[y][x].AddImageToSelection("Trinity");
+			else if(Status==GameStatus.SettingUp&&P.CanMove&&x==((int)P.Selection.X)&&y==((int)P.Selection.Y))
 				Da.Panels[y][x].AddImageToSelection("Trinity");
 			else if(x==((int)P.End1.X)&&y==((int)P.End1.Y))
 				Da.Panels[y][x].AddImageToSelection("Trinity");
@@ -1646,6 +1647,7 @@ public void Main(string argument, UpdateType updateSource)
 		string HubText="";
 		string Player1Text="";
 		string Player2Text="";
+		Echo("Status: "+Status.ToString());
 		if(((int)Status)<((int)GameStatus.Awaiting)){
 			DisplayCheck(Player1Enemy);
 			DisplayCheck(Player1Own);
@@ -1759,6 +1761,7 @@ public void Main(string argument, UpdateType updateSource)
 			Write(s+"See Opponent's Choice: "+See_Opponent_Choice.ToString());
 		}
 		if(Status==GameStatus.Awaiting){
+			Write("Go to Available Room for game to start");
 			HubText=Player_Count+" human players\n";
 			HubText+="Player 1: ";
 			if(!Player_1_Ready){
