@@ -565,12 +565,14 @@ class Board{
 					return false;
 			}
 		}
+		int count=0;
 		for(int i=Math.Min(y1,y2);i<=Math.Max(y1,y2);i++){
 			for(int j=Math.Min(x1,x2);j<=Math.Max(x1,x2);j++){
 				Grid[i][j].Ship=Type;
+				count++;
 			}
 		}
-		return true;
+		return count>0;
 	}
 	
 	public override string ToString(){
@@ -1044,7 +1046,7 @@ void DisplayEnemy(DisplayArray Da,Player P){
 			}
 			if(Da.Panels[y][x].CurrentlyShownImage!=null)
 				Da.Panels[y][x].ClearImagesFromSelection();
-			if(P.CanMove&&x==((int)P.Selection.X)&&y==((int)P.Selection.Y))
+			if(Status!=GameStatus.SettingUp&&P.CanMove&&x==((int)P.Selection.X)&&y==((int)P.Selection.Y))
 				Da.Panels[y][x].AddImageToSelection("LCD_Economy_Trinity");
 			if(P.EnemyBoard.Grid[y][x].Hit){
 				if(P.EnemyBoard.Grid[y][x].Ship==MyShip.None){
@@ -1177,6 +1179,8 @@ void DisplayCheck(DisplayArray Da){
 	}
 	for(int i=0;i<Da.Panels.Count;i++){
 		for(int j=0;j<Da.Panels[i].Count;j++){
+			if(Da.Panels[i][j].CurrentlyShownImage!=null)
+				Da.Panels[i][j].ClearImagesFromSelection();
 			if((int)Target.Y==i&&(int)Target.X==j){
 				Da.Panels[i][j].BackgroundColor=new Color(Rnd.Next(25,75),Rnd.Next(25,75),Rnd.Next(25,75),255);
 			}
@@ -1309,7 +1313,7 @@ void Argument_Processor(string argument){
 										break;
 									}
 								}
-								Vector2 sel=Player1.Selection-new Vector2(size,0);
+								Vector2 sel=Player1.End1-new Vector2(size,0);
 								if(sel.X>=0)
 									Player1.Selection=sel;
 							}
@@ -1330,7 +1334,7 @@ void Argument_Processor(string argument){
 										break;
 									}
 								}
-								Vector2 sel=Player2.Selection-new Vector2(size,0);
+								Vector2 sel=Player2.End1-new Vector2(size,0);
 								if(sel.X>=0)
 									Player2.Selection=sel;
 							}
@@ -1353,7 +1357,7 @@ void Argument_Processor(string argument){
 										break;
 									}
 								}
-								Vector2 sel=Player1.Selection-new Vector2(0,size);
+								Vector2 sel=Player1.End1-new Vector2(0,size);
 								if(sel.Y>=0)
 									Player1.Selection=sel;
 							}
@@ -1374,7 +1378,7 @@ void Argument_Processor(string argument){
 										break;
 									}
 								}
-								Vector2 sel=Player2.Selection-new Vector2(0,size);
+								Vector2 sel=Player2.End1-new Vector2(0,size);
 								if(sel.Y>=0)
 									Player2.Selection=sel;
 							}
@@ -1397,7 +1401,7 @@ void Argument_Processor(string argument){
 										break;
 									}
 								}
-								Vector2 sel=Player1.Selection+new Vector2(0,size);
+								Vector2 sel=Player1.End1+new Vector2(0,size);
 								if(sel.Y<=7)
 									Player1.Selection=sel;
 							}
@@ -1418,7 +1422,7 @@ void Argument_Processor(string argument){
 										break;
 									}
 								}
-								Vector2 sel=Player2.Selection+new Vector2(0,size);
+								Vector2 sel=Player2.End1+new Vector2(0,size);
 								if(sel.Y<=7)
 									Player2.Selection=sel;
 							}
@@ -1441,7 +1445,7 @@ void Argument_Processor(string argument){
 										break;
 									}
 								}
-								Vector2 sel=Player1.Selection+new Vector2(size,0);
+								Vector2 sel=Player1.End1+new Vector2(size,0);
 								if(sel.X<=7)
 									Player1.Selection=sel;
 							}
@@ -1462,7 +1466,7 @@ void Argument_Processor(string argument){
 										break;
 									}
 								}
-								Vector2 sel=Player2.Selection+new Vector2(size,0);
+								Vector2 sel=Player2.End1+new Vector2(size,0);
 								if(sel.X<=7)
 									Player2.Selection=sel;
 							}
@@ -1501,7 +1505,7 @@ void Argument_Processor(string argument){
 								if(Player1.End1.X<0){
 									Player1.End1=Player1.Selection;
 								}
-								else if(Player1.End1.X<0){
+								else if(Player1.End2.X<0){
 									Player1.End2=Player1.Selection;
 									Player1.Selection=new Vector2(0,0);
 									MyShip Ship=MyShip.Unknown;
@@ -1511,8 +1515,9 @@ void Argument_Processor(string argument){
 											break;
 										}
 									}
-									if(Ship!=MyShip.Unknown){
-										Player1.OwnBoard.AddShip(Ship,(int)Player1.End1.X,(int)Player1.End1.Y,(int)Player1.End2.X,(int)Player1.End2.Y);
+									if(((int)Ship)>((int)MyShip.None)){
+										if(Player1.OwnBoard.AddShip(Ship,(int)Player1.End1.X,(int)Player1.End1.Y,(int)Player1.End2.X,(int)Player1.End2.Y))
+											Player1.ReadyShips[Ship]=true;
 									}
 									Player1.End1=new Vector2(-1,-1);
 									Player1.End2=new Vector2(-1,-1);
@@ -1527,7 +1532,7 @@ void Argument_Processor(string argument){
 								if(Player2.End1.X<0){
 									Player2.End1=Player2.Selection;
 								}
-								else if(Player2.End1.X<0){
+								else if(Player2.End2.X<0){
 									Player2.End2=Player2.Selection;
 									Player2.Selection=new Vector2(0,0);
 									MyShip Ship=MyShip.Unknown;
@@ -1538,7 +1543,8 @@ void Argument_Processor(string argument){
 										}
 									}
 									if(Ship!=MyShip.Unknown){
-										Player2.OwnBoard.AddShip(Ship,(int)Player2.End1.X,(int)Player2.End1.Y,(int)Player2.End2.X,(int)Player2.End2.Y);
+										if(Player2.OwnBoard.AddShip(Ship,(int)Player2.End1.X,(int)Player2.End1.Y,(int)Player2.End2.X,(int)Player2.End2.Y))
+											Player2.ReadyShips[Ship]=true;
 									}
 									Player2.End1=new Vector2(-1,-1);
 									Player2.End2=new Vector2(-1,-1);
@@ -1600,16 +1606,32 @@ void Argument_Processor(string argument){
 					}
 					else if(Status==GameStatus.SettingUp){
 						if(player_num==1){
-							Player1.OwnBoard=new Board(MyShip.None);
-							for(int i=1;i<=5;i++)
-								Player1.ReadyShips[(MyShip)i]=false;
-							Player1.CanMove=false;
+							if(Player1.End2.X>=0)
+								Player1.End2=new Vector2(-1,-1);
+							else if(Player1.End1.X>=0){
+								Player1.Selection=Player1.End1;
+								Player1.End1=new Vector2(-1,-1);
+							}
+							else{
+								Player1.OwnBoard=new Board(MyShip.None);
+								for(int i=1;i<=5;i++)
+									Player1.ReadyShips[(MyShip)i]=false;
+								Player1.CanMove=false;
+							}
 						}
 						else if(player_num==2){
-							Player2.OwnBoard=new Board(MyShip.None);
-							for(int i=1;i<=5;i++)
-								Player2.ReadyShips[(MyShip)i]=false;
-							Player2.CanMove=false;
+							if(Player2.End2.X>=0)
+								Player2.End2=new Vector2(-1,-1);
+							else if(Player2.End1.X>=0){
+								Player2.Selection=Player2.End1;
+								Player2.End1=new Vector2(-1,-1);
+							}
+							else{
+								Player2.OwnBoard=new Board(MyShip.None);
+								for(int i=1;i<=5;i++)
+									Player2.ReadyShips[(MyShip)i]=false;
+								Player2.CanMove=false;
+							}
 						}
 					}
 					;
@@ -1654,6 +1676,7 @@ public void Main(string argument, UpdateType updateSource)
 			Echo("  Selection:"+Player1.Selection.ToString());
 			Echo("  End1:"+Player1.End1.ToString());
 			Echo("  End2:"+Player1.End2.ToString());
+			Echo("  ReadyCount:"+Player1.ReadyCount.ToString());
 		}
 		if(Player2!=null){
 			Echo("Player 2:");
@@ -1661,13 +1684,12 @@ public void Main(string argument, UpdateType updateSource)
 			Echo("  Selection:"+Player2.Selection.ToString());
 			Echo("  End1:"+Player1.End1.ToString());
 			Echo("  End2:"+Player1.End2.ToString());
+			Echo("  ReadyCount:"+Player2.ReadyCount.ToString());
 		}
+		Echo("AI_Timer:"+Math.Round(AI_Timer,2).ToString()+"s");
+		Echo("AI_Selection:"+AI_Selection.ToString());
 		
 		if(((int)Status)<((int)GameStatus.Awaiting)){
-			DisplayCheck(Player1Enemy);
-			DisplayCheck(Player1Own);
-			DisplayCheck(Player2Enemy);
-			DisplayCheck(Player2Own);
 			Player1Text="Start game in Lobby";
 			Player2Text="Start game in Lobby";
 			HubText="Start game in Lobby\n";
@@ -1775,6 +1797,12 @@ public void Main(string argument, UpdateType updateSource)
 				s="";
 			Write(s+"See Opponent's Choice: "+See_Opponent_Choice.ToString());
 		}
+		if((int)Status<=((int)GameStatus.Awaiting)){
+			DisplayCheck(Player1Enemy);
+			DisplayCheck(Player1Own);
+			DisplayCheck(Player2Enemy);
+			DisplayCheck(Player2Own);
+		}
 		if(Status==GameStatus.Awaiting){
 			Write("Go to Available Room for game to start");
 			HubText=Player_Count+" human players\n";
@@ -1820,6 +1848,20 @@ public void Main(string argument, UpdateType updateSource)
 			HubText="Players placing ships\n";
 			HubText+="Player 1: "+Player1.ReadyCount.ToString()+"/5\n";
 			HubText+="Player 2: "+Player2.ReadyCount.ToString()+"/5\n";
+			Player1Text="";
+			Player2Text="";
+			foreach(KeyValuePair<MyShip,bool> p in Player1.ReadyShips){
+				if(p.Value){
+					Player1Text+=p.Key.ToString()+" ready\n";
+					break;
+				}
+			}
+			foreach(KeyValuePair<MyShip,bool> p in Player2.ReadyShips){
+				if(p.Value){
+					Player2Text+=p.Key.ToString()+" ready\n";
+					break;
+				}
+			}
 			if(Player1.ReadyCount<5){
 				Player1.CanMove=true;
 				MyShip Ship=MyShip.Unknown;
@@ -1830,9 +1872,9 @@ public void Main(string argument, UpdateType updateSource)
 					}
 				}
 				if(Player1.End1.X<0)
-					Player1Text="Place "+Ship.ToString()+" End 1";
+					Player1Text+="Place "+Ship.ToString()+" End 1";
 				else if(Player1.End2.X<0)
-					Player1Text="Place "+Ship.ToString()+" End 2";
+					Player1Text+="Place "+Ship.ToString()+" End 2";
 				if(!Player1.IsHuman){
 					string p="Player1:";
 					if(Player1.End1.X<0){
@@ -1866,6 +1908,7 @@ public void Main(string argument, UpdateType updateSource)
 			else{
 				Player1.CanMove=false;
 				Player1Text="Waiting for Player 2 ("+Player2.ReadyCount.ToString()+"/5)";
+				DisplayCheck(Player1Enemy);
 			}
 			DisplayOwn(Player1Own,Player1);
 			DisplayEnemy(Player1Enemy,Player1);
@@ -1879,9 +1922,9 @@ public void Main(string argument, UpdateType updateSource)
 					}
 				}
 				if(Player2.End1.X<0)
-					Player2Text="Place "+Ship.ToString()+" End 1";
+					Player2Text+="Place "+Ship.ToString()+" End 1";
 				else if(Player2.End2.X<0)
-					Player2Text="Place "+Ship.ToString()+" End 2";
+					Player2Text+="Place "+Ship.ToString()+" End 2";
 				if(!Player2.IsHuman){
 					string p="Player2:";
 					if(Player2.End1.X<0){
@@ -1915,6 +1958,7 @@ public void Main(string argument, UpdateType updateSource)
 			else{
 				Player2.CanMove=false;
 				Player2Text="Waiting for Player 1 ("+Player1.ReadyCount.ToString()+"/5)";
+				DisplayCheck(Player2Enemy);
 			}
 			DisplayOwn(Player2Own,Player2);
 			DisplayEnemy(Player2Enemy,Player2);
