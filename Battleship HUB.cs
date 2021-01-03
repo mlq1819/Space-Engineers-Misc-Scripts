@@ -2336,6 +2336,9 @@ public void Main(string argument, UpdateType updateSource)
 		Room2Sound.Update(seconds_since_last_update);
 		HubSound.Update(seconds_since_last_update);
 		
+		if(((int)Status)>((int)GameStatus.Awaiting))
+			Write(HubText);
+		
 		foreach(IMyTextPanel Panel in Player1StatusPanels)
 			Panel.WriteText(Player1Text,false);
 		foreach(IMyTextPanel Panel in Player2StatusPanels)
