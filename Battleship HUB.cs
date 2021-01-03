@@ -906,6 +906,7 @@ class Sound{
 				Block.Stop();
 				Block.SelectedSound=Sounds.Dequeue();
 				Block.Play();
+				Timer=0;
 			}
 		}
 	}
@@ -1753,15 +1754,20 @@ void Argument_Processor(string argument){
 										Room1Sound.Sounds.Enqueue("CompletedId");
 										Room2Sound.Sounds.Enqueue("CompletedId");
 										if(Player2.OwnBoard.Grid[y][x].Ship!=MyShip.None){
-											int size=Prog.ShipSize(Player2.OwnBoard.Grid[y][x].Ship);
-											if(size>3)
-												Room1Sound.Sounds.Enqueue("Large Ship DetectedId");
-											else if(size>0)
-												Room1Sound.Sounds.Enqueue("Small ship detectedId");
-											Room2Sound.Sounds.Enqueue("Damage detectedId");
+											MyShip Ship=Player2.OwnBoard.Grid[y][x].Ship;
+											int size=Prog.ShipSize(Ship);
+											if(Player1.EnemyBoard.RemainingHits(Ship)==0){
+												Room1Sound.Sounds.Enqueue("ShutdownId");
+												Room2Sound.Sounds.Enqueue("ShutdownId");
+											}
+											else{
+												if(size>3)
+													Room1Sound.Sounds.Enqueue("Large Ship DetectedId");
+												else if(size>0)
+													Room1Sound.Sounds.Enqueue("Small ship detectedId");
+												Room2Sound.Sounds.Enqueue("Damage detectedId");
+											}
 										}
-										else
-											Room2Sound.Sounds.Enqueue("Enemy threat detectedId");
 									}
 								}
 								else if(player_num==2){
@@ -1777,15 +1783,20 @@ void Argument_Processor(string argument){
 										Room2Sound.Sounds.Enqueue("CompletedId");
 										Room1Sound.Sounds.Enqueue("CompletedId");
 										if(Player1.OwnBoard.Grid[y][x].Ship!=MyShip.None){
-											int size=Prog.ShipSize(Player1.OwnBoard.Grid[y][x].Ship);
-											if(size>3)
-												Room2Sound.Sounds.Enqueue("Large Ship DetectedId");
-											else if(size>0)
-												Room2Sound.Sounds.Enqueue("Small ship detectedId");
-											Room1Sound.Sounds.Enqueue("Damage detectedId");
+											MyShip Ship=Player1.OwnBoard.Grid[y][x].Ship;
+											int size=Prog.ShipSize(Ship);
+											if(Player2.EnemyBoard.RemainingHits(Ship)==0){
+												Room1Sound.Sounds.Enqueue("ShutdownId");
+												Room2Sound.Sounds.Enqueue("ShutdownId");
+											}
+											else{
+												if(size>3)
+													Room2Sound.Sounds.Enqueue("Large Ship DetectedId");
+												else if(size>0)
+													Room2Sound.Sounds.Enqueue("Small ship detectedId");
+												Room1Sound.Sounds.Enqueue("Damage detectedId");
+											}
 										}
-										else
-											Room1Sound.Sounds.Enqueue("Enemy threat detectedId");
 									}
 								}
 							}
@@ -2173,6 +2184,8 @@ public void Main(string argument, UpdateType updateSource)
 				Player_Turn=1;
 				Player_Timer=Turn_Timer;
 				AI_Selection=new Vector2(-1,-1);
+				Room1Sound.Sounds.Enqueue("Weapons ArmedId");
+				Room2Sound.Sounds.Enqueue("Weapons ArmedId");
 			}
 		}
 		if(Status==GameStatus.InProgress){
