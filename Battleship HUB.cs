@@ -673,7 +673,7 @@ class Board{
 					possible=false;
 					break;
 				}
-				if(Grid[y][X]!=Type&&Grid[y][X]!=MyShip.Unknown){
+				if(Grid[y][X].Ship!=Type&&Grid[y][X].Ship!=MyShip.Unknown){
 					possible=false;
 					break;
 				}
@@ -689,7 +689,7 @@ class Board{
 					possible=false;
 					break;
 				}
-				if(Grid[Y][x]!=Type&&Grid[Y][x]!=MyShip.Unknown){
+				if(Grid[Y][x].Ship!=Type&&Grid[Y][x].Ship!=MyShip.Unknown){
 					possible=false;
 					break;
 				}
@@ -717,17 +717,17 @@ class Board{
 				int Cell=0;
 				if(Grid[y][x].Ship==MyShip.Unknown){
 					if(!D_Carrier)
-						Cell+=GetPossibilitiesForShip(MyShip.Carrier);
+						Cell+=GetPossibilitiesForShip(MyShip.Carrier,x,y);
 					if(!D_Frigate)
-						Cell+=GetPossibilitiesForShip(MyShip.Frigate);
+						Cell+=GetPossibilitiesForShip(MyShip.Frigate,x,y);
 					if(!D_Cruiser)
-						Cell+=GetPossibilitiesForShip(MyShip.Cruiser);
+						Cell+=GetPossibilitiesForShip(MyShip.Cruiser,x,y);
 					if(!D_Prowler)
-						Cell+=GetPossibilitiesForShip(MyShip.Prowler);
+						Cell+=GetPossibilitiesForShip(MyShip.Prowler,x,y);
 					if(!D_Destroyer)
-						Cell+=GetPossibilitiesForShip(MyShip.Destroyer);
+						Cell+=GetPossibilitiesForShip(MyShip.Destroyer,x,y);
 				}
-				max_pos=Math.Max(max_pos,Cell.Count);
+				max_pos=Math.Max(max_pos,Cell);
 				Row.Add(Cell);
 			}
 			Pos.Add(Row);
