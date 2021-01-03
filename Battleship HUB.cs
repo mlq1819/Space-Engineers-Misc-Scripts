@@ -2302,6 +2302,23 @@ public void Main(string argument, UpdateType updateSource)
 				HubSound.Sounds.Enqueue("Objective CompleteId");
 			}
 		}
+		if(Status==GameStatus.Paused){
+			HubText="Game is Paused\n";
+			Player1Text="Game is Paused\n";
+			Player2Text="Game is Paused\n";
+			if(Player1.Paused){
+				Player1Text+="Unpause when Ready\n";
+				Player2Text="Paused by Player 1\n";
+				HubText="Paused by Player 1\n";
+			}
+			if(Player2.Paused){
+				Player1Text="Paused by Player 2\n";
+				Player2Text+="Unpause when Ready\n";
+				HubText="Paused by Player 2\n";
+			}
+			if((!Player1.Paused)&&(!Player2.Paused))
+				Status=GameStatus.InProgress;
+		}
 		
 		if(argument.Length>0){
 			Argument_Processor(argument);
