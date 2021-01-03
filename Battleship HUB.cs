@@ -1300,7 +1300,7 @@ void Argument_Processor(string argument){
 			player_num=1;
 		else if(command.Equals("Player 2"))
 			player_num=2;
-		if(player_num>0){
+		if(player_num>0&&player_num<=2){
 			switch(data){
 				case "Left":
 					if(player_num==1){
@@ -1876,7 +1876,7 @@ public void Main(string argument, UpdateType updateSource)
 				else if(Player1.End2.X<0)
 					Player1Text+="Place "+Ship.ToString()+" End 2";
 				if(!Player1.IsHuman){
-					string p="Player1:";
+					string p="Player 1:";
 					if(Player1.End1.X<0){
 						int x=Rnd.Next(0,7);
 						int y=Rnd.Next(0,7);
@@ -1926,7 +1926,7 @@ public void Main(string argument, UpdateType updateSource)
 				else if(Player2.End2.X<0)
 					Player2Text+="Place "+Ship.ToString()+" End 2";
 				if(!Player2.IsHuman){
-					string p="Player2:";
+					string p="Player 2:";
 					if(Player2.End1.X<0){
 						int x=Rnd.Next(0,7);
 						int y=Rnd.Next(0,7);
@@ -1993,7 +1993,7 @@ public void Main(string argument, UpdateType updateSource)
 					}
 					if(AI_Timer>0.75){
 						AI_Timer=0;
-						string s="Player1:";
+						string s="Player 1:";
 						if(AI_Selection==Player1.Selection)
 							Argument_Processor(s+"Confirm");
 						else if(AI_Selection.X<Player1.Selection.X)
@@ -2017,7 +2017,7 @@ public void Main(string argument, UpdateType updateSource)
 					}
 					if(AI_Timer>0.75){
 						AI_Timer=0;
-						string s="Player2:";
+						string s="Player 2:";
 						if(AI_Selection==Player2.Selection)
 							Argument_Processor(s+"Confirm");
 						else if(AI_Selection.X<Player2.Selection.X)
