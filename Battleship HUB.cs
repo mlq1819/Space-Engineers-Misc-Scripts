@@ -555,7 +555,7 @@ class Board{
 			return false;
 		if((x1!=x2)&&(y1!=y2))
 			return false;
-		if(Math.Abs(x1-x2)+Math.Abs(y1-y2)!=Prog.ShipSize(Type))
+		if(Math.Abs(x1-x2)+Math.Abs(y1-y2)+1!=Prog.ShipSize(Type))
 			return false;
 		if(CountShips(Type)>0)
 			return false;
@@ -1313,7 +1313,7 @@ void Argument_Processor(string argument){
 										break;
 									}
 								}
-								Vector2 sel=Player1.End1-new Vector2(size,0);
+								Vector2 sel=Player1.End1-new Vector2(size-1,0);
 								if(sel.X>=0)
 									Player1.Selection=sel;
 							}
@@ -1334,7 +1334,7 @@ void Argument_Processor(string argument){
 										break;
 									}
 								}
-								Vector2 sel=Player2.End1-new Vector2(size,0);
+								Vector2 sel=Player2.End1-new Vector2(size-1,0);
 								if(sel.X>=0)
 									Player2.Selection=sel;
 							}
@@ -1357,7 +1357,7 @@ void Argument_Processor(string argument){
 										break;
 									}
 								}
-								Vector2 sel=Player1.End1-new Vector2(0,size);
+								Vector2 sel=Player1.End1-new Vector2(0,size-1);
 								if(sel.Y>=0)
 									Player1.Selection=sel;
 							}
@@ -1378,7 +1378,7 @@ void Argument_Processor(string argument){
 										break;
 									}
 								}
-								Vector2 sel=Player2.End1-new Vector2(0,size);
+								Vector2 sel=Player2.End1-new Vector2(0,size-1);
 								if(sel.Y>=0)
 									Player2.Selection=sel;
 							}
@@ -1401,7 +1401,7 @@ void Argument_Processor(string argument){
 										break;
 									}
 								}
-								Vector2 sel=Player1.End1+new Vector2(0,size);
+								Vector2 sel=Player1.End1+new Vector2(0,size-1);
 								if(sel.Y<=7)
 									Player1.Selection=sel;
 							}
@@ -1422,7 +1422,7 @@ void Argument_Processor(string argument){
 										break;
 									}
 								}
-								Vector2 sel=Player2.End1+new Vector2(0,size);
+								Vector2 sel=Player2.End1+new Vector2(0,size-1);
 								if(sel.Y<=7)
 									Player2.Selection=sel;
 							}
@@ -1445,7 +1445,7 @@ void Argument_Processor(string argument){
 										break;
 									}
 								}
-								Vector2 sel=Player1.End1+new Vector2(size,0);
+								Vector2 sel=Player1.End1+new Vector2(size-1,0);
 								if(sel.X<=7)
 									Player1.Selection=sel;
 							}
@@ -1466,7 +1466,7 @@ void Argument_Processor(string argument){
 										break;
 									}
 								}
-								Vector2 sel=Player2.End1+new Vector2(size,0);
+								Vector2 sel=Player2.End1+new Vector2(size-1,0);
 								if(sel.X<=7)
 									Player2.Selection=sel;
 							}
@@ -1526,7 +1526,6 @@ void Argument_Processor(string argument){
 									Player1.End1=new Vector2(-1,-1);
 									Player1.End2=new Vector2(-1,-1);
 								}
-								Player1.CanMove=false;
 							}
 							else if(player_num==2){
 								if(Player2.End1.X<0){
@@ -1553,7 +1552,6 @@ void Argument_Processor(string argument){
 									Player2.End1=new Vector2(-1,-1);
 									Player2.End2=new Vector2(-1,-1);
 								}
-								Player2.CanMove=false;
 							}
 						}
 						if(Status==GameStatus.InProgress){
