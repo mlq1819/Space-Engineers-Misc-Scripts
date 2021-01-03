@@ -1490,7 +1490,34 @@ void Argument_Processor(string argument){
 							Player2.CanMove=false;
 						}
 					}
-					
+					if(Status==GameStatus.InProgress){
+						if(player_num==Player_Turn){
+							if(player_num==1){
+								int x=(int)Player1.Selection.X;
+								int y=(int)Player1.Selection.Y;
+								if(!Player1.EnemyBoard.Grid[y][x].Hit){
+									Player2.OwnBoard.Grid[y][x].Hit=true;
+									Player1.EnemyBoard.Grid[y][x]=Player2.OwnBoard.Grid[y][x];
+									Player_Turn=2;
+									Player_Timer=Turn_Timer;
+									AI_Selection=new Vector2(-1,-1);
+									Player1.CanMove=false;
+								}
+							}
+							else if(player_num==2){
+								int x=(int)Player2.Selection.X;
+								int y=(int)Player2.Selection.Y;
+								if(!Player2.EnemyBoard.Grid[y][x].Hit){
+									Player1.OwnBoard.Grid[y][x].Hit=true;
+									Player2.EnemyBoard.Grid[y][x]=Player1.OwnBoard.Grid[y][x];
+									Player_Turn=1;
+									Player_Timer=Turn_Timer;
+									AI_Selection=new Vector2(-1,-1);
+									Player2.CanMove=false;
+								}
+							}
+						}
+					}
 					;
 					break;
 				case "Pause":
