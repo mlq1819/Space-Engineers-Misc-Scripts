@@ -311,6 +311,7 @@ class DisplayArray{
 				IMyTextPanel panel=GetFromList(all_panels,name.Trim()+" "+s+j.ToString());
 				if(panel==null)
 					return false;
+				panel.ChangeInterval=0.5f;
 				input.Add(panel);
 			}
 			panels.Add(input);
@@ -436,8 +437,10 @@ enum GameStatus{
 	Waiting=0,
 	Ready=1,
 	Awaiting=2,
-	InProgress=3,
-	Paused=4
+	SettingUp=3,
+	InProgress=4,
+	Firing=5,
+	Paused=6
 }
 
 enum MyShip{
@@ -517,6 +520,17 @@ class Board{
 			return count;
 		}
 	}
+	public int RemainingHits(MyShip Type){
+		int count=Prog.ShipSize(Type);
+		foreach(List<GridSpace> Row in Grid){
+			foreach(GridSpace Cell in Row){
+				if(Cell.Ship==Type&&Cell.Hit)
+					count--;
+			}
+		}
+		return count;
+	}
+	
 	
 	Board(List<List<GridSpace>> grid){
 		Grid=grid;
@@ -578,7 +592,7 @@ class Board{
 			return false;
 		if(Parse[Parse.Length-1]!=']')
 			return false;
-		string[] args=Parse.Substring(1,Parse.Length-2).Split(' ',StringSplitOptions.RemoveEmptyEntries);
+		string[] args=Parse.Substring(1,Parse.Length-2).Split(' ');
 		if(args.Length!=8)
 			return false;
 		List<List<GridSpace>> grid=new List<List<GridSpace>>();
@@ -625,7 +639,7 @@ class Board{
 		if(current_discovered>1){
 			if(min_x==max_x)
 				aligned_x=true;
-			if(min_y=max_y)
+			if(min_y==max_y)
 				aligned_y=true;
 		}
 		if(aligned_x&&X!=min_x)
@@ -645,7 +659,7 @@ class Board{
 	}
 	
 	public List<Vector2> GetBestChoices(int stupidity=0){
-		if(CountShips(MyShip.Unknown==0))
+		if(CountShips(MyShip.Unknown)==0)
 			return null;
 		List<List<List<MyShip>>> Possibilities=new List<List<List<MyShip>>>();
 		bool D_Carrier=CountShips(MyShip.Carrier)>0;
@@ -679,7 +693,7 @@ class Board{
 		for(int y=0;y<8;y++){
 			for(int x=0;x<8;x++){
 				if(Possibilities[y][x].Count>=Math.Max(1,max_pos-stupidity))
-					output.Add(new Vector2(y,x));
+					output.Add(new Vector2(x,y));
 			}
 		}
 		return output;
@@ -690,6 +704,37 @@ class Player{
 	public bool IsHuman;
 	public Board OwnBoard;
 	public Board EnemyBoard;
+	public bool Paused=false;
+	public Vector2 Selection;
+	public bool CanMove;
+	public Vector2 End1;
+	public vector2 End2;
+	
+	public bool ReadyCount{
+		get{
+			int count=0;
+			foreach(KeyValuePair<MyShip,bool> p in ReadyShips){
+				if(p.Value)
+					count++;
+			}
+			return count;
+		}
+	}
+	
+	public Dictionary<MyShip,bool> ReadyShips;
+	
+	public Player(bool human){
+		IsHuman=human;
+		OwnBoard=new Board(MyShip.None);
+		EnemyBoard=new Board(MyShip.Unknown);
+		ReadyShips=new Dictionary<MyShip,bool>();
+		for(int i=1;i<=5;i++)
+			ReadyShips.Add(((MyShip)i),false);
+		Selection=new Vector2(0,0);
+		CanMove=false;
+		End1=new Vector2(-1,-1);
+		End2=new Vector2(-1,-1);
+	}
 	
 	
 }
@@ -710,6 +755,9 @@ bool See_Opponent_Choice=false;
 GameStatus Status=GameStatus.Ready;
 int AI_Difficulty=1;
 
+Player Player1;
+Player Player2;
+
 bool Player_1_Ready=false;
 bool Player_2_Ready=false;
 
@@ -725,7 +773,7 @@ List<IMyDoor> Room1Doors;
 List<IMyDoor> Room2Doors;
 
 int Player_Turn=-1;
-int Player_Timer=0;
+double Player_Timer=0;
 
 public Program(){
 	Prog.P=this;
@@ -876,6 +924,97 @@ void UpdateProgramInfo(){
 	Time_Since_Start=UpdateTimeSpan(Time_Since_Start,seconds_since_last_update);
 	Echo(ToString(Time_Since_Start)+" since last reboot\n");
 	Me.GetSurface(1).WriteText("\n"+ToString(Time_Since_Start)+" since last reboot",true);
+}
+
+
+void DisplayOwn(DisplayArray Da,Player P,Vector2 EnemyPos){
+	for(int y=0;y<Da.Panels.Count;y++){
+		for(int x=0;x<Da.Panels[y].Count;x++){
+			Color color=new Color(10,10,10,255);
+			switch(P.OwnBoard.Grid[y][x].Ship){
+				case MyShip.Carrier:
+					color=new Color(255,255,0,255);
+					break;
+				case MyShip.Frigate:
+					color=new Color(0,255,0,255);
+					break;
+				case MyShip.Cruiser:
+					color=new Color(0,255,255,255);
+					break;
+				case MyShip.Prowler:
+					color=new Color(255,0,255,255);
+					break;
+				case MyShip.Destroyer:
+					color=new Color(255,0,0,255);
+					break;
+			}
+			if(P.CurrentlyShownImage!=null)
+				P.ClearImagesFromSelection();
+			if(x==((int)EnemyPos.X)&&y==((int)EnemyPos.Y))
+				P.AddImageToSelection("Trinity");
+			if(P.OwnBoard.Grid[y][x].Hit){
+				if(P.OwnBoard.Grid[y][x].Ship==MyShip.None){
+					color=new Color(0,0,0,255);
+					P.AddImageToSelection("Cross");
+				}
+				else{
+					if(P.OwnBoard.RemainingHits(P.OwnBoard.Grid[y][x].Ship)>0)
+						P.AddImageToSelection("Danger");
+					else{
+						P.AddImageToSelection("Cross");
+						color=Color.Multiply(color,0.5f);
+					}
+				}
+			}
+			Da.Panels[y][x].BackgroundColor=color;
+		}
+	}
+}
+void DisplayOwn(DisplayArray Da,Player P){
+	DisplayOwn(Da,P,new Vector2(-1,-1));
+}
+void DisplayEnemy(DisplayArray Da,Player P){
+	for(int y=0;y<Da.Panels.Count;y++){
+		for(int x=0;x<Da.Panels[y].Count;x++){
+			Color color=new Color(50,50,50,255);
+			switch(P.EnemyBoard.Grid[y][x].Ship){
+				case MyShip.Carrier:
+					color=new Color(255,255,0,255);
+					break;
+				case MyShip.Frigate:
+					color=new Color(0,255,0,255);
+					break;
+				case MyShip.Cruiser:
+					color=new Color(0,255,255,255);
+					break;
+				case MyShip.Prowler:
+					color=new Color(255,0,255,255);
+					break;
+				case MyShip.Destroyer:
+					color=new Color(255,0,0,255);
+					break;
+			}
+			if(P.CurrentlyShownImage!=null)
+				P.ClearImagesFromSelection();
+			if(P.CanMove&&x==((int)P.Selection.X)&&y==((int)P.Selection.Y))
+				P.AddImageToSelection("Trinity");
+			if(P.EnemyBoard.Grid[y][x].Hit){
+				if(P.EnemyBoard.Grid[y][x].Ship==MyShip.None){
+					color=new Color(0,0,0,255);
+					P.AddImageToSelection("Cross");
+				}
+				else{
+					if(P.EnemyBoard.RemainingHits(P.EnemyBoard.Grid[y][x].Ship)>0)
+						P.AddImageToSelection("Danger");
+					else{
+						P.AddImageToSelection("Cross");
+						color=Color.Multiply(color,0.5f);
+					}
+				}
+			}
+			Da.Panels[y][x].BackgroundColor=color;
+		}
+	}
 }
 
 Vector2 Target=new Vector2(0,0);
@@ -1065,6 +1204,8 @@ void Argument_Processor(string argument){
 						Player_1_Ready=Player_Count<1;
 						Player_2_Ready=Player_Count<2;
 						Status=GameStatus.Awaiting;
+						Player1=new Player(Player_Count>=1);
+						Player2=new Player(Player_Count>=2);
 					}
 					break;
 				case 1:
@@ -1096,6 +1237,8 @@ void Argument_Processor(string argument){
 	}
 	else if(argument.ToLower().Equals("down")&&Status==GameStatus.Awaiting){
 		Status=GameStatus.Ready;
+		Player1=null;
+		Player2=null;
 	}
 	if(argument.IndexOf("Player ")==0){
 		int player_num=-1;
@@ -1108,18 +1251,243 @@ void Argument_Processor(string argument){
 		if(player_num>0){
 			switch(data){
 				case "Left":
-					;
+					if(player_num==1){
+						if(Player1.CanMove){
+							if(Status==GameStatus.SettingUp&&Player.End1>=0){
+								int size=0;
+								foreach(KeyValuePair<MyShip,bool> p in Player1.ReadyShips){
+									if(!p.Value){
+										size=Prog.ShipSize(p.Key);
+										break;
+									}
+								}
+								Vector2 sel=Player1.Selection-new Vector2(size,0);
+								if(sel.X>=0)
+									Player1.Selection=sel;
+							}
+							else{
+								Player1.Selection.X-=1;
+								if(Player1.Selection.X<0)
+									Player1.Selection.X=7;
+							}
+						}
+					}
+					else if(player_num==2){
+						if(Player2.CanMove){
+							if(Status==GameStatus.SettingUp&&Player.End2>=0){
+								int size=0;
+								foreach(KeyValuePair<MyShip,bool> p in Player2.ReadyShips){
+									if(!p.Value){
+										size=Prog.ShipSize(p.Key);
+										break;
+									}
+								}
+								Vector2 sel=Player2.Selection-new Vector2(size,0);
+								if(sel.X>=0)
+									Player2.Selection=sel;
+							}
+							else{
+								Player2.Selection.X-=1;
+								if(Player2.Selection.X<0)
+									Player2.Selection.X=7;
+							}
+						}
+					}
 					break;
 				case "Up":
-					;
+					if(player_num==1){
+						if(Player1.CanMove){
+							if(Status==GameStatus.SettingUp&&Player.End1>=0){
+								int size=0;
+								foreach(KeyValuePair<MyShip,bool> p in Player1.ReadyShips){
+									if(!p.Value){
+										size=Prog.ShipSize(p.Key);
+										break;
+									}
+								}
+								Vector2 sel=Player1.Selection-new Vector2(0,size);
+								if(sel.Y>=0)
+									Player1.Selection=sel;
+							}
+							else{
+								Player1.Selection.Y-=1;
+								if(Player1.Selection.Y<0)
+									Player1.Selection.Y=7;
+							}
+						}
+					}
+					else if(player_num==2){
+						if(Player2.CanMove){
+							if(Status==GameStatus.SettingUp&&Player.End2>=0){
+								int size=0;
+								foreach(KeyValuePair<MyShip,bool> p in Player2.ReadyShips){
+									if(!p.Value){
+										size=Prog.ShipSize(p.Key);
+										break;
+									}
+								}
+								Vector2 sel=Player2.Selection-new Vector2(0,size);
+								if(sel.Y>=0)
+									Player2.Selection=sel;
+							}
+							else{
+								Player2.Selection.Y-=1;
+								if(Player2.Selection.Y<0)
+									Player2.Selection.Y=7;
+							}
+						}
+					}
 					break;
 				case "Down":
-					;
+					if(player_num==1){
+						if(Player1.CanMove){
+							if(Status==GameStatus.SettingUp&&Player.End1>=0){
+								int size=0;
+								foreach(KeyValuePair<MyShip,bool> p in Player1.ReadyShips){
+									if(!p.Value){
+										size=Prog.ShipSize(p.Key);
+										break;
+									}
+								}
+								Vector2 sel=Player1.Selection+new Vector2(0,size);
+								if(sel.Y<=7)
+									Player1.Selection=sel;
+							}
+							else{
+								Player1.Selection.Y+=1;
+								if(Player1.Selection.Y>7)
+									Player1.Selection.Y=0;
+							}
+						}
+					}
+					else if(player_num==2){
+						if(Player2.CanMove){
+							if(Status==GameStatus.SettingUp&&Player.End2>=0){
+								int size=0;
+								foreach(KeyValuePair<MyShip,bool> p in Player2.ReadyShips){
+									if(!p.Value){
+										size=Prog.ShipSize(p.Key);
+										break;
+									}
+								}
+								Vector2 sel=Player2.Selection+new Vector2(0,size);
+								if(sel.Y<=7)
+									Player2.Selection=sel;
+							}
+							else{
+								Player2.Selection.Y+=1;
+								if(Player2.Selection.Y>7)
+									Player2.Selection.Y=0;
+							}
+						}
+					}
 					break;
 				case "Right":
-					;
+					if(player_num==1){
+						if(Player1.CanMove){
+							if(Status==GameStatus.SettingUp&&Player.End1>=0){
+								int size=0;
+								foreach(KeyValuePair<MyShip,bool> p in Player1.ReadyShips){
+									if(!p.Value){
+										size=Prog.ShipSize(p.Key);
+										break;
+									}
+								}
+								Vector2 sel=Player1.Selection+new Vector2(size,0);
+								if(sel.X<=7)
+									Player1.Selection=sel;
+							}
+							else{
+								Player1.Selection.X+=1;
+								if(Player1.Selection.X>7)
+									Player1.Selection.X=0;
+							}
+						}
+					}
+					else if(player_num==2){
+						if(Player2.CanMove){
+							if(Status==GameStatus.SettingUp&&Player.End2>=0){
+								int size=0;
+								foreach(KeyValuePair<MyShip,bool> p in Player2.ReadyShips){
+									if(!p.Value){
+										size=Prog.ShipSize(p.Key);
+										break;
+									}
+								}
+								Vector2 sel=Player2.Selection+new Vector2(size,0);
+								if(sel.X<=7)
+									Player2.Selection=sel;
+							}
+							else{
+								Player2.Selection.X+=1;
+								if(Player2.Selection.X>7)
+									Player2.Selection.X=0;
+							}
+						}
+					}
 					break;
 				case "Confirm":
+					if(Status==GameStatus.Awaiting){
+						if(player_num==1)
+							Player_1_Ready=true;
+						else if(playeR_num==2)
+							Player_2_Ready=true;
+					}
+					if(Status==GameStatus.SettingUp){
+						if(player_num==1){
+							if(Player1.End1.X<0){
+								Player1.End1=Player1.Selection;
+							}
+							else if(Player1.End1.X<0){
+								Player1.End2=Player1.Selection;
+								Selection=new Vector2(0,0);
+								MyShip Ship=MyShip.Unknown;
+								foreach(KeyValuePair<MyShip,bool> p in Player1.ReadyShips){
+									if(!p.Value){
+										Ship=p.Key;
+										break;
+									}
+								}
+								if(Ship!=MyShip.Unknown){
+									Player1.OwnBoard.AddShip(Ship,(int)Player1.End1.X,(int)Player1.End1.Y,(int)Player1.End2.X,(int)Player1.End2.Y);
+								}
+								Player1.End1=new Vector2(-1,-1);
+								Player1.End2=new Vector2(-1,-1);
+							}
+							else{
+								Player1.End1=new Vector2(-1,-1);
+								Player1.End2=new Vector2(-1,-1);
+							}
+							Player1.CanMove=false;
+						}
+						else if(player_num==2){
+							if(Player2.End1.X<0){
+								Player2.End1=Player2.Selection;
+							}
+							else if(Player2.End1.X<0){
+								Player2.End2=Player2.Selection;
+								Selection=new Vector2(0,0);
+								MyShip Ship=MyShip.Unknown;
+								foreach(KeyValuePair<MyShip,bool> p in Player2.ReadyShips){
+									if(!p.Value){
+										Ship=p.Key;
+										break;
+									}
+								}
+								if(Ship!=MyShip.Unknown){
+									Player2.OwnBoard.AddShip(Ship,(int)Player2.End1.X,(int)Player2.End1.Y,(int)Player2.End2.X,(int)Player2.End2.Y);
+								}
+								Player2.End1=new Vector2(-1,-1);
+								Player2.End2=new Vector2(-1,-1);
+							}
+							else{
+								Player2.End1=new Vector2(-1,-1);
+								Player2.End2=new Vector2(-1,-1);
+							}
+							Player2.CanMove=false;
+						}
+					}
+					
 					;
 					break;
 				case "Pause":
@@ -1129,6 +1497,26 @@ void Argument_Processor(string argument){
 						Status=GameStatus.InProgress;
 					break;
 				case "Cancel":
+					if(Status==GameStatus.Awaiting){
+						if(player_num==1)
+							Player_1_Ready=false;
+						else if(playeR_num==2)
+							Player_2_Ready=false;
+					}
+					else if(Status==GameStatus.SettingUp){
+						if(player_num==1){
+							Player1.OwnBoard=new Board(MyShip.None);
+							for(int i=1;i<=5;i++)
+								Player1.ReadyShips[(MyShip)i]=false;
+							Player1.CanMove=false;
+						}
+						else if(player_num==2){
+							Player2.OwnBoard=new Board(MyShip.None);
+							for(int i=1;i<=5;i++)
+								Player2.ReadyShips[(MyShip)i]=false;
+							Player2.CanMove=false;
+						}
+					}
 					;
 					break;
 				case "Forfeit":
@@ -1290,28 +1678,115 @@ public void Main(string argument, UpdateType updateSource)
 			HubText+="Ready!";
 		}
 		if(Player_1_Ready&&Player_2_Ready){
-			Status=GameStatus.InProgress;
+			Status=GameStatus.SettingUp;
 		}
 	}
-	if(Status==GameStatus.Ready){
-		if(Player_Turn<1){
-			Player_Turn=1;
-			Player_Timer=Turn_Timer;
-		}
-		else{
-			if(Turn_Timer>=30){
-				Player_Timer-=seconds_since_last_update;
-				if(Player_Timer<=0){
-					Player_Turn=(Player_Turn%2)+1;
+	if(Status==GameStatus.SettingUp){
+		HubText="Players placing ships\n";
+		HubText+="Player 1: "+Player1.ReadyCount.ToString()+"/5\n";
+		HubText+="Player 2: "+Player2.ReadyCount.ToString()+"/5\n";
+		if(Player1.ReadyCount<5){
+			Player1.CanMove=true;
+			MyShip Ship=MyShip.Unknown;
+			foreach(KeyValuePair<MyShip,bool> p in Player1.ReadyShips){
+				if(!p.Value){
+					Ship=p.Key;
+					break;
+				}
+			}
+			if(Player1.End1.X<0)
+				Player1Text="Place "+Ship.ToString()+" End 1";
+			else if(Player1.End2.X<0)
+				Player1Text="Place "+Ship.ToString()+" End 2";
+			if(!Player1.IsHuman){
+				string p="Player1:";
+				if(Player1.End1.X<0){
+					int x=Rnd.Next(0,7);
+					int y=Rnd.Next(0,7);
+					for(int i=0;i<x;i++)
+						Argument_Processor(p+"Right");
+					for(int i=0;i<y;i++)
+						Argument_Processor(p+"Down");
+					Argument_Processor(p+"Confirm");
+				}
+				if(Player1.End1.X>=0&&Player1.End2.X<0){
+					switch(Rnd.Next(0,3)){
+						case 0:
+							Argument_Processor(p+"Up");
+							break;
+						case 1:
+							Argument_Processor(p+"Left");
+							break;
+						case 2:
+							Argument_Processor(p+"Down");
+							break;
+						case 3:
+							Argument_Processor(p+"Right");
+							break;
+					}
+					Argument_Processor(p+"Confirm");
 				}
 			}
 		}
-		
-		if(Player_Turn==1){
-			
+		else{
+			Player1.CanMove=false;
+			Player1Text="Waiting for Player 2 ("+Player2.ReadyCount.ToString()+"/5)";
 		}
-		else if(Player_Turn==2){
-			
+		DisplayOwn(Player1Own,Player1);
+		DisplayEnemy(Player1Enemy,Player1);
+		if(Player2.ReadyCount<5){
+			Player2.CanMove=true;
+			MyShip Ship=MyShip.Unknown;
+			foreach(KeyValuePair<MyShip,bool> p in Player2.ReadyShips){
+				if(!p.Value){
+					Ship=p.Key;
+					break;
+				}
+			}
+			if(Player2.End1.X<0)
+				Player2Text="Place "+Ship.ToString()+" End 1";
+			else if(Player2.End2.X<0)
+				Player2Text="Place "+Ship.ToString()+" End 2";
+			if(!Player2.IsHuman){
+				string p="Player2:";
+				if(Player2.End1.X<0){
+					int x=Rnd.Next(0,7);
+					int y=Rnd.Next(0,7);
+					for(int i=0;i<x;i++)
+						Argument_Processor(p+"Right");
+					for(int i=0;i<y;i++)
+						Argument_Processor(p+"Down");
+					Argument_Processor(p+"Confirm");
+				}
+				if(Player2.End1.X>=0&&Player2.End2.X<0){
+					switch(Rnd.Next(0,3)){
+						case 0:
+							Argument_Processor(p+"Up");
+							break;
+						case 1:
+							Argument_Processor(p+"Left");
+							break;
+						case 2:
+							Argument_Processor(p+"Down");
+							break;
+						case 3:
+							Argument_Processor(p+"Right");
+							break;
+					}
+					Argument_Processor(p+"Confirm");
+				}
+			}
+		}
+		else{
+			Player2.CanMove=false;
+			Player2Text="Waiting for Player 1 ("+Player1.ReadyCount.ToString()+"/5)";
+		}
+		DisplayOwn(Player2Own,Player2);
+		DisplayEnemy(Player2Enemy,Player2);
+		if(Player1.ReadyCount+Player2.ReadyCount==10){
+			Player1.Selection=new Vector2(0,0);
+			Player2.Selection=new Vector2(0,0);
+			Status=GameStatus.InProgress;
 		}
 	}
 	
