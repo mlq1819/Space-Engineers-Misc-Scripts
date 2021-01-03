@@ -1799,7 +1799,7 @@ public void Main(string argument, UpdateType updateSource)
 				s="";
 			Write(s+"See Opponent's Choice: "+See_Opponent_Choice.ToString());
 		}
-		if((int)Status<=((int)GameStatus.Awaiting)){
+		if((int)Status<=((int)GameStatus.Awaiting)&&Last_Winner<0){
 			DisplayCheck(Player1Enemy);
 			DisplayCheck(Player1Own);
 			DisplayCheck(Player2Enemy);
