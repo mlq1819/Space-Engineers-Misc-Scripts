@@ -709,6 +709,7 @@ class Player{
 	public bool CanMove;
 	public Vector2 End1;
 	public Vector2 End2;
+	public bool Forfeiting;
 	
 	public int ReadyCount{
 		get{
@@ -734,9 +735,50 @@ class Player{
 		CanMove=false;
 		End1=new Vector2(-1,-1);
 		End2=new Vector2(-1,-1);
+		Forfeiting=false;
 	}
 	
+	Player(bool human,Board Own,Board Enemy){
+		IsHuman=human;
+		OwnBoard=Own;
+		EnemyBoard=Enemy;
+		ReadyShips=new Dictionary<MyShip,bool>();
+		for(int i=1;i<=5;i++){
+			MyShip Ship=((MyShip)i);
+			ReadyShips.Add(Ship,OwnBoard.CountShips(Ship)==Prog.ShipSize(Ship));
+		}
+		
+		Selection=new Vector2(0,0);
+		CanMove=false;
+		End1=new Vector2(-1,-1);
+		End2=new Vector2(-1,-1);
+		Forfeiting=false;
+	}
 	
+	public override string ToString(){
+		string output="";
+		output+="◘"+IsHuman.ToString();
+		output+="◘"+OwnBoard.ToString();
+		output+="◘"+EnemyBoard.ToString();
+		return output;
+	}
+	
+	public static bool TryParse(string Parse,out Player output){
+		output=null;
+		string[] args=Parse.Split('◘');
+		if(args.Length!=3)
+			return false;
+		bool h;
+		if(!bool.TryParse(args[0],out h))
+			return false;
+		Board o,e;
+		if(!Board.TryParse(args[1],out o))
+			return false;
+		if(!Board.TryParse(args[2],out e))
+			return false;
+		output=new Player(h,o,e);
+		return true;
+	}
 }
 
 TimeSpan Time_Since_Start=new TimeSpan(0);
@@ -863,21 +905,22 @@ public Program(){
 			case "AI_Difficulty":
 				Int32.TryParse(data,out AI_Difficulty);
 				break;
+			case "Player1":
+				if(data==null)
+					Player1=null;
+				else
+					Player.TryParse(data,out Player1);
+				break;
+			case "Player2":
+				if(data==null)
+					Player2=null;
+				else
+					Player.TryParse(data,out Player2);
+				break;
 		}
 	}
 	Room1Doors=GenericMethods<IMyDoor>.GetAllContaining("Room 1 Door");
 	Room2Doors=GenericMethods<IMyDoor>.GetAllContaining("Room 2 Door");
-	
-	// The constructor, called only once every session and
-    // always before any other method is called. Use it to
-    // initialize your script. 
-    //     
-    // The constructor is optional and can be removed if not
-    // needed.
-    // 
-    // It's recommended to set RuntimeInfo.UpdateFrequency 
-    // here, which will allow your script to run itself without a 
-    // timer block.
 	Write("Completed Initialization");
 	Runtime.UpdateFrequency=UpdateFrequency.Update10;//60tps
 }
@@ -891,13 +934,14 @@ public void Save(){
 	this.Storage+="•Use_Real_Ships:"+Use_Real_Ships.ToString();
 	this.Storage+="•Destroy_Ships:"+Destroy_Ships.ToString();
 	this.Storage+="•See_Opponent_Choice:"+See_Opponent_Choice.ToString();
-	
-	// Called when the program needs to save its state. Use
-    // this method to save your state to the Storage field
-    // or some other means. 
-    // 
-    // This method is optional and can be removed if not
-    // needed.
+	if(Player1==null)
+		this.Storage+="•Player1:null";
+	else
+		this.Storage+="•Player1:"+Player1.ToString();
+	if(Player2==null)
+		this.Storage+="•Player2:null";
+	else
+		this.Storage+="•Player2:"+Player2.ToString();
 }
 
 void UpdateProgramInfo(){
@@ -1430,90 +1474,106 @@ void Argument_Processor(string argument){
 					}
 					break;
 				case "Confirm":
-					if(Status==GameStatus.Awaiting){
-						if(player_num==1)
-							Player_1_Ready=true;
-						else if(player_num==2)
-							Player_2_Ready=true;
+					if(player_num==1&&Player1!=null&&Player1.Forfeiting){
+						Last_Winner=2;
+						Player1.Forfeiting=false;
+						Status=GameStatus.Ready;
+						Player1=null;
+						Player2=null;
 					}
-					if(Status==GameStatus.SettingUp){
-						if(player_num==1){
-							if(Player1.End1.X<0){
-								Player1.End1=Player1.Selection;
-							}
-							else if(Player1.End1.X<0){
-								Player1.End2=Player1.Selection;
-								Player1.Selection=new Vector2(0,0);
-								MyShip Ship=MyShip.Unknown;
-								foreach(KeyValuePair<MyShip,bool> p in Player1.ReadyShips){
-									if(!p.Value){
-										Ship=p.Key;
-										break;
-									}
-								}
-								if(Ship!=MyShip.Unknown){
-									Player1.OwnBoard.AddShip(Ship,(int)Player1.End1.X,(int)Player1.End1.Y,(int)Player1.End2.X,(int)Player1.End2.Y);
-								}
-								Player1.End1=new Vector2(-1,-1);
-								Player1.End2=new Vector2(-1,-1);
-							}
-							else{
-								Player1.End1=new Vector2(-1,-1);
-								Player1.End2=new Vector2(-1,-1);
-							}
-							Player1.CanMove=false;
-						}
-						else if(player_num==2){
-							if(Player2.End1.X<0){
-								Player2.End1=Player2.Selection;
-							}
-							else if(Player2.End1.X<0){
-								Player2.End2=Player2.Selection;
-								Player2.Selection=new Vector2(0,0);
-								MyShip Ship=MyShip.Unknown;
-								foreach(KeyValuePair<MyShip,bool> p in Player2.ReadyShips){
-									if(!p.Value){
-										Ship=p.Key;
-										break;
-									}
-								}
-								if(Ship!=MyShip.Unknown){
-									Player2.OwnBoard.AddShip(Ship,(int)Player2.End1.X,(int)Player2.End1.Y,(int)Player2.End2.X,(int)Player2.End2.Y);
-								}
-								Player2.End1=new Vector2(-1,-1);
-								Player2.End2=new Vector2(-1,-1);
-							}
-							else{
-								Player2.End1=new Vector2(-1,-1);
-								Player2.End2=new Vector2(-1,-1);
-							}
-							Player2.CanMove=false;
-						}
+					else if(player_num==2&&Player2!=null&&Player2.Forfeiting){
+						Last_Winner=1;
+						Player2.Forfeiting=false;
+						Status=GameStatus.Ready;
+						Player1=null;
+						Player2=null;
 					}
-					if(Status==GameStatus.InProgress){
-						if(player_num==Player_Turn){
+					else{
+						if(Status==GameStatus.Awaiting){
+							if(player_num==1)
+								Player_1_Ready=true;
+							else if(player_num==2)
+								Player_2_Ready=true;
+						}
+						if(Status==GameStatus.SettingUp){
 							if(player_num==1){
-								int x=(int)Player1.Selection.X;
-								int y=(int)Player1.Selection.Y;
-								if(!Player1.EnemyBoard.Grid[y][x].Hit){
-									Player2.OwnBoard.Grid[y][x].Hit=true;
-									Player1.EnemyBoard.Grid[y][x]=Player2.OwnBoard.Grid[y][x];
-									Player_Turn=2;
-									Player_Timer=Turn_Timer;
-									AI_Selection=new Vector2(-1,-1);
-									Player1.CanMove=false;
+								if(Player1.End1.X<0){
+									Player1.End1=Player1.Selection;
 								}
+								else if(Player1.End1.X<0){
+									Player1.End2=Player1.Selection;
+									Player1.Selection=new Vector2(0,0);
+									MyShip Ship=MyShip.Unknown;
+									foreach(KeyValuePair<MyShip,bool> p in Player1.ReadyShips){
+										if(!p.Value){
+											Ship=p.Key;
+											break;
+										}
+									}
+									if(Ship!=MyShip.Unknown){
+										Player1.OwnBoard.AddShip(Ship,(int)Player1.End1.X,(int)Player1.End1.Y,(int)Player1.End2.X,(int)Player1.End2.Y);
+									}
+									Player1.End1=new Vector2(-1,-1);
+									Player1.End2=new Vector2(-1,-1);
+								}
+								else{
+									Player1.End1=new Vector2(-1,-1);
+									Player1.End2=new Vector2(-1,-1);
+								}
+								Player1.CanMove=false;
 							}
 							else if(player_num==2){
-								int x=(int)Player2.Selection.X;
-								int y=(int)Player2.Selection.Y;
-								if(!Player2.EnemyBoard.Grid[y][x].Hit){
-									Player1.OwnBoard.Grid[y][x].Hit=true;
-									Player2.EnemyBoard.Grid[y][x]=Player1.OwnBoard.Grid[y][x];
-									Player_Turn=1;
-									Player_Timer=Turn_Timer;
-									AI_Selection=new Vector2(-1,-1);
-									Player2.CanMove=false;
+								if(Player2.End1.X<0){
+									Player2.End1=Player2.Selection;
+								}
+								else if(Player2.End1.X<0){
+									Player2.End2=Player2.Selection;
+									Player2.Selection=new Vector2(0,0);
+									MyShip Ship=MyShip.Unknown;
+									foreach(KeyValuePair<MyShip,bool> p in Player2.ReadyShips){
+										if(!p.Value){
+											Ship=p.Key;
+											break;
+										}
+									}
+									if(Ship!=MyShip.Unknown){
+										Player2.OwnBoard.AddShip(Ship,(int)Player2.End1.X,(int)Player2.End1.Y,(int)Player2.End2.X,(int)Player2.End2.Y);
+									}
+									Player2.End1=new Vector2(-1,-1);
+									Player2.End2=new Vector2(-1,-1);
+								}
+								else{
+									Player2.End1=new Vector2(-1,-1);
+									Player2.End2=new Vector2(-1,-1);
+								}
+								Player2.CanMove=false;
+							}
+						}
+						if(Status==GameStatus.InProgress){
+							if(player_num==Player_Turn){
+								if(player_num==1){
+									int x=(int)Player1.Selection.X;
+									int y=(int)Player1.Selection.Y;
+									if(!Player1.EnemyBoard.Grid[y][x].Hit){
+										Player2.OwnBoard.Grid[y][x].Hit=true;
+										Player1.EnemyBoard.Grid[y][x]=Player2.OwnBoard.Grid[y][x];
+										Player_Turn=2;
+										Player_Timer=Turn_Timer;
+										AI_Selection=new Vector2(-1,-1);
+										Player1.CanMove=false;
+									}
+								}
+								else if(player_num==2){
+									int x=(int)Player2.Selection.X;
+									int y=(int)Player2.Selection.Y;
+									if(!Player2.EnemyBoard.Grid[y][x].Hit){
+										Player1.OwnBoard.Grid[y][x].Hit=true;
+										Player2.EnemyBoard.Grid[y][x]=Player1.OwnBoard.Grid[y][x];
+										Player_Turn=1;
+										Player_Timer=Turn_Timer;
+										AI_Selection=new Vector2(-1,-1);
+										Player2.CanMove=false;
+									}
 								}
 							}
 						}
@@ -1527,7 +1587,11 @@ void Argument_Processor(string argument){
 						Status=GameStatus.InProgress;
 					break;
 				case "Cancel":
-					if(Status==GameStatus.Awaiting){
+					if(player_num==1&&Player1!=null&&Player1.Forfeiting)
+						Player1.Forfeiting=false;
+					else if(player_num==2&&Player2!=null&&Player2.Forfeiting)
+						Player2.Forfeiting=false;
+					else if(Status==GameStatus.Awaiting){
 						if(player_num==1)
 							Player_1_Ready=false;
 						else if(player_num==2)
@@ -1550,7 +1614,10 @@ void Argument_Processor(string argument){
 					;
 					break;
 				case "Forfeit":
-					;
+					if(Player1!=null&&player_num==1)
+						Player1.Forfeiting=true;
+					else if(Player2!=null&&player_num==2)
+						Player2.Forfeiting=true;
 					break;
 			}
 		}
@@ -1601,6 +1668,7 @@ public void Main(string argument, UpdateType updateSource)
 			
 			foreach(IMyDoor Door in Room1Doors){
 				double Timer=5;
+				Door.Enabled=true;
 				if(HasBlockData(Door,"LastOpened")){
 					double.TryParse(GetBlockData(Door,"LastOpened"),out Timer);
 					if(Timer<7.5)
@@ -1614,6 +1682,7 @@ public void Main(string argument, UpdateType updateSource)
 			}
 			foreach(IMyDoor Door in Room2Doors){
 				double Timer=5;
+				Door.Enabled=true;
 				if(HasBlockData(Door,"LastOpened")){
 					double.TryParse(GetBlockData(Door,"LastOpened"),out Timer);
 					if(Timer<7.5)
@@ -1919,14 +1988,21 @@ public void Main(string argument, UpdateType updateSource)
 			if(Player1.OwnBoard.RemainingSpaces==0){
 				Last_Winner=2;
 				Status=GameStatus.Ready;
+				Player1=null;
+				Player2=null;
 			}
 			else if(Player2.OwnBoard.RemainingSpaces==0){
 				Last_Winner=1;
 				Status=GameStatus.Ready;
+				Player1=null;
+				Player2=null;
 			}
 		}
 		
-		
+		if(Player1!=null&&Player1.Forfeiting)
+			Player1Text="Press Confirm to Forfeit\n"+Player1Text;
+		if(Player2!=null&&Player2.Forfeiting)
+			Player2Text="Press Confirm to Forfeit\n"+Player2Text;
 		
 		foreach(IMyTextPanel Panel in Player1StatusPanels)
 			Panel.WriteText(Player1Text,false);
