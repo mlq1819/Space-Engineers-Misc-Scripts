@@ -1563,374 +1563,385 @@ Vector2 AI_Selection=new Vector2(-1,-1);
 double AI_Timer=0;
 public void Main(string argument, UpdateType updateSource)
 {
-	UpdateProgramInfo();
-	if(DisplayIdleTimer<5)
-		DisplayIdleTimer+=seconds_since_last_update;
-	if(AI_Timer<5)
-		AI_Timer+=seconds_since_last_update;
-	if(argument.Length>0){
-		Argument_Processor(argument);
-		while((Selection==6&&!Use_Real_Ships)||(Selection==0&&Status!=GameStatus.Ready)||(Selection==4&&Turn_Timer<30)||(Selection==2&&Player_Count==2)){
-			Selection=(Selection+1)%8;
-		}
-	}
-	
-	string HubText="";
-	string Player1Text="";
-	string Player2Text="";
-	if(((int)Status)<((int)GameStatus.Awaiting)){
-		DisplayCheck(Player1Enemy);
-		DisplayCheck(Player1Own);
-		DisplayCheck(Player2Enemy);
-		DisplayCheck(Player2Own);
-		Player1Text="Start game in Lobby";
-		Player2Text="Start game in Lobby";
-		HubText="Start game in Lobby\n";
-		if(Last_Winner==1){
-			Player1Text="You WON!!!";
-			Player2Text="Defeat...";
-			HubText+="Game won by Player 1!\n";
-		}
-		else if(Last_Winner==2){
-			Player1Text="Defeat...";
-			Player2Text="You WON!!!";
-			HubText+="Game won by Player 2!\n";
+	try{
+		UpdateProgramInfo();
+		if(DisplayIdleTimer<5)
+			DisplayIdleTimer+=seconds_since_last_update;
+		if(AI_Timer<5)
+			AI_Timer+=seconds_since_last_update;
+		if(argument.Length>0){
+			Argument_Processor(argument);
+			while((Selection==6&&!Use_Real_Ships)||(Selection==0&&Status!=GameStatus.Ready)||(Selection==4&&Turn_Timer<30)||(Selection==2&&Player_Count==2)){
+				Selection=(Selection+1)%8;
+			}
 		}
 		
-		
-		foreach(IMyDoor Door in Room1Doors){
-			double Timer=5;
-			if(HasBlockData(Door,"LastOpened")){
-				double.TryParse(GetBlockData(Door,"LastOpened"),out Timer);
-				if(Timer<7.5)
-					Timer+=seconds_since_last_update;
-				if(Door.Status==DoorStatus.Opening||(Timer>7.5&&Door.Status==DoorStatus.Open))
-					Timer=0;
+		string HubText="";
+		string Player1Text="";
+		string Player2Text="";
+		if(((int)Status)<((int)GameStatus.Awaiting)){
+			DisplayCheck(Player1Enemy);
+			DisplayCheck(Player1Own);
+			DisplayCheck(Player2Enemy);
+			DisplayCheck(Player2Own);
+			Player1Text="Start game in Lobby";
+			Player2Text="Start game in Lobby";
+			HubText="Start game in Lobby\n";
+			if(Last_Winner==1){
+				Player1Text="You WON!!!";
+				Player2Text="Defeat...";
+				HubText+="Game won by Player 1!\n";
 			}
-			if(Timer>5)
-				Door.CloseDoor();
-			SetBlockData(Door,"LastOpened",Timer.ToString());
-		}
-		foreach(IMyDoor Door in Room2Doors){
-			double Timer=5;
-			if(HasBlockData(Door,"LastOpened")){
-				double.TryParse(GetBlockData(Door,"LastOpened"),out Timer);
-				if(Timer<7.5)
-					Timer+=seconds_since_last_update;
-				if(Door.Status==DoorStatus.Opening||(Timer>7.5&&Door.Status==DoorStatus.Open))
-					Timer=0;
+			else if(Last_Winner==2){
+				Player1Text="Defeat...";
+				Player2Text="You WON!!!";
+				HubText+="Game won by Player 2!\n";
 			}
-			if(Timer>5)
-				Door.CloseDoor();
-			SetBlockData(Door,"LastOpened",Timer.ToString());
-		}
-		string s="";
-		if(Selection==0)
-			s="> ";
-		else
-			s="";
-		if(Status==GameStatus.Ready)
-			Write(s+"Start Game");
-		if(Selection==1)
-			s="> ";
-		else
-			s="";
-		Write(s+"Player Count: "+Player_Count.ToString());
-		if(Selection==2)
-			s="> ";
-		else
-			s="";
-		if(Player_Count<2){
-			string dif="";
-			switch(AI_Difficulty){
-				case 0:
-					dif="Hard";
-					break;
-				case 1:
-					dif="Normal";
-					break;
-				case 2:
-					dif="Easy";
-					break;
+			
+			
+			foreach(IMyDoor Door in Room1Doors){
+				double Timer=5;
+				if(HasBlockData(Door,"LastOpened")){
+					double.TryParse(GetBlockData(Door,"LastOpened"),out Timer);
+					if(Timer<7.5)
+						Timer+=seconds_since_last_update;
+					if(Door.Status==DoorStatus.Opening||(Timer>7.5&&Door.Status==DoorStatus.Open))
+						Timer=0;
+				}
+				if(Timer>5)
+					Door.CloseDoor();
+				SetBlockData(Door,"LastOpened",Timer.ToString());
 			}
-			Write(s+"AI Difficulty: "+dif);
-		}
-		
-		if(Selection==3)
-			s="> ";
-		else
-			s="";
-		if(Turn_Timer<30)
-			Write(s+"Turn Timer: Off");
-		else
-			Write(s+"Turn Timer: "+Math.Round(Turn_Timer,0).ToString()+"s");
-		if(Turn_Timer>=30){
-			if(Selection==4)
+			foreach(IMyDoor Door in Room2Doors){
+				double Timer=5;
+				if(HasBlockData(Door,"LastOpened")){
+					double.TryParse(GetBlockData(Door,"LastOpened"),out Timer);
+					if(Timer<7.5)
+						Timer+=seconds_since_last_update;
+					if(Door.Status==DoorStatus.Opening||(Timer>7.5&&Door.Status==DoorStatus.Open))
+						Timer=0;
+				}
+				if(Timer>5)
+					Door.CloseDoor();
+				SetBlockData(Door,"LastOpened",Timer.ToString());
+			}
+			string s="";
+			if(Selection==0)
 				s="> ";
 			else
 				s="";
-			Write(s+"Allow Pause: "+Allow_Pause.ToString());
-		}
-		if(Selection==5)
-			s="> ";
-		else
-			s="";
-		Write(s+"Use Real Ships: "+Use_Real_Ships.ToString());
-		if(Selection==6)
-			s="> ";
-		else
-			s="";
-		if(Use_Real_Ships)
-			Write(s+"Destroy Ships: "+Destroy_Ships.ToString());
-		if(Selection==7)
-			s="> ";
-		else
-			s="";
-		Write(s+"See Opponent's Choice: "+See_Opponent_Choice.ToString());
-	}
-	if(Status==GameStatus.Awaiting){
-		HubText=Player_Count+" human players\n";
-		HubText+="Player 1: ";
-		if(!Player_1_Ready){
-			foreach(IMyDoor Door in Room1Doors){
-				Door.Enabled=true;
-				Door.OpenDoor();
-			}
-			Player1Text="Press Confirm to ready-up\n";
-			HubText+="Waiting...";
-		}
-		else{
-			foreach(IMyDoor Door in Room1Doors){
-				Door.Enabled=Door.Status!=DoorStatus.Closed;
-				Door.CloseDoor();
-			}
-			Player1Text="Waiting for Player 2...\n";
-			HubText+="Ready!";
-		}
-		HubText+="\nPlayer 2: ";
-		if(!Player_2_Ready){
-			foreach(IMyDoor Door in Room2Doors){
-				Door.Enabled=true;
-				Door.OpenDoor();
-			}
-			Player2Text="Press Confirm to ready-up\n";
-			HubText+="Waiting...";
-		}
-		else{
-			foreach(IMyDoor Door in Room2Doors){
-				Door.Enabled=Door.Status!=DoorStatus.Closed;
-				Door.CloseDoor();
-			}
-			Player2Text="Waiting for Player 1...\n";
-			HubText+="Ready!";
-		}
-		if(Player_1_Ready&&Player_2_Ready){
-			Status=GameStatus.SettingUp;
-		}
-	}
-	if(Status==GameStatus.SettingUp){
-		HubText="Players placing ships\n";
-		HubText+="Player 1: "+Player1.ReadyCount.ToString()+"/5\n";
-		HubText+="Player 2: "+Player2.ReadyCount.ToString()+"/5\n";
-		if(Player1.ReadyCount<5){
-			Player1.CanMove=true;
-			MyShip Ship=MyShip.Unknown;
-			foreach(KeyValuePair<MyShip,bool> p in Player1.ReadyShips){
-				if(!p.Value){
-					Ship=p.Key;
-					break;
+			if(Status==GameStatus.Ready)
+				Write(s+"Start Game");
+			if(Selection==1)
+				s="> ";
+			else
+				s="";
+			Write(s+"Player Count: "+Player_Count.ToString());
+			if(Selection==2)
+				s="> ";
+			else
+				s="";
+			if(Player_Count<2){
+				string dif="";
+				switch(AI_Difficulty){
+					case 0:
+						dif="Hard";
+						break;
+					case 1:
+						dif="Normal";
+						break;
+					case 2:
+						dif="Easy";
+						break;
 				}
+				Write(s+"AI Difficulty: "+dif);
 			}
-			if(Player1.End1.X<0)
-				Player1Text="Place "+Ship.ToString()+" End 1";
-			else if(Player1.End2.X<0)
-				Player1Text="Place "+Ship.ToString()+" End 2";
-			if(!Player1.IsHuman){
-				string p="Player1:";
-				if(Player1.End1.X<0){
-					int x=Rnd.Next(0,7);
-					int y=Rnd.Next(0,7);
-					for(int i=0;i<x;i++)
-						Argument_Processor(p+"Right");
-					for(int i=0;i<y;i++)
-						Argument_Processor(p+"Down");
-					Argument_Processor(p+"Confirm");
+			
+			if(Selection==3)
+				s="> ";
+			else
+				s="";
+			if(Turn_Timer<30)
+				Write(s+"Turn Timer: Off");
+			else
+				Write(s+"Turn Timer: "+Math.Round(Turn_Timer,0).ToString()+"s");
+			if(Turn_Timer>=30){
+				if(Selection==4)
+					s="> ";
+				else
+					s="";
+				Write(s+"Allow Pause: "+Allow_Pause.ToString());
+			}
+			if(Selection==5)
+				s="> ";
+			else
+				s="";
+			Write(s+"Use Real Ships: "+Use_Real_Ships.ToString());
+			if(Selection==6)
+				s="> ";
+			else
+				s="";
+			if(Use_Real_Ships)
+				Write(s+"Destroy Ships: "+Destroy_Ships.ToString());
+			if(Selection==7)
+				s="> ";
+			else
+				s="";
+			Write(s+"See Opponent's Choice: "+See_Opponent_Choice.ToString());
+		}
+		if(Status==GameStatus.Awaiting){
+			HubText=Player_Count+" human players\n";
+			HubText+="Player 1: ";
+			if(!Player_1_Ready){
+				foreach(IMyDoor Door in Room1Doors){
+					Door.Enabled=true;
+					Door.OpenDoor();
 				}
-				if(Player1.End1.X>=0&&Player1.End2.X<0){
-					switch(Rnd.Next(0,3)){
-						case 0:
-							Argument_Processor(p+"Up");
-							break;
-						case 1:
-							Argument_Processor(p+"Left");
-							break;
-						case 2:
-							Argument_Processor(p+"Down");
-							break;
-						case 3:
-							Argument_Processor(p+"Right");
-							break;
+				Player1Text="Press Confirm to ready-up\n";
+				HubText+="Waiting...";
+			}
+			else{
+				foreach(IMyDoor Door in Room1Doors){
+					Door.Enabled=Door.Status!=DoorStatus.Closed;
+					Door.CloseDoor();
+				}
+				Player1Text="Waiting for Player 2...\n";
+				HubText+="Ready!";
+			}
+			HubText+="\nPlayer 2: ";
+			if(!Player_2_Ready){
+				foreach(IMyDoor Door in Room2Doors){
+					Door.Enabled=true;
+					Door.OpenDoor();
+				}
+				Player2Text="Press Confirm to ready-up\n";
+				HubText+="Waiting...";
+			}
+			else{
+				foreach(IMyDoor Door in Room2Doors){
+					Door.Enabled=Door.Status!=DoorStatus.Closed;
+					Door.CloseDoor();
+				}
+				Player2Text="Waiting for Player 1...\n";
+				HubText+="Ready!";
+			}
+			if(Player_1_Ready&&Player_2_Ready){
+				Status=GameStatus.SettingUp;
+			}
+		}
+		if(Status==GameStatus.SettingUp){
+			HubText="Players placing ships\n";
+			HubText+="Player 1: "+Player1.ReadyCount.ToString()+"/5\n";
+			HubText+="Player 2: "+Player2.ReadyCount.ToString()+"/5\n";
+			if(Player1.ReadyCount<5){
+				Player1.CanMove=true;
+				MyShip Ship=MyShip.Unknown;
+				foreach(KeyValuePair<MyShip,bool> p in Player1.ReadyShips){
+					if(!p.Value){
+						Ship=p.Key;
+						break;
 					}
-					Argument_Processor(p+"Confirm");
 				}
-			}
-		}
-		else{
-			Player1.CanMove=false;
-			Player1Text="Waiting for Player 2 ("+Player2.ReadyCount.ToString()+"/5)";
-		}
-		DisplayOwn(Player1Own,Player1);
-		DisplayEnemy(Player1Enemy,Player1);
-		if(Player2.ReadyCount<5){
-			Player2.CanMove=true;
-			MyShip Ship=MyShip.Unknown;
-			foreach(KeyValuePair<MyShip,bool> p in Player2.ReadyShips){
-				if(!p.Value){
-					Ship=p.Key;
-					break;
-				}
-			}
-			if(Player2.End1.X<0)
-				Player2Text="Place "+Ship.ToString()+" End 1";
-			else if(Player2.End2.X<0)
-				Player2Text="Place "+Ship.ToString()+" End 2";
-			if(!Player2.IsHuman){
-				string p="Player2:";
-				if(Player2.End1.X<0){
-					int x=Rnd.Next(0,7);
-					int y=Rnd.Next(0,7);
-					for(int i=0;i<x;i++)
-						Argument_Processor(p+"Right");
-					for(int i=0;i<y;i++)
-						Argument_Processor(p+"Down");
-					Argument_Processor(p+"Confirm");
-				}
-				if(Player2.End1.X>=0&&Player2.End2.X<0){
-					switch(Rnd.Next(0,3)){
-						case 0:
-							Argument_Processor(p+"Up");
-							break;
-						case 1:
-							Argument_Processor(p+"Left");
-							break;
-						case 2:
-							Argument_Processor(p+"Down");
-							break;
-						case 3:
+				if(Player1.End1.X<0)
+					Player1Text="Place "+Ship.ToString()+" End 1";
+				else if(Player1.End2.X<0)
+					Player1Text="Place "+Ship.ToString()+" End 2";
+				if(!Player1.IsHuman){
+					string p="Player1:";
+					if(Player1.End1.X<0){
+						int x=Rnd.Next(0,7);
+						int y=Rnd.Next(0,7);
+						for(int i=0;i<x;i++)
 							Argument_Processor(p+"Right");
-							break;
+						for(int i=0;i<y;i++)
+							Argument_Processor(p+"Down");
+						Argument_Processor(p+"Confirm");
 					}
-					Argument_Processor(p+"Confirm");
+					if(Player1.End1.X>=0&&Player1.End2.X<0){
+						switch(Rnd.Next(0,3)){
+							case 0:
+								Argument_Processor(p+"Up");
+								break;
+							case 1:
+								Argument_Processor(p+"Left");
+								break;
+							case 2:
+								Argument_Processor(p+"Down");
+								break;
+							case 3:
+								Argument_Processor(p+"Right");
+								break;
+						}
+						Argument_Processor(p+"Confirm");
+					}
 				}
 			}
-		}
-		else{
-			Player2.CanMove=false;
-			Player2Text="Waiting for Player 1 ("+Player1.ReadyCount.ToString()+"/5)";
-		}
-		DisplayOwn(Player2Own,Player2);
-		DisplayEnemy(Player2Enemy,Player2);
-		if(Player1.ReadyCount+Player2.ReadyCount==10){
-			Player1.Selection=new Vector2(0,0);
-			Player2.Selection=new Vector2(0,0);
-			Status=GameStatus.InProgress;
-			Player_Turn=1;
-			Player_Timer=Turn_Timer;
-			AI_Selection=new Vector2(-1,-1);
-		}
-	}
-	if(Status==GameStatus.InProgress){
-		if(Turn_Timer>=30){
-			Player_Timer-=seconds_since_last_update;
-			if(Player_Timer<0){
-				Player_Turn=(Player_Turn%2)+1;
+			else{
+				Player1.CanMove=false;
+				Player1Text="Waiting for Player 2 ("+Player2.ReadyCount.ToString()+"/5)";
+			}
+			DisplayOwn(Player1Own,Player1);
+			DisplayEnemy(Player1Enemy,Player1);
+			if(Player2.ReadyCount<5){
+				Player2.CanMove=true;
+				MyShip Ship=MyShip.Unknown;
+				foreach(KeyValuePair<MyShip,bool> p in Player2.ReadyShips){
+					if(!p.Value){
+						Ship=p.Key;
+						break;
+					}
+				}
+				if(Player2.End1.X<0)
+					Player2Text="Place "+Ship.ToString()+" End 1";
+				else if(Player2.End2.X<0)
+					Player2Text="Place "+Ship.ToString()+" End 2";
+				if(!Player2.IsHuman){
+					string p="Player2:";
+					if(Player2.End1.X<0){
+						int x=Rnd.Next(0,7);
+						int y=Rnd.Next(0,7);
+						for(int i=0;i<x;i++)
+							Argument_Processor(p+"Right");
+						for(int i=0;i<y;i++)
+							Argument_Processor(p+"Down");
+						Argument_Processor(p+"Confirm");
+					}
+					if(Player2.End1.X>=0&&Player2.End2.X<0){
+						switch(Rnd.Next(0,3)){
+							case 0:
+								Argument_Processor(p+"Up");
+								break;
+							case 1:
+								Argument_Processor(p+"Left");
+								break;
+							case 2:
+								Argument_Processor(p+"Down");
+								break;
+							case 3:
+								Argument_Processor(p+"Right");
+								break;
+						}
+						Argument_Processor(p+"Confirm");
+					}
+				}
+			}
+			else{
+				Player2.CanMove=false;
+				Player2Text="Waiting for Player 1 ("+Player1.ReadyCount.ToString()+"/5)";
+			}
+			DisplayOwn(Player2Own,Player2);
+			DisplayEnemy(Player2Enemy,Player2);
+			if(Player1.ReadyCount+Player2.ReadyCount==10){
+				Player1.Selection=new Vector2(0,0);
+				Player2.Selection=new Vector2(0,0);
+				Status=GameStatus.InProgress;
+				Player_Turn=1;
 				Player_Timer=Turn_Timer;
 				AI_Selection=new Vector2(-1,-1);
 			}
 		}
-		HubText="Player "+Player_Turn.ToString()+"'s Turn\n";
-		Player1.CanMove=Player_Turn==1;
-		Player2.CanMove=Player_Turn==2;
-		if(Player_Turn==1){
-			Player1Text="Your Turn!\n";
-			Player2Text=HubText;
-			if(!Player1.IsHuman){
-				if(AI_Selection.X<0){
-					List<Vector2> pos=Player1.EnemyBoard.GetBestChoices(AI_Difficulty);
-					AI_Selection=pos[Rnd.Next(0,pos.Count-1)];
-				}
-				if(AI_Timer>0.75){
-					AI_Timer=0;
-					string s="Player1:";
-					if(AI_Selection==Player1.Selection)
-						Argument_Processor(s+"Confirm");
-					else if(AI_Selection.X<Player1.Selection.X)
-						Argument_Processor(s+"Left");
-					else if(AI_Selection.X>Player1.Selection.X)
-						Argument_Processor(s+"Right");
-					else if(AI_Selection.Y<Player1.Selection.Y)
-						Argument_Processor(s+"Up");
-					else if(AI_Selection.Y>Player1.Selection.Y)
-						Argument_Processor(s+"Down");
+		if(Status==GameStatus.InProgress){
+			if(Turn_Timer>=30){
+				Player_Timer-=seconds_since_last_update;
+				if(Player_Timer<0){
+					Player_Turn=(Player_Turn%2)+1;
+					Player_Timer=Turn_Timer;
+					AI_Selection=new Vector2(-1,-1);
 				}
 			}
-		}
-		else{
-			Player1Text=HubText;
-			Player2Text="Your Turn!\n";
-			if(!Player2.IsHuman){
-				if(AI_Selection.X<0){
-					List<Vector2> pos=Player2.EnemyBoard.GetBestChoices(AI_Difficulty);
-					AI_Selection=pos[Rnd.Next(0,pos.Count-1)];
-				}
-				if(AI_Timer>0.75){
-					AI_Timer=0;
-					string s="Player2:";
-					if(AI_Selection==Player2.Selection)
-						Argument_Processor(s+"Confirm");
-					else if(AI_Selection.X<Player2.Selection.X)
-						Argument_Processor(s+"Left");
-					else if(AI_Selection.X>Player2.Selection.X)
-						Argument_Processor(s+"Right");
-					else if(AI_Selection.Y<Player2.Selection.Y)
-						Argument_Processor(s+"Up");
-					else if(AI_Selection.Y>Player2.Selection.Y)
-						Argument_Processor(s+"Down");
+			HubText="Player "+Player_Turn.ToString()+"'s Turn\n";
+			Player1.CanMove=Player_Turn==1;
+			Player2.CanMove=Player_Turn==2;
+			if(Player_Turn==1){
+				Player1Text="Your Turn!\n";
+				Player2Text=HubText;
+				if(!Player1.IsHuman){
+					if(AI_Selection.X<0){
+						List<Vector2> pos=Player1.EnemyBoard.GetBestChoices(AI_Difficulty);
+						AI_Selection=pos[Rnd.Next(0,pos.Count-1)];
+					}
+					if(AI_Timer>0.75){
+						AI_Timer=0;
+						string s="Player1:";
+						if(AI_Selection==Player1.Selection)
+							Argument_Processor(s+"Confirm");
+						else if(AI_Selection.X<Player1.Selection.X)
+							Argument_Processor(s+"Left");
+						else if(AI_Selection.X>Player1.Selection.X)
+							Argument_Processor(s+"Right");
+						else if(AI_Selection.Y<Player1.Selection.Y)
+							Argument_Processor(s+"Up");
+						else if(AI_Selection.Y>Player1.Selection.Y)
+							Argument_Processor(s+"Down");
+					}
 				}
 			}
+			else{
+				Player1Text=HubText;
+				Player2Text="Your Turn!\n";
+				if(!Player2.IsHuman){
+					if(AI_Selection.X<0){
+						List<Vector2> pos=Player2.EnemyBoard.GetBestChoices(AI_Difficulty);
+						AI_Selection=pos[Rnd.Next(0,pos.Count-1)];
+					}
+					if(AI_Timer>0.75){
+						AI_Timer=0;
+						string s="Player2:";
+						if(AI_Selection==Player2.Selection)
+							Argument_Processor(s+"Confirm");
+						else if(AI_Selection.X<Player2.Selection.X)
+							Argument_Processor(s+"Left");
+						else if(AI_Selection.X>Player2.Selection.X)
+							Argument_Processor(s+"Right");
+						else if(AI_Selection.Y<Player2.Selection.Y)
+							Argument_Processor(s+"Up");
+						else if(AI_Selection.Y>Player2.Selection.Y)
+							Argument_Processor(s+"Down");
+					}
+				}
+			}
+			if(Turn_Timer>=30){
+				string timer=Math.Round(Player_Timer,0).ToString()+"s Remaining\n";
+				HubText+=timer;
+				Player1Text+=timer;
+				Player2Text+=timer;
+			}
+			if(See_Opponent_Choice)
+				DisplayOwn(Player1Own,Player1,Player2.Selection);
+			else
+				DisplayOwn(Player1Own,Player1);
+			DisplayEnemy(Player1Enemy,Player1);
+			if(See_Opponent_Choice)
+				DisplayOwn(Player2Own,Player2,Player1.Selection);
+			else
+				DisplayOwn(Player2Own,Player2);
+			DisplayEnemy(Player2Enemy,Player2);
+			if(Player1.OwnBoard.RemainingSpaces==0){
+				Last_Winner=2;
+				Status=GameStatus.Ready;
+			}
+			else if(Player2.OwnBoard.RemainingSpaces==0){
+				Last_Winner=1;
+				Status=GameStatus.Ready;
+			}
 		}
-		if(Turn_Timer>=30){
-			string timer=Math.Round(Player_Timer,0).ToString()+"s Remaining\n";
-			HubText+=timer;
-			Player1Text+=timer;
-			Player2Text+=timer;
-		}
-		if(See_Opponent_Choice)
-			DisplayOwn(Player1Own,Player1,Player2.Selection);
-		else
-			DisplayOwn(Player1Own,Player1);
-		DisplayEnemy(Player1Enemy,Player1);
-		if(See_Opponent_Choice)
-			DisplayOwn(Player2Own,Player2,Player1.Selection);
-		else
-			DisplayOwn(Player2Own,Player2);
-		DisplayEnemy(Player2Enemy,Player2);
-		if(Player1.OwnBoard.RemainingSpaces==0){
-			Last_Winner=2;
-			Status=GameStatus.Ready;
-		}
-		else if(Player2.OwnBoard.RemainingSpaces==0){
-			Last_Winner=1;
-			Status=GameStatus.Ready;
-		}
+		
+		
+		
+		foreach(IMyTextPanel Panel in Player1StatusPanels)
+			Panel.WriteText(Player1Text,false);
+		foreach(IMyTextPanel Panel in Player2StatusPanels)
+			Panel.WriteText(Player2Text,false);
+		foreach(IMyTextPanel Panel in HubStatusPanels)
+			Panel.WriteText(HubText,false);
 	}
-	
-	
-	
-	foreach(IMyTextPanel Panel in Player1StatusPanels)
-		Panel.WriteText(Player1Text,false);
-	foreach(IMyTextPanel Panel in Player2StatusPanels)
-		Panel.WriteText(Player2Text,false);
-	foreach(IMyTextPanel Panel in HubStatusPanels)
-		Panel.WriteText(HubText,false);
+	catch (Exception e){
+		foreach(IMyTextPanel Panel in Player1StatusPanels)
+			Panel.WriteText(e.ToString(),false);
+		foreach(IMyTextPanel Panel in Player2StatusPanels)
+			Panel.WriteText(e.ToString(),false);
+		foreach(IMyTextPanel Panel in HubStatusPanels)
+			Panel.WriteText(e.ToString(),false);
+		throw e;
+	}
 }
