@@ -613,6 +613,7 @@ class Board{
 			}
 			grid.Add(row);
 		}
+		output=new Board(grid);
 		return true;
 	}
 	
@@ -747,7 +748,6 @@ class Player{
 			MyShip Ship=((MyShip)i);
 			ReadyShips.Add(Ship,OwnBoard.CountShips(Ship)==Prog.ShipSize(Ship));
 		}
-		
 		Selection=new Vector2(0,0);
 		CanMove=false;
 		End1=new Vector2(-1,-1);
@@ -770,10 +770,10 @@ class Player{
 		bool h;
 		if(!bool.TryParse(args[0],out h))
 			return false;
-		Board o,e;
-		if(!Board.TryParse(args[1],out o))
+		Board o=null,e=null;
+		if((!Board.TryParse(args[1],out o))||o==null)
 			return false;
-		if(!Board.TryParse(args[2],out e))
+		if((!Board.TryParse(args[2],out e))||e==null)
 			return false;
 		output=new Player(h,o,e);
 		return true;
@@ -993,13 +993,13 @@ void DisplayOwn(DisplayArray Da,Player P,Vector2 EnemyPos){
 			if(Da.Panels[y][x].CurrentlyShownImage!=null)
 				Da.Panels[y][x].ClearImagesFromSelection();
 			if(x==((int)EnemyPos.X)&&y==((int)EnemyPos.Y))
-				Da.Panels[y][x].AddImageToSelection("Trinity");
+				Da.Panels[y][x].AddImageToSelection("LCD_Economy_Trinity");
 			else if(Status==GameStatus.SettingUp&&P.CanMove&&x==((int)P.Selection.X)&&y==((int)P.Selection.Y))
-				Da.Panels[y][x].AddImageToSelection("Trinity");
+				Da.Panels[y][x].AddImageToSelection("LCD_Economy_Trinity");
 			else if(x==((int)P.End1.X)&&y==((int)P.End1.Y))
-				Da.Panels[y][x].AddImageToSelection("Trinity");
+				Da.Panels[y][x].AddImageToSelection("LCD_Economy_Trinity");
 			else if(x==((int)P.End2.X)&&y==((int)P.End2.Y))
-				Da.Panels[y][x].AddImageToSelection("Trinity");
+				Da.Panels[y][x].AddImageToSelection("LCD_Economy_Trinity");
 			if(P.OwnBoard.Grid[y][x].Hit){
 				if(P.OwnBoard.Grid[y][x].Ship==MyShip.None){
 					color=new Color(0,0,0,255);
@@ -1045,7 +1045,7 @@ void DisplayEnemy(DisplayArray Da,Player P){
 			if(Da.Panels[y][x].CurrentlyShownImage!=null)
 				Da.Panels[y][x].ClearImagesFromSelection();
 			if(P.CanMove&&x==((int)P.Selection.X)&&y==((int)P.Selection.Y))
-				Da.Panels[y][x].AddImageToSelection("Trinity");
+				Da.Panels[y][x].AddImageToSelection("LCD_Economy_Trinity");
 			if(P.EnemyBoard.Grid[y][x].Hit){
 				if(P.EnemyBoard.Grid[y][x].Ship==MyShip.None){
 					color=new Color(0,0,0,255);
@@ -1648,6 +1648,21 @@ public void Main(string argument, UpdateType updateSource)
 		string Player1Text="";
 		string Player2Text="";
 		Echo("Status: "+Status.ToString());
+		if(Player1!=null){
+			Echo("Player 1:");
+			Echo("  CanMove:"+Player1.CanMove.ToString());
+			Echo("  Selection:"+Player1.Selection.ToString());
+			Echo("  End1:"+Player1.End1.ToString());
+			Echo("  End2:"+Player1.End2.ToString());
+		}
+		if(Player2!=null){
+			Echo("Player 2:");
+			Echo("  CanMove:"+Player2.CanMove.ToString());
+			Echo("  Selection:"+Player2.Selection.ToString());
+			Echo("  End1:"+Player1.End1.ToString());
+			Echo("  End2:"+Player1.End2.ToString());
+		}
+		
 		if(((int)Status)<((int)GameStatus.Awaiting)){
 			DisplayCheck(Player1Enemy);
 			DisplayCheck(Player1Own);
