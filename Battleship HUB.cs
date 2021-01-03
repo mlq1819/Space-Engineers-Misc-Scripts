@@ -724,6 +724,14 @@ class Board{
 				if(((int)Choice.Z)>=max_pos-stupidity)
 					output.Add(new Vector2(Choice.X,Choice.Y));
 			}
+			if(output.Count==0){
+				for(int y=0;y<8;y++){
+					for(int x=0;x<8;x++){
+						if(Grid[y][x].Ship==MyShip.Unknown)
+							output.Add(new Vector2(x,y));
+					}
+				}
+			}
 			Choices.Clear();
 			return output;
 		}
@@ -1017,7 +1025,8 @@ public Program(){
 				Int32.TryParse(data,out Player_Count);
 				break;
 			case "Turn_Timer":
-				double.TryParse(data,out Turn_Timer);
+				if(double.TryParse(data,out Turn_Timer))
+					Player_Timer=Turn_Timer;
 				break;
 			case "Allow_Pause":
 				bool.TryParse(data,out Allow_Pause);
@@ -2213,7 +2222,7 @@ public void Main(string argument, UpdateType updateSource)
 						if(pos.Count>0)
 							AI_Selection=pos[Rnd.Next(0,pos.Count-1)];
 					}
-					if(AI_Timer>0.75){
+					if(AI_Selection.X>=0&&AI_Timer>0.75){
 						AI_Timer=0;
 						string s="Player 1:";
 						if(AI_Selection==Player1.Selection)
@@ -2240,7 +2249,7 @@ public void Main(string argument, UpdateType updateSource)
 						if(pos.Count>0)
 							AI_Selection=pos[Rnd.Next(0,pos.Count-1)];
 					}
-					if(AI_Timer>0.75){
+					if(AI_Selection.X>=0&&AI_Timer>0.75){
 						AI_Timer=0;
 						string s="Player 2:";
 						if(AI_Selection==Player2.Selection)
