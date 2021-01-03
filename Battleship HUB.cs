@@ -710,7 +710,7 @@ class Board{
 	
 	long InstructionCount=0;
 	public int Section=0;
-	List<Vector3> Choices=new List<Vector3>;
+	List<Vector3> Choices=new List<Vector3>();
 	public List<Vector2> GetBestChoices(int stupidity){
 		List<Vector2> output=new List<Vector2>();
 		if(Section>7){
@@ -736,8 +736,8 @@ class Board{
 		List<Vector3> output=new List<Vector3>();
 		if(CountShips(MyShip.Unknown)==0)
 			return output;
-		int my_y=section;
-		if(y<8)
+		int y=section;
+		if(y<8){
 			List<int> Row=new List<int>();
 			int max_pos=0;
 			for(int x=0;x<8;x++){
