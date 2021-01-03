@@ -4,6 +4,21 @@ Color DEFAULT_BACKGROUND_COLOR=new Color(44,0,88,255);
 
 class Prog{
 	public static MyGridProgram P;
+	public static int ShipSize(MyShip ship){
+		switch(ship){
+			case MyShip.Carrier:
+				return 5;
+			case MyShip.Frigate:
+				return 4;
+			case MyShip.Cruiser:
+				return 3;
+			case MyShip.Prowler:
+				return 3;
+			case MyShip.Destroyer:
+				return 2;
+		}
+		return 0;
+	}
 }
 
 class GenericMethods<T> where T : class, IMyTerminalBlock{
@@ -425,6 +440,260 @@ enum GameStatus{
 	Paused=4
 }
 
+enum MyShip{
+	Unknown=-1,
+	None=0,
+	Carrier=1,
+	Frigate=2,
+	Cruiser=3,
+	Prowler=4,
+	Destroyer=5
+}
+
+int ShipSize(MyShip ship){
+	return Prog.ShipSize(ship);
+}
+
+class GridSpace{
+	public MyShip Ship; 
+	public bool Hit;
+	
+	public GridSpace(MyShip ship){
+		Ship=ship;
+		Hit=false;
+	}
+	
+	public GridSpace():this(MyShip.None){
+		;
+	}
+	
+	public override string ToString(){
+		return "("+((int)Ship).ToString()+','+Hit.ToString()+")";
+	}
+	
+	public static bool TryParse(string Parse,out GridSpace output){
+		output=null;
+		if(Parse.IndexOf("(")!=0||Parse.IndexOf(")")!=Parse.Length-1)
+			return false;
+		string[] args=Parse.Substring(1,Parse.Length-2).Split(',');
+		if(args.Length!=2)
+			return false;
+		int i;
+		bool b;
+		if(!Int32.TryParse(args[0],out i))
+			return false;
+		if(i<-1||i>5)
+			return false;
+		if(!bool.TryParse(args[1],out b))
+			return false;
+		output=new GridSpace((MyShip)i);
+		output.Hit=b;
+		return true;
+	}
+}
+
+class Board{
+	public List<List<GridSpace>> Grid;
+	public int CountShips(MyShip Type){
+		int output=0;
+		foreach(List<GridSpace> row in Grid){
+			foreach(GridSpace cell in row){
+				if(cell.Ship==Type)
+					output++;
+			}
+		}
+		return output;
+	}
+	
+	public int RemainingSpaces{
+		get{
+			int count=0;
+			foreach(List<GridSpace> Row in Grid){
+				foreach(GridSpace Cell in Row){
+					if(!Cell.Hit)
+						count++;
+				}
+			}
+			return count;
+		}
+	}
+	
+	Board(List<List<GridSpace>> grid){
+		Grid=grid;
+	}
+	
+	public Board(MyShip Default){
+		Grid=new List<List<GridSpace>>();
+		for(int i=0;i<8;i++){
+			List<GridSpace> Row=new List<GridSpace>();
+			for(int j=0;j<8;j++)
+				Row.Add(new GridSpace(Default));
+			Grid.Add(Row);
+		}
+	}
+	
+	public static bool InRange(int n){
+		return n<8&&n>=0;
+	}
+	
+	public bool AddShip(MyShip Type,int x1,int y1,int x2,int y2){
+		if((!InRange(x1))||(!InRange(y1))||(!InRange(x2))||(!InRange(y2)))
+			return false;
+		if((x1!=x2)&&(y1!=y2))
+			return false;
+		if(Math.Abs(x1-x2)+Math.Abs(y1-y2)!=Prog.ShipSize(Type))
+			return false;
+		if(CountShips(Type)>0)
+			return false;
+		for(int i=Math.Min(y1,y2);i<=Math.Max(y1,y2);i++){
+			for(int j=Math.Min(x1,x2);j<=Math.Max(x1,x2);j++){
+				if(Grid[i][j].Ship!=MyShip.None)
+					return false;
+			}
+		}
+		for(int i=Math.Min(y1,y2);i<=Math.Max(y1,y2);i++){
+			for(int j=Math.Min(x1,x2);j<=Math.Max(x1,x2);j++){
+				Grid[i][j].Ship=Type;
+			}
+		}
+		return true;
+	}
+	
+	public override string ToString(){
+		string output="[";
+		foreach(List<GridSpace> Row in Grid){
+			output+="[";
+			foreach(GridSpace Cell in Row){
+				output+=Cell.ToString()+";";
+			}
+			output=output.Substring(0,output.Length-1)+"] ";
+		}
+		output=output.Substring(0,output.Length-1)+"]";
+		return output;
+	}
+	
+	public static bool TryParse(string Parse,out Board output){
+		output=null;
+		if(Parse.IndexOf("[")!=0)
+			return false;
+		if(Parse[Parse.Length-1]!=']')
+			return false;
+		string[] args=Parse.Substring(1,Parse.Length-2).Split(' ',StringSplitOptions.RemoveEmptyEntries);
+		if(args.Length!=8)
+			return false;
+		List<List<GridSpace>> grid=new List<List<GridSpace>>();
+		for(int i=0;i<args.Length;i++){
+			args[i]=args[i].Trim();
+			if(args[i].IndexOf('[')!=0||args[i][args[i].Length-1]!=']')
+				return false;
+			args[i]=args[i].Substring(1,args[i].Length-2);
+			string[] strs=args[i].Split(';');
+			if(strs.Length!=8)
+				return false;
+			List<GridSpace> row=new List<GridSpace>();
+			for(int j=0;j<strs.Length;j++){
+				GridSpace cell=null;
+				if((!GridSpace.TryParse(strs[j],out cell))||cell==null)
+					return false;
+				row.Add(cell);
+			}
+			grid.Add(row);
+		}
+		return true;
+	}
+	
+	public bool IsPossible(MyShip Type,int X,int Y){
+		int current_discovered=CountShips(Type);
+		int size=Prog.ShipSize(Type);
+		if(current_discovered==size)
+			return false;
+		int min_x=7,min_y=7,max_x=0,max_y=0;
+		for(int y=0;y<Grid.Count;y++){
+			for(int x=0;x<Grid[y].Count;x++){
+				if(Grid[y][x].Ship==Type){
+					min_x=Math.Min(min_x,x);
+					max_x=Math.Max(max_x,x);
+					min_y=Math.Min(min_y,y);
+					max_y=Math.Max(max_y,y);
+					if(x!=X&&y!=Y)
+						return false;
+				}
+			}
+		}
+		bool aligned_x=false;
+		bool aligned_y=false;
+		if(current_discovered>1){
+			if(min_x==max_x)
+				aligned_x=true;
+			if(min_y=max_y)
+				aligned_y=true;
+		}
+		if(aligned_x&&X!=min_x)
+			return false;
+		if(aligned_y&&Y!=min_y)
+			return false;
+		int max_d=size-current_discovered;
+		if(Y>max_y)
+			return Y-max_y<=max_d;
+		else if(Y<min_y)
+			return min_y-Y<=max_d;
+		if(X>max_x)
+			return X-max_x<=max_d;
+		else if(X<min_x)
+			return min_x-X<=max_d;
+		return false;
+	}
+	
+	public List<Vector2> GetBestChoices(int stupidity=0){
+		if(CountShips(MyShip.Unknown==0))
+			return null;
+		List<List<List<MyShip>>> Possibilities=new List<List<List<MyShip>>>();
+		bool D_Carrier=CountShips(MyShip.Carrier)>0;
+		bool D_Frigate=CountShips(MyShip.Frigate)>0;
+		bool D_Cruiser=CountShips(MyShip.Cruiser)>0;
+		bool D_Prowler=CountShips(MyShip.Prowler)>0;
+		bool D_Destroyer=CountShips(MyShip.Destroyer)>0;
+		int max_pos=0;
+		for(int y=0;y<8;y++){
+			List<List<MyShip>> Row=new List<List<MyShip>>();
+			for(int x=0;x<8;x++){
+				List<MyShip> Cell=new List<MyShip>();
+				if(Grid[y][x].Ship==MyShip.Unknown){
+					if((!D_Carrier)||IsPossible(MyShip.Carrier,x,y))
+						Cell.Add(MyShip.Carrier);
+					if((!D_Frigate)||IsPossible(MyShip.Carrier,x,y))
+						Cell.Add(MyShip.Frigate);
+					if((!D_Cruiser)||IsPossible(MyShip.Carrier,x,y))
+						Cell.Add(MyShip.Cruiser);
+					if((!D_Prowler)||IsPossible(MyShip.Carrier,x,y))
+						Cell.Add(MyShip.Prowler);
+					if((!D_Destroyer)||IsPossible(MyShip.Carrier,x,y))
+						Cell.Add(MyShip.Destroyer);
+				}
+				max_pos=Math.Max(max_pos,Cell.Count);
+				Row.Add(Cell);
+			}
+			Possibilities.Add(Row);
+		}
+		List<Vector2> output=new List<Vector2>();
+		for(int y=0;y<8;y++){
+			for(int x=0;x<8;x++){
+				if(Possibilities[y][x].Count>=Math.Max(1,max_pos-stupidity))
+					output.Add(new Vector2(y,x));
+			}
+		}
+		return output;
+	}
+}
+
+class Player{
+	public bool IsHuman;
+	public Board OwnBoard;
+	public Board EnemyBoard;
+	
+	
+}
+
 TimeSpan Time_Since_Start=new TimeSpan(0);
 long cycle=0;
 char loading_char='|';
@@ -439,6 +708,7 @@ bool Use_Real_Ships=false;
 bool Destroy_Ships=false;
 bool See_Opponent_Choice=false;
 GameStatus Status=GameStatus.Ready;
+int AI_Difficulty=1;
 
 bool Player_1_Ready=false;
 bool Player_2_Ready=false;
@@ -454,6 +724,8 @@ List<IMyTextPanel> HubStatusPanels;
 List<IMyDoor> Room1Doors;
 List<IMyDoor> Room2Doors;
 
+int Player_Turn=-1;
+int Player_Timer=0;
 
 public Program(){
 	Prog.P=this;
@@ -540,6 +812,9 @@ public Program(){
 				if(Int32.TryParse(data,out o))
 					Status=(GameStatus)o;
 				break;
+			case "AI_Difficulty":
+				Int32.TryParse(data,out AI_Difficulty);
+				break;
 		}
 	}
 	Room1Doors=GenericMethods<IMyDoor>.GetAllContaining("Room 1 Door");
@@ -562,6 +837,7 @@ public Program(){
 public void Save(){
     this.Storage="Status:"+((int)Status).ToString();
 	this.Storage+="•Player_Count:"+Player_Count.ToString();
+	this.Storage+="•AI_Difficulty:"+AI_Difficulty.ToString();
 	this.Storage+="•Turn_Timer:"+Turn_Timer.ToString();
 	this.Storage+="•Allow_Pause"+Allow_Pause.ToString();
 	this.Storage+="•Use_Real_Ships:"+Use_Real_Ships.ToString();
@@ -744,15 +1020,15 @@ void Argument_Processor(string argument){
 	if(((int)Status)<((int)GameStatus.Awaiting)){
 		if(argument.ToLower().Equals("prev")){
 			do{
-				Selection=(Selection-1+7)%7;
+				Selection=(Selection-1+8)%8;
 			}
-			while((Selection==5&&!Use_Real_Ships)||(Selection==0&&Status!=GameStatus.Ready)||(Selection==3&&Turn_Timer<30));
+			while((Selection==6&&!Use_Real_Ships)||(Selection==0&&Status!=GameStatus.Ready)||(Selection==4&&Turn_Timer<30)||(Selection==2&&Player_Count==2));
 		}
 		else if(argument.ToLower().Equals("next")){
 			do{
-				Selection=(Selection+1)%7;
+				Selection=(Selection+1)%8;
 			}
-			while((Selection==5&&!Use_Real_Ships)||(Selection==0&&Status!=GameStatus.Ready)||(Selection==3&&Turn_Timer<30));
+			while((Selection==6&&!Use_Real_Ships)||(Selection==0&&Status!=GameStatus.Ready)||(Selection==4&&Turn_Timer<30)||(Selection==2&&Player_Count==2));
 		}
 		else if(argument.ToLower().Equals("down")){
 			switch(Selection){
@@ -760,21 +1036,24 @@ void Argument_Processor(string argument){
 					Player_Count=Math.Max(0,Player_Count-1);
 					break;
 				case 2:
+					AI_Difficulty=Math.Min(2,AI_Difficulty+1);
+					break;
+				case 3:
 					Turn_Timer-=10;
 					if(Turn_Timer<30)
 						Turn_Timer=0;
 					break;
-				case 3:
+				case 4:
 					Allow_Pause=false;
 					break;
-				case 4:
+				case 5:
 					Use_Real_Ships=false;
 					Destroy_Ships=false;
 					break;
-				case 5:
+				case 6:
 					Destroy_Ships=false;
 					break;
-				case 6:
+				case 7:
 					See_Opponent_Choice=false;
 					break;
 			}
@@ -792,21 +1071,24 @@ void Argument_Processor(string argument){
 					Player_Count=Math.Min(2,Player_Count+1);
 					break;
 				case 2:
+					AI_Difficulty=Math.Max(0,AI_Difficulty-1);
+					break;
+				case 3:
 					if(Turn_Timer<30)
 						Turn_Timer=30;
 					else
 						Turn_Timer=Math.Min(300,Turn_Timer+10);
 					break;
-				case 3:
+				case 4:
 					Allow_Pause=true;
 					break;
-				case 4:
+				case 5:
 					Use_Real_Ships=true;
 					break;
-				case 5:
+				case 6:
 					Destroy_Ships=true;
 					break;
-				case 6:
+				case 7:
 					See_Opponent_Choice=true;
 					break;
 			}
@@ -869,8 +1151,8 @@ public void Main(string argument, UpdateType updateSource)
 	DisplayCheck(Player2Own);
 	if(argument.Length>0){
 		Argument_Processor(argument);
-		while((Selection==5&&!Use_Real_Ships)||(Selection==0&&Status!=GameStatus.Ready)||(Selection==3&&Turn_Timer<30)){
-			Selection=(Selection+1)%7;
+		while((Selection==6&&!Use_Real_Ships)||(Selection==0&&Status!=GameStatus.Ready)||(Selection==4&&Turn_Timer<30)||(Selection==2&&Player_Count==2)){
+			Selection=(Selection+1)%8;
 		}
 	}
 	
@@ -923,29 +1205,49 @@ public void Main(string argument, UpdateType updateSource)
 			s="> ";
 		else
 			s="";
+		if(Player_Count<2){
+			string dif="";
+			switch(AI_Difficulty){
+				case 0:
+					dif="Hard";
+					break;
+				case 1:
+					dif="Normal";
+					break;
+				case 2:
+					dif="Easy";
+					break;
+			}
+			Write(s+"AI Difficulty: "+dif);
+		}
+		
+		if(Selection==3)
+			s="> ";
+		else
+			s="";
 		if(Turn_Timer<30)
 			Write(s+"Turn Timer: Off");
 		else
 			Write(s+"Turn Timer: "+Math.Round(Turn_Timer,0).ToString()+"s");
 		if(Turn_Timer>=30){
-			if(Selection==3)
+			if(Selection==4)
 				s="> ";
 			else
 				s="";
 			Write(s+"Allow Pause: "+Allow_Pause.ToString());
 		}
-		if(Selection==4)
+		if(Selection==5)
 			s="> ";
 		else
 			s="";
 		Write(s+"Use Real Ships: "+Use_Real_Ships.ToString());
-		if(Selection==5)
+		if(Selection==6)
 			s="> ";
 		else
 			s="";
 		if(Use_Real_Ships)
 			Write(s+"Destroy Ships: "+Destroy_Ships.ToString());
-		if(Selection==6)
+		if(Selection==7)
 			s="> ";
 		else
 			s="";
@@ -989,6 +1291,27 @@ public void Main(string argument, UpdateType updateSource)
 		}
 		if(Player_1_Ready&&Player_2_Ready){
 			Status=GameStatus.InProgress;
+		}
+	}
+	if(Status==GameStatus.Ready){
+		if(Player_Turn<1){
+			Player_Turn=1;
+			Player_Timer=Turn_Timer;
+		}
+		else{
+			if(Turn_Timer>=30){
+				Player_Timer-=seconds_since_last_update;
+				if(Player_Timer<=0){
+					Player_Turn=(Player_Turn%2)+1;
+				}
+			}
+		}
+		
+		if(Player_Turn==1){
+			
+		}
+		else if(Player_Turn==2){
+			
 		}
 	}
 	
