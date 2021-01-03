@@ -708,9 +708,9 @@ class Player{
 	public Vector2 Selection;
 	public bool CanMove;
 	public Vector2 End1;
-	public vector2 End2;
+	public Vector2 End2;
 	
-	public bool ReadyCount{
+	public int ReadyCount{
 		get{
 			int count=0;
 			foreach(KeyValuePair<MyShip,bool> p in ReadyShips){
@@ -948,20 +948,24 @@ void DisplayOwn(DisplayArray Da,Player P,Vector2 EnemyPos){
 					color=new Color(255,0,0,255);
 					break;
 			}
-			if(P.CurrentlyShownImage!=null)
-				P.ClearImagesFromSelection();
+			if(Da.Panels[y][x].CurrentlyShownImage!=null)
+				Da.Panels[y][x].ClearImagesFromSelection();
 			if(x==((int)EnemyPos.X)&&y==((int)EnemyPos.Y))
-				P.AddImageToSelection("Trinity");
+				Da.Panels[y][x].AddImageToSelection("Trinity");
+			else if(x==((int)P.End1.X)&&y==((int)P.End1.Y))
+				Da.Panels[y][x].AddImageToSelection("Trinity");
+			else if(x==((int)P.End2.X)&&y==((int)P.End2.Y))
+				Da.Panels[y][x].AddImageToSelection("Trinity");
 			if(P.OwnBoard.Grid[y][x].Hit){
 				if(P.OwnBoard.Grid[y][x].Ship==MyShip.None){
 					color=new Color(0,0,0,255);
-					P.AddImageToSelection("Cross");
+					Da.Panels[y][x].AddImageToSelection("Cross");
 				}
 				else{
 					if(P.OwnBoard.RemainingHits(P.OwnBoard.Grid[y][x].Ship)>0)
-						P.AddImageToSelection("Danger");
+						Da.Panels[y][x].AddImageToSelection("Danger");
 					else{
-						P.AddImageToSelection("Cross");
+						Da.Panels[y][x].AddImageToSelection("Cross");
 						color=Color.Multiply(color,0.5f);
 					}
 				}
@@ -994,20 +998,20 @@ void DisplayEnemy(DisplayArray Da,Player P){
 					color=new Color(255,0,0,255);
 					break;
 			}
-			if(P.CurrentlyShownImage!=null)
-				P.ClearImagesFromSelection();
+			if(Da.Panels[y][x].CurrentlyShownImage!=null)
+				Da.Panels[y][x].ClearImagesFromSelection();
 			if(P.CanMove&&x==((int)P.Selection.X)&&y==((int)P.Selection.Y))
-				P.AddImageToSelection("Trinity");
+				Da.Panels[y][x].AddImageToSelection("Trinity");
 			if(P.EnemyBoard.Grid[y][x].Hit){
 				if(P.EnemyBoard.Grid[y][x].Ship==MyShip.None){
 					color=new Color(0,0,0,255);
-					P.AddImageToSelection("Cross");
+					Da.Panels[y][x].AddImageToSelection("Cross");
 				}
 				else{
 					if(P.EnemyBoard.RemainingHits(P.EnemyBoard.Grid[y][x].Ship)>0)
-						P.AddImageToSelection("Danger");
+						Da.Panels[y][x].AddImageToSelection("Danger");
 					else{
-						P.AddImageToSelection("Cross");
+						Da.Panels[y][x].AddImageToSelection("Cross");
 						color=Color.Multiply(color,0.5f);
 					}
 				}
@@ -1253,7 +1257,7 @@ void Argument_Processor(string argument){
 				case "Left":
 					if(player_num==1){
 						if(Player1.CanMove){
-							if(Status==GameStatus.SettingUp&&Player.End1>=0){
+							if(Status==GameStatus.SettingUp&&Player1.End1.X>=0&&Player1.End2.X<0){
 								int size=0;
 								foreach(KeyValuePair<MyShip,bool> p in Player1.ReadyShips){
 									if(!p.Value){
@@ -1274,7 +1278,7 @@ void Argument_Processor(string argument){
 					}
 					else if(player_num==2){
 						if(Player2.CanMove){
-							if(Status==GameStatus.SettingUp&&Player.End2>=0){
+							if(Status==GameStatus.SettingUp&&Player2.End1.X>=0&&Player2.End2.X<0){
 								int size=0;
 								foreach(KeyValuePair<MyShip,bool> p in Player2.ReadyShips){
 									if(!p.Value){
@@ -1297,7 +1301,7 @@ void Argument_Processor(string argument){
 				case "Up":
 					if(player_num==1){
 						if(Player1.CanMove){
-							if(Status==GameStatus.SettingUp&&Player.End1>=0){
+							if(Status==GameStatus.SettingUp&&Player1.End1.X>=0&&Player1.End2.X<0){
 								int size=0;
 								foreach(KeyValuePair<MyShip,bool> p in Player1.ReadyShips){
 									if(!p.Value){
@@ -1318,7 +1322,7 @@ void Argument_Processor(string argument){
 					}
 					else if(player_num==2){
 						if(Player2.CanMove){
-							if(Status==GameStatus.SettingUp&&Player.End2>=0){
+							if(Status==GameStatus.SettingUp&&Player2.End1.X>=0&&Player2.End2.X<0){
 								int size=0;
 								foreach(KeyValuePair<MyShip,bool> p in Player2.ReadyShips){
 									if(!p.Value){
@@ -1341,7 +1345,7 @@ void Argument_Processor(string argument){
 				case "Down":
 					if(player_num==1){
 						if(Player1.CanMove){
-							if(Status==GameStatus.SettingUp&&Player.End1>=0){
+							if(Status==GameStatus.SettingUp&&Player1.End1.X>=0&&Player1.End2.X<0){
 								int size=0;
 								foreach(KeyValuePair<MyShip,bool> p in Player1.ReadyShips){
 									if(!p.Value){
@@ -1362,7 +1366,7 @@ void Argument_Processor(string argument){
 					}
 					else if(player_num==2){
 						if(Player2.CanMove){
-							if(Status==GameStatus.SettingUp&&Player.End2>=0){
+							if(Status==GameStatus.SettingUp&&Player2.End1.X>=0&&Player2.End2.X<0){
 								int size=0;
 								foreach(KeyValuePair<MyShip,bool> p in Player2.ReadyShips){
 									if(!p.Value){
@@ -1385,7 +1389,7 @@ void Argument_Processor(string argument){
 				case "Right":
 					if(player_num==1){
 						if(Player1.CanMove){
-							if(Status==GameStatus.SettingUp&&Player.End1>=0){
+							if(Status==GameStatus.SettingUp&&Player1.End1.X>=0&&Player1.End2.X<0){
 								int size=0;
 								foreach(KeyValuePair<MyShip,bool> p in Player1.ReadyShips){
 									if(!p.Value){
@@ -1406,7 +1410,7 @@ void Argument_Processor(string argument){
 					}
 					else if(player_num==2){
 						if(Player2.CanMove){
-							if(Status==GameStatus.SettingUp&&Player.End2>=0){
+							if(Status==GameStatus.SettingUp&&Player2.End1.X>=0&&Player2.End2.X<0){
 								int size=0;
 								foreach(KeyValuePair<MyShip,bool> p in Player2.ReadyShips){
 									if(!p.Value){
@@ -1430,7 +1434,7 @@ void Argument_Processor(string argument){
 					if(Status==GameStatus.Awaiting){
 						if(player_num==1)
 							Player_1_Ready=true;
-						else if(playeR_num==2)
+						else if(player_num==2)
 							Player_2_Ready=true;
 					}
 					if(Status==GameStatus.SettingUp){
@@ -1440,7 +1444,7 @@ void Argument_Processor(string argument){
 							}
 							else if(Player1.End1.X<0){
 								Player1.End2=Player1.Selection;
-								Selection=new Vector2(0,0);
+								Player1.Selection=new Vector2(0,0);
 								MyShip Ship=MyShip.Unknown;
 								foreach(KeyValuePair<MyShip,bool> p in Player1.ReadyShips){
 									if(!p.Value){
@@ -1466,7 +1470,7 @@ void Argument_Processor(string argument){
 							}
 							else if(Player2.End1.X<0){
 								Player2.End2=Player2.Selection;
-								Selection=new Vector2(0,0);
+								Player2.Selection=new Vector2(0,0);
 								MyShip Ship=MyShip.Unknown;
 								foreach(KeyValuePair<MyShip,bool> p in Player2.ReadyShips){
 									if(!p.Value){
@@ -1500,7 +1504,7 @@ void Argument_Processor(string argument){
 					if(Status==GameStatus.Awaiting){
 						if(player_num==1)
 							Player_1_Ready=false;
-						else if(playeR_num==2)
+						else if(player_num==2)
 							Player_2_Ready=false;
 					}
 					else if(Status==GameStatus.SettingUp){
