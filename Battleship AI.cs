@@ -425,8 +425,8 @@ ShipStatus Status{
 			else
 				return Status.Waiting;
 		}
-		
-		
+		if((Target_Position-Controller.GetPosition()).Length()>1||GetAngle(Target_Forward,Forward_Vector)>1||GetAngle(Target_Up,Up_Vector)>1)
+			return Status.Traveling;
 		return CurrentStatus;
 	}
 }
@@ -773,18 +773,81 @@ void Wait(){
 	Runtime.UpdateFrequency=UpdateFrequency.Update100;
 }
 
+void Travel(){
+	Write("Traveling...");
+	if((Target_Position-Controller.GetPosition()).Length()>1){
+		MyWaypointInfo Destination=new MyWaypointInfo("Target Position",Target_Position);
+		if((!Controller.CurrentWaypoint.Equals(Destination))||!Controller.IsAutoPilotEnabled){
+			Controller.ClearWaypoints();
+			Controller.AddWaypoint(Destination);
+			Controller.SetCollisionAvoidance(true);
+			Speed_Limit=50;
+			Controller.SpeedLimit=(float)Speed_Limit;
+			Controller.SetAutoPilotEnabled(true);
+		}
+	}
+	else {
+		Controller.SetAutoPilotEnabled(false);
+		if(GetAngle(Forward_Vector,Target_Forward)>1||GetAngle(Up_Vector,Target_Up)>1){
+			Gyroscope.GyroOverride=(AngularVelocity.Length()<3);
+			float current_pitch=(float) Relative_AngularVelocity.X;
+			float current_yaw=(float) Relative_AngularVelocity.Y;
+			float current_roll=(float) Relative_AngularVelocity.Z;
+			
+			float gyro_count=0;
+			List<IMyGyro> AllGyros=new List<IMyGyro>();
+			GridTerminalSystem.GetBlocksOfType<IMyGyro>(AllGyros);
+			foreach(IMyGyro Gyro in AllGyros){
+				if(Gyro.IsWorking)
+					gyro_count+=Gyro.GyroPower/100.0f;
+			}
+			float gyro_multx=(float)Math.Max(0.1f,Math.Min(1,1.5f/(ShipMass/gyro_count/1000000)));
+			
+			float input_pitch=current_pitch*0.99f;
+			double difference=GetAngle(Down_Vector,Target_Forward)-GetAngle(Up_Vector,Target_Forward);
+			if(Math.Abs(difference)>.1)
+				input_pitch-=(float)Math.Min(Math.Max(difference/5,-4),4)*gyro_multx;
+			
+			float input_yaw=current_yaw*0.99f;
+			difference=GetAngle(Left_Vector,Target_Forward)-GetAngle(Right_Vector,Target_Forward);
+			if(Math.Abs(difference)>.1)
+				input_yaw+=(float)Math.Min(Math.Max(difference/5,-4),4)*gyro_multx;
+			
+			float input_roll=current_roll*0.99f;
+			difference=GetAngle(Left_Vector,Target_Up)-GetAngle(Right_Vector,Target_Up);
+			if(Math.Abs(difference)>.1)
+				input_roll+=(float)Math.Min(Math.Max(difference/5,-4),1)*gyro_multx;
+			Vector3D input=new Vector3D(input_pitch,input_yaw,input_roll);
+			
+			Vector3D global=Vector3D.TransformNormal(input,Controller.WorldMatrix);
+			Vector3D output=Vector3D.TransformNormal(global,MatrixD.Invert(Gyroscope.WorldMatrix));
+			output.Normalize();
+			output*=input.Length();
+			
+			Gyroscope.Pitch=(float)output.X;
+			Gyroscope.Yaw=(float)output.Y;
+			Gyroscope.Roll=(float)output.Z;
+		}
+		else
+			CurrentStatus=ShipStatus.InPosition;
+	}
+}
+
 public void Main(string argument, UpdateType updateSource)
 {
 	UpdateProgramInfo();
 	UpdateSystemInfo();
 	if(Gyroscope==null||Gyroscope.IsFunctional)
 		Gyroscope=GenericMethods<IMyGyro>.GetClosestFunc(GyroFunc);
+	Gyro.GyroOverride=false;
 	if(Status==ShipStatus.SettingUp)
 		SetUp();
 	if(Status==ShipStatus.Linking)
 		Link();
 	if(Status==ShipStatus.Waiting)
 		Wait();
+	if(Status==ShipStatus.Traveling)
+		Travel();
 	
 	
     // The main entry point of the script, invoked every time
