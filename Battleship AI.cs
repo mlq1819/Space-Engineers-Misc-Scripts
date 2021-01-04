@@ -926,6 +926,48 @@ void Receiving(){
 	Runtime.UpdateFrequency=UpdateFrequency.Update1;
 }
 
+bool armed=false;
+void Detonate(){
+	if(!armed){
+		List<IMyWarhead> Unset=new List<IMyWarhead>();
+		GridTerminalSystem.GetBlocksOfType<IMyWarhead>(Unset);
+		List<IMyWarhead> Set=new List<IMyWarhead>();
+		if(Unset.Count>0){
+			double Time=2;
+			while(Unset.Count>0){
+				bool found=false;
+				for(int i=0;i<Set.Count;i++){
+					IMyWarhead Armed=Set[i];
+					for(int j=0;j<Unset.Count;j++){
+						IMyWarhead Unarmed=Unset[j];
+						if((Armed.GetPosition()-Unarmed.GetPosition()).Length()<12){
+							found=true;
+							Unarmed.DetonationTime=Armed.DetonationTime;
+							Unarmed.StartCountdown();
+							Unarmed.IsArmed=true;
+							Set.Add(Unarmed);
+							Unset.Remove(Unarmed);
+							j--;
+						}
+					}
+				}
+				if(!found){
+					Time+=(Rnd.Next(10,30)+Rnd.Next(10,30))/10.0;
+					IMyWarhead Pick=Unset[Rnd.Next(0,Unset.Count-1)];
+					Pick.DetonationTime=Time;
+					Pick.StartCountdown();
+					Pick.IsArmed=true;
+					Set.Add(Pick);
+					Unset.Remove(Pick);
+				}
+			}
+			
+		}
+		armed=true;
+	}
+	Runtime.UpdateFrequency=UpdateFrequency.Update100;
+}
+
 public void Main(string argument, UpdateType updateSource)
 {
 	UpdateProgramInfo();
@@ -947,7 +989,8 @@ public void Main(string argument, UpdateType updateSource)
 		InPosition();
 	if(Status==ShipStatus.Receiving)
 		Receiving();
-	if(Status==ShipStatus.)
+	if(Status==ShipStatus.Detonating)
+		Detonate();
 	
 	Antenna_R.HudText=Status.ToString();
 	if(Status!=ShipStatus.SettingUp)
