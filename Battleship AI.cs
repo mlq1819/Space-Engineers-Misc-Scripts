@@ -4,6 +4,21 @@ Color DEFAULT_BACKGROUND_COLOR=new Color(44,0,88,255);
 
 class Prog{
 	public static MyGridProgram P;
+	public static int ShipSize(MyShip ship){
+		switch(ship){
+			case MyShip.Carrier:
+				return 5;
+			case MyShip.Frigate:
+				return 4;
+			case MyShip.Cruiser:
+				return 3;
+			case MyShip.Prowler:
+				return 3;
+			case MyShip.Destroyer:
+				return 2;
+		}
+		return 0;
+	}
 }
 
 class GenericMethods<T> where T : class, IMyTerminalBlock{
@@ -285,6 +300,10 @@ enum MyShip{
 	Destroyer=5
 }
 
+int ShipSize(MyShip s){
+	return Prog.ShipSize(s);
+}
+
 TimeSpan FromSeconds(double seconds){
 	return (new TimeSpan(0,0,0,(int)seconds,(int)(seconds*1000)%1000));
 }
@@ -400,8 +419,12 @@ ShipStatus Status{
 	get{
 		if(Type==MyShip.None||Player_Num<1||Player_Num>2)
 			return Status.SettingUp;
-		if(Target_Laser.Length()==0||(Target_Laser-Controller.GetPosition()).Length()>5000||Antenna_L.Status!=MyLaserAntennaStatus.Connected)
-			return Status.Linking;
+		if(End1.Length()==0||(End1-Controller.GetPosition()).Length()>5000||End2.Length()==0||(End2-Controller.GetPosition()).Length()>5000){
+			if(Target_Laser.Length()==0||(Target_Laser-Controller.GetPosition()).Length()>5000)
+				return Status.Linking;
+			else
+				return Status.Waiting;
+		}
 		
 		
 		return CurrentStatus;
@@ -422,6 +445,41 @@ string MyListenerString{
 }
 
 List<IMyDecoy> Decoys=new List<IMyDecoy>();
+Vector3D DecoyPosition(int i){
+	if(Decoys.Count>i)
+		return new Vector3D(0,0,0);
+	if(Decoys[i-1]!=null)
+		return Decoys[i-1].GetPosition();
+	double sum=0;
+	int total=0;
+	for(int i=0;i<Decoys.Count;i++){
+		for(int j=i+1;j<Decoys.Count;j++){
+			if(i!=j&&Decoys[i]!=null&&Decoys[j]!=null){
+				double distance=Decoys[j]-Decoys[i];
+				sum+=distance/Math.Abs(i-j);
+				total++;
+			}
+		}
+	}
+	if(total==0)
+		return new Vector3D(0,0,0);
+	sum=sum/total;
+	int ref_num=i;
+	int distance=0;
+	while(ref_num>0&&ref_num<=Decoys.Count&&Decoys[ref_num-1]==null){
+		distance++;
+		ref_num=i-distance;
+		if(ref_num<0||Decoys[ref_num-1]==null){
+			ref_num=i+distance;
+		}
+	}
+	if(ref_num>0&&ref_num<=Decoys.Count&&Decoys[ref_num-1]!=null){
+		Vector3D output=Decoys[ref_num-1].GetPosition();
+		output+=forward_vector*(ref_num-i)*sum;
+		return output;
+	}
+	return new Vector3D(0,0,0);
+}
 
 double ShipMass{
 	get{
@@ -436,6 +494,27 @@ Vecto3D Target_Laser=new Vector3D(0,0,0);
 
 Vector3D End1=new Vector3D(0,0,0);
 Vector3D End2=new Vector3D(0,0,0);
+
+Vector3D Target_Position=new Vector3D(0,0,0);
+Vector3D Get_Position(){
+	Vector3D Decoy_First=DecoyPosition(1);
+	Vector3D Decoy_Last=DecoyPosition(Decoys.Count);
+	Decoy_First=GlobalToLocalPosition(Decoy_First,Controller);
+	Decoy_Last=GlobalToLocalPosition(Decoy_Last,Controller);
+	Decoy_First.Y=0;
+	Decoy_First.X=0;
+	Decoy_Last.Y=0;
+	Decoy_Last.X=0;
+	Decoy_First=LocalToGlobalPosition(Decoy_First,Controller);
+	Decoy_Last=LocalToGlobalPosition(Decoy_Last,Controller);
+	double d_Decoys=(Decoy_First-Decoy_Last).Length();
+	double p_front=(Decoy_First-Controller.GetPosition()).Length()/d_Decoys;
+	double p_back=(Decoy_Last-Controller.GetPosition()).Length()/d_Decoys;
+	double p_sum=p_front+p_back;
+	p_front/=p_sum;
+	p_back/=p_sum;
+	return p_back*End1+p_front*End2
+}
 
 Vector3D AngularVelocity;
 Vector3D Relative_AngularVelocity{
@@ -523,7 +602,22 @@ public Program(){
 						CurrentStatus=(ShipStatus)status;
 					break;
 				case "Target_Laser":
-					Vector32.TryParse(data,out Target_Laser);
+					Vector3D.TryParse(data,out Target_Laser);
+					break;
+				case "End1":
+					Vector3D.TryParse(data,out End1);
+					break;
+				case "End2":
+					Vector3D.TryParse(data,out End2);
+					break;
+				case "Target_Forward":
+					Vector3D.TryParse(data,out Target_Forward);
+					break;
+				case "Target_Up":
+					Vector3D.TryParse(data,out Target_Up);
+					break;
+				case "Target_Position":
+					Vector3D.TryParse(data,out Target_Position);
 					break;
 			}
 		}
@@ -540,6 +634,11 @@ public void Save(){
     this.Storage="ID:"+ID.ToString();
 	this.Storage+="•CurrentStatus:"+((int)CurrentStatus).ToString();
 	this.Storage+="•Target_Laser:"+Target_Laser.ToString();
+	this.Storage+="•End1:"+End1.ToString();
+	this.Storage+="•End2:"+End2.ToString();
+	this.Storage+="•Target_Forward:"+Target_Forward.ToString();
+	this.Storage+="•Target_Up:"+Target_Up.ToString();
+	this.Storage+="•Target_Position:"+Target_Position.ToString();
 	
 }
 
@@ -607,8 +706,12 @@ void SetUp(){
 			}
 		}
 	}
-	if(Status!=ShipStatus.SettingUp)
+	if(Status!=ShipStatus.SettingUp){
 		IGC.RegisterBroadcastListener(MyListenerString);
+		Decoys.Clear();
+		for(int i=1;i<=ShipSize(Type);i++)
+			Decoys.Add(GenericMethods<IMyDecoy>.GetFull("Decoy "+i.ToString()));
+	}
 	Me.CustomData="Ship Type:"+Type.ToString()+"\nPlayer Number:"+Player_Num.ToString();
 	Write(Me.CustomData);
 	Runtime.UpdateFrequency=UpdateFrequency.Update100;
@@ -621,11 +724,8 @@ void Link(){
 		Antenna_R.Radius=5000;
 		Antenna_R.Enabled=true;
 	}
-	else {
+	else 
 		try_connect=true;
-		if((Target_Laser-Controller.GetPosition()).Length()>200)
-			Antenna_R.Enabled=false;
-	}
 	List<IMyBroadcastListener> listeners=new List<IMyBroadcastListener>();
 	IGC.GetBroadcastListeners(listeners);
 	foreach(IMyBroadcastListener Listener in listeners){
@@ -641,15 +741,34 @@ void Link(){
 						Vector3D.TryParse(data,out Target_Laser);
 					}
 				}
-				
-				if(EntityInfo.TryParse(message.Data.ToString(), out Entity))
-					UpdateList(Entities, Entity);
 			}
 		}
 	}
 	if(try_connect){
 		Antenna_L.SetTargetCoords((new MyWaypointInfo("Hub "+MyListenerString+" Laser Antenna",Target_Laser.ToString())).ToString());
 		Antenna_L.Connect();
+	}
+	Runtime.UpdateFrequency=UpdateFrequency.Update100;
+}
+
+void Wait(){
+	Write("Waiting...");
+	List<IMyBroadcastListener> listeners=new List<IMyBroadcastListener>();
+	IGC.GetBroadcastListeners(listeners);
+	foreach(IMyBroadcastListener Listener in listeners){
+		if(Listener.Tag.Equals(MyListenerString)){
+			while(Listener.HasPendingMessage){
+				MyIGCMessage message=Listener.AcceptMessage();
+				string[] args=message.Data.ToString().Split('•');
+				if(args.Count==5&&args[0].Equals("Ends")){
+					Vector3D.TryParse(args[1],out End1);
+					Vector3D.TryParse(args[2],out End2);
+					Vector3D.TryParse(args[3],out Target_Forward);
+					Vector3D.TryParse(args[4],out Target_Up);
+					Target_Position=Get_Position();
+				}
+			}
+		}
 	}
 	Runtime.UpdateFrequency=UpdateFrequency.Update100;
 }
@@ -664,6 +783,8 @@ public void Main(string argument, UpdateType updateSource)
 		SetUp();
 	if(Status==ShipStatus.Linking)
 		Link();
+	if(Status==ShipStatus.Waiting)
+		Wait();
 	
 	
     // The main entry point of the script, invoked every time
