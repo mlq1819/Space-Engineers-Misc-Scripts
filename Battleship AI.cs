@@ -265,13 +265,24 @@ class GenericMethods<T> where T : class, IMyTerminalBlock{
 }
 
 enum ShipStatus{
-	Linking=0,
-	Waiting=1,
-	Traveling=2,
-	InPosition=3,
-	Receiving=4,
-	Detonating=5,
-	Returning=6
+	None=-1,
+	SettingUp=0,
+	Linking=1,
+	Waiting=2,
+	Traveling=3,
+	InPosition=4,
+	Receiving=5,
+	Detonating=6,
+	Returning=7
+}
+
+enum MyShip{
+	None=0,
+	Carrier=1,
+	Frigate=2,
+	Cruiser=3,
+	Prowler=4,
+	Destroyer=5
 }
 
 TimeSpan FromSeconds(double seconds){
@@ -372,6 +383,10 @@ void Write(string text,bool new_line=true,bool append=true){
 		Me.GetSurface(0).WriteText(text, append);
 }
 
+bool GyroFunc(IMyGyro G){
+	return G!=null&&G.IsFunctional;
+}
+
 TimeSpan Time_Since_Start=new TimeSpan(0);
 long cycle=0;
 char loading_char='|';
@@ -380,17 +395,32 @@ Random Rnd;
 
 IMyRemoteControl Controller;
 IMyGyro Gyroscope;
-Queue<ShipStatus> Statuses=new Queue<ShipStatus>();
+ShipStatus CurrentStatus=ShipStatus.None;
 ShipStatus Status{
 	get{
-		if(Statuses.Count==0)
+		if(Type==MyShip.None||Player_Num<1||Player_Num>2)
+			return Status.SettingUp;
+		if(Target_Laser.Length()==0||(Target_Laser-Controller.GetPosition()).Length()>5000)
 			return Status.Linking;
-		return Statuses.Peek();
+		
+		return CurrentStatus;
 	}
 }
 IMyRadioAntenna Antenna_R;
 IMyLaserAntenna Antenna_L;
-long ID;
+int ID;
+
+
+
+MyShip Type=MyShip.None;
+int Player_Num=-1;
+string MyListenerString{
+	get{
+		return Type.ToString()+" "+Player_Num;
+	}
+}
+
+List<IMyDecoy> Decoys=new List<IMyDecoy>();
 
 double ShipMass{
 	get{
@@ -400,6 +430,11 @@ double ShipMass{
 bool Match_Directions=false;
 Vector3D Target_Forward=new Vector3D(0,0,-1);
 Vector3D Target_Up=new Vector3D(0,1,0);
+
+Vecto3D Target_Laser=new Vector3D(0,0,0);
+
+Vector3D End1=new Vector3D(0,0,0);
+Vector3D End2=new Vector3D(0,0,0);
 
 Vector3D AngularVelocity;
 Vector3D Relative_AngularVelocity{
@@ -458,26 +493,45 @@ public Program(){
 	Me.GetSurface(1).FontSize=2.2f;
 	Me.GetSurface(1).TextPadding=40.0f;
 	Rnd=new Random();
+	ID=Rnd.Next(0,Int32.MaxValue);
 	Echo("Beginning initialization");
-	// The constructor, called only once every session and
-    // always before any other method is called. Use it to
-    // initialize your script. 
-    //     
-    // The constructor is optional and can be removed if not
-    // needed.
-    // 
-    // It's recommended to set RuntimeInfo.UpdateFrequency 
-    // here, which will allow your script to run itself without a 
-    // timer block.
+	Controller=GenericMethods<IMyRemoteControl>.GetContaining("",5);
+	Gyroscope=GenericMethods<IMyGyro>.GetClosestFunc(GyroFunc);
+	if(Controller==null||Gyroscope==null)
+		return;
+	Forward=Controller.Orientation.Forward;
+	Up=Controller.Orientation.Up;
+	Left=Controller.Orientation.Left;
+	string[] args=this.Storage.Split('•');
+	foreach(string arg in args){
+		int index=arg.IndexOf(':');
+		if(index>0){
+			string type=arg.Substring(0,index);
+			string data=arg.Substring(index+1);
+			switch(type){
+				case "ID":
+					Int32.TryParse(data,out ID);
+					break;
+				case "CurrentStatus":
+					int status;
+					if(Int32.TryParse(data,out status)&&status>=-1&&status<=7)
+						CurrentStatus=(ShipStatus)status;
+					break;
+			}
+		}
+	}
+	SetUp();
+	
+	
+	
+	Echo("Completed initialization");
+	Runtime.UpdateFrequency=UpdateFrequency.Update100;
 }
 
 public void Save(){
-    // Called when the program needs to save its state. Use
-    // this method to save your state to the Storage field
-    // or some other means. 
-    // 
-    // This method is optional and can be removed if not
-    // needed.
+    this.Storage="ID:"+ID.ToString();
+	this.Storage+="•CurrentStatus:"+((int)CurrentStatus).ToString();
+	
 }
 
 void UpdateSystemInfo(){
@@ -519,11 +573,51 @@ void UpdateProgramInfo(){
 	Me.GetSurface(1).WriteText("\n"+ToString(Time_Since_Start)+" since last reboot",true);
 }
 
+void SetUp(){
+	string[] args=Me.CustomData.Split('\n');
+	foreach(string arg in args){
+		int index=arg.IndexOf(":");
+		if(index>0){
+			string type=arg.Substring(0,index);
+			string data=arg.Substring(index+1);
+			if(type.Equals("Ship Type")){
+				for(int i=1;i<=5;i++){
+					if(data.ToLower().Equals(((MyShip)i).ToString().ToLower())){
+						Type=((MyShip)i);
+						break;
+					}
+				}
+			}
+			else if(type.Equals("Player Number")){
+				int i=0;
+				if(Int32.TryParse(data,out i)){
+					if(i>0&&i<=2)
+						Player_Num=i;
+				}
+			}
+		}
+	}
+	if(Status!=ShipStatus.SettingUp)
+		IGC.RegisterBroadcastListener(MyListenerString);
+	
+	Me.CustomData="Ship Type:"+Type.ToString()+"\nPlayer Number:"+Player_Num.ToString();
+	Runtime.UpdateFrequency=UpdateFrequency.Update100;
+}
+
+void Link(){
+	
+}
+
 public void Main(string argument, UpdateType updateSource)
 {
 	UpdateProgramInfo();
 	UpdateSystemInfo();
-	
+	if(Gyroscope==null||Gyroscope.IsFunctional)
+		Gyroscope=GenericMethods<IMyGyro>.GetClosestFunc(GyroFunc);
+	if(Status==ShipStatus.SettingUp)
+		SetUp();
+	if(Status==ShipStatus.Linking)
+		Link();
     // The main entry point of the script, invoked every time
     // one of the programmable block's Run actions are invoked,
     // or the script updates itself. The updateSource argument
