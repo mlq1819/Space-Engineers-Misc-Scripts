@@ -908,6 +908,24 @@ void InPosition(){
 	Runtime.UpdateFrequency=UpdateFrequency.Update10;
 }
 
+void Receiving(){
+	Write("Receiving in "+Math.Round(Fire_Timer,1)+" seconds...");
+	if(Fire_Timer<=0){
+		int count=0;
+		foreach(IMyDecoy Decoy in Decoys){
+			if(Decoy!=null){
+				if(Decoy.IsWorking&&Decoy.Enabled)
+					count++;
+			}
+		}
+		if(count>0)
+			CurrentStatus=ShipStatus.InPosition;
+		else
+			CurrentStatus=ShipStatus.Detonating;
+	}
+	Runtime.UpdateFrequency=UpdateFrequency.Update1;
+}
+
 public void Main(string argument, UpdateType updateSource)
 {
 	UpdateProgramInfo();
@@ -927,7 +945,9 @@ public void Main(string argument, UpdateType updateSource)
 		Travel();
 	if(Status==ShipStatus.InPosition)
 		InPosition();
-	
+	if(Status==ShipStatus.Receiving)
+		Receiving();
+	if(Status==ShipStatus.)
 	
 	Antenna_R.HudText=Status.ToString();
 	if(Status!=ShipStatus.SettingUp)
