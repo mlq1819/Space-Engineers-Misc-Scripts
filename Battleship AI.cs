@@ -623,7 +623,7 @@ void Link(){
 	}
 	else {
 		try_connect=true;
-		if(Target_Laser-Controller.GetPosition()).Length()>200)
+		if((Target_Laser-Controller.GetPosition()).Length()>200)
 			Antenna_R.Enabled=false;
 	}
 	List<IMyBroadcastListener> listeners=new List<IMyBroadcastListener>();
