@@ -267,13 +267,14 @@ class GenericMethods<T> where T : class, IMyTerminalBlock{
 enum ShipStatus{
 	None=-1,
 	SettingUp=0,
-	Linking=1,
-	Waiting=2,
-	Traveling=3,
-	InPosition=4,
-	Receiving=5,
-	Detonating=6,
-	Returning=7
+	Linking1=1,
+	Linking2=2,
+	Waiting=3,
+	Traveling=4,
+	InPosition=5,
+	Receiving=6,
+	Detonating=7,
+	Returning=8
 }
 
 enum MyShip{
@@ -502,6 +503,10 @@ public Program(){
 	Forward=Controller.Orientation.Forward;
 	Up=Controller.Orientation.Up;
 	Left=Controller.Orientation.Left;
+	Antenna_R=GenericMethods<IMyRadioAntenna>.GetContaining("");
+	Antenna_L=GenericMethods<IMyLaserAntenna>.GetContaining("");
+	if(Antenna_R==null||Antenna_L==null)
+		return;
 	string[] args=this.Storage.Split('•');
 	foreach(string arg in args){
 		int index=arg.IndexOf(':');
@@ -514,8 +519,11 @@ public Program(){
 					break;
 				case "CurrentStatus":
 					int status;
-					if(Int32.TryParse(data,out status)&&status>=-1&&status<=7)
+					if(Int32.TryParse(data,out status)&&status>=-1&&status<=8)
 						CurrentStatus=(ShipStatus)status;
+					break;
+				case "Target_Laser":
+					Vector32.TryParse(data,out Target_Laser);
 					break;
 			}
 		}
@@ -531,6 +539,7 @@ public Program(){
 public void Save(){
     this.Storage="ID:"+ID.ToString();
 	this.Storage+="•CurrentStatus:"+((int)CurrentStatus).ToString();
+	this.Storage+="•Target_Laser:"+Target_Laser.ToString();
 	
 }
 
@@ -575,6 +584,7 @@ void UpdateProgramInfo(){
 
 void SetUp(){
 	string[] args=Me.CustomData.Split('\n');
+	Write("Setting Up...");
 	foreach(string arg in args){
 		int index=arg.IndexOf(":");
 		if(index>0){
@@ -599,13 +609,36 @@ void SetUp(){
 	}
 	if(Status!=ShipStatus.SettingUp)
 		IGC.RegisterBroadcastListener(MyListenerString);
-	
 	Me.CustomData="Ship Type:"+Type.ToString()+"\nPlayer Number:"+Player_Num.ToString();
+	Write(Me.CustomData);
 	Runtime.UpdateFrequency=UpdateFrequency.Update100;
 }
 
-void Link(){
-	
+void Link1(){
+	Write("Linking1...");
+	Antenna_R.Radius=5000;
+	Antenna_R.Enabled=true;
+	List<IMyBroadcastListener> listeners=new List<IMyBroadcastListener>();
+	IGC.GetBroadcastListeners(listeners);
+	foreach(IMyBroadcastListener Listener in listeners){
+		if(Listener.Tag.Equals(MyListenerString)){
+			while(Listener.HasPendingMessage){
+				MyIGCMessage message=Listener.AcceptMessage();
+				int index=message.Data.ToString().IndexOf(":");
+				if(index>0){
+					string target=message.Data.ToString().Substring(0,index);
+					int target_id=-1;
+					if(Int32.TryParse(target,out target_id)&&target_id==ID){
+						string data=message.Data.ToString().Substring(index+1);
+						Vector3D.TryParse(data,out Target_Laser);
+					}
+				}
+				
+				if(EntityInfo.TryParse(message.Data.ToString(), out Entity))
+					UpdateList(Entities, Entity);
+			}
+		}
+	}
 }
 
 public void Main(string argument, UpdateType updateSource)
@@ -616,8 +649,11 @@ public void Main(string argument, UpdateType updateSource)
 		Gyroscope=GenericMethods<IMyGyro>.GetClosestFunc(GyroFunc);
 	if(Status==ShipStatus.SettingUp)
 		SetUp();
-	if(Status==ShipStatus.Linking)
-		Link();
+	if(Status==ShipStatus.Linking1)
+		Link1();
+	if(Status==ShipStatus.Linking2)
+		Link2();
+	
     // The main entry point of the script, invoked every time
     // one of the programmable block's Run actions are invoked,
     // or the script updates itself. The updateSource argument
