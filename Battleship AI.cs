@@ -1,4 +1,4 @@
-const string Program_Name = ""; //Name me!
+const string Program_Name = "Battleship AI"; //Name me!
 Color DEFAULT_TEXT_COLOR=new Color(197,137,255,255);
 Color DEFAULT_BACKGROUND_COLOR=new Color(44,0,88,255);
 
@@ -264,6 +264,16 @@ class GenericMethods<T> where T : class, IMyTerminalBlock{
 	}
 }
 
+enum ShipStatus{
+	Linking=0,
+	Waiting=1,
+	Traveling=2,
+	InPosition=3,
+	Receiving=4,
+	Detonating=5,
+	Returning=6
+}
+
 TimeSpan FromSeconds(double seconds){
 	return (new TimeSpan(0,0,0,(int)seconds,(int)(seconds*1000)%1000));
 }
@@ -366,6 +376,75 @@ TimeSpan Time_Since_Start=new TimeSpan(0);
 long cycle=0;
 char loading_char='|';
 double seconds_since_last_update=0;
+Random Rnd;
+
+IMyRemoteControl Controller;
+IMyGyro Gyroscope;
+Queue<ShipStatus> Statuses=new Queue<ShipStatus>();
+ShipStatus Status{
+	get{
+		if(Statuses.Count==0)
+			return Status.Linking;
+		return Statuses.Peek();
+	}
+}
+IMyRadioAntenna Antenna_R;
+IMyLaserAntenna Antenna_L;
+long ID;
+
+double ShipMass{
+	get{
+		return Controller.CalculateShipMass().TotalMass;
+	}
+}
+bool Match_Directions=false;
+Vector3D Target_Forward=new Vector3D(0,0,-1);
+Vector3D Target_Up=new Vector3D(0,1,0);
+
+Vector3D AngularVelocity;
+Vector3D Relative_AngularVelocity{
+	get{
+		return GlobalToLocal(AngularVelocity,Controller);
+	}
+}
+
+Base6Directions.Direction Forward;
+Base6Directions.Direction Backward{
+	get{
+		return Base6Directions.GetOppositeDirection(Forward);
+	}
+}
+Base6Directions.Direction Up;
+Base6Directions.Direction Down{
+	get{
+		return Base6Directions.GetOppositeDirection(Up);
+	}
+}
+Base6Directions.Direction Left;
+Base6Directions.Direction Right{
+	get{
+		return Base6Directions.GetOppositeDirection(Left);
+	}
+}
+
+Vector3D Forward_Vector;
+Vector3D Backward_Vector{
+	get{
+		return -1*Forward_Vector;
+	}
+}
+Vector3D Up_Vector;
+Vector3D Down_Vector{
+	get{
+		return -1*Up_Vector;
+	}
+}
+Vector3D Left_Vector;
+Vector3D Right_Vector{
+	get{
+		return -1*Left_Vector;
+	}
+}
 
 public Program(){
 	Prog.P=this;
@@ -378,6 +457,7 @@ public Program(){
 	}
 	Me.GetSurface(1).FontSize=2.2f;
 	Me.GetSurface(1).TextPadding=40.0f;
+	Rnd=new Random();
 	Echo("Beginning initialization");
 	// The constructor, called only once every session and
     // always before any other method is called. Use it to
@@ -398,6 +478,19 @@ public void Save(){
     // 
     // This method is optional and can be removed if not
     // needed.
+}
+
+void UpdateSystemInfo(){
+	Vector3D base_vector=new Vector3D(0,0,-1);
+	Forward_Vector=LocalToGlobal(base_vector,Controller);
+	Forward_Vector.Normalize();
+	base_vector=new Vector3D(0,1,0);
+	Up_Vector=LocalToGlobal(base_vector,Controller);
+	Up_Vector.Normalize();
+	base_vector=new Vector3D(-1,0,0);
+	Left_Vector=LocalToGlobal(base_vector,Controller);
+	Left_Vector.Normalize();
+	AngularVelocity=Controller.GetShipVelocities().AngularVelocity;
 }
 
 void UpdateProgramInfo(){
@@ -429,6 +522,8 @@ void UpdateProgramInfo(){
 public void Main(string argument, UpdateType updateSource)
 {
 	UpdateProgramInfo();
+	UpdateSystemInfo();
+	
     // The main entry point of the script, invoked every time
     // one of the programmable block's Run actions are invoked,
     // or the script updates itself. The updateSource argument
