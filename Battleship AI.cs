@@ -267,14 +267,13 @@ class GenericMethods<T> where T : class, IMyTerminalBlock{
 enum ShipStatus{
 	None=-1,
 	SettingUp=0,
-	Linking1=1,
-	Linking2=2,
-	Waiting=3,
-	Traveling=4,
-	InPosition=5,
-	Receiving=6,
-	Detonating=7,
-	Returning=8
+	Linking=1,
+	Waiting=2,
+	Traveling=3,
+	InPosition=4,
+	Receiving=5,
+	Detonating=6,
+	Returning=7
 }
 
 enum MyShip{
@@ -401,8 +400,9 @@ ShipStatus Status{
 	get{
 		if(Type==MyShip.None||Player_Num<1||Player_Num>2)
 			return Status.SettingUp;
-		if(Target_Laser.Length()==0||(Target_Laser-Controller.GetPosition()).Length()>5000)
+		if(Target_Laser.Length()==0||(Target_Laser-Controller.GetPosition()).Length()>5000||Antenna_L.Status!=MyLaserAntennaStatus.Connected)
 			return Status.Linking;
+		
 		
 		return CurrentStatus;
 	}
@@ -519,7 +519,7 @@ public Program(){
 					break;
 				case "CurrentStatus":
 					int status;
-					if(Int32.TryParse(data,out status)&&status>=-1&&status<=8)
+					if(Int32.TryParse(data,out status)&&status>=-1&&status<=7)
 						CurrentStatus=(ShipStatus)status;
 					break;
 				case "Target_Laser":
@@ -614,10 +614,18 @@ void SetUp(){
 	Runtime.UpdateFrequency=UpdateFrequency.Update100;
 }
 
-void Link1(){
-	Write("Linking1...");
-	Antenna_R.Radius=5000;
-	Antenna_R.Enabled=true;
+void Link(){
+	Write("Linking...");
+	bool try_connect=false;
+	if(Target_Laser.Length()==0||(Target_Laser-Controller.GetPosition()).Length()>5000){
+		Antenna_R.Radius=5000;
+		Antenna_R.Enabled=true;
+	}
+	else {
+		try_connect=true;
+		if(Target_Laser-Controller.GetPosition()).Length()>200)
+			Antenna_R.Enabled=false;
+	}
 	List<IMyBroadcastListener> listeners=new List<IMyBroadcastListener>();
 	IGC.GetBroadcastListeners(listeners);
 	foreach(IMyBroadcastListener Listener in listeners){
@@ -639,6 +647,11 @@ void Link1(){
 			}
 		}
 	}
+	if(try_connect){
+		Antenna_L.SetTargetCoords((new MyWaypointInfo("Hub "+MyListenerString+" Laser Antenna",Target_Laser.ToString())).ToString());
+		Antenna_L.Connect();
+	}
+	Runtime.UpdateFrequency=UpdateFrequency.Update100;
 }
 
 public void Main(string argument, UpdateType updateSource)
@@ -649,10 +662,9 @@ public void Main(string argument, UpdateType updateSource)
 		Gyroscope=GenericMethods<IMyGyro>.GetClosestFunc(GyroFunc);
 	if(Status==ShipStatus.SettingUp)
 		SetUp();
-	if(Status==ShipStatus.Linking1)
-		Link1();
-	if(Status==ShipStatus.Linking2)
-		Link2();
+	if(Status==ShipStatus.Linking)
+		Link();
+	
 	
     // The main entry point of the script, invoked every time
     // one of the programmable block's Run actions are invoked,
