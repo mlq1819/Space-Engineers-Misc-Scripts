@@ -928,7 +928,8 @@ void Receiving(){
 
 bool armed=false;
 void Detonate(){
-	if(!armed){
+	Write("Detonating...");
+	if((!armed)&&Fire_Timer<=0){
 		List<IMyWarhead> Unset=new List<IMyWarhead>();
 		GridTerminalSystem.GetBlocksOfType<IMyWarhead>(Unset);
 		List<IMyWarhead> Set=new List<IMyWarhead>();
@@ -961,11 +962,50 @@ void Detonate(){
 					Unset.Remove(Pick);
 				}
 			}
-			
 		}
 		armed=true;
 	}
+	else if(Fire_Timer>0)
+		Write(Math.Round(Fire_Timer,1).ToString()+" seconds to Detonation");
 	Runtime.UpdateFrequency=UpdateFrequency.Update100;
+}
+
+void Return(){
+	Write("Game has ended");
+	int missing=ShipSize(Type);
+	foreach(IMyDecoy Decoy in Decoys){
+		if(Decoy!=null){
+			if(Decoy.IsWorking&&Decoy.Enabled)
+				count--;
+		}
+	}
+	if(count>0){
+		Fire_Timer=60;
+		CurrentStatus=ShipStatus.Detonating;
+		Write("Detonating...");
+		return;
+	}
+	else
+		Write("Returning...");
+	
+	if((Target_Position-Controller.GetPosition()).Length()>1){
+		MyWaypointInfo Destination=new MyWaypointInfo("Target Position",Target_Position);
+		if((!Controller.CurrentWaypoint.Equals(Destination))||!Controller.IsAutoPilotEnabled){
+			Controller.ClearWaypoints();
+			Controller.AddWaypoint(Destination);
+			Controller.SetCollisionAvoidance(true);
+			Speed_Limit=50;
+			Controller.SpeedLimit=(float)Speed_Limit;
+			Controller.SetAutoPilotEnabled(true);
+		}
+	}
+	else{
+		End1=new Vector3D(0,0,0);
+		End2=new Vector3D(0,0,0);
+		Started=false;
+		Returning=false;
+	}
+	Runtime.UpdateFrequency=UpdateFrequency.Update10;
 }
 
 public void Main(string argument, UpdateType updateSource)
@@ -991,15 +1031,9 @@ public void Main(string argument, UpdateType updateSource)
 		Receiving();
 	if(Status==ShipStatus.Detonating)
 		Detonate();
-	
+	if(Status==ShipStatus.Returning)
+		Return();
 	Antenna_R.HudText=Status.ToString();
 	if(Status!=ShipStatus.SettingUp)
 		IGC.SendBroadcastMessage(MyListenerString,"Status•"+Status.ToString(),TransmissionDistance.TransmissionDistanceMax);
-    // The main entry point of the script, invoked every time
-    // one of the programmable block's Run actions are invoked,
-    // or the script updates itself. The updateSource argument
-    // describes where the update came from.
-    // 
-    // The method itself is required, but the arguments above
-    // can be removed if not needed.
 }
