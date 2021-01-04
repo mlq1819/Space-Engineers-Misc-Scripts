@@ -418,21 +418,26 @@ ShipStatus CurrentStatus=ShipStatus.None;
 ShipStatus Status{
 	get{
 		if(Type==MyShip.None||Player_Num<1||Player_Num>2)
-			return Status.SettingUp;
-		if(End1.Length()==0||(End1-Controller.GetPosition()).Length()>5000||End2.Length()==0||(End2-Controller.GetPosition()).Length()>5000){
+			return ShipStatus.SettingUp;
+		if(Returning)
+			return ShipStatus.Returning;
+		if((!Started)||End1.Length()==0||(End1-Controller.GetPosition()).Length()>5000||End2.Length()==0||(End2-Controller.GetPosition()).Length()>5000){
 			if(Target_Laser.Length()==0||(Target_Laser-Controller.GetPosition()).Length()>5000)
-				return Status.Linking;
+				return ShipStatus.Linking;
 			else
-				return Status.Waiting;
+				return ShipStatus.Waiting;
 		}
 		if((Target_Position-Controller.GetPosition()).Length()>1||GetAngle(Target_Forward,Forward_Vector)>1||GetAngle(Target_Up,Up_Vector)>1)
-			return Status.Traveling;
+			return ShipStatus.Traveling;
 		return CurrentStatus;
 	}
 }
 IMyRadioAntenna Antenna_R;
 IMyLaserAntenna Antenna_L;
 int ID;
+bool Started=false;
+bool Returning=true;
+double Fire_Timer=0;
 
 
 
@@ -619,6 +624,15 @@ public Program(){
 				case "Target_Position":
 					Vector3D.TryParse(data,out Target_Position);
 					break;
+				case "Started":
+					bool.TryParse(data,out Started);
+					break;
+				case "Returning":
+					bool.TryParse(data,out Returning);
+					break;
+				case "Fire_Timer":
+					double.TryParse(data,out Fire_Timer);
+					break;
 			}
 		}
 	}
@@ -639,6 +653,9 @@ public void Save(){
 	this.Storage+="•Target_Forward:"+Target_Forward.ToString();
 	this.Storage+="•Target_Up:"+Target_Up.ToString();
 	this.Storage+="•Target_Position:"+Target_Position.ToString();
+	this.Storage+="•Started:"+Started.ToString();
+	this.Storage+="•Returning:"+Returning.ToString();
+	this.Storage+="•Fire_Timer:"+Fire_Timer.ToString();
 	
 }
 
@@ -831,6 +848,64 @@ void Travel(){
 		else
 			CurrentStatus=ShipStatus.InPosition;
 	}
+	Runtime.UpdateFrequency=UpdateFrequency.Update1;
+}
+
+IMyDecoy GetNearest(Vector3D near,double max_distance=double.MaxValue){
+	double min_distance=max_distance;
+	foreach(IMyDecoy Decoy in Decoys){
+		if(Decoy!=null&&Decoy.IsWorking)
+			min_distance=Math.Min(min_distance,(near-Decoy.GetPosition()).Length());
+	}
+	foreach(IMyDecoy Decoy in Decoys){
+		if(Decoy!=null&&Decoy.IsWorking){
+			double distance=(near-Decoy.GetPosition()).Length();
+			if(distance>=min_distance-0.1){
+				return Decoy;
+			}
+		}
+	}
+	return null;
+}
+void InPosition(){
+	Write("In Position, Awaiting Commands...");
+	List<IMyBroadcastListener> listeners=new List<IMyBroadcastListener>();
+	IGC.GetBroadcastListeners(listeners);
+	foreach(IMyBroadcastListener Listener in listeners){
+		if(Listener.Tag.Equals(MyListenerString)){
+			while(Listener.HasPendingMessage){
+				MyIGCMessage message=Listener.AcceptMessage();
+				string[] args=message.Data.ToString().Split('•');
+				if(args.Count==2&&args[0].Equals("Request")){
+					Vector3D near;
+					if(Vector3D.TryParse(args[1],out near)){
+						IMyDecoy Decoy=GetNearest(near);
+						if(Decoy!=null)
+							IGC.SendBroadcastMessage(MyListenerString,"Target•"+Decoy.GetPosition().ToString(),TransmissionDistance.TransmissionDistanceMax);
+					}
+				}
+				else if(args.Count==3&&args[0].Equals("Fire")){
+					Vector3D near;
+					Fire_Timer=4;
+					double.TryParse(args[2],out Fire_Timer);
+					CurrentStatus=ShipStatus.Receiving;
+					if(Vector3D.TryParse(args[1],out near)){
+						IMyDecoy Decoy=GetNearest(near,15);
+						if(Decoy!=null)
+							Decoy.Enabled=false;
+					}
+				}
+				else if(args.Count==2&&args[0].Equals("Return")){
+					Vector3D temp;
+					if(Vector3D.TryParse(args[1],out temp)){
+						Returning=true;
+						Target_Position=temp;
+					}
+				}
+			}
+		}
+	}
+	Runtime.UpdateFrequency=UpdateFrequency.Update10;
 }
 
 public void Main(string argument, UpdateType updateSource)
@@ -840,6 +915,8 @@ public void Main(string argument, UpdateType updateSource)
 	if(Gyroscope==null||Gyroscope.IsFunctional)
 		Gyroscope=GenericMethods<IMyGyro>.GetClosestFunc(GyroFunc);
 	Gyro.GyroOverride=false;
+	if(Fire_Timer>0)
+		Fire_Timer=Math.Max(0,Fire_Timer-seconds_since_last_update);
 	if(Status==ShipStatus.SettingUp)
 		SetUp();
 	if(Status==ShipStatus.Linking)
@@ -848,8 +925,13 @@ public void Main(string argument, UpdateType updateSource)
 		Wait();
 	if(Status==ShipStatus.Traveling)
 		Travel();
+	if(Status==ShipStatus.InPosition)
+		InPosition();
 	
 	
+	Antenna_R.HudText=Status.ToString();
+	if(Status!=ShipStatus.SettingUp)
+		IGC.SendBroadcastMessage(MyListenerString,"Status•"+Status.ToString(),TransmissionDistance.TransmissionDistanceMax);
     // The main entry point of the script, invoked every time
     // one of the programmable block's Run actions are invoked,
     // or the script updates itself. The updateSource argument
