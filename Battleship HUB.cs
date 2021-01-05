@@ -313,7 +313,7 @@ class RealShip{
 	}
 	
 	public override string ToString(){
-		return "("+id.ToString+","+((int)Type).ToString()+","+Player_Num.ToString()+","+((int)Status).ToString()+","+Timer.ToString()+")";
+		return "("+ID.ToString()+","+((int)Type).ToString()+","+Player_Num.ToString()+","+((int)Status).ToString()+","+Timer.ToString()+")";
 	}
 	
 	public static bool TryParse(string Parse,out RealShip output){
@@ -1078,6 +1078,10 @@ public Program(){
 		Panel.TextPadding=10;
 	}
 	Rnd=new Random();
+	for(int i=1;i<=5;i++){
+		Player1Ships.Add(new RealShip(-1,(MyShip)i,1));
+		Player2Ships.Add(new RealShip(-1,(MyShip)i,2));
+	}
 	string[] args=this.Storage.Split('•');
 	foreach(string arg in args){
 		string command=GetCommand(arg);
@@ -1126,23 +1130,23 @@ public Program(){
 				Int32.TryParse(data,out Player_Turn);
 				break;
 			case "Player1Ships":
-				string[] strs=data.Split(';');
-				if(strs.Length==5){
+				string[] p1ss=data.Split(';');
+				if(p1ss.Length==5){
 					Player1Ships.Clear();
-					foreach(string str in strs){
+					foreach(string p1s in p1ss){
 						RealShip ship;
-						RealShip.TryParse(str,out ship);
+						RealShip.TryParse(p1s,out ship);
 						Player1Ships.Add(ship);
 					}
 				}
 				break;
 			case "Player2Ships":
-				string[] strs=data.Split(';');
-				if(strs.Length==5){
+				string[] p2ss=data.Split(';');
+				if(p2ss.Length==5){
 					Player2Ships.Clear();
-					foreach(string str in strs){
+					foreach(string p2s in p2ss){
 						RealShip ship;
-						RealShip.TryParse(str,out ship);
+						RealShip.TryParse(p2s,out ship);
 						Player2Ships.Add(ship);
 					}
 				}
