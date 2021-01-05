@@ -793,6 +793,7 @@ void Wait(){
 
 void Travel(){
 	Write("Traveling...");
+	Antenna_R.Enabled=false;
 	if((Target_Position-Controller.GetPosition()).Length()>1){
 		MyWaypointInfo Destination=new MyWaypointInfo("Target Position",Target_Position);
 		if((!Controller.CurrentWaypoint.Equals(Destination))||!Controller.IsAutoPilotEnabled){
@@ -973,6 +974,7 @@ void Detonate(){
 void Return(){
 	Write("Game has ended");
 	int missing=ShipSize(Type);
+	Antenna_R.Enabled=true;
 	foreach(IMyDecoy Decoy in Decoys){
 		if(Decoy!=null){
 			if(Decoy.IsWorking&&Decoy.Enabled)
