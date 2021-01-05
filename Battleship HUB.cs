@@ -286,6 +286,66 @@ class GenericMethods<T> where T : class, IMyTerminalBlock{
 	}
 }
 
+enum ShipStatus{
+	None=-1,
+	SettingUp=0,
+	Linking=1,
+	Waiting=2,
+	Traveling=3,
+	InPosition=4,
+	Receiving=5,
+	Detonating=6,
+	Returning=7
+}
+class RealShip{
+	public int ID;
+	public ShipStatus Status;
+	public int Player_Num;
+	public MyShip Type;
+	public double Timer;
+	
+	public RealShip(int id,MyShip type,int player_num,ShipStatus status=ShipStatus.Linking,double timer=0){
+		ID=id;
+		Type=type;
+		Player_Num=player_num;
+		Status=status;
+		Timer=timer;
+	}
+	
+	public override string ToString(){
+		return "("+id.ToString+","+((int)Type).ToString()+","+Player_Num.ToString()+","+((int)Status).ToString()+","+Timer.ToString()+")";
+	}
+	
+	public static bool TryParse(string Parse,out RealShip output){
+		output=null;
+		if(Parse[0]!='('||Parse[Parse.Length-1]!=')')
+			return false;
+		string[] args=Parse.Substring(1,Parse.Length-2).Split(',');
+		if(args.Length!=5)
+			return false;
+		int id,type_i,player_num,status_i;
+		double timer;
+		if(!Int32.TryParse(args[0],out id))
+			return false;
+		if(!Int32.TryParse(args[1],out type_i))
+			return false;
+		if(type_i<1||type_i>5)
+			return false;
+		if(!Int32.TryParse(args[2],out player_num))
+			return false;
+		if(player_num<1||player_num>2)
+			return false;
+		if(!Int32.TryParse(args[3],out status_i))
+			return false;
+		if(status_i<-1||status_i>7)
+			return false;
+		if(!double.TryParse(args[4],out timer))
+			return false;
+		output=new RealShip(id,(MyShip)type_i,player_num,(ShipStatus)status_i,timer);
+		return true;
+	}
+}
+
 class DisplayArray{
 	public List<List<IMyTextPanel>> Panels;
 	public string Name;
@@ -952,6 +1012,8 @@ List<IMyTextPanel> HubStatusPanels;
 Sound Room1Sound;
 Sound Room2Sound;
 Sound HubSound;
+List<RealShip> Player1Ships=new List<RealShip>();
+List<RealShip> Player2Ships=new List<RealShip>();
 
 List<IMyDoor> Room1Doors;
 List<IMyDoor> Room2Doors;
@@ -1063,6 +1125,28 @@ public Program(){
 			case "Player_Turn":
 				Int32.TryParse(data,out Player_Turn);
 				break;
+			case "Player1Ships":
+				string[] strs=data.Split(';');
+				if(strs.Length==5){
+					Player1Ships.Clear();
+					foreach(string str in strs){
+						RealShip ship;
+						RealShip.TryParse(str,out ship);
+						Player1Ships.Add(ship);
+					}
+				}
+				break;
+			case "Player2Ships":
+				string[] strs=data.Split(';');
+				if(strs.Length==5){
+					Player2Ships.Clear();
+					foreach(string str in strs){
+						RealShip ship;
+						RealShip.TryParse(str,out ship);
+						Player2Ships.Add(ship);
+					}
+				}
+				break;
 		}
 	}
 	Room1Doors=GenericMethods<IMyDoor>.GetAllContaining("Room 1 Door");
@@ -1122,6 +1206,24 @@ public void Save(){
 		else
 			this.Storage+="•Player2:"+Player2.ToString();
 		this.Storage+="•Player_Turn:"+Player_Turn.ToString();
+		this.Storage+="•Player1Ships:";
+		for(int i=0;i<Player1Ships.Count;i++){
+			if(i>0)
+				this.Storage+=";";
+			if(Player1Ships[i]==null)
+				this.Storage+="null";
+			else
+				this.Storage+=Player1Ships[i].ToString();
+		}
+		this.Storage+="•Player2Ships:";
+		for(int i=0;i<Player2Ships.Count;i++){
+			if(i>0)
+				this.Storage+=";";
+			if(Player2Ships[i]==null)
+				this.Storage+="null";
+			else
+				this.Storage+=Player2Ships[i].ToString();
+		}
 	}
 }
 
