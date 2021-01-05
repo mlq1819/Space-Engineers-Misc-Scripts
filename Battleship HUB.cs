@@ -303,6 +303,12 @@ class RealShip{
 	public int Player_Num;
 	public MyShip Type;
 	public double Timer;
+	public string Tag{
+		get{
+			return Type.ToString()+" "+Player_Num.ToString();
+		}
+	}
+	public IMyLaserAntenna Antenna;
 	
 	public RealShip(int id,MyShip type,int player_num,ShipStatus status=ShipStatus.Linking,double timer=0){
 		ID=id;
@@ -310,6 +316,7 @@ class RealShip{
 		Player_Num=player_num;
 		Status=status;
 		Timer=timer;
+		Antenna=null;
 	}
 	
 	public override string ToString(){
@@ -1081,6 +1088,8 @@ public Program(){
 	for(int i=1;i<=5;i++){
 		Player1Ships.Add(new RealShip(-1,(MyShip)i,1));
 		Player2Ships.Add(new RealShip(-1,(MyShip)i,2));
+		IGC.RegisterBroadcastListener(((MyShip)i).ToString()+" 1");
+		IGC.RegisterBroadcastListener(((MyShip)i).ToString()+" 2");
 	}
 	string[] args=this.Storage.Split('•');
 	foreach(string arg in args){
@@ -1186,6 +1195,17 @@ public Program(){
 		Room2Sound.Sounds.Enqueue("Hello EngineerId");
 		HubSound.Sounds.Enqueue("Hello EngineerId");
 	}
+	List<IMyLaserAntenna> Player1LaserAntenna=GenericMethods<IMyLaserAntenna>.GetContaining("Player 1 Laser Antenna");
+	List<IMyLaserAntenna> Player2LaserAntenna=GenericMethods<IMyLaserAntenna>.GetContaining("Player 2 Laser Antenna");
+	if(Player1LaserAntenna.Count<5||Player2LaserAntenna.Count<5)
+		return;
+	for(int i=0;i<5;i++){
+		if(Player1Ships[i]!=null)
+			Player1Ships[i].Antenna=Player1LaserAntenna[i];
+		if(Player2Ships[i]!=null)
+			Player2Ships[i].Antenna=Player2LaserAntenna[i];
+	}
+	
 	Write("Completed Initialization");
 	Runtime.UpdateFrequency=UpdateFrequency.Update10;//60tps
 }
@@ -1996,6 +2016,37 @@ public void Main(string argument, UpdateType updateSource)
 		string HubText="";
 		string Player1Text="";
 		string Player2Text="";
+		List<IMyBroadcastListener> listeners=new List<IMyBroadcastListener>();
+		IGC.GetBroadcastListeners(listeners);
+		for(int j=1;j<=2;j++){
+			List<RealShip> ShipList;
+			if(j==1)
+				ShipList=Player1Ships;
+			else
+				ShipList=Player2Ships;
+			for(int i=0;i<ShipList.Count;i++){
+				if(ShipList[i]==null)
+					ShipList[i]=new RealShip(-1,(MyShip)(i+1),j);
+				if(ShipList[i].Timer<300)
+					ShipList[i].Timer+=seconds_since_last_update;
+				foreach(IMyBroadcastListener Listener in listeners){
+					if(Listener.Tag.Equals(ShipList[i].Tag)){
+						while(Listener.HasPendingMessage){
+							MyIGCMessage message=Listener.AcceptMessage();
+							string[] args=message.Data.Split('•');
+							if(args.Length==2&&args[0].Equals("Status")){
+								ShipStatus status;
+								if(ShipStatus.TryParse(args[1],out status)){
+									ShipList[i].Status=status;
+									ShipList[i].Timer=0;
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+		
 		Echo("Status: "+Status.ToString());
 		if(Player1!=null){
 			Echo("Player 1:");

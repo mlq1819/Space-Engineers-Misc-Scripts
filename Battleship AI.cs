@@ -744,6 +744,7 @@ void Link(){
 		try_connect=true;
 	List<IMyBroadcastListener> listeners=new List<IMyBroadcastListener>();
 	IGC.GetBroadcastListeners(listeners);
+	IGC.SendBroadcastMessage(MyListenerString,"ID•"+ID.ToString(),TransmissionDistance.TransmissionDistanceMax);
 	foreach(IMyBroadcastListener Listener in listeners){
 		if(Listener.Tag.Equals(MyListenerString)){
 			while(Listener.HasPendingMessage){
