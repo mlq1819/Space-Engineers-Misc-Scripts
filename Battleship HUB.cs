@@ -1026,29 +1026,25 @@ Sound Room2Sound;
 Sound HubSound;
 List<RealShip> Player1Ships=new List<RealShip>();
 List<RealShip> Player2Ships=new List<RealShip>();
-bool IsReady(RealShip Ship){
+bool IsReady(RealShip Ship,ShipStatus is_at=ShipStatus.Waiting){
 	if(Ship==null)
 		return false;
-	if(Ship.ID<0||Ship.Timer>=300||(Ship.Timer>60&&Ship.Status!=ShipStatus.Traveling)||((int)Ship.Status)<((int)ShipStatus.Waiting))
-		return false;
-	if(Ship.ID<0||Ship.Timer>=300||(Ship.Timer>60&&Ship.Status!=ShipStatus.Traveling)||((int)Ship.Status)<((int)ShipStatus.Waiting))
+	if(Ship.ID<0||Ship.Timer>=300||(Ship.Timer>60&&Ship.Status!=ShipStatus.Traveling)||Ship.Status!=is_at||Ship.Antenna==null)
 		return false;
 	return true;
 }
-bool ReadyShips{
-	get{
-		if(Player1Ships.Count<5||Player2Ships.Count<5)
+bool ReadyShips(ShipStatus is_at=ShipStatus.Waiting){
+	if(Player1Ships.Count<5||Player2Ships.Count<5)
+		return false;
+	foreach(RealShip Ship in Player1Ships){
+		if(!IsReady(Ship,is_at))
 			return false;
-		foreach(RealShip Ship in Player1Ships){
-			if(!IsReady(Ship))
-				return false;
-		}
-		foreach(RealShip Ship in Player2Ships){
-			if(!IsReady(Ship))
-				return false;
-		}
-		return true;
 	}
+	foreach(RealShip Ship in Player2Ships){
+		if(!IsReady(Ship,is_at))
+			return false;
+	}
+	return true;
 }
 
 List<IMyDoor> Room1Doors;
@@ -2098,14 +2094,13 @@ public void Main(string argument, UpdateType updateSource)
 						}
 					}
 				}
-				Echo(" "+ShipList[i].Type.ToString()+":"+ShipList[i].ID.ToString());
+				Echo("  "+ShipList[i].Type.ToString()+":"+ShipList[i].ID.ToString());
 				if(ShipList[i].ID>=0){
-					Echo("  "+ShipList[i].Status.ToString());
-					Echo("  Last Received "+Math.Round(ShipList[i].Timer,1).ToString()+" seconds ago");
-					if(ShipList[i].Antenna!=null)
-						Echo("  Antenna:Valid");
-					else
-						Echo("  Antenna:Invalid");
+					Echo("    "+ShipList[i].Status.ToString());
+					if(ShipList[i].Timer>10)
+						Echo("    Last Received "+Math.Round(ShipList[i].Timer,1).ToString()+" seconds ago");
+					if(ShipList[i].Antenna==null)
+						Echo("    Antenna:Invalid");
 				}
 			}
 			
@@ -2184,7 +2179,7 @@ public void Main(string argument, UpdateType updateSource)
 				s="> ";
 			else
 				s="";
-			if(Use_Real_Ships&&!ReadyShips)
+			if(Use_Real_Ships&&!ReadyShips())
 				Status=GameStatus.Waiting;
 			else
 				Status=GameStatus.Ready;
