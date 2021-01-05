@@ -939,7 +939,7 @@ void Detonate(){
 					IMyWarhead Armed=Set[i];
 					for(int j=0;j<Unset.Count;j++){
 						IMyWarhead Unarmed=Unset[j];
-						if((Armed.GetPosition()-Unarmed.GetPosition()).Length()<12){
+						if((Armed.GetPosition()-Unarmed.GetPosition()).Length()<16){
 							found=true;
 							Unarmed.DetonationTime=Armed.DetonationTime;
 							Unarmed.StartCountdown();
