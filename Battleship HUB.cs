@@ -2135,15 +2135,6 @@ public void Main(string argument, UpdateType updateSource)
 			AI_Timer+=seconds_since_last_update;
 		
 		
-		if(true){
-			Me.CustomData="";
-			Me.CustomData+=(new MyWaypointInfo("A1",TransformCoordinates(new Vector2(0,0),1))).ToString()+"\n";
-			Me.CustomData+=(new MyWaypointInfo("A8",TransformCoordinates(new Vector2(7,0),1))).ToString()+"\n";
-			Me.CustomData+=(new MyWaypointInfo("H1",TransformCoordinates(new Vector2(0,7),1))).ToString()+"\n";
-			Me.CustomData+=(new MyWaypointInfo("H8",TransformCoordinates(new Vector2(7,7),1))).ToString()+"\n";
-			
-		}
-		
 		string HubText="";
 		string Player1Text="";
 		string Player2Text="";
