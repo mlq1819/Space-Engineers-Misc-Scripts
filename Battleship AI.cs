@@ -1016,6 +1016,13 @@ public void Main(string argument, UpdateType updateSource)
 		Fire_Timer=Math.Max(0,Fire_Timer-seconds_since_last_update);
 	Write(Type.ToString());
 	Write("Player "+Player_Num.ToString());
+	Write("ID:"+ID.ToString());
+	for(int i=0;i<Decoys.Count;i++){
+		if(Decoys[i]==null)
+			Write("Decoy "+(i+1).ToString()+":null");
+		else
+			Write("Decoy "+(i+1).ToString()+":"+Decoys[i].IsWorking);
+	}
 	if(Status==ShipStatus.SettingUp)
 		SetUp();
 	if(Status==ShipStatus.Linking)
