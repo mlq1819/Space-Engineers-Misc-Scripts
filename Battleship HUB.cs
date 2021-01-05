@@ -308,6 +308,11 @@ class RealShip{
 			return Type.ToString()+" "+Player_Num.ToString();
 		}
 	}
+	public string Tag_Full{
+		get{
+			return Tag+"-"+ID.ToString();
+		}
+	}
 	public IMyLaserAntenna Antenna;
 	
 	public RealShip(int id,MyShip type,int player_num,ShipStatus status=ShipStatus.Linking,double timer=0){
@@ -2024,9 +2029,14 @@ public void Main(string argument, UpdateType updateSource)
 				ShipList=Player1Ships;
 			else
 				ShipList=Player2Ships;
+			Echo("Player "+j.ToString()+" Ship Statuses:");
 			for(int i=0;i<ShipList.Count;i++){
-				if(ShipList[i]==null)
+				if(ShipList[i]==null){
 					ShipList[i]=new RealShip(-1,(MyShip)(i+1),j);
+					List<IMyLaserAntenna> Antennas=GenericMethods<IMyLaserAntenna>.GetContaining("Player "+j.ToString()+" Laser Antenna");
+					if(Antennas.Count>=5)
+						ShipList[i].Antenna=Antennas[i];
+				}
 				if(ShipList[i].Timer<300)
 					ShipList[i].Timer+=seconds_since_last_update;
 				foreach(IMyBroadcastListener Listener in listeners){
@@ -2034,17 +2044,45 @@ public void Main(string argument, UpdateType updateSource)
 						while(Listener.HasPendingMessage){
 							MyIGCMessage message=Listener.AcceptMessage();
 							string[] args=message.Data.Split('•');
-							if(args.Length==2&&args[0].Equals("Status")){
+							bool accepting_new=(ShipList[i].ID<0||ShipList[i].Timer>=300||(ShipList[i].Status!=ShipStatus.Traveling&&ShipList[i].Timer>60));
+							if(accepting_new&&args.Length==2&&args[0].Equals("ID")){
+								int id;
+								if(Int32.TryParse(args[1],out id)){
+									if(id>=0){
+										ShipList[i].ID=id;
+										ShipList[i].Timer=0;
+										if(ShipList[i].Antenna!=null)
+											IGC.SendBroadcastMessage(ShipList[i].Tag_Full,id.ToString()+":"+ShipList[i].Antenna.GetPosition());
+									}
+								}
+							}
+							accepting_new=(ShipList[i].ID<0||ShipList[i].Timer>=300||(ShipList[i].Status!=ShipStatus.Traveling&&ShipList[i].Timer>60));
+							if(args.Length==3&&args[0].Equals("Status")){
 								ShipStatus status;
-								if(ShipStatus.TryParse(args[1],out status)){
-									ShipList[i].Status=status;
-									ShipList[i].Timer=0;
+								int id;
+								if(Int32.TryParse(args[1],out id)){
+									if(id==ShipList[i].ID||accepting_new){
+										if(id!=ShipList[i].ID)
+											ShipList[i].ID=id;
+										if(ShipStatus.TryParse(args[2],out status)){
+											ShipList[i].Status=status;
+											ShipList[i].Timer=0;
+										}
+									}
 								}
 							}
 						}
 					}
 				}
+				Echo(" "+ShipList[i].Type.ToString()+":"+ShipList[i].ID.ToString());
+				Echo("  "+ShipList[i].Status.ToString());
+				Echo("  Last Received "+Math.Round(ShipLast[i].Timer,1).ToString()+" seconds ago");
+				if(ShipList[i].Antenna!=null)
+					Echo("  Antenna:Valid");
+				else
+					Echo("  Antenna:Invalid");
 			}
+			
 		}
 		
 		Echo("Status: "+Status.ToString());

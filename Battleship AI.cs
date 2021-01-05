@@ -724,6 +724,7 @@ void SetUp(){
 	}
 	if(Status!=ShipStatus.SettingUp){
 		IGC.RegisterBroadcastListener(MyListenerString);
+		IGC.RegisterBroadcastListener(MyListenerString+"-"+ID.ToString());
 		Decoys.Clear();
 		for(int i=1;i<=ShipSize(Type);i++)
 			Decoys.Add(GenericMethods<IMyDecoy>.GetFull("Decoy "+i.ToString()));
@@ -746,7 +747,7 @@ void Link(){
 	IGC.GetBroadcastListeners(listeners);
 	IGC.SendBroadcastMessage(MyListenerString,"ID•"+ID.ToString(),TransmissionDistance.TransmissionDistanceMax);
 	foreach(IMyBroadcastListener Listener in listeners){
-		if(Listener.Tag.Equals(MyListenerString)){
+		if(Listener.Tag.Equals(MyListenerString+"-"+ID.ToString())){
 			while(Listener.HasPendingMessage){
 				MyIGCMessage message=Listener.AcceptMessage();
 				int index=message.Data.ToString().IndexOf(":");
@@ -773,7 +774,7 @@ void Wait(){
 	List<IMyBroadcastListener> listeners=new List<IMyBroadcastListener>();
 	IGC.GetBroadcastListeners(listeners);
 	foreach(IMyBroadcastListener Listener in listeners){
-		if(Listener.Tag.Equals(MyListenerString)){
+		if(Listener.Tag.Equals(MyListenerString+"-"+ID.ToString())){
 			while(Listener.HasPendingMessage){
 				MyIGCMessage message=Listener.AcceptMessage();
 				string[] args=message.Data.ToString().Split('•');
@@ -871,7 +872,7 @@ void InPosition(){
 	List<IMyBroadcastListener> listeners=new List<IMyBroadcastListener>();
 	IGC.GetBroadcastListeners(listeners);
 	foreach(IMyBroadcastListener Listener in listeners){
-		if(Listener.Tag.Equals(MyListenerString)){
+		if(Listener.Tag.Equals(MyListenerString+"-"+ID.ToString())){
 			while(Listener.HasPendingMessage){
 				MyIGCMessage message=Listener.AcceptMessage();
 				string[] args=message.Data.ToString().Split('•');
@@ -880,7 +881,7 @@ void InPosition(){
 					if(Vector3D.TryParse(args[1],out near)){
 						IMyDecoy Decoy=GetNearest(near);
 						if(Decoy!=null)
-							IGC.SendBroadcastMessage(MyListenerString,"Target•"+Decoy.GetPosition().ToString(),TransmissionDistance.TransmissionDistanceMax);
+							IGC.SendBroadcastMessage(MyListenerString,"Target•"+ID.ToString()+","+Decoy.GetPosition().ToString(),TransmissionDistance.TransmissionDistanceMax);
 					}
 				}
 				else if(args.Length==3&&args[0].Equals("Fire")){
@@ -1042,5 +1043,5 @@ public void Main(string argument, UpdateType updateSource)
 		Return();
 	Antenna_R.HudText=Status.ToString();
 	if(Status!=ShipStatus.SettingUp)
-		IGC.SendBroadcastMessage(MyListenerString,"Status•"+Status.ToString(),TransmissionDistance.TransmissionDistanceMax);
+		IGC.SendBroadcastMessage(MyListenerString,"Status•"+ID.ToString()+"•"+Status.ToString(),TransmissionDistance.TransmissionDistanceMax);
 }
