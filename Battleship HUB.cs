@@ -1079,8 +1079,35 @@ List<RealShip> Player2Ships=new List<RealShip>();
 bool IsReady(RealShip Ship,ShipStatus is_at=ShipStatus.Waiting){
 	if(Ship==null)
 		return false;
-	if(Ship.ID<0||Ship.Timer>=300||(Ship.Timer>60&&Ship.Status!=ShipStatus.Traveling)||Ship.Status!=is_at||Ship.Antenna==null)
+	if(Ship.ID<0||Ship.Status!=ShipStatus.Detonating&&(Ship.Timer>=300||(Ship.Timer>60&&Ship.Status!=ShipStatus.Traveling))||Ship.Status!=is_at||Ship.Antenna==null)
 		return false;
+	return true;
+}
+bool ReadyShips(List<ShipStatus> can_be_at){
+	if(Player1Ships.Count<5||Player2Ships.Count<5)
+		return false;
+	foreach(RealShip Ship in Player1Ships){
+		bool is_ready=false;
+		foreach(ShipStatus is_at in can_be_at){
+			if(IsReady(Ship),is_at){
+				is_ready=true;
+				break;
+			}
+		}
+		if(!is_ready)
+			return false;
+	}
+	foreach(RealShip Ship in Player2Ships){
+		bool is_ready=false;
+		foreach(ShipStatus is_at in can_be_at){
+			if(IsReady(Ship),is_at){
+				is_ready=true;
+				break;
+			}
+		}
+		if(!is_ready)
+			return false;
+	}
 	return true;
 }
 bool ReadyShips(ShipStatus is_at=ShipStatus.Waiting){
@@ -1626,6 +1653,27 @@ void DisplayCheck(DisplayArray Da){
 	}
 }
 
+bool call_return=true;
+void CallReturn(){
+	call_return=false;
+	for(int i=1;i<=2;i++){
+		List<RealShip> ShipList;
+		if(i==1)
+			ShipList=Player1Ships;
+		else
+			ShipList=Player2Ships;
+		for(int j=1;j<=5;j++){
+			RealShip ship=ShipList[j];
+			if(ship.Status!=ShipStatus.Waiting&&ship.Status!=ShipStatus.Returning&&ship.Timer<300){
+				call_return=true;
+				Vector3D Target=Controller.GetPosition+Up_Vector*20);
+				Target+=50*(Rnd.Next(0,2)*Up_Vector+Rnd.Next(-4,4)*Forward_Vector);
+				IGC.SendBroadcastMessage(ship.Tag_Full,"Return•"+Target.ToString(),TransmissionDistance.TransmissionDistanceMax);
+			}
+		}
+	}
+}
+
 double DisplayIdleTimer=0;
 int Selection=0;
 void Argument_Processor(string argument){
@@ -1918,6 +1966,7 @@ void Argument_Processor(string argument){
 						Room1Sound.Sounds.Enqueue("Shutting DownId");
 						Room2Sound.Sounds.Enqueue("SoundBlockObjectiveComplete");
 						HubSound.Sounds.Enqueue("Objective CompleteId");
+						CallReturn();
 					}
 					else if(player_num==2&&Player2!=null&&Player2.Forfeiting){
 						Last_Winner=1;
@@ -1928,6 +1977,7 @@ void Argument_Processor(string argument){
 						Room2Sound.Sounds.Enqueue("Shutting DownId");
 						Room1Sound.Sounds.Enqueue("SoundBlockObjectiveComplete");
 						HubSound.Sounds.Enqueue("Objective CompleteId");
+						CallReturn();
 					}
 					else{
 						if(Status==GameStatus.Awaiting){
@@ -2169,7 +2219,7 @@ public void Main(string argument, UpdateType updateSource)
 										ShipList[i].ID=id;
 										ShipList[i].Timer=0;
 										if(ShipList[i].Antenna!=null)
-											IGC.SendBroadcastMessage(ShipList[i].Tag_Full,id.ToString()+":"+ShipList[i].Antenna.GetPosition());
+											IGC.SendBroadcastMessage(ShipList[i].Tag_Full,id.ToString()+":"+ShipList[i].Antenna.GetPosition(),TransmissionDistance.TransmissionDistanceMax);
 									}
 								}
 							}
@@ -2202,6 +2252,8 @@ public void Main(string argument, UpdateType updateSource)
 			}
 			
 		}
+		if(call_return)
+			CallReturn();
 		
 		Echo("Status: "+Status.ToString());
 		if(Player1!=null){
@@ -2528,107 +2580,156 @@ public void Main(string argument, UpdateType updateSource)
 			}
 		}
 		if(Status==GameStatus.InProgress){
-			if(Player_Turn<0||Player_Turn>2)
-				Player_Turn=1;
-			if(Turn_Timer>=30){
-				Player_Timer-=seconds_since_last_update;
-				if(Player_Timer<0){
-					Player_Turn=(Player_Turn%2)+1;
-					Player_Timer=Turn_Timer;
-					AI_Selection=new Vector2(-1,-1);
+			List<ShipStatus> ValidStatuses=new List<ShipStatus>();
+			ValidStatuses.Add(ShipStatus.InProgress);
+			ValidStatuses.Add(ShipStatus.Detonating);
+			if((!Use_Real_Ships)||ReadyShips(ValidStatuses)){
+				if(Player_Turn<0||Player_Turn>2)
+					Player_Turn=1;
+				if(Turn_Timer>=30){
+					Player_Timer-=seconds_since_last_update;
+					if(Player_Timer<0){
+						Player_Turn=(Player_Turn%2)+1;
+						Player_Timer=Turn_Timer;
+						AI_Selection=new Vector2(-1,-1);
+					}
 				}
-			}
-			HubText="Player "+Player_Turn.ToString()+"'s Turn\n";
-			Player1.CanMove=Player_Turn==1;
-			Player2.CanMove=Player_Turn==2;
-			if(Player_Turn==1){
-				Player1Text="Your Turn!\n";
-				Player2Text=HubText;
-				if(Turn_Timer>=30&&Math.Abs(Player_Turn-5.5)<1&&Room1Sound.Sounds.Count==0)
-					Room1Sound.Sounds.Enqueue("5 Second CountdownId");
-				if(!Player1.IsHuman){
-					if(AI_Selection.X<0){
-						List<Vector2> pos=Player1.EnemyBoard.GetBestChoices(AI_Difficulty);
-						if(pos.Count>0)
-							AI_Selection=pos[Rnd.Next(0,pos.Count-1)];
+				HubText="Player "+Player_Turn.ToString()+"'s Turn\n";
+				Player1.CanMove=Player_Turn==1;
+				Player2.CanMove=Player_Turn==2;
+				if(Player_Turn==1){
+					Player1Text="Your Turn!\n";
+					Player2Text=HubText;
+					if(Turn_Timer>=30&&Math.Abs(Player_Turn-5.5)<1&&Room1Sound.Sounds.Count==0)
+						Room1Sound.Sounds.Enqueue("5 Second CountdownId");
+					if(!Player1.IsHuman){
+						if(AI_Selection.X<0){
+							List<Vector2> pos=Player1.EnemyBoard.GetBestChoices(AI_Difficulty);
+							if(pos.Count>0)
+								AI_Selection=pos[Rnd.Next(0,pos.Count-1)];
+						}
+						if(AI_Selection.X>=0&&AI_Timer>0.25){
+							AI_Timer=0;
+							string s="Player 1:";
+							if(AI_Selection==Player1.Selection)
+								Argument_Processor(s+"Confirm");
+							else if(AI_Selection.X<Player1.Selection.X)
+								Argument_Processor(s+"Left");
+							else if(AI_Selection.X>Player1.Selection.X)
+								Argument_Processor(s+"Right");
+							else if(AI_Selection.Y<Player1.Selection.Y)
+								Argument_Processor(s+"Up");
+							else if(AI_Selection.Y>Player1.Selection.Y)
+								Argument_Processor(s+"Down");
+						}
 					}
-					if(AI_Selection.X>=0&&AI_Timer>0.25){
-						AI_Timer=0;
-						string s="Player 1:";
-						if(AI_Selection==Player1.Selection)
-							Argument_Processor(s+"Confirm");
-						else if(AI_Selection.X<Player1.Selection.X)
-							Argument_Processor(s+"Left");
-						else if(AI_Selection.X>Player1.Selection.X)
-							Argument_Processor(s+"Right");
-						else if(AI_Selection.Y<Player1.Selection.Y)
-							Argument_Processor(s+"Up");
-						else if(AI_Selection.Y>Player1.Selection.Y)
-							Argument_Processor(s+"Down");
+				}
+				else{
+					Player1Text=HubText;
+					Player2Text="Your Turn!\n";
+					if(Turn_Timer>=30&&Math.Abs(Player_Turn-5.5)<1&&Room2Sound.Sounds.Count==0)
+						Room2Sound.Sounds.Enqueue("5 Second CountdownId");
+					if(!Player2.IsHuman){
+						if(AI_Selection.X<0){
+							List<Vector2> pos=Player2.EnemyBoard.GetBestChoices(AI_Difficulty);
+							if(pos.Count>0)
+								AI_Selection=pos[Rnd.Next(0,pos.Count-1)];
+						}
+						if(AI_Selection.X>=0&&AI_Timer>0.25){
+							AI_Timer=0;
+							string s="Player 2:";
+							if(AI_Selection==Player2.Selection)
+								Argument_Processor(s+"Confirm");
+							else if(AI_Selection.X<Player2.Selection.X)
+								Argument_Processor(s+"Left");
+							else if(AI_Selection.X>Player2.Selection.X)
+								Argument_Processor(s+"Right");
+							else if(AI_Selection.Y<Player2.Selection.Y)
+								Argument_Processor(s+"Up");
+							else if(AI_Selection.Y>Player2.Selection.Y)
+								Argument_Processor(s+"Down");
+						}
 					}
+				}
+				if(Turn_Timer>=30){
+					string timer=Math.Round(Player_Timer,0).ToString()+"s Remaining\n";
+					HubText+=timer;
+					Player1Text+=timer;
+					Player2Text+=timer;
+				}
+				if(See_Opponent_Choice&&Player_Turn==2)
+					DisplayOwn(Player1Own,Player1,Player2.Selection);
+				else
+					DisplayOwn(Player1Own,Player1);
+				DisplayEnemy(Player1Enemy,Player1);
+				if(See_Opponent_Choice&&Player_Turn==1)
+					DisplayOwn(Player2Own,Player2,Player1.Selection);
+				else
+					DisplayOwn(Player2Own,Player2);
+				DisplayEnemy(Player2Enemy,Player2);
+				if(Player1.OwnBoard.RemainingSpaces==0){
+					Last_Winner=2;
+					Status=GameStatus.Ready;
+					Player1=null;
+					Player2=null;
+					Room1Sound.Sounds.Enqueue("Shutting DownId");
+					Room2Sound.Sounds.Enqueue("SoundBlockObjectiveComplete");
+					HubSound.Sounds.Enqueue("Objective CompleteId");
+					CallReturn();
+				}
+				else if(Player2.OwnBoard.RemainingSpaces==0){
+					Last_Winner=1;
+					Status=GameStatus.Ready;
+					Player1=null;
+					Player2=null;
+					Room2Sound.Sounds.Enqueue("Shutting DownId");
+					Room1Sound.Sounds.Enqueue("SoundBlockObjectiveComplete");
+					HubSound.Sounds.Enqueue("Objective CompleteId");
+					CallReturn();
 				}
 			}
 			else{
-				Player1Text=HubText;
-				Player2Text="Your Turn!\n";
-				if(Turn_Timer>=30&&Math.Abs(Player_Turn-5.5)<1&&Room2Sound.Sounds.Count==0)
-					Room2Sound.Sounds.Enqueue("5 Second CountdownId");
-				if(!Player2.IsHuman){
-					if(AI_Selection.X<0){
-						List<Vector2> pos=Player2.EnemyBoard.GetBestChoices(AI_Difficulty);
-						if(pos.Count>0)
-							AI_Selection=pos[Rnd.Next(0,pos.Count-1)];
-					}
-					if(AI_Selection.X>=0&&AI_Timer>0.25){
-						AI_Timer=0;
-						string s="Player 2:";
-						if(AI_Selection==Player2.Selection)
-							Argument_Processor(s+"Confirm");
-						else if(AI_Selection.X<Player2.Selection.X)
-							Argument_Processor(s+"Left");
-						else if(AI_Selection.X>Player2.Selection.X)
-							Argument_Processor(s+"Right");
-						else if(AI_Selection.Y<Player2.Selection.Y)
-							Argument_Processor(s+"Up");
-						else if(AI_Selection.Y>Player2.Selection.Y)
-							Argument_Processor(s+"Down");
+				Write("Waiting for Ships");
+				HubText="Waiting for Ships:";
+				Player1Text="Waiting for Ships:";
+				Player2Text="Waiting for Ships:";
+				int traveling=0;
+				int receiving=0;
+				int other=0;
+				for(int i=1;i<=2;i++){
+					List<RealShip> ShipList;
+					if(i==1)
+						ShipList=Player1Ships;
+					else
+						ShipList=Player2Ships;
+					for(int j=1;j<=5;j++){
+						if(ShipList[j].Status==ShipStatus.Traveling)
+							traveling++;
+						else if(ShipList[j].Status==ShipStatus.Receiving)
+							receiving++;
+						else
+							other++;
+						if((int)ShipList[j].Status<(int)ShipStatus.Traveling){
+							RealShip ship=ShipList[j];
+							Vector3D ship_forward=ship.End1-ship.End2;
+							ship_forward.Normalize();
+							Vector3D ship_up;
+							if(i==1)
+								ship_up=Left_Vector;
+							else
+								ship_up=Right_Vector;
+							IGC.SendBroadcastMessage(ship.Tag_Full,"Ends•"+ship.End1.ToString()+"•"+ship.End2.ToString()+"•"+ship_forward.ToString()+"•"+ship_up.ToString(),TransmissionDistance.TransmissionDistanceMax);
+						}
 					}
 				}
-			}
-			if(Turn_Timer>=30){
-				string timer=Math.Round(Player_Timer,0).ToString()+"s Remaining\n";
-				HubText+=timer;
-				Player1Text+=timer;
-				Player2Text+=timer;
-			}
-			if(See_Opponent_Choice&&Player_Turn==2)
-				DisplayOwn(Player1Own,Player1,Player2.Selection);
-			else
-				DisplayOwn(Player1Own,Player1);
-			DisplayEnemy(Player1Enemy,Player1);
-			if(See_Opponent_Choice&&Player_Turn==1)
-				DisplayOwn(Player2Own,Player2,Player1.Selection);
-			else
-				DisplayOwn(Player2Own,Player2);
-			DisplayEnemy(Player2Enemy,Player2);
-			if(Player1.OwnBoard.RemainingSpaces==0){
-				Last_Winner=2;
-				Status=GameStatus.Ready;
-				Player1=null;
-				Player2=null;
-				Room1Sound.Sounds.Enqueue("Shutting DownId");
-				Room2Sound.Sounds.Enqueue("SoundBlockObjectiveComplete");
-				HubSound.Sounds.Enqueue("Objective CompleteId");
-				
-			}
-			else if(Player2.OwnBoard.RemainingSpaces==0){
-				Last_Winner=1;
-				Status=GameStatus.Ready;
-				Player1=null;
-				Player2=null;
-				Room2Sound.Sounds.Enqueue("Shutting DownId");
-				Room1Sound.Sounds.Enqueue("SoundBlockObjectiveComplete");
-				HubSound.Sounds.Enqueue("Objective CompleteId");
+				if(traveling>0)
+					HubText+="\n  "+traveling.ToString()+" Traveling";
+				if(receiving>0)
+					HubText+="\n  "+receiving.ToString()+" Receiving";
+				if(other>0)
+					HubText+="\n  "+other.ToString()+" Other";
+				Player1Text=HubText;
+				Player2Text=HubText;
 			}
 		}
 		if(Status==GameStatus.Paused){
