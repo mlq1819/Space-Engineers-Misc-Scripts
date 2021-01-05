@@ -421,13 +421,13 @@ ShipStatus Status{
 			return ShipStatus.SettingUp;
 		if(Returning)
 			return ShipStatus.Returning;
-		if((!Started)||End1.Length()==0||(End1-Controller.GetPosition()).Length()>5000||End2.Length()==0||(End2-Controller.GetPosition()).Length()>5000){
+		if(End1.Length()==0||(End1-Controller.GetPosition()).Length()>5000||End2.Length()==0||(End2-Controller.GetPosition()).Length()>5000){
 			if(Target_Laser.Length()==0||(Target_Laser-Controller.GetPosition()).Length()>5000)
 				return ShipStatus.Linking;
 			else
 				return ShipStatus.Waiting;
 		}
-		if((Target_Position-Controller.GetPosition()).Length()>1||GetAngle(Target_Forward,Forward_Vector)>1||GetAngle(Target_Up,Up_Vector)>1)
+		if((Target_Position-Controller.GetPosition()).Length()>2.5||GetAngle(Target_Forward,Forward_Vector)>1||GetAngle(Target_Up,Up_Vector)>1)
 			return ShipStatus.Traveling;
 		return CurrentStatus;
 	}
@@ -435,7 +435,6 @@ ShipStatus Status{
 IMyRadioAntenna Antenna_R;
 IMyLaserAntenna Antenna_L;
 int ID;
-bool Started=false;
 bool Returning=false;
 double Fire_Timer=0;
 
@@ -623,9 +622,6 @@ public Program(){
 				case "Target_Position":
 					Vector3D.TryParse(data,out Target_Position);
 					break;
-				case "Started":
-					bool.TryParse(data,out Started);
-					break;
 				case "Returning":
 					bool.TryParse(data,out Returning);
 					break;
@@ -635,10 +631,11 @@ public Program(){
 			}
 		}
 	}
-	if(((int)Status)<=((int)ShipStatus.Linking))
-		ID=Rnd.Next(0,Int32.MaxValue);
 	SetUp();
-	
+	if(((int)Status)<=((int)ShipStatus.Linking)){
+		ID=Rnd.Next(0,Int32.MaxValue);
+		SetUp();
+	}
 	
 	
 	Echo("Completed initialization");
@@ -654,7 +651,6 @@ public void Save(){
 	this.Storage+="•Target_Forward:"+Target_Forward.ToString();
 	this.Storage+="•Target_Up:"+Target_Up.ToString();
 	this.Storage+="•Target_Position:"+Target_Position.ToString();
-	this.Storage+="•Started:"+Started.ToString();
 	this.Storage+="•Returning:"+Returning.ToString();
 	this.Storage+="•Fire_Timer:"+Fire_Timer.ToString();
 	
@@ -766,7 +762,7 @@ void Link(){
 		}
 	}
 	if(try_connect){
-		Antenna_L.SetTargetCoords((new MyWaypointInfo("Hub "+MyListenerString+" Laser Antenna",Target_Laser)).ToString());
+		Antenna_L.SetTargetCoords((new MyWaypointInfo("Target!!!",Target_Laser)).ToString());
 		Antenna_L.Connect();
 	}
 	Runtime.UpdateFrequency=UpdateFrequency.Update100;
@@ -780,14 +776,19 @@ void Wait(){
 		if(Listener.Tag.Equals(MyListenerString+"-"+ID.ToString())){
 			while(Listener.HasPendingMessage){
 				MyIGCMessage message=Listener.AcceptMessage();
-				Write("Received Message:"+message.Data.ToString());
+				Write("Received Message:");
 				string[] args=message.Data.ToString().Split('•');
+				for(int i=0;i<args.Length;i++)
+					Write("  args["+i.ToString()+"]="+args[i]);
 				if(args.Length==5&&args[0].Equals("Ends")){
 					Vector3D.TryParse(args[1],out End1);
 					Vector3D.TryParse(args[2],out End2);
 					Vector3D.TryParse(args[3],out Target_Forward);
 					Vector3D.TryParse(args[4],out Target_Up);
 					Target_Position=Get_Position();
+					Write("Set Position:"+Math.Round((Target_Position-Controller.GetPosition()).Length(),1)+"m");
+					if(Status!=ShipStatus.Waiting)
+						IGC.SendBroadcastMessage(MyListenerString,"Status•"+ID.ToString()+"•"+Status.ToString(),TransmissionDistance.TransmissionDistanceMax);
 				}
 			}
 		}
@@ -798,8 +799,12 @@ void Wait(){
 void Travel(){
 	Write("Traveling...");
 	Antenna_R.Enabled=false;
-	if((Target_Position-Controller.GetPosition()).Length()>1){
+	Controller.SetDockingMode(false);
+	if((Target_Position-Controller.GetPosition()).Length()>2.5){
+		Write("Phase 1 - "+Math.Round((Target_Position-Controller.GetPosition()).Length(),1).ToString()+"m");
 		MyWaypointInfo Destination=new MyWaypointInfo("Target Position",Target_Position);
+		if((Target_Position-Controller.GetPosition()).Length()<20)
+			Controller.SetDockingMode(true);
 		if((!Controller.CurrentWaypoint.Equals(Destination))||!Controller.IsAutoPilotEnabled){
 			Controller.ClearWaypoints();
 			Controller.AddWaypoint(Destination);
@@ -811,6 +816,7 @@ void Travel(){
 	else {
 		Controller.SetAutoPilotEnabled(false);
 		if(GetAngle(Forward_Vector,Target_Forward)>1||GetAngle(Up_Vector,Target_Up)>1){
+			Write("Phase 2 - "+Math.Max(GetAngle(Forward_Vector,Target_Forward),GetAngle(Up_Vector,Target_Up)).ToString()+"°");
 			Gyroscope.GyroOverride=(AngularVelocity.Length()<3);
 			float current_pitch=(float) Relative_AngularVelocity.X;
 			float current_yaw=(float) Relative_AngularVelocity.Y;
@@ -1008,7 +1014,6 @@ void Return(){
 	else{
 		End1=new Vector3D(0,0,0);
 		End2=new Vector3D(0,0,0);
-		Started=false;
 		Returning=false;
 	}
 	Runtime.UpdateFrequency=UpdateFrequency.Update10;
@@ -1026,6 +1031,11 @@ public void Main(string argument, UpdateType updateSource)
 	Write(Type.ToString());
 	Write("Player "+Player_Num.ToString());
 	Write("ID:"+ID.ToString());
+	List<IMyBroadcastListener> listeners=new List<IMyBroadcastListener>();
+	IGC.GetBroadcastListeners(listeners);
+	foreach(IMyBroadcastListener Listener in listeners){
+		Write("Listening on "+Listener.Tag);
+	}
 	for(int i=0;i<Decoys.Count;i++){
 		if(Decoys[i]==null)
 			Write("Decoy "+(i+1).ToString()+":null");
@@ -1048,7 +1058,15 @@ public void Main(string argument, UpdateType updateSource)
 		Detonate();
 	if(Status==ShipStatus.Returning)
 		Return();
+	
+	if(Antenna_L.Status!=MyLaserAntennaStatus.Connected&&Target_Laser.Length()!=0&&(Target_Laser-Controller.GetPosition()).Length()<5000){
+		if(Antenna_L.TargetCoords!=Target_Laser)
+			Antenna_L.SetTargetCoords((new MyWaypointInfo("Target!!!",Target_Laser)).ToString());
+		Write("Antenna Coords:"+Antenna_L.TargetCoords.ToString());
+		Antenna_L.Connect();
+	}
 	Antenna_R.HudText=Status.ToString();
 	if(Status!=ShipStatus.SettingUp)
 		IGC.SendBroadcastMessage(MyListenerString,"Status•"+ID.ToString()+"•"+Status.ToString(),TransmissionDistance.TransmissionDistanceMax);
+	Antenna_L.CustomData=(new MyWaypointInfo("Here",Antenna_L.GetPosition())).ToString();
 }

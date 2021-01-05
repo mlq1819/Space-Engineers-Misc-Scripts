@@ -2223,7 +2223,7 @@ public void Main(string argument, UpdateType updateSource)
 										ShipList[i].ID=id;
 										ShipList[i].Timer=0;
 										if(ShipList[i].Antenna!=null)
-											IGC.SendBroadcastMessage(ShipList[i].Tag_Full,id.ToString()+":"+ShipList[i].Antenna.GetPosition(),TransmissionDistance.TransmissionDistanceMax);
+											IGC.SendBroadcastMessage(ShipList[i].Tag_Full,id.ToString()+":"+(ShipList[i].Antenna.GetPosition()+1.25*Up_Vector).ToString(),TransmissionDistance.TransmissionDistanceMax);
 									}
 								}
 							}
@@ -2256,7 +2256,7 @@ public void Main(string argument, UpdateType updateSource)
 						ShipList[i].Antenna.CustomData=ShipList[i].Type.ToString()+" "+ShipList[i].Player_Num.ToString()+":"+ShipList[i].ID.ToString();
 				}
 				if(ShipList[i].ID!=0&&ShipList[i].Status==ShipStatus.Linking&&ShipList[i].Antenna!=null){
-					IGC.SendBroadcastMessage(ShipList[i].Tag_Full,ShipList[i].ID.ToString()+":"+ShipList[i].Antenna.GetPosition(),TransmissionDistance.TransmissionDistanceMax);
+					IGC.SendBroadcastMessage(ShipList[i].Tag_Full,ShipList[i].ID.ToString()+":"+(ShipList[i].Antenna.GetPosition()+1.25*Up_Vector).ToString(),TransmissionDistance.TransmissionDistanceMax);
 				}
 			}
 			
@@ -2728,7 +2728,7 @@ public void Main(string argument, UpdateType updateSource)
 							else
 								ship_up=Right_Vector;
 							string message="Ends•"+ship.End1.ToString()+"•"+ship.End2.ToString()+"•"+ship_forward.ToString()+"•"+ship_up.ToString();
-							Echo("Sending\n  "+message.Substring(0,Math.Min(25,message.Length))+"\n to \n  "+ship.Tag_Full);
+							Echo("Sending message to \n  "+ship.Tag_Full);
 							IGC.SendBroadcastMessage(ship.Tag_Full,message,TransmissionDistance.TransmissionDistanceMax);
 						}
 					}
