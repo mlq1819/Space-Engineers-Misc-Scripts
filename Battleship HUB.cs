@@ -314,6 +314,8 @@ class RealShip{
 		}
 	}
 	public IMyLaserAntenna Antenna;
+	public Vector3D End1;
+	public Vector3D End2;
 	
 	public RealShip(int id,MyShip type,int player_num,ShipStatus status=ShipStatus.Linking,double timer=0){
 		ID=id;
@@ -322,10 +324,12 @@ class RealShip{
 		Status=status;
 		Timer=timer;
 		Antenna=null;
+		End1=new Vector3D(0,0,0);
+		End2=new Vector3D(0,0,0);
 	}
 	
 	public override string ToString(){
-		return "("+ID.ToString()+","+((int)Type).ToString()+","+Player_Num.ToString()+","+((int)Status).ToString()+","+Timer.ToString()+")";
+		return "("+ID.ToString()+","+((int)Type).ToString()+","+Player_Num.ToString()+","+((int)Status).ToString()+","+Timer.ToString()+","+End1.ToString()+","+End2.ToString()+")";
 	}
 	
 	public static bool TryParse(string Parse,out RealShip output){
@@ -333,7 +337,7 @@ class RealShip{
 		if(Parse[0]!='('||Parse[Parse.Length-1]!=')')
 			return false;
 		string[] args=Parse.Substring(1,Parse.Length-2).Split(',');
-		if(args.Length!=5)
+		if(args.Length!=7)
 			return false;
 		int id,type_i,player_num,status_i;
 		double timer;
@@ -353,7 +357,14 @@ class RealShip{
 			return false;
 		if(!double.TryParse(args[4],out timer))
 			return false;
+		Vector3D e1,e2;
+		if(!Vector3D.TryParse(args[5],out e1))
+			return false;
+		if(!Vector3D.TryParse(args[6],out e2))
+			return false;
 		output=new RealShip(id,(MyShip)type_i,player_num,(ShipStatus)status_i,timer);
+		output.End1=e1;
+		output.End2=e2;
 		return true;
 	}
 }
@@ -999,6 +1010,45 @@ double seconds_since_last_update=0;
 
 Random Rnd;
 
+IMyRemoteControl Controller;
+Base6Directions.Direction Forward;
+Base6Directions.Direction Backward{
+	get{
+		return Base6Directions.GetOppositeDirection(Forward);
+	}
+}
+Base6Directions.Direction Up;
+Base6Directions.Direction Down{
+	get{
+		return Base6Directions.GetOppositeDirection(Up);
+	}
+}
+Base6Directions.Direction Left;
+Base6Directions.Direction Right{
+	get{
+		return Base6Directions.GetOppositeDirection(Left);
+	}
+}
+
+Vector3D Forward_Vector;
+Vector3D Backward_Vector{
+	get{
+		return -1*Forward_Vector;
+	}
+}
+Vector3D Up_Vector;
+Vector3D Down_Vector{
+	get{
+		return -1*Up_Vector;
+	}
+}
+Vector3D Left_Vector;
+Vector3D Right_Vector{
+	get{
+		return -1*Left_Vector;
+	}
+}
+
 int Player_Count=1;
 double Turn_Timer=90;
 bool Allow_Pause=true;
@@ -1052,6 +1102,30 @@ List<IMyDoor> Room2Doors;
 
 int Player_Turn=-1;
 double Player_Timer=0;
+
+Vector3D TransformCoordinates(Vector2 input,int Board_Num){
+	if(Board_Num<1||Board_Num>2)
+		return new Vector3D(0,0,0);
+	if(input.X<0||input.X>7||input.Y<0||input.Y>7)
+		return new Vector3D(0,0,0);
+	Vector3D Center=Controller.GetPosition();
+	double target_distance=500;
+	if(Board_Num==1)
+		Center+=target_distance*Right_Vector;
+	else
+		Center+=target_distance*Left_Vector;
+	Vector3D A1=Center+=250*Up_Vector;
+	Vector3D To_Right;
+	if(Board_Num==1){
+		A1+=200*Forward_Vector;
+		To_Right=Backward_Vector;
+	}
+	else{
+		A1+=200*Backward_Vector;
+		To_Right=Forward_Vector;
+	}
+	return A1+To_Right*(input.X)*50+Down_Vector*(input.Y)*50;
+}
 
 public Program(){
 	Prog.P=this;
@@ -1230,6 +1304,22 @@ public Program(){
 		if(Player2Ships[i]!=null)
 			Player2Ships[i].Antenna=Player2LaserAntenna[i];
 	}
+	Controller=GenericMethods<IMyRemoteControl>.GetFull("Hub Remote Control");
+	if(Controller==null)
+		return;
+	Forward=Controller.Orientation.Forward;
+	Up=Controller.Orientation.Up;
+	Left=Controller.Orientation.Left;
+	Vector3D base_vector=new Vector3D(0,0,-1);
+	Forward_Vector=LocalToGlobal(base_vector,Controller);
+	Forward_Vector.Normalize();
+	base_vector=new Vector3D(0,1,0);
+	Up_Vector=LocalToGlobal(base_vector,Controller);
+	Up_Vector.Normalize();
+	base_vector=new Vector3D(-1,0,0);
+	Left_Vector=LocalToGlobal(base_vector,Controller);
+	Left_Vector.Normalize();
+	
 	
 	Write("Completed Initialization");
 	Runtime.UpdateFrequency=UpdateFrequency.Update10;//60tps
@@ -1862,8 +1952,11 @@ void Argument_Processor(string argument){
 										}
 									}
 									if(((int)Ship)>((int)MyShip.None)){
-										if(Player1.OwnBoard.AddShip(Ship,(int)Player1.End1.X,(int)Player1.End1.Y,(int)Player1.End2.X,(int)Player1.End2.Y))
+										if(Player1.OwnBoard.AddShip(Ship,(int)Player1.End1.X,(int)Player1.End1.Y,(int)Player1.End2.X,(int)Player1.End2.Y)){
+											Player1Ships[((int)Ship)-1].End1=TransformCoordinates(Player1.End1,1);
+											Player1Ships[((int)Ship)-1].End2=TransformCoordinates(Player1.End2,1);
 											Player1.ReadyShips[Ship]=true;
+										}
 									}
 									Player1.End1=new Vector2(-1,-1);
 									Player1.End2=new Vector2(-1,-1);
@@ -1888,8 +1981,11 @@ void Argument_Processor(string argument){
 										}
 									}
 									if(Ship!=MyShip.Unknown){
-										if(Player2.OwnBoard.AddShip(Ship,(int)Player2.End1.X,(int)Player2.End1.Y,(int)Player2.End2.X,(int)Player2.End2.Y))
+										if(Player2.OwnBoard.AddShip(Ship,(int)Player2.End1.X,(int)Player2.End1.Y,(int)Player2.End2.X,(int)Player2.End2.Y)){
+											Player2Ships[((int)Ship)-1].End1=TransformCoordinates(Player2.End1,2);
+											Player2Ships[((int)Ship)-1].End2=TransformCoordinates(Player2.End2,2);
 											Player2.ReadyShips[Ship]=true;
+										}
 									}
 									Player2.End1=new Vector2(-1,-1);
 									Player2.End2=new Vector2(-1,-1);
@@ -2037,6 +2133,16 @@ public void Main(string argument, UpdateType updateSource)
 			DisplayIdleTimer+=seconds_since_last_update;
 		if(AI_Timer<5)
 			AI_Timer+=seconds_since_last_update;
+		
+		
+		if(true){
+			Me.CustomData="";
+			Me.CustomData+=(new MyWaypointInfo("A1",TransformCoordinates(new Vector2(0,0),1))).ToString()+"\n";
+			Me.CustomData+=(new MyWaypointInfo("A8",TransformCoordinates(new Vector2(7,0),1))).ToString()+"\n";
+			Me.CustomData+=(new MyWaypointInfo("H1",TransformCoordinates(new Vector2(0,7),1))).ToString()+"\n";
+			Me.CustomData+=(new MyWaypointInfo("H8",TransformCoordinates(new Vector2(7,7),1))).ToString()+"\n";
+			
+		}
 		
 		string HubText="";
 		string Player1Text="";
