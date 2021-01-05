@@ -1653,7 +1653,7 @@ void DisplayCheck(DisplayArray Da){
 	}
 }
 
-bool call_return=true;
+bool call_return=false;
 void CallReturn(){
 	call_return=false;
 	for(int i=1;i<=2;i++){
