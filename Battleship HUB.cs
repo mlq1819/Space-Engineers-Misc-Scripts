@@ -2255,6 +2255,9 @@ public void Main(string argument, UpdateType updateSource)
 					else
 						ShipList[i].Antenna.CustomData=ShipList[i].Type.ToString()+" "+ShipList[i].Player_Num.ToString()+":"+ShipList[i].ID.ToString();
 				}
+				if(ShipList[i].ID!=0&&ShipList[i].Status==ShipStatus.Linking&&ShipList[i].Antenna!=null){
+					IGC.SendBroadcastMessage(ShipList[i].Tag_Full,ShipList[i].ID.ToString()+":"+ShipList[i].Antenna.GetPosition(),TransmissionDistance.TransmissionDistanceMax);
+				}
 			}
 			
 		}
