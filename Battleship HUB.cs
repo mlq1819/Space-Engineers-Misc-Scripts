@@ -1089,7 +1089,7 @@ bool ReadyShips(List<ShipStatus> can_be_at){
 	foreach(RealShip Ship in Player1Ships){
 		bool is_ready=false;
 		foreach(ShipStatus is_at in can_be_at){
-			if(IsReady(Ship),is_at){
+			if(IsReady(Ship,is_at)){
 				is_ready=true;
 				break;
 			}
@@ -1100,7 +1100,7 @@ bool ReadyShips(List<ShipStatus> can_be_at){
 	foreach(RealShip Ship in Player2Ships){
 		bool is_ready=false;
 		foreach(ShipStatus is_at in can_be_at){
-			if(IsReady(Ship),is_at){
+			if(IsReady(Ship,is_at)){
 				is_ready=true;
 				break;
 			}
@@ -1666,8 +1666,12 @@ void CallReturn(){
 			RealShip ship=ShipList[j];
 			if(ship.Status!=ShipStatus.Waiting&&ship.Status!=ShipStatus.Returning&&ship.Timer<300){
 				call_return=true;
-				Vector3D Target=Controller.GetPosition+Up_Vector*20);
+				Vector3D Target=Controller.GetPosition()+Up_Vector*20;
 				Target+=50*(Rnd.Next(0,2)*Up_Vector+Rnd.Next(-4,4)*Forward_Vector);
+				if(i==1)
+					Target+=50*Rnd.Next(1,4)*Right_Vector;
+				else
+					Target+=50*Rnd.Next(1,4)*Left_Vector;
 				IGC.SendBroadcastMessage(ship.Tag_Full,"Return•"+Target.ToString(),TransmissionDistance.TransmissionDistanceMax);
 			}
 		}
@@ -2581,7 +2585,7 @@ public void Main(string argument, UpdateType updateSource)
 		}
 		if(Status==GameStatus.InProgress){
 			List<ShipStatus> ValidStatuses=new List<ShipStatus>();
-			ValidStatuses.Add(ShipStatus.InProgress);
+			ValidStatuses.Add(ShipStatus.InPosition);
 			ValidStatuses.Add(ShipStatus.Detonating);
 			if((!Use_Real_Ships)||ReadyShips(ValidStatuses)){
 				if(Player_Turn<0||Player_Turn>2)
