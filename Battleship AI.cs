@@ -436,7 +436,7 @@ IMyRadioAntenna Antenna_R;
 IMyLaserAntenna Antenna_L;
 int ID;
 bool Started=false;
-bool Returning=true;
+bool Returning=false;
 double Fire_Timer=0;
 
 
