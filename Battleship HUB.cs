@@ -2252,6 +2252,8 @@ public void Main(string argument, UpdateType updateSource)
 						Echo("    Last Received "+Math.Round(ShipList[i].Timer,1).ToString()+" seconds ago");
 					if(ShipList[i].Antenna==null)
 						Echo("    Antenna:Invalid");
+					else
+						ShipList[i].Antenna.CustomData=ShipList[i].Type.ToString()+" "+ShipList[i].Player_Num.ToString()+":"+ShipList[i].ID.ToString();
 				}
 			}
 			
