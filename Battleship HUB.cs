@@ -2187,7 +2187,7 @@ public void Main(string argument, UpdateType updateSource)
 			DisplayIdleTimer+=seconds_since_last_update;
 		if(AI_Timer<5)
 			AI_Timer+=seconds_since_last_update;
-		
+		Me.CustomData="";
 		
 		string HubText="";
 		string Player1Text="";
@@ -2712,14 +2712,14 @@ public void Main(string argument, UpdateType updateSource)
 					else
 						ShipList=Player2Ships;
 					for(int j=1;j<=5;j++){
-						if(ShipList[j].Status==ShipStatus.Traveling)
+						if(ShipList[j-1].Status==ShipStatus.Traveling)
 							traveling++;
-						else if(ShipList[j].Status==ShipStatus.Receiving)
+						else if(ShipList[j-1].Status==ShipStatus.Receiving)
 							receiving++;
 						else
 							other++;
-						if((int)ShipList[j].Status<(int)ShipStatus.Traveling){
-							RealShip ship=ShipList[j];
+						if((int)ShipList[j-1].Status<(int)ShipStatus.Traveling){
+							RealShip ship=ShipList[j-1];
 							Vector3D ship_forward=ship.End1-ship.End2;
 							ship_forward.Normalize();
 							Vector3D ship_up;
@@ -2727,7 +2727,9 @@ public void Main(string argument, UpdateType updateSource)
 								ship_up=Left_Vector;
 							else
 								ship_up=Right_Vector;
-							IGC.SendBroadcastMessage(ship.Tag_Full,"Ends•"+ship.End1.ToString()+"•"+ship.End2.ToString()+"•"+ship_forward.ToString()+"•"+ship_up.ToString(),TransmissionDistance.TransmissionDistanceMax);
+							string message="Ends•"+ship.End1.ToString()+"•"+ship.End2.ToString()+"•"+ship_forward.ToString()+"•"+ship_up.ToString();
+							Echo("Sending\n  "+message.Substring(0,Math.Min(25,message.Length))+"\n to \n  "+ship.Tag_Full);
+							IGC.SendBroadcastMessage(ship.Tag_Full,message,TransmissionDistance.TransmissionDistanceMax);
 						}
 					}
 				}
@@ -2800,6 +2802,9 @@ public void Main(string argument, UpdateType updateSource)
 			Room2Sound.Block.Play();
 			HubSound.Block.SelectedSound="Malfunction DetectedId";
 			HubSound.Block.Play();
+			Me.CustomData=Status.ToString();
+			Me.CustomData+="\nPlayer1Ships.Count="+Player1Ships.Count.ToString();
+			Me.CustomData+="\nPlayer2Ships.Count="+Player2Ships.Count.ToString();
 			foreach(IMyTextPanel Panel in Player1StatusPanels)
 				Panel.WriteText(e.ToString(),false);
 			foreach(IMyTextPanel Panel in Player2StatusPanels)

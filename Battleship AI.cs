@@ -635,6 +635,8 @@ public Program(){
 			}
 		}
 	}
+	if(((int)Status)<=((int)ShipStatus.Linking))
+		ID=Rnd.Next(0,Int32.MaxValue);
 	SetUp();
 	
 	
