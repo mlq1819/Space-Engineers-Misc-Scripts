@@ -1026,6 +1026,30 @@ Sound Room2Sound;
 Sound HubSound;
 List<RealShip> Player1Ships=new List<RealShip>();
 List<RealShip> Player2Ships=new List<RealShip>();
+bool IsReady(RealShip Ship){
+	if(Ship==null)
+		return false;
+	if(Ship.ID<0||Ship.Timer>=300||(Ship.Timer>60&&Ship.Status!=ShipStatus.Traveling)||((int)Ship.Status)<((int)ShipStatus.Waiting))
+		return false;
+	if(Ship.ID<0||Ship.Timer>=300||(Ship.Timer>60&&Ship.Status!=ShipStatus.Traveling)||((int)Ship.Status)<((int)ShipStatus.Waiting))
+		return false;
+	return true;
+}
+bool ReadyShips{
+	get{
+		if(Player1Ships.Count<5||Player2Ships.Count<5)
+			return false;
+		foreach(RealShip Ship in Player1Ships){
+			if(!IsReady(Ship))
+				return false;
+		}
+		foreach(RealShip Ship in Player2Ships){
+			if(!IsReady(Ship))
+				return false;
+		}
+		return true;
+	}
+}
 
 List<IMyDoor> Room1Doors;
 List<IMyDoor> Room2Doors;
@@ -1200,8 +1224,8 @@ public Program(){
 		Room2Sound.Sounds.Enqueue("Hello EngineerId");
 		HubSound.Sounds.Enqueue("Hello EngineerId");
 	}
-	List<IMyLaserAntenna> Player1LaserAntenna=GenericMethods<IMyLaserAntenna>.GetContaining("Player 1 Laser Antenna");
-	List<IMyLaserAntenna> Player2LaserAntenna=GenericMethods<IMyLaserAntenna>.GetContaining("Player 2 Laser Antenna");
+	List<IMyLaserAntenna> Player1LaserAntenna=GenericMethods<IMyLaserAntenna>.GetAllContaining("Player 1 Laser Antenna");
+	List<IMyLaserAntenna> Player2LaserAntenna=GenericMethods<IMyLaserAntenna>.GetAllContaining("Player 2 Laser Antenna");
 	if(Player1LaserAntenna.Count<5||Player2LaserAntenna.Count<5)
 		return;
 	for(int i=0;i<5;i++){
@@ -2033,7 +2057,7 @@ public void Main(string argument, UpdateType updateSource)
 			for(int i=0;i<ShipList.Count;i++){
 				if(ShipList[i]==null){
 					ShipList[i]=new RealShip(-1,(MyShip)(i+1),j);
-					List<IMyLaserAntenna> Antennas=GenericMethods<IMyLaserAntenna>.GetContaining("Player "+j.ToString()+" Laser Antenna");
+					List<IMyLaserAntenna> Antennas=GenericMethods<IMyLaserAntenna>.GetAllContaining("Player "+j.ToString()+" Laser Antenna");
 					if(Antennas.Count>=5)
 						ShipList[i].Antenna=Antennas[i];
 				}
@@ -2043,7 +2067,7 @@ public void Main(string argument, UpdateType updateSource)
 					if(Listener.Tag.Equals(ShipList[i].Tag)){
 						while(Listener.HasPendingMessage){
 							MyIGCMessage message=Listener.AcceptMessage();
-							string[] args=message.Data.Split('•');
+							string[] args=message.Data.ToString().Split('•');
 							bool accepting_new=(ShipList[i].ID<0||ShipList[i].Timer>=300||(ShipList[i].Status!=ShipStatus.Traveling&&ShipList[i].Timer>60));
 							if(accepting_new&&args.Length==2&&args[0].Equals("ID")){
 								int id;
@@ -2075,12 +2099,14 @@ public void Main(string argument, UpdateType updateSource)
 					}
 				}
 				Echo(" "+ShipList[i].Type.ToString()+":"+ShipList[i].ID.ToString());
-				Echo("  "+ShipList[i].Status.ToString());
-				Echo("  Last Received "+Math.Round(ShipLast[i].Timer,1).ToString()+" seconds ago");
-				if(ShipList[i].Antenna!=null)
-					Echo("  Antenna:Valid");
-				else
-					Echo("  Antenna:Invalid");
+				if(ShipList[i].ID>=0){
+					Echo("  "+ShipList[i].Status.ToString());
+					Echo("  Last Received "+Math.Round(ShipList[i].Timer,1).ToString()+" seconds ago");
+					if(ShipList[i].Antenna!=null)
+						Echo("  Antenna:Valid");
+					else
+						Echo("  Antenna:Invalid");
+				}
 			}
 			
 		}
@@ -2158,8 +2184,24 @@ public void Main(string argument, UpdateType updateSource)
 				s="> ";
 			else
 				s="";
+			if(Use_Real_Ships&&!ReadyShips)
+				Status=GameStatus.Waiting;
+			else
+				Status=GameStatus.Ready;
 			if(Status==GameStatus.Ready)
 				Write(s+"Start Game");
+			else{
+				int count=0;
+				foreach(RealShip Ship in Player1Ships){
+					if(IsReady(Ship))
+						count++;
+				}
+				foreach(RealShip Ship in Player2Ships){
+					if(IsReady(Ship))
+						count++;
+				}
+				Write("Waiting for Ships ("+count.ToString()+"/10)");
+			}
 			if(Selection==1)
 				s="> ";
 			else
