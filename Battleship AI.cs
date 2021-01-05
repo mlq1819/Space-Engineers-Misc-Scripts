@@ -450,17 +450,17 @@ string MyListenerString{
 }
 
 List<IMyDecoy> Decoys=new List<IMyDecoy>();
-Vector3D DecoyPosition(int i){
-	if(Decoys.Count>i)
+Vector3D DecoyPosition(int index){
+	if(Decoys.Count>index)
 		return new Vector3D(0,0,0);
-	if(Decoys[i-1]!=null)
-		return Decoys[i-1].GetPosition();
+	if(Decoys[index-1]!=null)
+		return Decoys[index-1].GetPosition();
 	double sum=0;
 	int total=0;
 	for(int i=0;i<Decoys.Count;i++){
 		for(int j=i+1;j<Decoys.Count;j++){
 			if(i!=j&&Decoys[i]!=null&&Decoys[j]!=null){
-				double distance=Decoys[j]-Decoys[i];
+				double distance=(Decoys[j].GetPosition()-Decoys[i].GetPosition()).Length();
 				sum+=distance/Math.Abs(i-j);
 				total++;
 			}
@@ -469,18 +469,18 @@ Vector3D DecoyPosition(int i){
 	if(total==0)
 		return new Vector3D(0,0,0);
 	sum=sum/total;
-	int ref_num=i;
-	int distance=0;
+	int ref_num=index;
+	int dis=0;
 	while(ref_num>0&&ref_num<=Decoys.Count&&Decoys[ref_num-1]==null){
-		distance++;
-		ref_num=i-distance;
+		dis++;
+		ref_num=index-dis;
 		if(ref_num<0||Decoys[ref_num-1]==null){
-			ref_num=i+distance;
+			ref_num=index+dis;
 		}
 	}
 	if(ref_num>0&&ref_num<=Decoys.Count&&Decoys[ref_num-1]!=null){
 		Vector3D output=Decoys[ref_num-1].GetPosition();
-		output+=forward_vector*(ref_num-i)*sum;
+		output+=Forward_Vector*(ref_num-index)*sum;
 		return output;
 	}
 	return new Vector3D(0,0,0);
@@ -491,11 +491,10 @@ double ShipMass{
 		return Controller.CalculateShipMass().TotalMass;
 	}
 }
-bool Match_Directions=false;
 Vector3D Target_Forward=new Vector3D(0,0,-1);
 Vector3D Target_Up=new Vector3D(0,1,0);
 
-Vecto3D Target_Laser=new Vector3D(0,0,0);
+Vector3D Target_Laser=new Vector3D(0,0,0);
 
 Vector3D End1=new Vector3D(0,0,0);
 Vector3D End2=new Vector3D(0,0,0);
@@ -518,7 +517,7 @@ Vector3D Get_Position(){
 	double p_sum=p_front+p_back;
 	p_front/=p_sum;
 	p_back/=p_sum;
-	return p_back*End1+p_front*End2
+	return p_back*End1+p_front*End2;
 }
 
 Vector3D AngularVelocity;
@@ -762,7 +761,7 @@ void Link(){
 		}
 	}
 	if(try_connect){
-		Antenna_L.SetTargetCoords((new MyWaypointInfo("Hub "+MyListenerString+" Laser Antenna",Target_Laser.ToString())).ToString());
+		Antenna_L.SetTargetCoords((new MyWaypointInfo("Hub "+MyListenerString+" Laser Antenna",Target_Laser)).ToString());
 		Antenna_L.Connect();
 	}
 	Runtime.UpdateFrequency=UpdateFrequency.Update100;
@@ -777,7 +776,7 @@ void Wait(){
 			while(Listener.HasPendingMessage){
 				MyIGCMessage message=Listener.AcceptMessage();
 				string[] args=message.Data.ToString().Split('•');
-				if(args.Count==5&&args[0].Equals("Ends")){
+				if(args.Length==5&&args[0].Equals("Ends")){
 					Vector3D.TryParse(args[1],out End1);
 					Vector3D.TryParse(args[2],out End2);
 					Vector3D.TryParse(args[3],out Target_Forward);
@@ -798,8 +797,7 @@ void Travel(){
 			Controller.ClearWaypoints();
 			Controller.AddWaypoint(Destination);
 			Controller.SetCollisionAvoidance(true);
-			Speed_Limit=50;
-			Controller.SpeedLimit=(float)Speed_Limit;
+			Controller.SpeedLimit=50;
 			Controller.SetAutoPilotEnabled(true);
 		}
 	}
@@ -876,7 +874,7 @@ void InPosition(){
 			while(Listener.HasPendingMessage){
 				MyIGCMessage message=Listener.AcceptMessage();
 				string[] args=message.Data.ToString().Split('•');
-				if(args.Count==2&&args[0].Equals("Request")){
+				if(args.Length==2&&args[0].Equals("Request")){
 					Vector3D near;
 					if(Vector3D.TryParse(args[1],out near)){
 						IMyDecoy Decoy=GetNearest(near);
@@ -884,7 +882,7 @@ void InPosition(){
 							IGC.SendBroadcastMessage(MyListenerString,"Target•"+Decoy.GetPosition().ToString(),TransmissionDistance.TransmissionDistanceMax);
 					}
 				}
-				else if(args.Count==3&&args[0].Equals("Fire")){
+				else if(args.Length==3&&args[0].Equals("Fire")){
 					Vector3D near;
 					Fire_Timer=4;
 					double.TryParse(args[2],out Fire_Timer);
@@ -895,7 +893,7 @@ void InPosition(){
 							Decoy.Enabled=false;
 					}
 				}
-				else if(args.Count==2&&args[0].Equals("Return")){
+				else if(args.Length==2&&args[0].Equals("Return")){
 					Vector3D temp;
 					if(Vector3D.TryParse(args[1],out temp)){
 						Returning=true;
@@ -955,7 +953,7 @@ void Detonate(){
 				if(!found){
 					Time+=(Rnd.Next(10,30)+Rnd.Next(10,30))/10.0;
 					IMyWarhead Pick=Unset[Rnd.Next(0,Unset.Count-1)];
-					Pick.DetonationTime=Time;
+					Pick.DetonationTime=(float)Time;
 					Pick.StartCountdown();
 					Pick.IsArmed=true;
 					Set.Add(Pick);
@@ -976,10 +974,10 @@ void Return(){
 	foreach(IMyDecoy Decoy in Decoys){
 		if(Decoy!=null){
 			if(Decoy.IsWorking&&Decoy.Enabled)
-				count--;
+				missing--;
 		}
 	}
-	if(count>0){
+	if(missing>0){
 		Fire_Timer=60;
 		CurrentStatus=ShipStatus.Detonating;
 		Write("Detonating...");
@@ -994,8 +992,7 @@ void Return(){
 			Controller.ClearWaypoints();
 			Controller.AddWaypoint(Destination);
 			Controller.SetCollisionAvoidance(true);
-			Speed_Limit=50;
-			Controller.SpeedLimit=(float)Speed_Limit;
+			Controller.SpeedLimit=50;
 			Controller.SetAutoPilotEnabled(true);
 		}
 	}
@@ -1014,9 +1011,11 @@ public void Main(string argument, UpdateType updateSource)
 	UpdateSystemInfo();
 	if(Gyroscope==null||Gyroscope.IsFunctional)
 		Gyroscope=GenericMethods<IMyGyro>.GetClosestFunc(GyroFunc);
-	Gyro.GyroOverride=false;
+	Gyroscope.GyroOverride=false;
 	if(Fire_Timer>0)
 		Fire_Timer=Math.Max(0,Fire_Timer-seconds_since_last_update);
+	Write(Type.ToString());
+	Write("Player "+Player_Num.ToString());
 	if(Status==ShipStatus.SettingUp)
 		SetUp();
 	if(Status==ShipStatus.Linking)
