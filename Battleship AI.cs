@@ -752,6 +752,7 @@ void Link(){
 		if(Listener.Tag.Equals(MyListenerString+"-"+ID.ToString())){
 			while(Listener.HasPendingMessage){
 				MyIGCMessage message=Listener.AcceptMessage();
+				Write("Received Message:"+message.Data.ToString());
 				int index=message.Data.ToString().IndexOf(":");
 				if(index>0){
 					string target=message.Data.ToString().Substring(0,index);
@@ -779,6 +780,7 @@ void Wait(){
 		if(Listener.Tag.Equals(MyListenerString+"-"+ID.ToString())){
 			while(Listener.HasPendingMessage){
 				MyIGCMessage message=Listener.AcceptMessage();
+				Write("Received Message:"+message.Data.ToString());
 				string[] args=message.Data.ToString().Split('•');
 				if(args.Length==5&&args[0].Equals("Ends")){
 					Vector3D.TryParse(args[1],out End1);
@@ -878,6 +880,7 @@ void InPosition(){
 		if(Listener.Tag.Equals(MyListenerString+"-"+ID.ToString())){
 			while(Listener.HasPendingMessage){
 				MyIGCMessage message=Listener.AcceptMessage();
+				Write("Received Message:"+message.Data.ToString());
 				string[] args=message.Data.ToString().Split('•');
 				if(args.Length==2&&args[0].Equals("Request")){
 					Vector3D near;
