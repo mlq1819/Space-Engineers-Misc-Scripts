@@ -2179,6 +2179,8 @@ void Argument_Processor(string argument){
 int Last_Winner=-1;
 Vector2 AI_Selection=new Vector2(-1,-1);
 double AI_Timer=0;
+double Release_Timer=0;
+int Release_Number=0;
 public void Main(string argument, UpdateType updateSource)
 {
 	try{
@@ -2585,6 +2587,8 @@ public void Main(string argument, UpdateType updateSource)
 				AI_Selection=new Vector2(-1,-1);
 				Room1Sound.Sounds.Enqueue("Weapons ArmedId");
 				Room2Sound.Sounds.Enqueue("Weapons ArmedId");
+				Release_Number=0;
+				Release_Timer=0;
 			}
 		}
 		if(Status==GameStatus.InProgress){
@@ -2704,6 +2708,11 @@ public void Main(string argument, UpdateType updateSource)
 				int traveling=0;
 				int receiving=0;
 				int other=0;
+				if(Release_Timer>=15&&Release_Number<5){
+					Release_Number++;
+					Release_Timer=0;
+				}
+					
 				for(int i=1;i<=2;i++){
 					List<RealShip> ShipList;
 					if(i==1)
@@ -2717,7 +2726,7 @@ public void Main(string argument, UpdateType updateSource)
 							receiving++;
 						else
 							other++;
-						if((int)ShipList[j-1].Status<(int)ShipStatus.Traveling){
+						if(Release_Number<=(j-1)&&(int)ShipList[j-1].Status<(int)ShipStatus.Traveling){
 							RealShip ship=ShipList[j-1];
 							Vector3D ship_forward=ship.End1-ship.End2;
 							ship_forward.Normalize();
@@ -2732,6 +2741,8 @@ public void Main(string argument, UpdateType updateSource)
 						}
 					}
 				}
+				if(Release_Timer<15)
+					Release_Timer+=seconds_since_last_update;
 				if(traveling>0)
 					HubText+="\n  "+traveling.ToString()+" Traveling";
 				if(receiving>0)
