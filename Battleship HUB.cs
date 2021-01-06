@@ -1666,12 +1666,12 @@ void CallReturn(){
 			RealShip ship=ShipList[j];
 			if(ship.Status!=ShipStatus.Waiting&&ship.Status!=ShipStatus.Returning&&ship.Timer<300){
 				call_return=true;
-				Vector3D Target=Controller.GetPosition()+Up_Vector*20;
-				Target+=50*(Rnd.Next(0,2)*Up_Vector+Rnd.Next(-4,4)*Forward_Vector);
+				Vector3D Target=Controller.GetPosition()+Up_Vector*50;
+				Target+=50*(j-2)*Forward_Vector;
 				if(i==1)
-					Target+=50*Rnd.Next(1,4)*Right_Vector;
+					Target+=100*Right_Vector;
 				else
-					Target+=50*Rnd.Next(1,4)*Left_Vector;
+					Target+=100*Left_Vector;
 				IGC.SendBroadcastMessage(ship.Tag_Full,"Return•"+Target.ToString(),TransmissionDistance.TransmissionDistanceMax);
 			}
 		}
