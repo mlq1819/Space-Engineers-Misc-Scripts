@@ -1021,6 +1021,7 @@ void Return(){
 	Runtime.UpdateFrequency=UpdateFrequency.Update10;
 }
 
+double Antenna_Timer=5;
 public void Main(string argument, UpdateType updateSource)
 {
 	UpdateProgramInfo();
@@ -1060,11 +1061,14 @@ public void Main(string argument, UpdateType updateSource)
 		Detonate();
 	if(Status==ShipStatus.Returning)
 		Return();
+	if(Antenna_Timer<5)
+		Antenna_Timer+=seconds_since_last_update;
 	
-	if(Antenna_L.Status!=MyLaserAntennaStatus.Connected&&Target_Laser.Length()!=0&&(Target_Laser-Controller.GetPosition()).Length()<5000){
-		if(Antenna_L.TargetCoords!=Target_Laser){
+	if(Antenna_Timer>=5&&Antenna_L.Status!=MyLaserAntennaStatus.Connected&&Target_Laser.Length()!=0&&(Target_Laser-Controller.GetPosition()).Length()<5000){
+		if((Antenna_L.TargetCoords-Target_Laser).Length()>.5){
 			Antenna_L.SetTargetCoords((new MyWaypointInfo("Target!!!",Target_Laser)).ToString());
 			Antenna_L.Connect();
+			Antenna_Timer=0;
 		}
 		Write("Antenna Coords:"+Antenna_L.TargetCoords.ToString());
 	}
