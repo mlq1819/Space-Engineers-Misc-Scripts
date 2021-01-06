@@ -806,10 +806,10 @@ void Travel(){
 		MyWaypointInfo Destination=new MyWaypointInfo("Target Position",Target_Position);
 		if((Target_Position-Controller.GetPosition()).Length()<20)
 			Controller.SetDockingMode(true);
-		Controller.SetCollisionAvoidance(Controller.GetShipSpeed()>5);
 		if(((Controller.CurrentWaypoint.Coords-Target_Position).Length()>0||!Controller.IsAutoPilotEnabled)&&AutoPilotTimer>=5){
 			Controller.ClearWaypoints();
 			Controller.AddWaypoint(Destination);
+			Controller.SetCollisionAvoidance(true);
 			Controller.SpeedLimit=50;
 			Controller.SetAutoPilotEnabled(true);
 			AutoPilotTimer=0;
