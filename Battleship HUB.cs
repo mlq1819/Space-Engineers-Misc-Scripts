@@ -1136,22 +1136,22 @@ Vector3D TransformCoordinates(Vector2 input,int Board_Num){
 	if(input.X<0||input.X>7||input.Y<0||input.Y>7)
 		return new Vector3D(0,0,0);
 	Vector3D Center=Controller.GetPosition();
-	double target_distance=500;
+	double target_distance=1000;
 	if(Board_Num==1)
 		Center+=target_distance*Right_Vector;
 	else
 		Center+=target_distance*Left_Vector;
-	Vector3D A1=Center+=250*Up_Vector;
+	Vector3D A1=Center+=375*Up_Vector;
 	Vector3D To_Right;
 	if(Board_Num==1){
-		A1+=200*Forward_Vector;
+		A1+=300*Forward_Vector;
 		To_Right=Backward_Vector;
 	}
 	else{
-		A1+=200*Backward_Vector;
+		A1+=300*Backward_Vector;
 		To_Right=Forward_Vector;
 	}
-	return A1+To_Right*(input.X)*50+Down_Vector*(input.Y)*50;
+	return A1+To_Right*(input.X)*75+Down_Vector*(input.Y)*75;
 }
 
 public Program(){
@@ -2708,7 +2708,7 @@ public void Main(string argument, UpdateType updateSource)
 				int traveling=0;
 				int receiving=0;
 				int other=0;
-				if(Release_Timer>=15&&Release_Number>0){
+				if(Release_Timer>=30&&Release_Number>0){
 					Release_Number--;
 					Release_Timer=0;
 				}

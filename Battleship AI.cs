@@ -807,6 +807,7 @@ void Travel(){
 		if((Target_Position-Controller.GetPosition()).Length()<20)
 			Controller.SetDockingMode(true);
 		if(((Controller.CurrentWaypoint.Coords-Target_Position).Length()>0||!Controller.IsAutoPilotEnabled)&&AutoPilotTimer>=5){
+			Controller.Direction=Base6Directions.Direction.Backward;
 			Controller.ClearWaypoints();
 			Controller.AddWaypoint(Destination);
 			Controller.SetCollisionAvoidance(true);
@@ -1006,6 +1007,7 @@ void Return(){
 		MyWaypointInfo Destination=new MyWaypointInfo("Target Position",Target_Position);
 		if(((Controller.CurrentWaypoint.Coords-Target_Position).Length()>0||!Controller.IsAutoPilotEnabled)&&AutoPilotTimer>=5){
 			Controller.ClearWaypoints();
+			Controller.Direction=Base6Directions.Direction.Forward;
 			Controller.AddWaypoint(Destination);
 			Controller.SetCollisionAvoidance(true);
 			Controller.SpeedLimit=50;
