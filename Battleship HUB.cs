@@ -2707,13 +2707,12 @@ public void Main(string argument, UpdateType updateSource)
 				Player2Text="Waiting for Ships:";
 				int traveling=0;
 				int receiving=0;
+				int waiting=0;
 				int other=0;
 				if(Release_Timer>=30&&Release_Number>0){
 					Release_Number--;
 					Release_Timer=0;
 				}
-				if(Release_Number>0)
-					Write("Releasing Ships 1-"+(Release_Number+1).ToString()+"; next batch in "+Math.Round(15-Release_Timer,1)+" seconds");
 					
 				for(int i=1;i<=2;i++){
 					List<RealShip> ShipList;
@@ -2726,6 +2725,8 @@ public void Main(string argument, UpdateType updateSource)
 							traveling++;
 						else if(ShipList[j-1].Status==ShipStatus.Receiving)
 							receiving++;
+						else if(ShipList[j-1].Status==ShipStatus.Waiting)
+							waiting++;
 						else
 							other++;
 						if(Release_Number<=(j-1)&&(int)ShipList[j-1].Status<(int)ShipStatus.Traveling){
@@ -2743,14 +2744,20 @@ public void Main(string argument, UpdateType updateSource)
 						}
 					}
 				}
-				if(Release_Timer<15)
-					Release_Timer+=seconds_since_last_update;
 				if(traveling>0)
 					HubText+="\n  "+traveling.ToString()+" Traveling";
 				if(receiving>0)
 					HubText+="\n  "+receiving.ToString()+" Receiving";
+				if(waiting>0)
+					HubText+="\n  "+waiting.ToString()+" Waiting";
 				if(other>0)
 					HubText+="\n  "+other.ToString()+" Other";
+				if(Release_Number>0)
+					HubText+="\nSent "+(5-Release_Number).ToString()+"/5 Ships\n"+Math.Round(30-Release_Timer,1)+" seconds to next batch";
+				
+				
+				if(Release_Timer<30)
+					Release_Timer+=seconds_since_last_update;
 				Player1Text=HubText;
 				Player2Text=HubText;
 			}
