@@ -2212,10 +2212,10 @@ public void Main(string argument, UpdateType updateSource)
 					ShipList[i].Timer+=seconds_since_last_update;
 				foreach(IMyBroadcastListener Listener in listeners){
 					if(Listener.Tag.Equals(ShipList[i].Tag)){
+						bool accepting_new=(ShipList[i].ID<0||ShipList[i].Timer>=300||(ShipList[i].Status!=ShipStatus.Traveling&&ShipList[i].Timer>60));
 						while(Listener.HasPendingMessage){
 							MyIGCMessage message=Listener.AcceptMessage();
 							string[] args=message.Data.ToString().Split('•');
-							bool accepting_new=(ShipList[i].ID<0||ShipList[i].Timer>=300||(ShipList[i].Status!=ShipStatus.Traveling&&ShipList[i].Timer>60));
 							if(accepting_new&&args.Length==2&&args[0].Equals("ID")){
 								int id;
 								if(Int32.TryParse(args[1],out id)){
@@ -2227,7 +2227,6 @@ public void Main(string argument, UpdateType updateSource)
 									}
 								}
 							}
-							accepting_new=(ShipList[i].ID<0||ShipList[i].Timer>=300||(ShipList[i].Status!=ShipStatus.Traveling&&ShipList[i].Timer>60));
 							if(args.Length==3&&args[0].Equals("Status")){
 								ShipStatus status;
 								int id;
