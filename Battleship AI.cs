@@ -796,6 +796,7 @@ void Wait(){
 	Runtime.UpdateFrequency=UpdateFrequency.Update100;
 }
 
+double AutoPilotTimer=5;
 void Travel(){
 	Write("Traveling...");
 	Antenna_R.Enabled=false;
@@ -805,12 +806,13 @@ void Travel(){
 		MyWaypointInfo Destination=new MyWaypointInfo("Target Position",Target_Position);
 		if((Target_Position-Controller.GetPosition()).Length()<20)
 			Controller.SetDockingMode(true);
-		if((!Controller.CurrentWaypoint.Equals(Destination))||!Controller.IsAutoPilotEnabled){
+		Controller.SetCollisionAvoidance(Controller.GetShipSpeed()>5);
+		if(((Controller.CurrentWaypoint.Coords-Target_Position).Length()>0||!Controller.IsAutoPilotEnabled)&&AutoPilotTimer>=5){
 			Controller.ClearWaypoints();
 			Controller.AddWaypoint(Destination);
-			Controller.SetCollisionAvoidance(true);
 			Controller.SpeedLimit=50;
 			Controller.SetAutoPilotEnabled(true);
+			AutoPilotTimer=0;
 		}
 	}
 	else {
@@ -1000,15 +1002,15 @@ void Return(){
 	}
 	else
 		Write("Returning...");
-	
 	if((Target_Position-Controller.GetPosition()).Length()>1){
 		MyWaypointInfo Destination=new MyWaypointInfo("Target Position",Target_Position);
-		if((!Controller.CurrentWaypoint.Equals(Destination))||!Controller.IsAutoPilotEnabled){
+		if(((Controller.CurrentWaypoint.Coords-Target_Position).Length()>0||!Controller.IsAutoPilotEnabled)&&AutoPilotTimer>=5){
 			Controller.ClearWaypoints();
 			Controller.AddWaypoint(Destination);
 			Controller.SetCollisionAvoidance(true);
 			Controller.SpeedLimit=50;
 			Controller.SetAutoPilotEnabled(true);
+			AutoPilotTimer=0;
 		}
 	}
 	else{
@@ -1065,8 +1067,9 @@ public void Main(string argument, UpdateType updateSource)
 		Write("Antenna Coords:"+Antenna_L.TargetCoords.ToString());
 		Antenna_L.Connect();
 	}
+	if(AutoPilotTimer<5)
+		AutoPilotTimer+=seconds_since_last_update;
 	Antenna_R.HudText=Status.ToString();
 	if(Status!=ShipStatus.SettingUp)
 		IGC.SendBroadcastMessage(MyListenerString,"Status•"+ID.ToString()+"•"+Status.ToString(),TransmissionDistance.TransmissionDistanceMax);
-	Antenna_L.CustomData=(new MyWaypointInfo("Here",Antenna_L.GetPosition())).ToString();
 }
