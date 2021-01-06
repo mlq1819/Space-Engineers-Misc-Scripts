@@ -2712,6 +2712,8 @@ public void Main(string argument, UpdateType updateSource)
 					Release_Number++;
 					Release_Timer=0;
 				}
+				if(Release_Number<5)
+					Write("Releasing Ships 1-"+(Release_Number+1).ToString()+"; next batch in "+Math.Round(15-Release_Timer,1)+" seconds");
 					
 				for(int i=1;i<=2;i++){
 					List<RealShip> ShipList;
