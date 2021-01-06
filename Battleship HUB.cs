@@ -2180,7 +2180,7 @@ int Last_Winner=-1;
 Vector2 AI_Selection=new Vector2(-1,-1);
 double AI_Timer=0;
 double Release_Timer=0;
-int Release_Number=0;
+int Release_Number=4;
 public void Main(string argument, UpdateType updateSource)
 {
 	try{
@@ -2587,7 +2587,7 @@ public void Main(string argument, UpdateType updateSource)
 				AI_Selection=new Vector2(-1,-1);
 				Room1Sound.Sounds.Enqueue("Weapons ArmedId");
 				Room2Sound.Sounds.Enqueue("Weapons ArmedId");
-				Release_Number=0;
+				Release_Number=4;
 				Release_Timer=0;
 			}
 		}
@@ -2708,11 +2708,11 @@ public void Main(string argument, UpdateType updateSource)
 				int traveling=0;
 				int receiving=0;
 				int other=0;
-				if(Release_Timer>=15&&Release_Number<5){
-					Release_Number++;
+				if(Release_Timer>=15&&Release_Number>0){
+					Release_Number--;
 					Release_Timer=0;
 				}
-				if(Release_Number<5)
+				if(Release_Number>0)
 					Write("Releasing Ships 1-"+(Release_Number+1).ToString()+"; next batch in "+Math.Round(15-Release_Timer,1)+" seconds");
 					
 				for(int i=1;i<=2;i++){
