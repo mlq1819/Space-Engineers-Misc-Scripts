@@ -800,24 +800,20 @@ double AutoPilotTimer=5;
 void Travel(){
 	Write("Traveling...");
 	Antenna_R.Enabled=false;
-	Controller.SetDockingMode(false);
 	if((Target_Position-Controller.GetPosition()).Length()>2.5){
 		Write("Phase 1 - "+Math.Round((Target_Position-Controller.GetPosition()).Length(),1).ToString()+"m");
 		MyWaypointInfo Destination=new MyWaypointInfo("Target Position",Target_Position);
-		if((Target_Position-Controller.GetPosition()).Length()<20)
-			Controller.SetDockingMode(true);
 		if(((Controller.CurrentWaypoint.Coords-Target_Position).Length()>0||!Controller.IsAutoPilotEnabled)&&AutoPilotTimer>=5){
 			Controller.Direction=Base6Directions.Direction.Backward;
 			Controller.ClearWaypoints();
 			Controller.AddWaypoint(Destination);
 			Controller.SetCollisionAvoidance(true);
-			Controller.SpeedLimit=50;
+			Controller.SpeedLimit=100;
 			Controller.SetAutoPilotEnabled(true);
 			AutoPilotTimer=0;
 		}
 	}
 	else {
-		Controller.SetAutoPilotEnabled(false);
 		if(GetAngle(Forward_Vector,Target_Forward)>1||GetAngle(Up_Vector,Target_Up)>1){
 			Write("Phase 2 - "+Math.Max(GetAngle(Forward_Vector,Target_Forward),GetAngle(Up_Vector,Target_Up)).ToString()+"°");
 			Gyroscope.GyroOverride=(AngularVelocity.Length()<3);
@@ -859,8 +855,10 @@ void Travel(){
 			Gyroscope.Yaw=(float)output.Y;
 			Gyroscope.Roll=(float)output.Z;
 		}
-		else
+		else{
+			Controller.SetAutoPilotEnabled(false);
 			CurrentStatus=ShipStatus.InPosition;
+		}
 	}
 	Runtime.UpdateFrequency=UpdateFrequency.Update1;
 }
@@ -1067,7 +1065,8 @@ public void Main(string argument, UpdateType updateSource)
 		if(Antenna_L.TargetCoords!=Target_Laser)
 			Antenna_L.SetTargetCoords((new MyWaypointInfo("Target!!!",Target_Laser)).ToString());
 		Write("Antenna Coords:"+Antenna_L.TargetCoords.ToString());
-		Antenna_L.Connect();
+		if(Antenna_L.Status==MyLaserAntennaStatus.OutOfRange||Antenna_L.Status==MyLaserAntennaStatus.Idle)
+			Antenna_L.Connect();
 	}
 	if(AutoPilotTimer<5)
 		AutoPilotTimer+=seconds_since_last_update;

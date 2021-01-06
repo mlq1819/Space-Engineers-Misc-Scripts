@@ -2713,7 +2713,6 @@ public void Main(string argument, UpdateType updateSource)
 					Release_Number--;
 					Release_Timer=0;
 				}
-					
 				for(int i=1;i<=2;i++){
 					List<RealShip> ShipList;
 					if(i==1)
@@ -2754,8 +2753,6 @@ public void Main(string argument, UpdateType updateSource)
 					HubText+="\n  "+other.ToString()+" Other";
 				if(Release_Number>0)
 					HubText+="\nSent "+(5-Release_Number).ToString()+"/5 Ships\n"+Math.Round(30-Release_Timer,1)+" seconds to next batch";
-				
-				
 				if(Release_Timer<30)
 					Release_Timer+=seconds_since_last_update;
 				Player1Text=HubText;
