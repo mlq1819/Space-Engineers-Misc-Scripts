@@ -2728,7 +2728,7 @@ public void Main(string argument, UpdateType updateSource)
 							receiving++;
 						else
 							other++;
-						if(Release_Number>=(j-1)&&(int)ShipList[j-1].Status<(int)ShipStatus.Traveling){
+						if(Release_Number<=(j-1)&&(int)ShipList[j-1].Status<(int)ShipStatus.Traveling){
 							RealShip ship=ShipList[j-1];
 							Vector3D ship_forward=ship.End1-ship.End2;
 							ship_forward.Normalize();
