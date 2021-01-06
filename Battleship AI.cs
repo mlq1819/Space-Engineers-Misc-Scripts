@@ -1062,15 +1062,16 @@ public void Main(string argument, UpdateType updateSource)
 		Return();
 	
 	if(Antenna_L.Status!=MyLaserAntennaStatus.Connected&&Target_Laser.Length()!=0&&(Target_Laser-Controller.GetPosition()).Length()<5000){
-		if(Antenna_L.TargetCoords!=Target_Laser)
+		if(Antenna_L.TargetCoords!=Target_Laser){
 			Antenna_L.SetTargetCoords((new MyWaypointInfo("Target!!!",Target_Laser)).ToString());
-		Write("Antenna Coords:"+Antenna_L.TargetCoords.ToString());
-		if(Antenna_L.Status==MyLaserAntennaStatus.OutOfRange||Antenna_L.Status==MyLaserAntennaStatus.Idle)
 			Antenna_L.Connect();
+		}
+		Write("Antenna Coords:"+Antenna_L.TargetCoords.ToString());
 	}
 	if(AutoPilotTimer<5)
 		AutoPilotTimer+=seconds_since_last_update;
 	Antenna_R.HudText=Status.ToString();
 	if(Status!=ShipStatus.SettingUp)
 		IGC.SendBroadcastMessage(MyListenerString,"Status•"+ID.ToString()+"•"+Status.ToString(),TransmissionDistance.TransmissionDistanceMax);
+	Write(Status.ToString());
 }
