@@ -800,6 +800,7 @@ double AutoPilotTimer=5;
 void Travel(){
 	Write("Traveling...");
 	Antenna_R.Enabled=false;
+	CurrentStatus=ShipStatus.InPosition;
 	if((Target_Position-Controller.GetPosition()).Length()>2.5){
 		Write("Phase 1 - "+Math.Round((Target_Position-Controller.GetPosition()).Length(),1).ToString()+"m");
 		MyWaypointInfo Destination=new MyWaypointInfo("Target Position",Target_Position);
@@ -857,7 +858,6 @@ void Travel(){
 		}
 		else{
 			Controller.SetAutoPilotEnabled(false);
-			CurrentStatus=ShipStatus.InPosition;
 		}
 	}
 	Runtime.UpdateFrequency=UpdateFrequency.Update1;
@@ -881,6 +881,7 @@ IMyDecoy GetNearest(Vector3D near,double max_distance=double.MaxValue){
 }
 void InPosition(){
 	Write("In Position, Awaiting Commands...");
+	Controller.SetAutoPilotEnabled(false);
 	List<IMyBroadcastListener> listeners=new List<IMyBroadcastListener>();
 	IGC.GetBroadcastListeners(listeners);
 	foreach(IMyBroadcastListener Listener in listeners){
