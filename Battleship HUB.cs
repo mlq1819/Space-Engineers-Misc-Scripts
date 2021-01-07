@@ -2745,8 +2745,8 @@ public void Main(string argument, UpdateType updateSource)
 				HubText="Waiting for Ships:";
 				Player1Text="Waiting for Ships:";
 				Player2Text="Waiting for Ships:";
-				if(SetUp_Timer<270)
-					HubText+="\n~"+Math.Round(270-SetUp_Timer,0).ToString()+" seconds remaining";
+				if(SetUp_Timer<210)
+					HubText+="\n~"+Math.Round(210-SetUp_Timer,0).ToString()+" seconds remaining";
 				else
 					HubText+="\nAlmost ready...";
 				if(SetUp_Timer<300)
