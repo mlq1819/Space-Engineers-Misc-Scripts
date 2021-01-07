@@ -804,7 +804,7 @@ void Travel(){
 	Antenna_R.Enabled=false;
 	CurrentStatus=ShipStatus.InPosition;
 	bool distance_check=(Target_Position-Controller.GetPosition()).Length()>2.5;
-	if(distance_check){
+	if((Target_Position-Controller.GetPosition()).Length()>1){
 		Write("Phase 1 - "+Math.Round((Target_Position-Controller.GetPosition()).Length(),1).ToString()+"m");
 		MyWaypointInfo Destination=new MyWaypointInfo("Target Position",Target_Position);
 		if(((Controller.CurrentWaypoint.Coords-Target_Position).Length()>0||!Controller.IsAutoPilotEnabled)&&AutoPilotTimer>=5){
