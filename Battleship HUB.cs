@@ -1942,6 +1942,8 @@ void Argument_Processor(string argument){
 						Status=GameStatus.Ready;
 						Player1=null;
 						Player2=null;
+						Room1Sound.Sounds.Clear();
+						Room2Sound.Sounds.Clear();
 						Room1Sound.Sounds.Enqueue("Shutting DownId");
 						Room2Sound.Sounds.Enqueue("SoundBlockObjectiveComplete");
 						HubSound.Sounds.Enqueue("Objective CompleteId");
@@ -1955,6 +1957,8 @@ void Argument_Processor(string argument){
 						Status=GameStatus.Ready;
 						Player1=null;
 						Player2=null;
+						Room1Sound.Sounds.Clear();
+						Room2Sound.Sounds.Clear();
 						Room2Sound.Sounds.Enqueue("Shutting DownId");
 						Room1Sound.Sounds.Enqueue("SoundBlockObjectiveComplete");
 						HubSound.Sounds.Enqueue("Objective CompleteId");
@@ -2689,6 +2693,8 @@ public void Main(string argument, UpdateType updateSource)
 					Status=GameStatus.Ready;
 					Player1=null;
 					Player2=null;
+					Room1Sound.Sounds.Clear();
+					Room2Sound.Sounds.Clear();
 					Room1Sound.Sounds.Enqueue("Shutting DownId");
 					Room2Sound.Sounds.Enqueue("SoundBlockObjectiveComplete");
 					HubSound.Sounds.Enqueue("Objective CompleteId");
@@ -2701,6 +2707,8 @@ public void Main(string argument, UpdateType updateSource)
 					Status=GameStatus.Ready;
 					Player1=null;
 					Player2=null;
+					Room1Sound.Sounds.Clear();
+					Room2Sound.Sounds.Clear();
 					Room2Sound.Sounds.Enqueue("Shutting DownId");
 					Room1Sound.Sounds.Enqueue("SoundBlockObjectiveComplete");
 					HubSound.Sounds.Enqueue("Objective CompleteId");
