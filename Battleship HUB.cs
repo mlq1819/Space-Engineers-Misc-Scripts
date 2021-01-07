@@ -785,8 +785,13 @@ class Board{
 					break;
 				}
 			}
-			if(possible)
-				count++;
+			if(possible){
+				int number_hit=CountShips(Type);
+				if(number_hit>0)
+					count+=3;
+				else
+					count++;
+			}
 		}
 		return count;
 	}
@@ -2182,6 +2187,7 @@ double AI_Timer=0;
 double Release_Timer=0;
 int Release_Number=4;
 double Ready_Timer=0;
+double SetUp_Timer=0;
 public void Main(string argument, UpdateType updateSource)
 {
 	try{
@@ -2592,6 +2598,7 @@ public void Main(string argument, UpdateType updateSource)
 				Release_Number=4;
 				Release_Timer=0;
 				Ready_Timer=0;
+				SetUp_Timer=0;
 			}
 		}
 		if(Ready_Timer<5)
@@ -2601,7 +2608,6 @@ public void Main(string argument, UpdateType updateSource)
 		ValidStatuses.Add(ShipStatus.Detonating);
 		bool game_is_ready=(!Use_Real_Ships)||(ReadyShips(ValidStatuses)&&Ready_Timer>=5);
 		if(Status==GameStatus.InProgress){
-			
 			if(game_is_ready){
 				if(Player_Turn<0||Player_Turn>2)
 					Player_Turn=1;
@@ -2712,6 +2718,12 @@ public void Main(string argument, UpdateType updateSource)
 				HubText="Waiting for Ships:";
 				Player1Text="Waiting for Ships:";
 				Player2Text="Waiting for Ships:";
+				if(SetUp_Timer<270)
+					Write("Ships moving into position\n~"+Math.Round(270-SetUp_Timer,0).ToString()+" seconds remaining");
+				else
+					Write("Ships moving into position\nAlmost ready...");
+				if(SetUp_Timer<300)
+					SetUp_Timer+=seconds_since_last_update;
 				int ready=0;
 				int traveling=0;
 				int receiving=0;

@@ -844,7 +844,7 @@ void Travel(){
 			float input_roll=current_roll*0.99f;
 			difference=GetAngle(Left_Vector,Target_Up)-GetAngle(Right_Vector,Target_Up);
 			if(Math.Abs(difference)>.1)
-				input_roll+=(float)Math.Min(Math.Max(difference/5,-4),1)*gyro_multx;
+				input_roll+=(float)Math.Min(Math.Max(difference/5,-4),4)*gyro_multx;
 			Vector3D input=new Vector3D(input_pitch,input_yaw,input_roll);
 			
 			Vector3D global=Vector3D.TransformNormal(input,Controller.WorldMatrix);
