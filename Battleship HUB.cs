@@ -1607,8 +1607,8 @@ void DisplayCheck(DisplayArray Da){
 bool call_return=false;
 void CallReturn(){
 	call_return=false;
-	if(Release_Timer>=30&&Release_Number>0){
-		Release_Number--;
+	if(Release_Timer>=30&&Release_Number<5){
+		Release_Number++;
 		Release_Timer=0;
 	}
 	for(int i=1;i<=2;i++){
@@ -1621,7 +1621,7 @@ void CallReturn(){
 			RealShip ship=ShipList[j-1];
 			if(ship.Status!=ShipStatus.Waiting&&ship.Status!=ShipStatus.Returning&&ship.Timer<300){
 				call_return=true;
-				if(Release_Number<=(j-1)){
+				if(Release_Number>=(j-1)){
 					Vector3D Target=Controller.GetPosition()+Up_Vector*50+Forward_Vector*20;
 					if((j-1)%2==0)
 						Target+=75*(2-((j-1)/2))*Forward_Vector;
@@ -1945,7 +1945,7 @@ void Argument_Processor(string argument){
 						Room1Sound.Sounds.Enqueue("Shutting DownId");
 						Room2Sound.Sounds.Enqueue("SoundBlockObjectiveComplete");
 						HubSound.Sounds.Enqueue("Objective CompleteId");
-						Release_Number=4;
+						Release_Number=0;
 						Release_Timer=0;
 						CallReturn();
 					}
@@ -1958,7 +1958,7 @@ void Argument_Processor(string argument){
 						Room2Sound.Sounds.Enqueue("Shutting DownId");
 						Room1Sound.Sounds.Enqueue("SoundBlockObjectiveComplete");
 						HubSound.Sounds.Enqueue("Objective CompleteId");
-						Release_Number=4;
+						Release_Number=0;
 						Release_Timer=0;
 						CallReturn();
 					}
@@ -2692,7 +2692,7 @@ public void Main(string argument, UpdateType updateSource)
 					Room1Sound.Sounds.Enqueue("Shutting DownId");
 					Room2Sound.Sounds.Enqueue("SoundBlockObjectiveComplete");
 					HubSound.Sounds.Enqueue("Objective CompleteId");
-					Release_Number=4;
+					Release_Number=0;
 					Release_Timer=0;
 					CallReturn();
 				}
@@ -2704,7 +2704,7 @@ public void Main(string argument, UpdateType updateSource)
 					Room2Sound.Sounds.Enqueue("Shutting DownId");
 					Room1Sound.Sounds.Enqueue("SoundBlockObjectiveComplete");
 					HubSound.Sounds.Enqueue("Objective CompleteId");
-					Release_Number=4;
+					Release_Number=0;
 					Release_Timer=0;
 					CallReturn();
 				}
