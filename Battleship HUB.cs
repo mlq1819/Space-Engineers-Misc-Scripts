@@ -1659,6 +1659,8 @@ void Argument_Processor(string argument){
 			for(int j=0;j<ShipList.Count;j++){
 				IGC.SendBroadcastMessage(ShipList[i].Tag_Full,"Unlink",TransmissionDistance.TransmissionDistanceMax);
 			}
+			Runtime.UpdateFrequency=UpdateFrequency.None;
+			Me.Enabled=false;
 		}
 	}
 	if(((int)Status)<((int)GameStatus.Awaiting)){
