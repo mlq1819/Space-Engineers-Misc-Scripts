@@ -819,6 +819,12 @@ class Board{
 			}
 			if(output.Count==0){
 				foreach(Vector3 Choice in Choices){
+					if(((int)Choice.Z)>=5)
+						output.Add(new Vector2(Choice.X,Choice.Y));
+				}
+			}
+			if(output.Count==0){
+				foreach(Vector3 Choice in Choices){
 					if(((int)Choice.Z)>0)
 						output.Add(new Vector2(Choice.X,Choice.Y));
 				}
@@ -872,46 +878,6 @@ class Board{
 		return output;
 	}
 	
-	/*public List<Vector2> GetBestChoices(int stupidity=0){
-		if(CountShips(MyShip.Unknown)==0)
-			return null;
-		List<List<List<MyShip>>> Possibilities=new List<List<List<MyShip>>>();
-		bool D_Carrier=CountShips(MyShip.Carrier)>0;
-		bool D_Frigate=CountShips(MyShip.Frigate)>0;
-		bool D_Cruiser=CountShips(MyShip.Cruiser)>0;
-		bool D_Prowler=CountShips(MyShip.Prowler)>0;
-		bool D_Destroyer=CountShips(MyShip.Destroyer)>0;
-		int max_pos=0;
-		for(int y=0;y<8;y++){
-			List<List<MyShip>> Row=new List<List<MyShip>>();
-			for(int x=0;x<8;x++){
-				List<MyShip> Cell=new List<MyShip>();
-				if(Grid[y][x].Ship==MyShip.Unknown){
-					if((!D_Carrier)||IsPossible(MyShip.Carrier,x,y))
-						Cell.Add(MyShip.Carrier);
-					if((!D_Frigate)||IsPossible(MyShip.Carrier,x,y))
-						Cell.Add(MyShip.Frigate);
-					if((!D_Cruiser)||IsPossible(MyShip.Carrier,x,y))
-						Cell.Add(MyShip.Cruiser);
-					if((!D_Prowler)||IsPossible(MyShip.Carrier,x,y))
-						Cell.Add(MyShip.Prowler);
-					if((!D_Destroyer)||IsPossible(MyShip.Carrier,x,y))
-						Cell.Add(MyShip.Destroyer);
-				}
-				max_pos=Math.Max(max_pos,Cell.Count);
-				Row.Add(Cell);
-			}
-			Possibilities.Add(Row);
-		}
-		List<Vector2> output=new List<Vector2>();
-		for(int y=0;y<8;y++){
-			for(int x=0;x<8;x++){
-				if(Possibilities[y][x].Count>=Math.Max(1,max_pos-stupidity))
-					output.Add(new Vector2(x,y));
-			}
-		}
-		return output;
-	}*/
 }
 
 class Player{
@@ -1672,6 +1638,10 @@ void DisplayCheck(DisplayArray Da){
 bool call_return=false;
 void CallReturn(){
 	call_return=false;
+	if(Release_Timer>=30&&Release_Number>0){
+		Release_Number--;
+		Release_Timer=0;
+	}
 	for(int i=1;i<=2;i++){
 		List<RealShip> ShipList;
 		if(i==1)
@@ -1682,20 +1652,24 @@ void CallReturn(){
 			RealShip ship=ShipList[j-1];
 			if(ship.Status!=ShipStatus.Waiting&&ship.Status!=ShipStatus.Returning&&ship.Timer<300){
 				call_return=true;
-				Vector3D Target=Controller.GetPosition()+Up_Vector*50+Forward_Vector*20;
-				if((j-1)%2==0)
-					Target+=75*(2-((j-1)/2))*Forward_Vector;
-				else
-					Target+=75*(2-((j-2)/2))*Backward_Vector;
-				Target+=75*Up_Vector*((5-j)/2);
-				if(i==1)
-					Target+=100*Right_Vector;
-				else
-					Target+=100*Left_Vector;
-				IGC.SendBroadcastMessage(ship.Tag_Full,"Return•"+Target.ToString(),TransmissionDistance.TransmissionDistanceMax);
+				if(Release_Number<=(j-1)){
+					Vector3D Target=Controller.GetPosition()+Up_Vector*50+Forward_Vector*20;
+					if((j-1)%2==0)
+						Target+=75*(2-((j-1)/2))*Forward_Vector;
+					else
+						Target+=75*(2-((j-2)/2))*Backward_Vector;
+					Target+=75*Up_Vector*((5-j)/2);
+					if(i==1)
+						Target+=100*Right_Vector;
+					else
+						Target+=100*Left_Vector;
+					IGC.SendBroadcastMessage(ship.Tag_Full,"Return•"+Target.ToString(),TransmissionDistance.TransmissionDistanceMax);
+				}
 			}
 		}
 	}
+	if(Release_Timer<30)
+		Release_Timer+=seconds_since_last_update;
 }
 
 double DisplayIdleTimer=0;
@@ -1990,6 +1964,8 @@ void Argument_Processor(string argument){
 						Room1Sound.Sounds.Enqueue("Shutting DownId");
 						Room2Sound.Sounds.Enqueue("SoundBlockObjectiveComplete");
 						HubSound.Sounds.Enqueue("Objective CompleteId");
+						Release_Number=4;
+						Release_Timer=0;
 						CallReturn();
 					}
 					else if(player_num==2&&Player2!=null&&Player2.Forfeiting){
@@ -2001,6 +1977,8 @@ void Argument_Processor(string argument){
 						Room2Sound.Sounds.Enqueue("Shutting DownId");
 						Room1Sound.Sounds.Enqueue("SoundBlockObjectiveComplete");
 						HubSound.Sounds.Enqueue("Objective CompleteId");
+						Release_Number=4;
+						Release_Timer=0;
 						CallReturn();
 					}
 					else{
@@ -2733,6 +2711,8 @@ public void Main(string argument, UpdateType updateSource)
 					Room1Sound.Sounds.Enqueue("Shutting DownId");
 					Room2Sound.Sounds.Enqueue("SoundBlockObjectiveComplete");
 					HubSound.Sounds.Enqueue("Objective CompleteId");
+					Release_Number=4;
+					Release_Timer=0;
 					CallReturn();
 				}
 				else if(Player2.OwnBoard.RemainingSpaces==0){
@@ -2743,6 +2723,8 @@ public void Main(string argument, UpdateType updateSource)
 					Room2Sound.Sounds.Enqueue("Shutting DownId");
 					Room1Sound.Sounds.Enqueue("SoundBlockObjectiveComplete");
 					HubSound.Sounds.Enqueue("Objective CompleteId");
+					Release_Number=4;
+					Release_Timer=0;
 					CallReturn();
 				}
 			}
@@ -2752,9 +2734,9 @@ public void Main(string argument, UpdateType updateSource)
 				Player1Text="Waiting for Ships:";
 				Player2Text="Waiting for Ships:";
 				if(SetUp_Timer<270)
-					Write("Ships moving into position\n~"+Math.Round(270-SetUp_Timer,0).ToString()+" seconds remaining");
+					HubText+="\n~"+Math.Round(270-SetUp_Timer,0).ToString()+" seconds remaining";
 				else
-					Write("Ships moving into position\nAlmost ready...");
+					HubText+="\nAlmost ready...";
 				if(SetUp_Timer<300)
 					SetUp_Timer+=seconds_since_last_update;
 				int ready=0;
