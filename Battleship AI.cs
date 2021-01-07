@@ -847,6 +847,7 @@ void Travel(){
 	Antenna_R.Enabled=false;
 	CurrentStatus=ShipStatus.InPosition;
 	bool distance_check=(Target_Position-Controller.GetPosition()).Length()>2.5;
+	Controller.DockingMode=(Target_Position-Controller.GetPosition()).Length()<5;
 	if((Target_Position-Controller.GetPosition()).Length()>1){
 		Write("Phase 1 - "+Math.Round((Target_Position-Controller.GetPosition()).Length(),1).ToString()+"m");
 		MyWaypointInfo Destination=new MyWaypointInfo("Target Position",Target_Position);
@@ -856,7 +857,6 @@ void Travel(){
 			Controller.Direction=Base6Directions.Direction.Backward;
 		}
 		if(((Controller.CurrentWaypoint.Coords-Destination.Coords).Length()>0||!Controller.IsAutoPilotEnabled)&&AutoPilotTimer>=5){
-			
 			Controller.ClearWaypoints();
 			Controller.AddWaypoint(Destination);
 			Controller.SetCollisionAvoidance(true);
@@ -892,6 +892,7 @@ IMyDecoy GetNearest(Vector3D near,double max_distance=double.MaxValue){
 }
 void InPosition(){
 	Write("In Position, Awaiting Commands...");
+	Controller.DockingMode=false;
 	Controller.SetAutoPilotEnabled(false);
 	List<IMyBroadcastListener> listeners=new List<IMyBroadcastListener>();
 	IGC.GetBroadcastListeners(listeners);
