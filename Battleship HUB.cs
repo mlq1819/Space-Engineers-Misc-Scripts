@@ -811,8 +811,6 @@ class Board{
 			Choices.Clear();
 			return output;
 		}
-		if(Section==0)
-			Max_Possibility=0;
 		foreach(Vector3 V in GetBestChoices(Section++,stupidity))
 			Choices.Add(V);
 		return output;
@@ -1631,10 +1629,10 @@ void CallReturn(){
 						Target+=75*(2-((j-2)/2))*Backward_Vector;
 					Target+=75*Up_Vector*((5-j)/2);
 					if(i==1)
-						Target+=100*Right_Vector;
+						Target+=150*Right_Vector;
 					else
-						Target+=100*Left_Vector;
-					IGC.SendBroadcastMessage(ship.Tag_Full,"Return•"+Target.ToString(),TransmissionDistance.TransmissionDistanceMax);
+						Target+=150*Left_Vector;
+					IGC.SendBroadcastMessage(ship.Tag_Full,"Return•"+Target.ToString()+"•"+Up_Vector.ToString(),TransmissionDistance.TransmissionDistanceMax);
 				}
 			}
 		}
