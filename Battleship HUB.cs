@@ -754,7 +754,6 @@ class Board{
 		int count=0;
 		if(!IsPossible(Type,X,Y))
 			return 0;
-		//For this example, X=1,Y=3,Type=MyShip.Carrier
 		for(int i=0;i<Prog.ShipSize(Type);i++){
 			bool possible=true;
 			for(int dy=0;dy<Prog.ShipSize(Type);dy++){
@@ -1680,11 +1679,15 @@ void CallReturn(){
 		else
 			ShipList=Player2Ships;
 		for(int j=1;j<=5;j++){
-			RealShip ship=ShipList[j];
+			RealShip ship=ShipList[j-1];
 			if(ship.Status!=ShipStatus.Waiting&&ship.Status!=ShipStatus.Returning&&ship.Timer<300){
 				call_return=true;
-				Vector3D Target=Controller.GetPosition()+Up_Vector*50;
-				Target+=50*(j-2)*Forward_Vector;
+				Vector3D Target=Controller.GetPosition()+Up_Vector*50+Forward_Vector*20;
+				if((j-1)%2==0)
+					Target+=75*(2-((j-1)/2))*Forward_Vector;
+				else
+					Target+=75*(2-((j-2)/2))*Backward_Vector;
+				Target+=75*Up_Vector*((5-j)/2);
 				if(i==1)
 					Target+=100*Right_Vector;
 				else
@@ -2611,6 +2614,24 @@ public void Main(string argument, UpdateType updateSource)
 				Release_Timer=0;
 				Ready_Timer=0;
 				SetUp_Timer=0;
+			}
+		}
+		if((!call_return)&&Status<=GameStatus.SettingUp){
+			for(int i=1;i<=2;i++){
+				List<RealShip> ShipList;
+				if(i==1)
+					ShipList=Player1Ships;
+				else
+					ShipList=Player2Ships;
+				foreach(RealShip Ship in ShipList){
+					if(Ship.Status!=ShipStatus.Returning&&((int)Ship.Status)>((int)ShipStatus.Waiting)){
+						call_return=true;
+						break;
+					}
+					if(call_return)
+						break;
+				}
+				
 			}
 		}
 		if(Ready_Timer<5)
