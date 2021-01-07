@@ -1680,6 +1680,18 @@ void Argument_Processor(string argument){
 		Factory_Reset=true;
 		Runtime.UpdateFrequency=UpdateFrequency.None;
 	}
+	else if(argument.ToLower().Equals("unlink")){
+		for(int i=1;i<=2;i++){
+			List<RealShip> ShipList;
+			if(i==1)
+				ShipList=Player1Ships;
+			else
+				ShipList=Player2Ships;
+			for(int j=0;j<ShipList.Count;j++){
+				IGC.SendBroadcastMessage(ShipList[i].Tag_Full,"Unlink",TransmissionDistance.TransmissionDistanceMax);
+			}
+		}
+	}
 	if(((int)Status)<((int)GameStatus.Awaiting)){
 		if(argument.ToLower().Equals("prev")){
 			do{
