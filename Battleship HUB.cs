@@ -2594,13 +2594,14 @@ public void Main(string argument, UpdateType updateSource)
 				Ready_Timer=0;
 			}
 		}
+		if(Ready_Timer<5)
+			Ready_Timer+=seconds_since_last_update;
 		List<ShipStatus> ValidStatuses=new List<ShipStatus>();
 		ValidStatuses.Add(ShipStatus.InPosition);
 		ValidStatuses.Add(ShipStatus.Detonating);
 		bool game_is_ready=(!Use_Real_Ships)||(ReadyShips(ValidStatuses)&&Ready_Timer>=5);
 		if(Status==GameStatus.InProgress){
-			if(Ready_Timer<5)
-				Ready_Timer+=seconds_since_last_update;
+			
 			if(game_is_ready){
 				if(Player_Turn<0||Player_Turn>2)
 					Player_Turn=1;
