@@ -779,7 +779,7 @@ class Board{
 				max_pos=Math.Max(max_pos,(int)Choice.Z);
 			}
 			foreach(Vector3 Choice in Choices){
-				if(((int)Choice.Z)>=Math.Max(1,max_pos-(stupidity*2))
+				if(((int)Choice.Z)>=Math.Max(1,max_pos-(stupidity*2)))
 					output.Add(new Vector2(Choice.X,Choice.Y));
 			}
 			if(output.Count==0){
@@ -811,12 +811,12 @@ class Board{
 			Choices.Clear();
 			return output;
 		}
-		foreach(Vector3 V in GetBestChoices(Section++))
+		foreach(Vector3 V in GetBestChoices(Section++,stupidity))
 			Choices.Add(V);
 		return output;
 	}
 	
-	public List<Vector3> GetBestChoices(int section){
+	public List<Vector3> GetBestChoices(int section,int stupidity){
 		List<Vector3> output=new List<Vector3>();
 		if(CountShips(MyShip.Unknown)==0)
 			return output;
