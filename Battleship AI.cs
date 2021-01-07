@@ -790,6 +790,8 @@ void Wait(){
 					if(Status!=ShipStatus.Waiting)
 						IGC.SendBroadcastMessage(MyListenerString,"Status•"+ID.ToString()+"•"+Status.ToString(),TransmissionDistance.TransmissionDistanceMax);
 				}
+				else if(args.Length==1&&args[0].Equals("Unlink"))
+					Target_Laser=new Vector3D(0,0,0);
 			}
 		}
 	}
