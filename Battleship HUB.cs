@@ -2181,6 +2181,7 @@ Vector2 AI_Selection=new Vector2(-1,-1);
 double AI_Timer=0;
 double Release_Timer=0;
 int Release_Number=4;
+double Ready_Timer=0;
 public void Main(string argument, UpdateType updateSource)
 {
 	try{
@@ -2589,13 +2590,16 @@ public void Main(string argument, UpdateType updateSource)
 				Room2Sound.Sounds.Enqueue("Weapons ArmedId");
 				Release_Number=4;
 				Release_Timer=0;
+				Ready_Timer=0;
 			}
 		}
 		if(Status==GameStatus.InProgress){
 			List<ShipStatus> ValidStatuses=new List<ShipStatus>();
 			ValidStatuses.Add(ShipStatus.InPosition);
 			ValidStatuses.Add(ShipStatus.Detonating);
-			if((!Use_Real_Ships)||ReadyShips(ValidStatuses)){
+			if(Ready_Timer<5)
+				Ready_Timer+=seconds_since_last_update;
+			if((!Use_Real_Ships)||(ReadyShips(ValidStatuses)&&Ready_Timer>=5)){
 				if(Player_Turn<0||Player_Turn>2)
 					Player_Turn=1;
 				if(Turn_Timer>=30){
@@ -2746,6 +2750,8 @@ public void Main(string argument, UpdateType updateSource)
 						}
 					}
 				}
+				if(ready<10)
+					Ready_Timer=0;
 				if(ready>0)
 					HubText+="\n  "+ready.ToString()+"/10 Ready";
 				if(traveling>0)
