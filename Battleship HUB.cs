@@ -768,8 +768,13 @@ class Board{
 					break;
 				}
 			}
-			if(possible)
-				count++;
+			if(possible){
+				int number_hit=CountShips(Type);
+				if(number_hit>0)
+					count+=5;
+				else
+					count++;
+			}
 		}
 		for(int i=0;i<Prog.ShipSize(Type);i++){
 			bool possible=true;
@@ -788,7 +793,7 @@ class Board{
 			if(possible){
 				int number_hit=CountShips(Type);
 				if(number_hit>0)
-					count+=3;
+					count+=5;
 				else
 					count++;
 			}
