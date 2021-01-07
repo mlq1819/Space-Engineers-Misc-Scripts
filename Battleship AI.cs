@@ -850,10 +850,13 @@ void Travel(){
 	if((Target_Position-Controller.GetPosition()).Length()>1){
 		Write("Phase 1 - "+Math.Round((Target_Position-Controller.GetPosition()).Length(),1).ToString()+"m");
 		MyWaypointInfo Destination=new MyWaypointInfo("Target Position",Target_Position);
-		if((Controller.GetPosition()-Target_Laser).Length()<500)
+		Controller.Direction=Base6Directions.Direction.Down;
+		if((Controller.GetPosition()-Target_Laser).Length()<500){
 			Destination.Coords=Controller.GetPosition()-1000*Target_Up;
-		if(((Controller.CurrentWaypoint.Coords-Destination.Coords).Length()>0||!Controller.IsAutoPilotEnabled)&&AutoPilotTimer>=5){
 			Controller.Direction=Base6Directions.Direction.Backward;
+		}
+		if(((Controller.CurrentWaypoint.Coords-Destination.Coords).Length()>0||!Controller.IsAutoPilotEnabled)&&AutoPilotTimer>=5){
+			
 			Controller.ClearWaypoints();
 			Controller.AddWaypoint(Destination);
 			Controller.SetCollisionAvoidance(true);
