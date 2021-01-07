@@ -754,6 +754,7 @@ class Board{
 		int count=0;
 		if(!IsPossible(Type,X,Y))
 			return 0;
+		//For this example, X=1,Y=3,Type=MyShip.Carrier
 		for(int i=0;i<Prog.ShipSize(Type);i++){
 			bool possible=true;
 			for(int dy=0;dy<Prog.ShipSize(Type);dy++){
@@ -818,6 +819,12 @@ class Board{
 					output.Add(new Vector2(Choice.X,Choice.Y));
 			}
 			if(output.Count==0){
+				foreach(Vector3 Choice in Choices){
+					if(((int)Choice.Z)>0)
+						output.Add(new Vector2(Choice.X,Choice.Y));
+				}
+			}
+			if(output.Count==0){
 				for(int y=0;y<8;y++){
 					for(int x=0;x<8;x++){
 						if(Grid[y][x].Ship==MyShip.Unknown)
@@ -859,7 +866,7 @@ class Board{
 				Row.Add(Cell);
 			}
 			for(int x=0;x<8;x++){
-				if(Row[x]>=Math.Max(1,max_pos-stupidity))
+				if(Row[x]>0)
 					output.Add(new Vector3(x,y,Row[x]));
 			}
 		}
