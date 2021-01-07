@@ -795,10 +795,13 @@ void Wait(){
 			}
 		}
 	}
+	RunGyroscope(Target_Forward!=(new Vector3D(0,0,-1)),Target_Up!=(new Vector3D(0,1,0)));
 	Runtime.UpdateFrequency=UpdateFrequency.Update100;
 }
 
 void RunGyroscope(bool F=true,bool U=true){
+	if((!F)&&(!U))
+		return;
 	Gyroscope.GyroOverride=(AngularVelocity.Length()<3);
 	float current_pitch=(float) Relative_AngularVelocity.X;
 	float current_yaw=(float) Relative_AngularVelocity.Y;
