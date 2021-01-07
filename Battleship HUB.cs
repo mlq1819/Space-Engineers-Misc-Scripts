@@ -754,8 +754,10 @@ class Board{
 		int count=0;
 		if(!IsPossible(Type,X,Y))
 			return 0;
+		int number_hit=CountShips(Type);
 		for(int i=0;i<Prog.ShipSize(Type);i++){
 			bool possible=true;
+			int number_found=0;
 			for(int dy=0;dy<Prog.ShipSize(Type);dy++){
 				int y=Y-i+dy;
 				InstructionCount++;
@@ -767,9 +769,12 @@ class Board{
 					possible=false;
 					break;
 				}
+				if(Grid[y][X].Ship==Type)
+					number_found++;
 			}
+			if(number_hit>0&&number_found<number_hit)
+				possible=false;
 			if(possible){
-				int number_hit=CountShips(Type);
 				if(number_hit>0)
 					count+=5;
 				else
@@ -778,6 +783,7 @@ class Board{
 		}
 		for(int i=0;i<Prog.ShipSize(Type);i++){
 			bool possible=true;
+			int number_found=0;
 			for(int dx=0;dx<Prog.ShipSize(Type);dx++){
 				int x=X-i+dx;
 				InstructionCount++;
@@ -789,9 +795,12 @@ class Board{
 					possible=false;
 					break;
 				}
+				if(Grid[Y][x].Ship==Type)
+					number_found++;
 			}
+			if(number_hit>0&&number_found<number_hit)
+				possible=false;
 			if(possible){
-				int number_hit=CountShips(Type);
 				if(number_hit>0)
 					count+=5;
 				else
