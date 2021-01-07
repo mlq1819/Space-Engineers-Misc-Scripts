@@ -1623,15 +1623,16 @@ void CallReturn(){
 				call_return=true;
 				if(Release_Number>=(j-1)){
 					Vector3D Target=Controller.GetPosition()+Up_Vector*50+Forward_Vector*20;
+					double Length=50*ShipSize(ShipList[j-1].Type)+10;
 					if((j-1)%2==0)
 						Target+=75*(2-((j-1)/2))*Forward_Vector;
 					else
 						Target+=75*(2-((j-2)/2))*Backward_Vector;
 					Target+=75*Up_Vector*((5-j)/2);
 					if(i==1)
-						Target+=150*Right_Vector;
+						Target+=Length*Right_Vector;
 					else
-						Target+=150*Left_Vector;
+						Target+=Length*Left_Vector;
 					IGC.SendBroadcastMessage(ship.Tag_Full,"Return•"+Target.ToString()+"•"+Up_Vector.ToString(),TransmissionDistance.TransmissionDistanceMax);
 				}
 			}
