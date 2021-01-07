@@ -708,52 +708,8 @@ class Board{
 		return true;
 	}
 	
-	public bool IsPossible(MyShip Type,int X,int Y){
-		int current_discovered=CountShips(Type);
-		int size=Prog.ShipSize(Type);
-		if(current_discovered==size)
-			return false;
-		int min_x=7,min_y=7,max_x=0,max_y=0;
-		for(int y=0;y<Grid.Count;y++){
-			for(int x=0;x<Grid[y].Count;x++){
-				if(Grid[y][x].Ship==Type){
-					min_x=Math.Min(min_x,x);
-					max_x=Math.Max(max_x,x);
-					min_y=Math.Min(min_y,y);
-					max_y=Math.Max(max_y,y);
-					if(x!=X&&y!=Y)
-						return false;
-				}
-			}
-		}
-		bool aligned_x=false;
-		bool aligned_y=false;
-		if(current_discovered>1){
-			if(min_x==max_x)
-				aligned_x=true;
-			if(min_y==max_y)
-				aligned_y=true;
-		}
-		if(aligned_x&&X!=min_x)
-			return false;
-		if(aligned_y&&Y!=min_y)
-			return false;
-		int max_d=size-current_discovered;
-		if(Y>max_y)
-			return Y-max_y<=max_d;
-		else if(Y<min_y)
-			return min_y-Y<=max_d;
-		if(X>max_x)
-			return X-max_x<=max_d;
-		else if(X<min_x)
-			return min_x-X<=max_d;
-		return false;
-	}
-	
 	public int GetPossibilitiesForShip(MyShip Type,int X,int Y){
 		int count=0;
-		if(!IsPossible(Type,X,Y))
-			return 0;
 		int number_hit=CountShips(Type);
 		for(int i=0;i<Prog.ShipSize(Type);i++){
 			bool possible=true;
@@ -812,6 +768,7 @@ class Board{
 	
 	long InstructionCount=0;
 	public int Section=0;
+	public static int Max_Possibility=0;
 	List<Vector3> Choices=new List<Vector3>();
 	public List<Vector2> GetBestChoices(int stupidity){
 		List<Vector2> output=new List<Vector2>();
@@ -834,6 +791,12 @@ class Board{
 			}
 			if(output.Count==0){
 				foreach(Vector3 Choice in Choices){
+					if(((int)Choice.Z)>=2)
+						output.Add(new Vector2(Choice.X,Choice.Y));
+				}
+			}
+			if(output.Count==0){
+				foreach(Vector3 Choice in Choices){
 					if(((int)Choice.Z)>0)
 						output.Add(new Vector2(Choice.X,Choice.Y));
 				}
@@ -849,6 +812,8 @@ class Board{
 			Choices.Clear();
 			return output;
 		}
+		if(Section==0)
+			Max_Possibility=0;
 		foreach(Vector3 V in GetBestChoices(Section++,stupidity))
 			Choices.Add(V);
 		return output;
@@ -861,7 +826,6 @@ class Board{
 		int y=section;
 		if(y<8){
 			List<int> Row=new List<int>();
-			int max_pos=0;
 			for(int x=0;x<8;x++){
 				int Cell=0;
 				if(Grid[y][x].Ship==MyShip.Unknown){
@@ -876,7 +840,6 @@ class Board{
 						Prog.Write(e.ToString());
 					}
 				}
-				max_pos=Math.Max(max_pos,Cell);
 				Row.Add(Cell);
 			}
 			for(int x=0;x<8;x++){
@@ -2202,6 +2165,7 @@ double Release_Timer=0;
 int Release_Number=4;
 double Ready_Timer=0;
 double SetUp_Timer=0;
+int last_choices_count=0;
 public void Main(string argument, UpdateType updateSource)
 {
 	try{
@@ -2654,6 +2618,10 @@ public void Main(string argument, UpdateType updateSource)
 				HubText="Player "+Player_Turn.ToString()+"'s Turn\n";
 				Player1.CanMove=Player_Turn==1;
 				Player2.CanMove=Player_Turn==2;
+				if(last_choices_count>0){
+					Write("Last Choices Count:"+last_choices_count.ToString());
+					Write("Max Possibility:"+Board.Max_Possibility.ToString());
+				}
 				if(Player_Turn==1){
 					Player1Text="Your Turn!\n";
 					Player2Text=HubText;
@@ -2662,8 +2630,10 @@ public void Main(string argument, UpdateType updateSource)
 					if(!Player1.IsHuman){
 						if(AI_Selection.X<0){
 							List<Vector2> pos=Player1.EnemyBoard.GetBestChoices(AI_Difficulty);
-							if(pos.Count>0)
+							if(pos.Count>0){
+								last_choices_count=pos.Count;
 								AI_Selection=pos[Rnd.Next(0,pos.Count-1)];
+							}
 						}
 						if(AI_Selection.X>=0&&AI_Timer>0.25){
 							AI_Timer=0;
@@ -2689,8 +2659,10 @@ public void Main(string argument, UpdateType updateSource)
 					if(!Player2.IsHuman){
 						if(AI_Selection.X<0){
 							List<Vector2> pos=Player2.EnemyBoard.GetBestChoices(AI_Difficulty);
-							if(pos.Count>0)
+							if(pos.Count>0){
+								last_choices_count=pos.Count;
 								AI_Selection=pos[Rnd.Next(0,pos.Count-1)];
+							}
 						}
 						if(AI_Selection.X>=0&&AI_Timer>0.25){
 							AI_Timer=0;
