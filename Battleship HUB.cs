@@ -768,7 +768,6 @@ class Board{
 	
 	long InstructionCount=0;
 	public int Section=0;
-	public static int Max_Possibility=0;
 	List<Vector3> Choices=new List<Vector3>();
 	public List<Vector2> GetBestChoices(int stupidity){
 		List<Vector2> output=new List<Vector2>();
@@ -2165,7 +2164,6 @@ double Release_Timer=0;
 int Release_Number=4;
 double Ready_Timer=0;
 double SetUp_Timer=0;
-int last_choices_count=0;
 public void Main(string argument, UpdateType updateSource)
 {
 	try{
@@ -2618,10 +2616,6 @@ public void Main(string argument, UpdateType updateSource)
 				HubText="Player "+Player_Turn.ToString()+"'s Turn\n";
 				Player1.CanMove=Player_Turn==1;
 				Player2.CanMove=Player_Turn==2;
-				if(last_choices_count>0){
-					Write("Last Choices Count:"+last_choices_count.ToString());
-					Write("Max Possibility:"+Board.Max_Possibility.ToString());
-				}
 				if(Player_Turn==1){
 					Player1Text="Your Turn!\n";
 					Player2Text=HubText;
@@ -2630,10 +2624,8 @@ public void Main(string argument, UpdateType updateSource)
 					if(!Player1.IsHuman){
 						if(AI_Selection.X<0){
 							List<Vector2> pos=Player1.EnemyBoard.GetBestChoices(AI_Difficulty);
-							if(pos.Count>0){
-								last_choices_count=pos.Count;
+							if(pos.Count>0)
 								AI_Selection=pos[Rnd.Next(0,pos.Count-1)];
-							}
 						}
 						if(AI_Selection.X>=0&&AI_Timer>0.25){
 							AI_Timer=0;
@@ -2659,10 +2651,8 @@ public void Main(string argument, UpdateType updateSource)
 					if(!Player2.IsHuman){
 						if(AI_Selection.X<0){
 							List<Vector2> pos=Player2.EnemyBoard.GetBestChoices(AI_Difficulty);
-							if(pos.Count>0){
-								last_choices_count=pos.Count;
+							if(pos.Count>0)
 								AI_Selection=pos[Rnd.Next(0,pos.Count-1)];
-							}
 						}
 						if(AI_Selection.X>=0&&AI_Timer>0.25){
 							AI_Timer=0;
