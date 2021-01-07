@@ -427,7 +427,7 @@ ShipStatus Status{
 			else
 				return ShipStatus.Waiting;
 		}
-		if((Target_Position-Controller.GetPosition()).Length()>2.5||GetAngle(Target_Forward,Forward_Vector)>1||GetAngle(Target_Up,Up_Vector)>1)
+		if((Target_Position-Controller.GetPosition()).Length()>5||GetAngle(Target_Forward,Forward_Vector)>1||GetAngle(Target_Up,Up_Vector)>1)
 			return ShipStatus.Traveling;
 		return CurrentStatus;
 	}

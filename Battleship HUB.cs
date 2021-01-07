@@ -2290,6 +2290,7 @@ public void Main(string argument, UpdateType updateSource)
 		Echo("SoundH:"+HubSound.Block.SelectedSound);
 		
 		
+		
 		if(((int)Status)<((int)GameStatus.Awaiting)){
 			Player1Text="Start game in Lobby";
 			Player2Text="Start game in Lobby";
@@ -2593,13 +2594,14 @@ public void Main(string argument, UpdateType updateSource)
 				Ready_Timer=0;
 			}
 		}
+		List<ShipStatus> ValidStatuses=new List<ShipStatus>();
+		ValidStatuses.Add(ShipStatus.InPosition);
+		ValidStatuses.Add(ShipStatus.Detonating);
+		bool game_is_ready=(!Use_Real_Ships)||(ReadyShips(ValidStatuses)&&Ready_Timer>=5);
 		if(Status==GameStatus.InProgress){
-			List<ShipStatus> ValidStatuses=new List<ShipStatus>();
-			ValidStatuses.Add(ShipStatus.InPosition);
-			ValidStatuses.Add(ShipStatus.Detonating);
 			if(Ready_Timer<5)
 				Ready_Timer+=seconds_since_last_update;
-			if((!Use_Real_Ships)||(ReadyShips(ValidStatuses)&&Ready_Timer>=5)){
+			if(game_is_ready){
 				if(Player_Turn<0||Player_Turn>2)
 					Player_Turn=1;
 				if(Turn_Timer>=30){
@@ -2813,9 +2815,9 @@ public void Main(string argument, UpdateType updateSource)
 			Panel.WriteText(Player2Text,false);
 		foreach(IMyTextPanel Panel in HubStatusPanels){
 			Panel.WriteText(HubText,false);
-			if(Player_Turn==1)
+			if(Player_Turn==1&&game_is_ready)
 				Panel.FontColor=new Color(255,137,137,255);
-			else if(Player_Turn==2)
+			else if(Player_Turn==2&&game_is_ready)
 				Panel.FontColor=new Color(137,137,255,255);
 			else
 				Panel.FontColor=new Color(255,255,255,255);
