@@ -904,7 +904,7 @@ void InPosition(){
 					double.TryParse(args[2],out Fire_Timer);
 					CurrentStatus=ShipStatus.Receiving;
 					if(Vector3D.TryParse(args[1],out near)){
-						IMyDecoy Decoy=GetNearest(near,15);
+						IMyDecoy Decoy=GetNearest(near,10);
 						if(Decoy!=null)
 							Decoy.Enabled=false;
 					}
