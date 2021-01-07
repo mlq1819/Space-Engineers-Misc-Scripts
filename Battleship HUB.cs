@@ -2705,6 +2705,7 @@ public void Main(string argument, UpdateType updateSource)
 				HubText="Waiting for Ships:";
 				Player1Text="Waiting for Ships:";
 				Player2Text="Waiting for Ships:";
+				int ready=0;
 				int traveling=0;
 				int receiving=0;
 				int waiting=0;
@@ -2720,7 +2721,9 @@ public void Main(string argument, UpdateType updateSource)
 					else
 						ShipList=Player2Ships;
 					for(int j=1;j<=5;j++){
-						if(ShipList[j-1].Status==ShipStatus.Traveling)
+						if(ShipList[j-1].Status==ShipStatus.InPosition)
+							ready++;
+						else if(ShipList[j-1].Status==ShipStatus.Traveling)
 							traveling++;
 						else if(ShipList[j-1].Status==ShipStatus.Receiving)
 							receiving++;
@@ -2743,6 +2746,8 @@ public void Main(string argument, UpdateType updateSource)
 						}
 					}
 				}
+				if(ready>0)
+					HubText+="\n  "+ready.ToString()+"/10 Ready";
 				if(traveling>0)
 					HubText+="\n  "+traveling.ToString()+" Traveling";
 				if(receiving>0)
