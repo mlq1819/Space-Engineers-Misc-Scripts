@@ -795,7 +795,6 @@ void Wait(){
 			}
 		}
 	}
-	RunGyroscope(Target_Forward!=(new Vector3D(0,0,-1)),Target_Up!=(new Vector3D(0,1,0)));
 	Runtime.UpdateFrequency=UpdateFrequency.Update100;
 }
 
