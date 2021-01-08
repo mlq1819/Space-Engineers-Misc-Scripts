@@ -831,7 +831,7 @@ void RunGyroscope(bool F=true,bool U=true){
 	difference=GetAngle(Left_Vector,Target_Up)-GetAngle(Right_Vector,Target_Up);
 	if(U&&(Math.Abs(difference)>.1||GetAngle(Up_Vector,Target_Up)>90)){
 		if(GetAngle(Up_Vector,Target_Up)>90)
-			input_roll-=(float)Math.Min(Math.Abs(difference/5),4)*gyro_multx;
+			input_roll-=(float)4*gyro_multx;
 		else
 			input_roll+=(float)Math.Min(Math.Max(difference/5,-4),4)*gyro_multx;
 	}
