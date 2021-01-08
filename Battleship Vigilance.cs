@@ -614,7 +614,6 @@ public void Save(){
 		this.Storage+="•Task:"+((int)CurrentTask).ToString();
 		TaskQueue.Dequeue();
 	}
-	Me.CustomData=this.Storage;
 }
 
 void AddTask(CannonTask Task){
@@ -717,23 +716,18 @@ void Print(){
 	bool is_backward=Math.Abs((rotor_angle+360)%360)<1;
 	bool is_printed=Projector.RemainingBlocks==0;
 	ShellRotor.RotorLock=false;
-	Write("Test 1");
 	if(is_printed){
 		IMySpaceBall ShellMass=GenericMethods<IMySpaceBall>.GetFull("Shell Mass Block");
 		if(ShellMass==null||!ShellMass.IsFunctional)
 			is_printed=false;
-		Write("Test 2");
 		IMyTimerBlock ShellTimer=GenericMethods<IMyTimerBlock>.GetFull("Shell Activation Block");
 		if(ShellTimer==null||!ShellTimer.IsFunctional)
 			is_printed=false;
-		Write("Test 3");
 		if(ShellTimer==null||!ShellTimer.IsFunctional)
 			is_printed=false;
-		Write("Test 4");
 		IMyShipMergeBlock ShellMerge=GenericMethods<IMyShipMergeBlock>.GetFull("Shell Merge Block");
 		if(ShellMerge==null||!ShellMerge.IsFunctional)
 			is_printed=false;
-		Write("Test 5");
 	}
 	if(is_printed){
 		Welder.Enabled=false;
@@ -1123,6 +1117,13 @@ public void Main(string argument, UpdateType updateSource)
 			}
 		}
 	}
+	Me.CustomData="";
+	Me.CustomData+="FireStatus:"+CurrentFireStatus.ToString();
+	Me.CustomData+="\nPrintStatus:"+CurrentPrintStatus.ToString();
+	double largest_shellcountdown=0;
+	foreach(double seconds in ShellCountdowns)
+		largest_shellcountdown=Math.Max(largest_shellcountdown,seconds);
+	Me.CustomData+="\nCountdown:"+Math.Round(largest_shellcountdown,3).ToString();
 	if(((int)CurrentTask)>=((int)CannonTask.Scan))
 		Runtime.UpdateFrequency=UpdateFrequency.Update1;
 	else
