@@ -2339,11 +2339,6 @@ public void Main(string argument, UpdateType updateSource)
 		}
 		Echo("AI_Timer:"+Math.Round(AI_Timer,2).ToString()+"s");
 		Echo("AI_Selection:"+AI_Selection.ToString());
-		Echo("Sound1:"+Room1Sound.Block.SelectedSound);
-		Echo("Sound2:"+Room2Sound.Block.SelectedSound);
-		Echo("SoundH:"+HubSound.Block.SelectedSound);
-		
-		
 		
 		if(((int)Status)<((int)GameStatus.Awaiting)){
 			Player1Text="Start game in Lobby";
