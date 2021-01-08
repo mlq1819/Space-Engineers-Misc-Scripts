@@ -717,24 +717,27 @@ void Print(){
 	bool is_backward=Math.Abs((rotor_angle+360)%360)<1;
 	bool is_printed=Projector.RemainingBlocks==0;
 	ShellRotor.RotorLock=false;
+	Write("Test 1");
 	if(is_printed){
 		IMySpaceBall ShellMass=GenericMethods<IMySpaceBall>.GetFull("Shell Mass Block");
 		if(ShellMass==null||!ShellMass.IsFunctional)
 			is_printed=false;
+		Write("Test 2");
 		IMyTimerBlock ShellTimer=GenericMethods<IMyTimerBlock>.GetFull("Shell Activation Block");
 		if(ShellTimer==null||!ShellTimer.IsFunctional)
 			is_printed=false;
-		ShellMass.Enabled=true;
+		Write("Test 3");
 		if(ShellTimer==null||!ShellTimer.IsFunctional)
 			is_printed=false;
+		Write("Test 4");
 		IMyShipMergeBlock ShellMerge=GenericMethods<IMyShipMergeBlock>.GetFull("Shell Merge Block");
 		if(ShellMerge==null||!ShellMerge.IsFunctional)
 			is_printed=false;
+		Write("Test 5");
 	}
-	
 	if(is_printed){
 		Welder.Enabled=false;
-		ShellRotor.TargetVelocityRPM=-30.0f;
+		ShellRotor.TargetVelocityRPM=30.0f;
 		if(ShellRotor.Angle>1.5*Math.PI)
 			ShellRotor.TargetVelocityRPM=1;
 		if(is_forward){
@@ -751,7 +754,7 @@ void Print(){
 		Merge.Enabled=true;
 		Projector.Enabled=true;
 		if(Fire_Timer>=1)
-			ShellRotor.TargetVelocityRPM=30.0f;
+			ShellRotor.TargetVelocityRPM=-30.0f;
 		else if(is_backward){
 			ShellRotor.TargetVelocityRPM=0;
 			ShellRotor.RotorLock=true;
