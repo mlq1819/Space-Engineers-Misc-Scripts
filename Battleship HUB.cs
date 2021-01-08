@@ -1097,7 +1097,7 @@ enum PrintStatus{
 FireStatus Cannon_FireStatus{
 	get{
 		if(Vigilance==null)
-			return -1;
+			return FireStatus.Idle;
 		string[] args=Vigilance.CustomData.Split('\n');
 		foreach(string arg in args){
 			int index=arg.IndexOf(':');
@@ -1117,7 +1117,7 @@ FireStatus Cannon_FireStatus{
 PrintStatus Cannon_PrintStatus{
 	get{
 		if(Vigilance==null)
-			return -1;
+			return PrintStatus.StartingPrint;
 		string[] args=Vigilance.CustomData.Split('\n');
 		foreach(string arg in args){
 			int index=arg.IndexOf(':');
@@ -1172,7 +1172,7 @@ bool Is_Cannon_Ready{
 							return false;
 						break;
 					case "PrintStatus":
-						is(!data.Equals("Ready"))
+						if(!data.Equals("Ready"))
 							return false;
 						break;
 					case "Countdown":
@@ -1766,10 +1766,6 @@ void CallHit(Player Attacker,Player Defender,Sound At_Sound,Sound Def_Sound){
 		Player_Timer=Turn_Timer;
 		AI_Selection=new Vector2(-1,-1);
 		Attacker.CanMove=false;
-		At_Sound.Sounds.Clear();
-		Def_Sound.Sounds.Clear();
-		At_Sound.Sounds.Enqueue("CompletedId");
-		Def_Sound.Sounds.Enqueue("CompletedId");
 		if(Defender.OwnBoard.Grid[y][x].Ship!=MyShip.None){
 			MyShip Ship=Defender.OwnBoard.Grid[y][x].Ship;
 			int size=Prog.ShipSize(Ship);
@@ -2197,6 +2193,10 @@ void Argument_Processor(string argument){
 						}
 						if(Status==GameStatus.InProgress){
 							if(player_num==Player_Turn){
+								Room1Sound.Sounds.Clear();
+								Room2Sound.Sounds.Clear();
+								Room1Sound.Sounds.Enqueue("CompletedId");
+								Room2Sound.Sounds.Enqueue("CompletedId");
 								if(Destroy_Ships)
 									Initiated_Firing=true;
 								else{
@@ -2270,41 +2270,39 @@ void Argument_Processor(string argument){
 			}
 		}
 	}
-	
 }
 
 Vector3D GetTargetedCoordinates(){
 	Player Attacker,Defender;
-	if(Player_Number==1){
+	if(Player_Turn==1){
 		Attacker=Player1;
 		Defender=Player2;
 	}
-	else if(Player_Number==2){
+	else if(Player_Turn==2){
 		Attacker=Player2;
 		Defender=Player1;
 	}
 	else
 		return new Vector3D(0,0,0);
-	return TransformCoordinates(Attacker.Selection,(Player_Number%2)+1);
+	return TransformCoordinates(Attacker.Selection,(Player_Turn%2)+1);
 }
 
 RealShip GetTargetedShip(){
 	Player Attacker,Defender;
 	List<RealShip> ShipList;
 	
-	if(Player_Number==1){
+	if(Player_Turn==1){
 		Attacker=Player1;
 		Defender=Player2;
 		ShipList=Player2Ships;
 	}
-	else if(Player_Number==2){
+	else if(Player_Turn==2){
 		Attacker=Player2;
 		Defender=Player1;
 		ShipList=Player1Ships;
 	}
 	else
 		return null;
-	int x,y;
 	int x=(int)Attacker.Selection.X;
 	int y=(int)Attacker.Selection.Y;
 	MyShip Type=Defender.OwnBoard.Grid[y][x].Ship;
@@ -2962,7 +2960,7 @@ public void Main(string argument, UpdateType updateSource)
 						if(Decoy_Target.Length()==0){
 							IGC.SendBroadcastMessage(Targeted_Ship.Tag_Full,"Request•"+Target_Coords.ToString(),TransmissionDistance.TransmissionDistanceMax);
 						}
-						else if(Cannon_FireStatus==FireStatus.Ready&&Cannon_PrintStatus==PrintStatus.Ready&&!Vigilance.IsRunning)
+						else if(Cannon_FireStatus==FireStatus.Idle&&Cannon_PrintStatus==PrintStatus.Ready&&!Vigilance.IsRunning)
 							Initiated_Firing=!Vigilance.TryRun("Fire:"+Decoy_Target.ToString());
 					}
 				}
@@ -3023,7 +3021,7 @@ public void Main(string argument, UpdateType updateSource)
 			else{
 				if(Player_Turn==1&&ships_are_ready)
 					Panel.FontColor=new Color(255,137,137,255);
-				else if(Player_Turn==2&&game_is_ready)
+				else if(Player_Turn==2&&ships_are_ready)
 					Panel.FontColor=new Color(137,137,255,255);
 				else
 					Panel.FontColor=new Color(255,255,255,255);
