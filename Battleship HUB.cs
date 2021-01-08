@@ -1660,8 +1660,20 @@ void Argument_Processor(string argument){
 			for(int j=0;j<ShipList.Count;j++){
 				IGC.SendBroadcastMessage(ShipList[i].Tag_Full,"Unlink",TransmissionDistance.TransmissionDistanceMax);
 			}
-			Runtime.UpdateFrequency=UpdateFrequency.None;
-			Me.Enabled=false;
+		}
+		Runtime.UpdateFrequency=UpdateFrequency.None;
+		Me.Enabled=false;
+	}
+	else if(argument.ToLower().Equals("detonate")){
+		for(int i=1;i<=2;i++){
+			List<RealShip> ShipList;
+			if(i==1)
+				ShipList=Player1Ships;
+			else
+				ShipList=Player2Ships;
+			for(int j=0;j<ShipList.Count;j++){
+				IGC.SendBroadcastMessage(ShipList[i].Tag_Full,"Detonate",TransmissionDistance.TransmissionDistanceMax);
+			}
 		}
 	}
 	if(((int)Status)<((int)GameStatus.Awaiting)){
