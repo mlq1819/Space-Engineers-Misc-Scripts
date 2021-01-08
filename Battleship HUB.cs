@@ -1202,17 +1202,17 @@ Vector3D TransformCoordinates(Vector2 input,int Board_Num){
 		Center+=target_distance*Right_Vector;
 	else
 		Center+=target_distance*Left_Vector;
-	Vector3D A1=Center+=500*Up_Vector;
+	Vector3D A1=Center+=625*Up_Vector;
 	Vector3D To_Right;
 	if(Board_Num==1){
-		A1+=400*Forward_Vector;
+		A1+=500*Forward_Vector;
 		To_Right=Backward_Vector;
 	}
 	else{
-		A1+=400*Backward_Vector;
+		A1+=500*Backward_Vector;
 		To_Right=Forward_Vector;
 	}
-	return A1+To_Right*(input.X)*100+Down_Vector*(input.Y)*100;
+	return A1+To_Right*(input.X)*125+Down_Vector*(input.Y)*125;
 }
 
 public Program(){
