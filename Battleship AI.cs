@@ -438,8 +438,6 @@ int ID;
 bool Returning=false;
 double Fire_Timer=0;
 
-
-
 MyShip Type=MyShip.None;
 int Player_Num=-1;
 string MyListenerString{
@@ -636,8 +634,9 @@ public Program(){
 		ID=Rnd.Next(0,Int32.MaxValue);
 		SetUp();
 	}
-	
-	
+	IMyLargeInteriorTurret Turret=GenericMethods<IMyLargeInteriorTurret>.GetContaining("");
+	if(Turret!=null)
+		Turret.Enabled=false;
 	Echo("Completed initialization");
 	Runtime.UpdateFrequency=UpdateFrequency.Update100;
 }
@@ -847,7 +846,7 @@ void Travel(){
 	Antenna_R.Enabled=false;
 	CurrentStatus=ShipStatus.InPosition;
 	bool distance_check=(Target_Position-Controller.GetPosition()).Length()>2.5;
-	Controller.DockingMode=(Target_Position-Controller.GetPosition()).Length()<5;
+	Controller.SetDockingMode((Target_Position-Controller.GetPosition()).Length()<5);
 	if((Target_Position-Controller.GetPosition()).Length()>1){
 		Write("Phase 1 - "+Math.Round((Target_Position-Controller.GetPosition()).Length(),1).ToString()+"m");
 		MyWaypointInfo Destination=new MyWaypointInfo("Target Position",Target_Position);
@@ -892,7 +891,7 @@ IMyDecoy GetNearest(Vector3D near,double max_distance=double.MaxValue){
 }
 void InPosition(){
 	Write("In Position, Awaiting Commands...");
-	Controller.DockingMode=false;
+	Controller.SetDockingMode(false);
 	Controller.SetAutoPilotEnabled(false);
 	List<IMyBroadcastListener> listeners=new List<IMyBroadcastListener>();
 	IGC.GetBroadcastListeners(listeners);
@@ -994,6 +993,14 @@ void Detonate(){
 			}
 		}
 		armed=true;
+		IMyLargeInteriorTurret Turret=GenericMethods<IMyLargeInteriorTurret>.GetContaining("");
+		if(Turret!=null){
+			IMyJumpDrive Drive=GenericMethods<IMyJumpDrive>.GetContaining("");
+			if(Drive!=null){
+				Turret.TrackTarget(Drive.GetPosition(),Controller.GetShipVelocities().LinearVelocity);
+				Turret.Enabled=true;
+			}
+		}
 	}
 	else if(Fire_Timer>0)
 		Write(Math.Round(Fire_Timer,1).ToString()+" seconds to Detonation");
@@ -1047,6 +1054,9 @@ public void Main(string argument, UpdateType updateSource)
 	if(Gyroscope==null||Gyroscope.IsFunctional)
 		Gyroscope=GenericMethods<IMyGyro>.GetClosestFunc(GyroFunc);
 	Gyroscope.GyroOverride=false;
+	if(argument.ToLower().Equals("detonate")){
+		Detonate();
+	}
 	if(Fire_Timer>0)
 		Fire_Timer=Math.Max(0,Fire_Timer-seconds_since_last_update);
 	Write(Type.ToString());
