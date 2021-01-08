@@ -963,7 +963,7 @@ void Detonate(){
 		GridTerminalSystem.GetBlocksOfType<IMyWarhead>(Unset);
 		List<IMyWarhead> Set=new List<IMyWarhead>();
 		if(Unset.Count>0){
-			double Time=2;
+			double Time=5;
 			while(Unset.Count>0){
 				bool found=false;
 				for(int i=0;i<Set.Count;i++){
