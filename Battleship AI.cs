@@ -968,7 +968,7 @@ void Detonate(){
 		GridTerminalSystem.GetBlocksOfType<IMyWarhead>(Unset);
 		List<IMyWarhead> Set=new List<IMyWarhead>();
 		if(Unset.Count>0){
-			double Time=8;
+			double Time=10;
 			while(Unset.Count>0){
 				bool found=false;
 				for(int i=0;i<Set.Count;i++){
@@ -1002,14 +1002,23 @@ void Detonate(){
 		if(Turret!=null){
 			IMyJumpDrive Drive=GenericMethods<IMyJumpDrive>.GetContaining("");
 			if(Drive!=null){
-				Turret.TrackTarget(Drive.GetPosition(),Controller.GetShipVelocities().LinearVelocity);
+				//Turret.TrackTarget(Drive.GetPosition(),Controller.GetShipVelocities().LinearVelocity);
 				Turret.Enabled=true;
 			}
 		}
 		foreach(IMyThrust Thrust in GenericMethods<IMyThrust>.GetAllIncluding(""))
 			Thrust.Enabled=false;
-		foreach(IMyGyro Gyro in GenericMethods<IMyGyro>.GetAllIncluding(""))
-			Gyro.Enabled=false;
+		foreach(IMyGyro Gyro in GenericMethods<IMyGyro>.GetAllIncluding("")){
+			if(Rnd.Next(0,19)==0){
+				Gyro.GyroOverride=true;
+				Gyro.GyroPower=0.2f;
+				Gyro.Pitch=Rnd.Next(-10,10)/5.0f;
+				Gyro.Yaw=Rnd.Next(-10,10)/5.0f;
+				Gyro.Roll=Rnd.Next(-10,10)/5.0f;
+			}
+			else
+				Gyro.Enabled=false;
+		}
 		IGC.SendBroadcastMessage(MyListenerString,"Status•"+ID.ToString()+"•"+ShipStatus.Detonating.ToString(),TransmissionDistance.TransmissionDistanceMax);
 		Antenna_R.Enabled=false;
 		Antenna_L.Enabled=false;
