@@ -1,18 +1,11 @@
 /*
-* Cosmic Engineering Vigilance Targeting System 
+* Battleship --- Vigilance Targeting System 
 * Built by mlq1616
 * https://github.com/mlq1819
 */
 //Name me!
-const string Program_Name="Vigilance AI";
+const string Program_Name="Battleship Vigilance AI";
 //Sets the maximum firing distance
-const double FIRING_DISTANCE=20000; //Recommended between 5k and 20k; works best within range
-//The distance the scanners will default to during AutoScan; the lower the faster it scans
-const double AUTOSCAN_DISTANCE=20000;//Recommended between 2k and 10k
-//Sets whether the AI starts out scanning or whether it has to wait to be told to autoscan
-const bool DEFAULT_AUTOSCAN=false;
-//Sets whether the AI starts out automatically shooting enemies or whether it has to wait to be told to autofire
-const bool DEFAULT_AUTOFIRE=false;
 //Set to the maximum time you expect the cannon to take to aim and print
 const double AIM_TIME=15;
 Color DEFAULT_TEXT_COLOR=new Color(197,137,255,255);
@@ -297,325 +290,6 @@ class GenericMethods<T> where T : class, IMyTerminalBlock{
 	}
 }
 
-class EntityInfo{
-	public long ID;
-	public string Name;
-	public MyDetectedEntityType Type;
-	Vector3D? _hitposition;
-	public Vector3D? HitPosition{
-		get{
-			return _hitposition;
-		}
-		set{
-			_hitposition=value;
-			if(_hitposition!=null){
-				Size=Math.Max(Size, (Position-((Vector3D)_hitposition)).Length());
-			}
-		}
-	}
-	Vector3D _velocity;
-	public Vector3D Velocity{
-		get{
-			return _velocity;
-		}
-		set{
-			_velocity=value;
-			Age=TimeSpan.Zero;
-		}
-	}
-	public MyRelationsBetweenPlayerAndBlock Relationship;
-	public Vector3D Position;
-	public double Size=0;
-	public TimeSpan Age=TimeSpan.Zero;
-	public Vector3D TargetPosition{
-		get{
-			if(HitPosition!=null)
-				return (Vector3D)HitPosition;
-			return Position;
-		}
-	}
-	
-	public EntityInfo(long id, string name, MyDetectedEntityType type, Vector3D? hitposition, Vector3D velocity, MyRelationsBetweenPlayerAndBlock relationship, Vector3D position){
-		ID=id;
-		Name=name;
-		Type=type;
-		HitPosition=hitposition;
-		Velocity=velocity;
-		Relationship=relationship;
-		Position=position;
-		Age=TimeSpan.Zero;
-	}
-	
-	public EntityInfo(long id, string name, MyDetectedEntityType type, Vector3D? hitposition, Vector3D velocity, MyRelationsBetweenPlayerAndBlock relationship, Vector3D position, double size) : this(id, name, type, hitposition, velocity, relationship, position){
-		this.Size=size;
-	}
-	
-	public EntityInfo(EntityInfo o){
-		ID=o.ID;
-		Name=o.Name;
-		Type=o.Type;
-		Position=o.Position;
-		HitPosition=o.HitPosition;
-		Velocity=o.Velocity;
-		Relationship=o.Relationship;
-		Size=o.Size;
-		Age=o.Age;
-	}
-	
-	public EntityInfo(MyDetectedEntityInfo entity_info){
-		ID=entity_info.EntityId;
-		Name=entity_info.Name;
-		Type=entity_info.Type;
-		Position=entity_info.Position;
-		if(entity_info.HitPosition!=null){
-			HitPosition=entity_info.HitPosition;
-		}
-		else {
-			HitPosition=(Vector3D?) null;
-		}
-		Velocity=entity_info.Velocity;
-		Relationship=entity_info.Relationship;
-		Age=TimeSpan.Zero;
-	}
-	
-	public EntityInfo(Vector3D position,Vector3D velocity,long id=-1):this(id,"unknown",MyDetectedEntityType.Unknown,null,velocity,MyRelationsBetweenPlayerAndBlock.Enemies,position){
-		;
-	}
-	
-	public static bool TryParse(string Parse, out EntityInfo Entity){
-		Entity=new EntityInfo(-1,"bad", MyDetectedEntityType.None, null, new Vector3D(0,0,0), MyRelationsBetweenPlayerAndBlock.NoOwnership, new Vector3D(0,0,0));
-		try{
-			string[] args=Parse.Split('\n');
-			long id;
-			if(!Int64.TryParse(args[0], out id)){
-				return false;
-			}
-			string name=args[1];
-			MyDetectedEntityType type=(MyDetectedEntityType) Int32.Parse(args[2]);
-			Vector3D? hitposition;
-			if(args[3].Equals("null")){
-				hitposition=(Vector3D?) null;
-			}
-			else {
-				Vector3D temp;
-				if(!Vector3D.TryParse(args[3], out temp)){
-					return false;
-				}
-				else {
-					hitposition=(Vector3D?) temp;
-				}
-			}
-			Vector3D velocity;
-			if(!Vector3D.TryParse(args[4], out velocity)){
-				return false;
-			}
-			MyRelationsBetweenPlayerAndBlock relationship=(MyRelationsBetweenPlayerAndBlock) Int32.Parse(args[5]);
-			Vector3D position;
-			if(!Vector3D.TryParse(args[6], out position)){
-				return false;
-			}
-			double size=0;
-			if(!double.TryParse(args[7], out size)){
-				size=0;
-			}
-			TimeSpan age;
-			if(!TimeSpan.TryParse(args[8], out age)){
-				return false;
-			}
-			Entity=new EntityInfo(id, name, type, hitposition, velocity, relationship, position, size);
-			Entity.Age=age;
-			return true;
-		}
-		catch(Exception){
-			return false;
-		}
-	}
-	
-	public override string ToString(){
-		string entity_info="";
-		entity_info+=ID.ToString()+'\n';
-		entity_info+=Name.ToString()+'\n';
-		entity_info+=((int)Type).ToString()+'\n';
-		if(HitPosition!=null){
-			entity_info+=((Vector3D) HitPosition).ToString()+'\n';
-		}
-		else {
-			entity_info+="null"+'\n';
-		}
-		entity_info+=Velocity.ToString()+'\n';
-		entity_info+=((int)Relationship).ToString()+'\n';
-		entity_info+=Position.ToString()+'\n';
-		entity_info+=Size.ToString()+'\n';
-		entity_info+=Age.ToString()+'\n';
-		return entity_info;
-	}
-	
-	public string NiceString(){
-		string entity_info="";
-		entity_info+="ID: "+ID.ToString()+'\n';
-		entity_info+="Name: "+Name.ToString()+'\n';
-		entity_info+="Type: "+Type.ToString()+'\n';
-		if(HitPosition!=null){
-			entity_info+="HitPosition: "+NeatVector((Vector3D) HitPosition)+'\n';
-		}
-		else {
-			entity_info+="HitPosition: "+"null"+'\n';
-		}
-		entity_info+="Velocity: "+NeatVector(Velocity)+'\n';
-		entity_info+="Relationship: "+Relationship.ToString()+'\n';
-		entity_info+="Position: "+NeatVector(Position)+'\n';
-		entity_info+="Size: "+((int)Size).ToString()+'\n';
-		entity_info+="Data Age: "+Age.ToString()+'\n';
-		return entity_info;
-	}
-	
-	public static string NeatVector(Vector3D vector){
-		return "X:"+Math.Round(vector.X,1).ToString()+" Y:"+Math.Round(vector.Y,1).ToString()+" Z:"+Math.Round(vector.Z,1).ToString();
-	}
-	
-	public void Update(double seconds){
-		Age=Prog.UpdateTimeSpan(Age,seconds);
-	}
-	
-	public double GetDistance(Vector3D Reference){
-		return (TargetPosition-Reference).Length();
-	}
-}
-
-class EntityList:IEnumerable<EntityInfo>{
-	List<EntityInfo> E_List;
-	public IEnumerator<EntityInfo> GetEnumerator(){
-		return E_List.GetEnumerator();
-	}
-	IEnumerator IEnumerable.GetEnumerator(){
-		return GetEnumerator();
-	}
-	
-	public int Count{
-		get{
-			return E_List.Count;
-		}
-	}
-	
-	public EntityInfo this[int key]{
-		get{
-			return E_List[key];
-		}
-		set{
-			E_List[key]=value;
-		}
-	}
-	
-	public EntityList(){
-		E_List=new List<EntityInfo>();
-	}
-	
-	public void UpdatePositions(double seconds){
-		foreach(EntityInfo entity in E_List)
-			entity.Update(seconds);
-	}
-	
-	public bool UpdateEntry(EntityInfo Entity){
-		for(int i=0; i<E_List.Count; i++){
-			if(E_List[i].ID==Entity.ID || (Entity.GetDistance(E_List[i].Position)<=0.5f&&Entity.Type==E_List[i].Type)){
-				if(E_List[i].Age >= Entity.Age){
-					E_List[i]=Entity;
-					return true;
-				}
-				return false;
-			}
-		}
-		E_List.Add(Entity);
-		return true;
-	}
-	
-	public bool RemoveEntry(EntityInfo Entity){
-		for(int i=0; i<E_List.Count; i++){
-			if(E_List[i].ID==Entity.ID || (Entity.GetDistance(E_List[i].Position)<=0.5f&&Entity.Type==E_List[i].Type)){
-				E_List.RemoveAt(i);
-				return true;
-			}
-		}
-		return false;
-	}
-	
-	public void RemoveAt(int index){
-		E_List.RemoveAt(index);
-	}
-	
-	public EntityInfo Get(long ID){
-		foreach(EntityInfo entity in E_List){
-			if(entity.ID==ID)
-				return entity;
-		}
-		return null;
-	}
-	
-	public double ClosestDistance(MyRelationsBetweenPlayerAndBlock Relationship, double min_size=0){
-		double min_distance=double.MaxValue;
-		foreach(EntityInfo entity in E_List){
-			if(entity.Size >= min_size && entity.Relationship==Relationship)
-				min_distance=Math.Min(min_distance, (Prog.P.Me.GetPosition()-entity.Position).Length()-entity.Size);
-		}
-		return min_distance;
-	}
-	
-	public double ClosestDistance(double min_size=0){
-		double min_distance=double.MaxValue;
-		foreach(EntityInfo entity in E_List){
-			if(entity.Size >= min_size)
-				min_distance=Math.Min(min_distance, (Prog.P.Me.GetPosition()-entity.Position).Length()-entity.Size);
-		}
-		return min_distance;
-	}
-	
-	public void Clear(){
-		E_List.Clear();
-	}
-	
-	public void Sort(Vector3D Reference){
-		Queue<EntityInfo> Unsorted=new Queue<EntityInfo>();
-		double last_distance=0;
-		for(int i=0;i<E_List.Count;i++){
-			double distance=E_List[i].GetDistance(Reference);
-			if(distance<last_distance){
-				Unsorted.Enqueue(E_List[i]);
-				E_List.RemoveAt(i);
-				i--;
-				continue;
-			}
-			last_distance=distance;
-		}
-		while(Unsorted.Count>0){
-			double distance=Unsorted.Peek().GetDistance(Reference);
-			int upper=E_List.Count;
-			int lower=0;
-			int index;
-			double down;
-			double up;
-			do{
-				index=(upper-lower)/2+lower;
-				down=0;
-				if(index>0)
-					down=E_List[index-1].GetDistance(Reference);
-				up=E_List[index].GetDistance(Reference);
-				if(down>distance)
-					upper=index-1;
-				else
-					lower=index-1;
-				if(up<distance)
-					lower=index;
-				else
-					upper=index;
-			}
-			while((down>distance||up<distance)&&upper!=lower);
-			E_List.Insert(index,Unsorted.Dequeue());
-		}
-		if(E_List.Count>128)
-			E_List.RemoveRange(128,E_List.Count-128);
-	}
-}
-
 TimeSpan FromSeconds(double seconds){
 	return Prog.FromSeconds(seconds);
 }
@@ -736,31 +410,13 @@ IMySensorBlock Sensor;
 IMyShipMergeBlock Merge;
 List<IMyCameraBlock> Cameras;
 List<IMyGravityGenerator> Generators;
-IMyCockpit Cockpit;
 
 
 List<IMyInteriorLight> FiringLights;
 List<List<IMyInteriorLight>> StatusLights;
 List<IMyTextPanel> StatusPanels;
 
-EntityList Targets=new EntityList();
-
-bool AutoFire=DEFAULT_AUTOFIRE;
-bool AutoScan=DEFAULT_AUTOSCAN;
-EntityInfo Target{
-	get{
-		if(Targets.Count>0)
-			return Targets[0];
-		return new EntityInfo(0, "invalid", MyDetectedEntityType.None, null, new Vector3D(0,0,0), MyRelationsBetweenPlayerAndBlock.Neutral, new Vector3D(0,0,0), 0);
-	}
-}
-Vector3D Target_Position{
-	get{
-		if(Target.HitPosition!=null)
-			return(Vector3D)Target.HitPosition;
-		return Target.Position;
-	}
-}
+Vector3D Target_Position;
 
 Vector3D Aim_Position=new Vector3D(0,0,0);
 Vector3D Aim_Direction{
@@ -773,21 +429,6 @@ Vector3D Aim_Direction{
 double Aim_Distance{
 	get{
 		return (Aim_Position-Controller.GetPosition()).Length();
-	}
-}
-
-Vector3D Suspect_Position=new Vector3D(0,0,0);
-Vector3D Suspect_Velocity=new Vector3D(0,0,0);
-Vector3D Suspect_Direction{
-	get{
-		Vector3D output=Suspect_Position-Controller.GetPosition();
-		output.Normalize();
-		return output;
-	}
-}
-double Suspect_Distance{
-	get{
-		return (Suspect_Position-Controller.GetPosition()).Length();
 	}
 }
 
@@ -894,21 +535,6 @@ public Program(){
 	
 	Operational=false;
 	
-	Cockpit=GenericMethods<IMyCockpit>.GetFull("Vigilance Control Cockpit");
-	if(Cockpit!=null){
-		for(int i=0;i<Cockpit.SurfaceCount;i++){
-			if(i<3)
-				Cockpit.GetSurface(i).ContentType=ContentType.TEXT_AND_IMAGE;
-			Cockpit.GetSurface(i).FontSize=2.2f;
-			Cockpit.GetSurface(i).TextPadding=20;
-			Cockpit.GetSurface(i).FontColor=DEFAULT_TEXT_COLOR;
-			Cockpit.GetSurface(i).BackgroundColor=DEFAULT_BACKGROUND_COLOR;
-			Cockpit.GetSurface(i).Alignment=TextAlignment.CENTER;
-			Cockpit.GetSurface(i).ScriptForegroundColor=DEFAULT_TEXT_COLOR;
-			Cockpit.GetSurface(i).ScriptBackgroundColor=DEFAULT_BACKGROUND_COLOR;
-		}
-	}
-	
 	Controller=GenericMethods<IMyRemoteControl>.GetFull("Driver Controller");
 	if(Controller==null)
 		return;
@@ -936,17 +562,11 @@ public Program(){
 	Generators=GenericMethods<IMyGravityGenerator>.GetAllContaining("Driver Generator ");
 	if(Generators.Count==0)
 		return;
-	Cameras=GenericMethods<IMyCameraBlock>.GetAllContaining("Driver Camera ");
-	if(Cameras.Count==0)
-		return;
-	foreach(IMyCameraBlock Camera in Cameras)
-		Camera.EnableRaycast=true;
 	
 	FiringLights=GenericMethods<IMyInteriorLight>.GetAllContaining("Driver Firing Light ");
 	StatusLights=new List<List<IMyInteriorLight>>();
-	for(int i=1;i<=3;i++){
+	for(int i=1;i<=3;i++)
 		StatusLights.Add(GenericMethods<IMyInteriorLight>.GetAllContaining("Driver Status Light "+i.ToString()));
-	}
 	
 	TaskQueue=new Queue<CannonTask>();
 	string[] args=this.Storage.Split('•');
@@ -975,29 +595,15 @@ public Program(){
 				if(Int32.TryParse(word,out output))
 					CurrentPrintStatus=(PrintStatus)output;
 			}
-			else if(arg.IndexOf("AutoScan:")==0){
-				string word=arg.Substring("AutoScan:".Length);
-				bool.TryParse(word,out AutoScan);
-			}
-			else if(arg.IndexOf("AutoFire:")==0){
-				string word=arg.Substring("AutoFire:".Length);
-				bool.TryParse(word,out AutoFire);
-			}
 		}
 		catch(Exception){
 			continue;
 		}
 	}
 	
-	
-	if(TaskQueue.Count==0&&AutoScan)
-		TaskQueue.Enqueue(CannonTask.Scan);
-	Fire_Count=3;
+	Fire_Count=1;
 	
 	Operational=true;
-	IGC.RegisterBroadcastListener("Vigilance AI");
-	IGC.RegisterBroadcastListener("Entity Report");
-	IGC.RegisterBroadcastListener(Me.CubeGrid.CustomName);
 	if(((int)CurrentTask)>=((int)CannonTask.Fire))
 		Runtime.UpdateFrequency=UpdateFrequency.Update10;
 	else
@@ -1007,14 +613,9 @@ public Program(){
 public void Save(){
     this.Storage="FireStatus:"+((int)CurrentFireStatus).ToString();
 	this.Storage+="•PrintStatus:"+((int)CurrentPrintStatus).ToString();
-	this.Storage+="•AutoScan:"+AutoScan.ToString();
-	this.Storage+="•AutoFire:"+AutoFire.ToString();
 	while(TaskQueue.Count>0){
 		this.Storage+="•Task:"+((int)CurrentTask).ToString();
 		TaskQueue.Dequeue();
-	}
-	foreach(EntityInfo Entity in Targets){
-		this.Storage+="•Target:"+Entity.ToString();
 	}
 	Me.CustomData=this.Storage;
 }
@@ -1037,7 +638,7 @@ void AddTask(CannonTask Task){
 			CurrentFireStatus=FireStatus.Aiming;
 		else
 			CurrentFireStatus=FireStatus.Printing;
-		Fire_Count=3;
+		Fire_Count=1;
 	}
 }
 
@@ -1063,9 +664,7 @@ void NextTask(){
 		if(TaskQueue.Count>0)
 			TaskQueue.Dequeue();
 		if(TaskQueue.Count==0){
-			if(AutoScan)
-				TaskQueue.Enqueue(CannonTask.Scan);
-			else if(last_task!=CannonTask.Reset)
+			if(last_task!=CannonTask.Reset)
 				TaskQueue.Enqueue(CannonTask.Reset);
 		}
 	}
@@ -1116,9 +715,6 @@ void UpdatePositionalInfo(){
 	base_vector=new Vector3D(-1,0,0);
 	Left_Vector=LocalToGlobal(base_vector,Controller);
 	Left_Vector.Normalize();
-	
-	Targets.UpdatePositions(seconds_since_last_update);
-	Suspect_Position+=Suspect_Velocity*seconds_since_last_update;
 }
 
 double Print_Timer=0.0;
@@ -1172,8 +768,6 @@ void Print(){
 			else{
 				CurrentPrintStatus=PrintStatus.WaitingResources;
 				string Message="Waiting for resources";
-				IGC.SendBroadcastMessage("Vigilance AI", Message, TransmissionDistance.TransmissionDistanceMax);
-				IGC.SendBroadcastMessage(Me.CubeGrid.CustomName, Message, TransmissionDistance.TransmissionDistanceMax);
 			}
 		}
 		else {
@@ -1187,170 +781,10 @@ double Aim_Timer=AIM_TIME;
 void SetAimed(double time=AIM_TIME){
 	Aim_Timer=Math.Min(Math.Max(0,time),AIM_TIME);
 	Aim_Position=Target_Position;
-	if(Target.Velocity.Length()<0.1)
-		return;
-	if(Target.Velocity.Length()>100){
-		if(Targets.Count>0)
-			Targets.RemoveAt(0);
-		return;
-	}
-	double difference=Time_To_Position-(Time_To_Hit+Aim_Timer);
-	while(difference<0){
-		Aim_Position+=Math.Max(1,difference/2)*Target.Velocity;
-		if(Aim_Distance>FIRING_DISTANCE){
-			if(Targets.Count>0){
-				Targets.RemoveAt(0);
-			}
-			return;
-		}
-		difference=Time_To_Position-(Time_To_Hit+Aim_Timer);
-	}
-}
-
-void SendAllListeners(string Message){
-	List<IMyBroadcastListener> listeners=new List<IMyBroadcastListener>();
-	IGC.GetBroadcastListeners(listeners);
-	foreach(IMyBroadcastListener Listener in listeners){
-		IGC.SendBroadcastMessage(Listener.Tag, Message, TransmissionDistance.TransmissionDistanceMax);
-	}
-}
-double Standard_Scan_Time=3;
-void Standard_Scan(){
-	EntityList DetectedEntities=new EntityList();
-	List<IMyLargeTurretBase> AllTurrets=new List<IMyLargeTurretBase>();
-	GridTerminalSystem.GetBlocksOfType<IMyLargeTurretBase>(AllTurrets);
-	foreach(IMyLargeTurretBase Turret in AllTurrets){
-		if(Turret.HasTarget){
-			MyDetectedEntityInfo Detected=Turret.GetTargetedEntity();
-			if(Detected.Type!=MyDetectedEntityType.None&&Detected.EntityId!=Controller.CubeGrid.EntityId){
-				DetectedEntities.UpdateEntry(new EntityInfo(Detected));
-				BroadcastEntity(Detected);
-			}
-		}
-	}
-	if(Targets.Count>0){
-		bool hit=false;
-		foreach(IMyCameraBlock Camera in Cameras){
-			if(Camera.CanScan(Target_Position)){
-				MyDetectedEntityInfo Detected=Camera.Raycast(Target_Position);
-				if(Detected.Type!=MyDetectedEntityType.None&&Detected.EntityId!=Controller.CubeGrid.EntityId){
-					DetectedEntities.UpdateEntry(new EntityInfo(Detected));
-					BroadcastEntity(Detected);
-					hit=true;
-					break;
-				}
-			}
-		}
-		if(!hit){
-			foreach(IMyCameraBlock Camera in Cameras){
-				double distance=(Target_Position-Controller.GetPosition()).Length()+10;
-				if(Camera.AvailableScanRange>=distance){
-					for(int i=0;i<4;i++){
-						int p_x=1;
-						int y_x=1;
-						if(i%2==0)
-							p_x=-1;
-						if(i<2)
-							y_x=-1;
-						if(Camera.CanScan(distance)){
-							MyDetectedEntityInfo Detected=Camera.Raycast(distance,(float)(Precision*10*p_x),(float)(Precision*10*y_x));
-							if(Detected.Type!=MyDetectedEntityType.None&&Detected.EntityId!=Controller.CubeGrid.EntityId){
-								DetectedEntities.UpdateEntry(new EntityInfo(Detected));
-								BroadcastEntity(Detected);
-								hit=true;
-								break;
-							}
-						}
-					}
-				}
-			}
-		}
-	}
-	if(AutoFire){
-		foreach(EntityInfo Entity in DetectedEntities){
-			double distance=(Controller.GetPosition()-Entity.Position).Length();
-			if(Entity.Type==MyDetectedEntityType.LargeGrid&&Entity.Relationship==MyRelationsBetweenPlayerAndBlock.Enemies&&distance<FIRING_DISTANCE&&distance>100){
-				Targets.UpdateEntry(Entity);
-				if(Target.ID==Entity.ID)
-					SetAimed(Aim_Timer+0.5);
-				if(CurrentTask!=CannonTask.Fire)
-					AddTask(CannonTask.Fire);
-			}
-		}
-	}
-	EntityInfo Myself=new EntityInfo(Controller.CubeGrid.EntityId,Controller.CubeGrid.CustomName,MyDetectedEntityType.LargeGrid,(Vector3D?)(Controller.GetPosition()),new Vector3D(0,0,0),MyRelationsBetweenPlayerAndBlock.Owner,Controller.CubeGrid.GetPosition());
-	SendAllListeners(Myself.ToString());
-	foreach(EntityInfo Entity in DetectedEntities){
-		SendAllListeners(Entity.ToString());
-	}
-	
-	List<IMyBroadcastListener> listeners=new List<IMyBroadcastListener>();
-	IGC.GetBroadcastListeners(listeners);
-	foreach(IMyBroadcastListener Listener in listeners){
-		while(Listener.HasPendingMessage){
-			MyIGCMessage message=Listener.AcceptMessage();
-			ArgumentProcessor(message.Data.ToString());
-		}
-	}
-	Standard_Scan_Time=0;
 }
 
 void ArgumentProcessor(string argument){
-	if(argument.ToLower().Equals("scan")){
-		AddTask(CannonTask.Scan);
-	}
-	else if(argument.ToLower().IndexOf("autoscan")==0){
-		string word=argument.ToLower().Substring("autoscan".Length);
-		if(word.Length==0||word.Contains("toggle")||word.Contains("switch"))
-			AutoScan=!AutoScan;
-		else if(word.Contains("on")||word.Contains("enabled")||word.Contains("true"))
-			AutoScan=true;
-		else if(word.Contains("off")||word.Contains("disabled")||word.Contains("false"))
-			AutoScan=false;
-		if(AutoScan&&CurrentTask==CannonTask.None)
-			AddTask(CannonTask.Scan);
-		else if((!AutoScan)&&CurrentTask==CannonTask.Scan)
-			NextTask();
-	}
-	else if(argument.ToLower().IndexOf("autofire")==0){
-		string word=argument.ToLower().Substring("autofire".Length);
-		if(word.Length==0||word.Contains("toggle")||word.Contains("switch"))
-			AutoFire=!AutoFire;
-		else if(word.Contains("on")||word.Contains("enabled")||word.Contains("true"))
-			AutoFire=true;
-		else if(word.Contains("off")||word.Contains("disabled")||word.Contains("false"))
-			AutoFire=false;
-	}
-	else if(argument.ToLower().IndexOf("search:")==0){
-		string[] words=argument.ToLower().Substring("search:".Length).Split(';');
-		if(words.Length>0){
-			bool set=false;
-			Vector3D Position;
-			if(!Vector3D.TryParse(words[0],out Position)){
-				MyWaypointInfo Waypoint;
-				if(!MyWaypointInfo.TryParse(words[0],out Waypoint)){
-					if(MyWaypointInfo.TryParse(words[0].Substring(0,words[0].Length-10),out Waypoint))
-						set=true;
-				}
-				else
-					set=true;
-				if(set){
-					Position=Waypoint.Coords;
-				}
-			}
-			else
-				set=true;
-			if(set){
-				Vector3D Velocity=new Vector3D(0,0,0);
-				if(words.Length>1){
-					Vector3D.TryParse(words[1],out Velocity);
-				}
-				Targets.UpdateEntry(new EntityInfo(Position,Velocity));
-				AddTask(CannonTask.Search);
-			}
-		}
-	}
-	else if(argument.ToLower().Equals("dumbfire")){
+	if(argument.ToLower().Equals("dumbfire")){
 		Targets.UpdateEntry(new EntityInfo(Forward_Vector*Math.Min(FIRING_DISTANCE,1000)+Controller.GetPosition(),new Vector3D(0,0,0)));
 		AddTask(CannonTask.Fire);
 		SetAimed();
@@ -1387,33 +821,6 @@ void ArgumentProcessor(string argument){
 	else if(argument.ToLower().Equals("reset")){
 		TaskQueue.Clear();
 		AddTask(CannonTask.Reset);
-	}
-	else if(argument.ToLower().IndexOf("suspect:")==0){
-		string[] words=argument.ToLower().Substring("suspect:".Length).Split(';');
-		if(words.Length>0){
-			bool set=false;
-			Suspect_Position=new Vector3D(0,0,0);
-			if(!Vector3D.TryParse(words[0],out Suspect_Position)){
-				MyWaypointInfo Waypoint;
-				if(!MyWaypointInfo.TryParse(words[0],out Waypoint)){
-					if(MyWaypointInfo.TryParse(words[0].Substring(0,words[0].Length-10),out Waypoint))
-						set=true;
-				}
-				else
-					set=true;
-				if(set)
-					Suspect_Position=Waypoint.Coords;
-			}
-			else
-				set=true;
-			if(set){
-				Suspect_Velocity=new Vector3D(0,0,0);
-				if(words.Length>1){
-					Vector3D.TryParse(words[1],out Suspect_Velocity);
-				}
-				AddTask(CannonTask.Search);
-			}
-		}
 	}
 	else{
 		if(AutoFire){
@@ -1458,8 +865,6 @@ bool CanAim(Vector3D Direction){
 		if(GetAngle(Direction,r_Down)<=(90+PitchRotor.LowerLimitDeg)*1.2||GetAngle(Direction,r_Up)<=(90-PitchRotor.UpperLimitDeg)*1.2)
 			return false;
 	}
-	//if(Math.Abs(From_Top)>Math.Sqrt(Math.Pow(Pitch_Range/2,2)+Math.Pow(Yaw_Difference,2)))
-		//return false;
 	return true;
 }
 
@@ -1518,210 +923,9 @@ public void Reset(){
 	Targets.Clear();
 }
 
-void BroadcastEntity(EntityInfo Entity){
-	SendAllListeners(Entity.ToString());
-}
-
-void BroadcastEntity(MyDetectedEntityInfo Entity){
-	BroadcastEntity(new EntityInfo(Entity));
-}
-
-double Scan_Timer=AUTOSCAN_DISTANCE/1000;
-double Scan_Aim_Time=10;
-bool Has_Done_Scan=false;
-int Detection_Count=0;
-void Perform_Search_Scan(Vector3D Direction, double Scan_Distance){
-	Aim(Direction, 1);
-	if(GetAngle(Direction,Forward_Vector)<1){
-		PitchRotor.TargetVelocityRPM=0;
-		PitchRotor.RotorLock=true;
-		YawRotor.TargetVelocityRPM=0;
-		YawRotor.RotorLock=true;
-	}
-	else{
-		PitchRotor.RotorLock=false;
-		YawRotor.RotorLock=false;
-	}
-	Write("Scan_Aim_Time:"+Math.Round(Scan_Aim_Time,1)+"/10 seconds");
-	if(Has_Done_Scan)
-		Write("Scan Status:Done: Found "+Detection_Count+" Entities");
-	else
-		Write("Scan Status:Aiming");
-	foreach(IMyCameraBlock Camera in Cameras){
-		double distance=Camera.AvailableScanRange;
-		string distance_string=Math.Round(distance,0).ToString()+"M";
-		if(distance>=1000)
-			distance_string=Math.Round(distance/1000,1).ToString()+"kM";
-		Write(Camera.CustomName+":"+distance_string);
-	}
-	if(!Has_Done_Scan && GetAngle(Forward_Vector,Direction)<1){
-		EntityList DetectedEntities=new EntityList();
-		for(int i=0;i<Cameras.Count;i++){
-			Cameras[i].CustomName="Driver Camera "+(i+1).ToString();
-			IMyCameraBlock Camera=Cameras[i];
-			if(i==0){
-				MyDetectedEntityInfo Entity=Camera.Raycast(Math.Min(Scan_Distance,Camera.AvailableScanRange),0,0);
-				if(Entity.Type!=MyDetectedEntityType.None&&Entity.EntityId!=Controller.CubeGrid.EntityId){
-					DetectedEntities.UpdateEntry(new EntityInfo(Entity));
-					BroadcastEntity(Entity);
-				}
-				continue;
-			}
-			double distance=Math.Min(Camera.AvailableScanRange/(4*i),Scan_Distance);
-			int degrees=(int)(Camera.RaycastConeLimit/i);
-			for(int j=0;j<i;j++){
-				float pitch,yaw;
-				int lower=degrees*j;
-				int upper=degrees*(j+1);
-				do{
-					pitch=(float)Rnd.Next(lower*10,upper*10)/10.0f;
-					yaw=(float)Rnd.Next(lower*10,upper*10)/10.0f;
-				}
-				while(Math.Sqrt(Math.Pow(pitch,2)+Math.Pow(yaw,2))>Camera.RaycastConeLimit);
-				for(int k=0;k<4;k++){
-					int p_x=1;
-					if(k%2==0)
-						p_x=-1;
-					int y_x=1;
-					if(k<2)
-						y_x=-1;
-					MyDetectedEntityInfo Entity=Camera.Raycast(Math.Min(distance,Camera.AvailableScanRange),pitch*p_x,yaw*y_x);
-					if(Entity.Type!=MyDetectedEntityType.None&&Entity.EntityId!=Controller.CubeGrid.EntityId)
-						DetectedEntities.UpdateEntry(new EntityInfo(Entity));
-				}
-			}
-		}
-		if(AutoFire){
-			foreach(EntityInfo Entity in DetectedEntities){
-				double distance=(Controller.GetPosition()-Entity.Position).Length();
-				if(Entity.Type==MyDetectedEntityType.LargeGrid&&Entity.Relationship==MyRelationsBetweenPlayerAndBlock.Enemies&&distance<FIRING_DISTANCE&&distance>100){
-					Targets.UpdateEntry(Entity);
-					if(Target.ID==Entity.ID)
-						SetAimed(Aim_Timer);
-					if(CurrentTask!=CannonTask.Fire)
-					AddTask(CannonTask.Fire);
-				}
-			}
-		}
-		foreach(EntityInfo Entity in DetectedEntities){
-			SendAllListeners(Entity.ToString());
-		}
-		Detection_Count=DetectedEntities.Count;
-		Has_Done_Scan=true;
-	}
-}
-
-Vector3D Scan_Direction=new Vector3D(0,0,0);
-public void Scan(){
-	Write("Scan_Timer:"+Math.Round(Scan_Timer,1)+"/"+Math.Round(AUTOSCAN_DISTANCE/1000,1)+" seconds");
-	double Angle=GetAngle(Scan_Direction,Forward_Vector);
-	Write(Math.Round(Angle,1).ToString()+"°");
-	Vector3D r_Up=LocalToGlobal(new Vector3D(0,1,0),YawRotor);
-	r_Up.Normalize();
-	if(Scan_Timer>=AUTOSCAN_DISTANCE/1000||!CanAim(Scan_Direction)||Scan_Aim_Time>=5){
-		Has_Done_Scan=false;
-		Scan_Aim_Time=0;
-		Scan_Timer=0;
-		Detection_Count=0;
-		//Vector3D r_Forward=LocalToGlobal(new Vector3D(0,0,-1),YawRotor);
-		//r_Forward.Normalize();
-		//Vector3D r_Left=LocalToGlobal(new Vector3D(-1,0,0),YawRotor);
-		//r_Left.Normalize();
-		Vector3D Last_Direction=Scan_Direction;
-		do{
-			Scan_Direction=new Vector3D(Rnd.Next(-36,36),Rnd.Next(-36,36),Rnd.Next(-36,36));
-			/*double Pitch_Angle=PitchRotor.Angle/Math.PI*180;
-			if(Pitch_Angle>180)
-				Pitch_Angle-=360;
-			Scan_Direction=new Vector3D(0,0,0);
-			Scan_Direction+=Rnd.Next(0,18)*r_Forward;
-			Scan_Direction+=Rnd.Next(-6,6)*Rnd.Next(1,6)*r_Left;
-			if(Pitch_Angle>=0)
-				Scan_Direction+=Rnd.Next((int)(Pitch_Angle-30),30)*Rnd.Next(1,5)*r_Up/20;
-			else
-				Scan_Direction+=Rnd.Next(-30,(int)(30+Pitch_Angle))*Rnd.Next(1,5)*r_Up/20;*/
-			if(Scan_Direction.Length()==0)
-				Scan_Direction=new Vector3D(1,1,1);
-			Scan_Direction.Normalize();
-		}
-		while((!CanAim(Scan_Direction))||GetAngle(Last_Direction,Scan_Direction)<30);
-	}
-	Vector3D Redesigned=GlobalToLocal(Scan_Direction,YawRotor);
-	Redesigned.Normalize();
-	Redesigned*=100;
-	Write("Scan Direction:");
-	if(Redesigned.X>0)
-		Write("  Right:"+Math.Round(Redesigned.X,1).ToString()+"%");
-	else
-		Write("  Left:"+Math.Round(-1*Redesigned.X,1).ToString()+"%");
-	if(Redesigned.Y>0)
-		Write("  Up:"+Math.Round(Redesigned.Y,1).ToString()+"%");
-	else
-		Write("  Down:"+Math.Round(-1*Redesigned.Y,1).ToString()+"%");
-	if(Redesigned.Z>0)
-		Write("  Backward:"+Math.Round(Redesigned.Z,1).ToString()+"%");
-	else
-		Write("  Forward:"+Math.Round(-1*Redesigned.Z,1).ToString()+"%");
-	Write(Math.Round(GetAngle(Scan_Direction,r_Up),1)+"° from Top");
-	Write(Math.Round(GetAngle(Scan_Direction,r_Up*-1),1)+"° from Bottom");
-	Perform_Search_Scan(Scan_Direction,AUTOSCAN_DISTANCE);
-}
-
-Vector3D Search_Direction=new Vector3D(0,0,0);
-double Search_Distance=0;
-double Search_Timer=0;
-public void Search(){
-	Write("Scan_Timer:"+Math.Round(Scan_Timer,1)+"/"+Math.Round(AUTOSCAN_DISTANCE/1000,1)+" seconds");
-	if(!CanAim(Suspect_Direction)||Suspect_Distance>AUTOSCAN_DISTANCE||Search_Timer>180){
-		NextTask();
-		return;
-	}
-	if(Scan_Timer>=AUTOSCAN_DISTANCE/1000||!CanAim(Search_Direction)||Scan_Aim_Time>=5){
-		Has_Done_Scan=false;
-		Scan_Aim_Time=0;
-		Scan_Timer=0;
-		Detection_Count=0;
-		do{
-			int x=Rnd.Next(-36,36);
-			int y=Rnd.Next(-36,36);
-			int z=Rnd.Next(-36,36);
-			Vector3D Random_Direction=new Vector3D(x,y,z);
-			if(Random_Direction.Length()==0)
-				Random_Direction=new Vector3D(1,1,1);
-			Random_Direction.Normalize();
-			Random_Direction*=Rnd.Next(600,800);
-			Random_Direction+=Suspect_Position+AIM_TIME*Suspect_Velocity;
-			Search_Direction=Random_Direction-Controller.GetPosition();
-			Search_Distance=Search_Direction.Length();
-			Search_Direction.Normalize();
-		}
-		while(!CanAim(Search_Direction));
-	}
-	Perform_Search_Scan(Search_Direction,Search_Distance+100);
-}
-
 List<double> ShellCountdowns=new List<double>();
 bool Called_Next_Fire=true;
-double Fire_Scan_Timer=AUTOSCAN_DISTANCE/1000;
 bool DoFire(){
-	foreach(IMyCameraBlock Camera in Cameras){
-		double distance=Camera.AvailableScanRange;
-		string distance_string=Math.Round(distance,0).ToString()+"M";
-		if(distance>=1000)
-			distance_string=Math.Round(distance/1000,1).ToString()+"kM";
-		Write(Camera.CustomName+":"+distance_string);
-	}
-	if(Fire_Scan_Timer>=AUTOSCAN_DISTANCE/1000){
-		Fire_Scan_Timer=0;
-		foreach(IMyCameraBlock Camera in Cameras){
-			MyDetectedEntityInfo Entity=Camera.Raycast(Math.Min(AUTOSCAN_DISTANCE,Math.Max(50,Aim_Distance/10*9)),0,0);
-			if(Entity.Type!=MyDetectedEntityType.None&&Entity.Relationship!=MyRelationsBetweenPlayerAndBlock.Enemies&&(Target.HitPosition!=null&&(((Vector3D) Target.HitPosition)-Aim_Position).Length()>5))
-				return false;
-		}
-	}
-	else
-		return false;
-	
 	IMySpaceBall ShellMass=GenericMethods<IMySpaceBall>.GetFull("Shell Mass Block");
 	if(ShellMass==null||!ShellMass.IsFunctional)
 		return false;
@@ -1761,7 +965,6 @@ public void Fire(){
 	bool can_aim=CanAim(Aim_Direction);
 	if(Aim_Distance>FIRING_DISTANCE||Target.ID==0||!can_aim){
 		Write("Aim_Distance:"+Math.Round(Aim_Distance/1000,2).ToString()+"kM");
-		Write("Target.ID:"+Target.ID);
 		Write("can_aim:"+can_aim.ToString());
 		NextTask();
 		return;
@@ -1771,7 +974,7 @@ public void Fire(){
 	bool is_aimed=GetAngle(Forward_Vector,Aim_Direction)<=Precision;
 	bool is_clear=(!Sensor.IsActive);
 	bool is_printed=CurrentPrintStatus==PrintStatus.Ready&&Merge.Enabled&&Projector.RemainingBlocks==0;
-	bool is_ready=(Target.Velocity.Length()<0.1)||(Math.Abs(Time_To_Hit-Time_To_Position)<1.2);
+	bool is_ready=true;
 	Write("Time_To_Hit:"+Math.Round(Time_To_Hit,2).ToString()+" seconds");
 	Write("Time_To_Position:"+Math.Round(Time_To_Position,2).ToString()+" seconds");
 	Write("Time to Launch:"+Math.Round(Time_To_Position-Time_To_Hit,2).ToString()+" seconds");
@@ -1947,91 +1150,6 @@ public void Main(string argument, UpdateType updateSource)
 	}
 	
 	Write("Current Task:"+CurrentTask.ToString());
-	if(Cockpit!=null){
-		if(Cockpit.SurfaceCount>=1){
-			Color Text_Color=Green_Text;
-			Color Back_Color=Green_Back;
-			Cockpit.GetSurface(0).WriteText("Current Task\n"+CurrentTask.ToString(),false);
-			switch(CurrentTask){
-				case CannonTask.Scan:
-					Text_Color=Blue_Text;
-					Back_Color=Blue_Back;
-					break;
-				case CannonTask.Reset:
-					Text_Color=Yellow_Text;
-					Back_Color=Yellow_Back;
-					break;
-				case CannonTask.Search:
-					Text_Color=Orange_Text;
-					Back_Color=Orange_Back;
-					break;
-				case CannonTask.Fire:
-					Text_Color=Red_Text;
-					Back_Color=Red_Back;
-					break;
-				case CannonTask.Manual:
-					Text_Color=Blue_Text;
-					Back_Color=Blue_Back;
-					break;
-			}
-			Cockpit.GetSurface(0).FontColor=Text_Color;
-			Cockpit.GetSurface(0).BackgroundColor=Back_Color;
-		}
-		if(Cockpit.SurfaceCount>=2){
-			Color Text_Color=Green_Text;
-			Color Back_Color=Green_Back;
-			Cockpit.GetSurface(1).WriteText("Firing Status\n"+CurrentFireStatus.ToString(),false);
-			switch(CurrentFireStatus){
-				case FireStatus.WaitingClear:
-					Text_Color=Blue_Text;
-					Back_Color=Blue_Back;
-					break;
-				case FireStatus.Printing:
-					Text_Color=Yellow_Text;
-					Back_Color=Yellow_Back;
-					break;
-				case FireStatus.Aiming:
-					Text_Color=Orange_Text;
-					Back_Color=Orange_Back;
-					break;
-				case FireStatus.WaitingTarget:
-					Text_Color=Orange_Text;
-					Back_Color=Orange_Back;
-					break;
-				case FireStatus.Firing:
-					Text_Color=Red_Text;
-					Back_Color=Red_Back;
-					break;
-			}
-			Cockpit.GetSurface(1).FontColor=Text_Color;
-			Cockpit.GetSurface(1).BackgroundColor=Back_Color;
-		}
-		if(Cockpit.SurfaceCount>=3){
-			Color Text_Color=Green_Text;
-			Color Back_Color=Green_Back;
-			Cockpit.GetSurface(2).WriteText("Print Status\n"+CurrentPrintStatus.ToString(),false);
-			switch(CurrentPrintStatus){
-				case PrintStatus.StartingPrint:
-					Text_Color=Blue_Text;
-					Back_Color=Blue_Back;
-					break;
-				case PrintStatus.EndingPrint:
-					Text_Color=Blue_Text;
-					Back_Color=Blue_Back;
-					break;
-				case PrintStatus.Printing:
-					Text_Color=Yellow_Text;
-					Back_Color=Yellow_Back;
-					break;
-				case PrintStatus.WaitingResources:
-					Text_Color=Red_Text;
-					Back_Color=Red_Back;
-					break;
-			}
-			Cockpit.GetSurface(2).FontColor=Text_Color;
-			Cockpit.GetSurface(2).BackgroundColor=Back_Color;
-		}
-	}
 	if(CurrentTask==CannonTask.Fire)
 		Write("Fire_Count:"+Fire_Count.ToString());
 	Write("PrintStatus:"+CurrentPrintStatus.ToString());
