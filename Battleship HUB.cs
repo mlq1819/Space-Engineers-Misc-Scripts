@@ -1353,6 +1353,12 @@ public Program(){
 			case "SetUp_Timer":
 				double.TryParse(data,out SetUp_Timer);
 				break;
+			case "Release_Timer":
+				double.TryParse(data,out Release_Timer);
+				break;
+			case "Release_Number":
+				Int32.TryParse(data,out Release_Number);
+				break;
 		}
 	}
 	Room1Doors=GenericMethods<IMyDoor>.GetAllContaining("Room 1 Door");
@@ -1459,6 +1465,8 @@ public void Save(){
 		}
 		this.Storage+="•Initiated_Firing:"+Initiated_Firing.ToString();
 		this.Storage+="•SetUp_Timer:"+SetUp_Timer.ToString();
+		this.Storage+="•Release_Timer:"+Release_Timer.ToString();
+		this.Storage+="•Release_Number:"+Release_Number.ToString();
 	}
 }
 
