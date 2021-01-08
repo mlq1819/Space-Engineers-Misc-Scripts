@@ -408,7 +408,6 @@ IMyMotorStator ShellRotor;
 IMyShipWelder Welder;
 IMySensorBlock Sensor;
 IMyShipMergeBlock Merge;
-List<IMyCameraBlock> Cameras;
 List<IMyGravityGenerator> Generators;
 
 
@@ -759,10 +758,8 @@ void Print(){
 			if(Print_Timer>30){
 				CurrentPrintStatus=PrintStatus.Printing;
 			}
-			else{
+			else
 				CurrentPrintStatus=PrintStatus.WaitingResources;
-				string Message="Waiting for resources";
-			}
 		}
 		else {
 			Print_Timer=0.0;
@@ -779,7 +776,7 @@ void SetAimed(double time=AIM_TIME){
 
 void ArgumentProcessor(string argument){
 	if(argument.ToLower().Equals("dumbfire")){
-		Target_Position=Forward_Vector*Math.Min(FIRING_DISTANCE,1000)+Controller.GetPosition();
+		Target_Position=Forward_Vector*1000+Controller.GetPosition();
 		AddTask(CannonTask.Fire);
 		SetAimed();
 	}
@@ -839,7 +836,7 @@ bool CanAim(Vector3D Direction){
 void Aim(Vector3D Direction, double precision){
 	double max_speed=10;
 	double Pitch_Difference=(GetAngle(Up_Vector,Direction)-GetAngle(Down_Vector,Direction));
-	PitchRotor.TargetVelocityRPM=(float)Math.Min(Math.Max((Pitch_Difference*Math.Min(1,Math.Max(Math.Abs(Pitch_Difference)/10,precision*10))),-1*max_speed),max_speed)*-1;
+	PitchRotor.TargetVelocityRPM=(float)Math.Min(Math.Max((Pitch_Difference*Math.Min(1,Math.Max(Math.Abs(Pitch_Difference)/10,precision*10))),-1*max_speed),max_speed);
 	if(Math.Abs(Pitch_Difference)<precision/2)
 		PitchRotor.TargetVelocityRPM=0;
 	double Yaw_Difference=(GetAngle(Left_Vector,Direction)-GetAngle(Right_Vector,Direction));
@@ -931,9 +928,7 @@ public void Fire(){
 	if(Time_To_Position<Time_To_Hit)
 		SetAimed(AIM_TIME/2);
 	bool can_aim=CanAim(Aim_Direction);
-	if(Aim_Distance>FIRING_DISTANCE||!can_aim){
-		Write("Aim_Distance:"+Math.Round(Aim_Distance/1000,2).ToString()+"kM");
-		Write("can_aim:"+can_aim.ToString());
+	if(!can_aim){
 		NextTask();
 		return;
 	}
@@ -947,7 +942,7 @@ public void Fire(){
 	Write("Time_To_Position:"+Math.Round(Time_To_Position,2).ToString()+" seconds");
 	Write("Time to Launch:"+Math.Round(Time_To_Position-Time_To_Hit,2).ToString()+" seconds");
 	Write("Aim vs Actual:"+Math.Round((Aim_Position-Target_Position).Length(),1)+"M");
-	Write("Target Position:"+EntityInfo.NeatVector(Target_Position));
+	Write("Target Position:"+Target_Position.ToString());
 	if(is_aimed){
 		PitchRotor.TargetVelocityRPM=0;
 		PitchRotor.RotorLock=true;
@@ -988,7 +983,7 @@ void Manual(){
 	
 	if(Math.Abs(input_pitch)>0.001f){
 		PitchRotor.RotorLock=false;
-		PitchRotor.TargetVelocityRPM=input_pitch*-10;
+		PitchRotor.TargetVelocityRPM=input_pitch*10;
 	}
 	else{
 		PitchRotor.RotorLock=true;
@@ -1027,16 +1022,8 @@ void TimerUpdate(){
 			continue;
 		}
 	}
-	if(Standard_Scan_Time<1)
-		Standard_Scan_Time+=seconds_since_last_update;
 	if(Aim_Timer>0)
 		Aim_Timer=Math.Max(0,Aim_Timer-seconds_since_last_update);
-	if(Scan_Timer<AUTOSCAN_DISTANCE/1000&&GetAngle(Forward_Vector,Scan_Direction)<1)
-		Scan_Timer+=seconds_since_last_update;
-	if(Scan_Aim_Time<5&&GetAngle(Forward_Vector,Scan_Direction)>20)
-		Scan_Aim_Time+=seconds_since_last_update;
-	if(Fire_Scan_Timer<AUTOSCAN_DISTANCE/1000)
-		Fire_Scan_Timer+=seconds_since_last_update;
 }
 
 public void Main(string argument, UpdateType updateSource)
@@ -1051,10 +1038,6 @@ public void Main(string argument, UpdateType updateSource)
 	if(argument.Length>0){
 		ArgumentProcessor(argument);
 	}
-	if(Standard_Scan_Time>=1)
-		Standard_Scan();
-	if(AutoScan&&CurrentTask==CannonTask.None)
-		NextTask();
 	Print();
 	switch(CurrentTask){
 		case CannonTask.None:
@@ -1072,10 +1055,10 @@ public void Main(string argument, UpdateType updateSource)
 			Reset();
 			break;
 		case CannonTask.Scan:
-			Scan();
+			NextTask();
 			break;
 		case CannonTask.Search:
-			Search();
+			NextTask();
 			break;
 		case CannonTask.Fire:
 			Fire();
@@ -1096,17 +1079,8 @@ public void Main(string argument, UpdateType updateSource)
 	foreach(IMyInteriorLight Light in FiringLights){
 		Light.Enabled=CurrentTask==CannonTask.Fire;
 	}
-	foreach(IMyGravityGenerator Generator in Generators){
+	foreach(IMyGravityGenerator Generator in Generators)
 		Generator.Enabled=((CurrentFireStatus==FireStatus.Firing)||(Sensor.IsActive));
-	}
-	if(AutoScan)
-		Write("AutoScan:On");
-	else
-		Write("AutoScan:Off");
-	if(AutoFire)
-		Write("AutoFire:On");
-	else
-		Write("AutoFire:Off");
 	bool active=true;
 	foreach(CannonTask task in TaskQueue){
 		if(active){
