@@ -2322,6 +2322,7 @@ double Ready_Timer=0;
 double SetUp_Timer=0;
 bool Initiated_Firing=false;
 Vector3D Decoy_Target=new Vector3D(0,0,0);
+bool Was_Firing=false;
 public void Main(string argument, UpdateType updateSource)
 {
 	try{
@@ -2770,6 +2771,12 @@ public void Main(string argument, UpdateType updateSource)
 		bool cannon_is_ready=(!Destroy_Ships)||Is_Cannon_Ready;
 		if(Status==GameStatus.InProgress){
 			if(ships_are_ready&&cannon_is_ready){
+				if(Was_Firing){
+					if(Player_Turn==1)
+						CallHit(Player1,Player2,Room1Sound,Room2Sound);
+					else 
+						CallHit(Player2,Player1,Room2Sound,Room1Sound);
+				}
 				if(Player_Turn<0||Player_Turn>2)
 					Player_Turn=1;
 				if(Turn_Timer>=30){
@@ -2972,6 +2979,7 @@ public void Main(string argument, UpdateType updateSource)
 				}
 			}
 		}
+		Was_Firing=!cannon_is_ready;
 		if(Status==GameStatus.Paused){
 			HubText="Game is Paused\n";
 			Player1Text="Game is Paused\n";
