@@ -440,7 +440,7 @@ double Time_To_Hit{
 }
 double Time_To_Position{
 	get{
-		return (Target_Position-Aim_Position).Length()/Target.Velocity.Length();
+		return 0;
 	}
 }
 
@@ -579,9 +579,7 @@ public Program(){
 					TaskQueue.Enqueue((CannonTask)output);
 			}
 			else if(arg.IndexOf("Target:")==0){
-				EntityInfo output;
-				if(EntityInfo.TryParse(arg.Substring("Target:".Length),out output))
-					Targets.UpdateEntry(output);
+				Vector3D.TryParse(arg.Substring("Target:".Length),out Target_Position);
 			}
 			else if(arg.IndexOf("FireStatus:")==0){
 				string word=arg.Substring("Status:".Length);
@@ -652,12 +650,8 @@ void NextTask(){
 			Fire_Count--;
 			remove=false;
 		}
-		else if(Targets.Count>0){
-			Targets.RemoveAt(0);
-			if(Targets.Count>0){
-				Fire_Count=3;
-				remove=false;
-			}
+		else {
+			Target_Position=new Vector3D(0,0,0);
 		}
 	}
 	if(remove){
@@ -785,7 +779,7 @@ void SetAimed(double time=AIM_TIME){
 
 void ArgumentProcessor(string argument){
 	if(argument.ToLower().Equals("dumbfire")){
-		Targets.UpdateEntry(new EntityInfo(Forward_Vector*Math.Min(FIRING_DISTANCE,1000)+Controller.GetPosition(),new Vector3D(0,0,0)));
+		Target_Position=Forward_Vector*Math.Min(FIRING_DISTANCE,1000)+Controller.GetPosition();
 		AddTask(CannonTask.Fire);
 		SetAimed();
 	}
@@ -808,11 +802,7 @@ void ArgumentProcessor(string argument){
 			else
 				set=true;
 			if(set){
-				Vector3D Velocity=new Vector3D(0,0,0);
-				if(words.Length>1){
-					Vector3D.TryParse(words[1],out Velocity);
-				}
-				Targets.UpdateEntry(new EntityInfo(Position,Velocity));
+				Target_Position=Position;
 				AddTask(CannonTask.Fire);
 				SetAimed();
 			}
@@ -821,28 +811,6 @@ void ArgumentProcessor(string argument){
 	else if(argument.ToLower().Equals("reset")){
 		TaskQueue.Clear();
 		AddTask(CannonTask.Reset);
-	}
-	else{
-		if(AutoFire){
-			try{
-				bool was_empty=(Targets.Count==0);
-				EntityInfo Entity;
-				if(EntityInfo.TryParse(argument,out Entity)){
-					double distance=(Controller.GetPosition()-Entity.Position).Length();
-					if(Entity.Type==MyDetectedEntityType.LargeGrid&&Entity.Relationship==MyRelationsBetweenPlayerAndBlock.Enemies&&distance<AUTOSCAN_DISTANCE&&distance>100){
-						Targets.UpdateEntry(Entity);
-						if(was_empty)
-							AddTask(CannonTask.Fire);
-						if(Target.ID==Entity.ID){
-							SetAimed(Aim_Timer);
-						}
-					}
-				}
-			}
-			catch(Exception){
-				;
-			}
-		}
 	}
 }
 
@@ -920,7 +888,7 @@ public void Reset(){
 	}
 	if(!moving)
 		NextTask();
-	Targets.Clear();
+	Target_Position=new Vector3D(0,0,0);
 }
 
 List<double> ShellCountdowns=new List<double>();
@@ -963,7 +931,7 @@ public void Fire(){
 	if(Time_To_Position<Time_To_Hit)
 		SetAimed(AIM_TIME/2);
 	bool can_aim=CanAim(Aim_Direction);
-	if(Aim_Distance>FIRING_DISTANCE||Target.ID==0||!can_aim){
+	if(Aim_Distance>FIRING_DISTANCE||!can_aim){
 		Write("Aim_Distance:"+Math.Round(Aim_Distance/1000,2).ToString()+"kM");
 		Write("can_aim:"+can_aim.ToString());
 		NextTask();
@@ -1090,7 +1058,7 @@ public void Main(string argument, UpdateType updateSource)
 	Print();
 	switch(CurrentTask){
 		case CannonTask.None:
-			if(Targets.Count>0)
+			if(Target_Position.Length()>0)
 				AddTask(CannonTask.Fire);
 			else{
 				Write("No current Task");
@@ -1154,14 +1122,9 @@ public void Main(string argument, UpdateType updateSource)
 		Write("Fire_Count:"+Fire_Count.ToString());
 	Write("PrintStatus:"+CurrentPrintStatus.ToString());
 	Write("FireStatus:"+CurrentFireStatus.ToString());
-	if(Targets.Count>0){
+	if(Target_Position.Length()>0){
 		Write("Distance:"+Math.Round(Aim_Distance/1000,1)+"kM");
 		Write("Precision:"+Math.Round(GetAngle(Forward_Vector,Aim_Direction),3)+"°/"+Math.Round(Precision,3).ToString()+"°");
-		Write(Targets.Count.ToString()+" Targets");
-		for(int i=0;i<Targets.Count;i++){
-			double distance=(Targets[i].Position-Controller.GetPosition()).Length();
-			Write("  Target "+(i+1).ToString()+":"+Targets[i].ID.ToString()+':'+Math.Round(distance/1000,2)+"kM");
-		}
 	}
 	foreach(double countdown in ShellCountdowns){
 		Write("Time to Explosion:"+Math.Round(countdown,1)+" seconds");
