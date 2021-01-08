@@ -771,6 +771,7 @@ void Wait(){
 	Write("Waiting...");
 	List<IMyBroadcastListener> listeners=new List<IMyBroadcastListener>();
 	IGC.GetBroadcastListeners(listeners);
+	Aligned=false;
 	foreach(IMyBroadcastListener Listener in listeners){
 		if(Listener.Tag.Equals(MyListenerString+"-"+ID.ToString())){
 			while(Listener.HasPendingMessage){
@@ -843,14 +844,19 @@ void RunGyroscope(bool F=true,bool U=true){
 }
 
 double AutoPilotTimer=5;
+bool Aligned=false;
 void Travel(){
 	Write("Traveling...");
 	Antenna_R.Enabled=false;
 	CurrentStatus=ShipStatus.InPosition;
-	bool distance_check=(Target_Position-Controller.GetPosition()).Length()>2.5;
-	Controller.SetDockingMode((Target_Position-Controller.GetPosition()).Length()<5);
-	if((Target_Position-Controller.GetPosition()).Length()>1){
-		Write("Phase 1 - "+Math.Round((Target_Position-Controller.GetPosition()).Length(),1).ToString()+"m");
+	double distance=(Target_Position-Controller.GetPosition()).Length();
+	bool distance_check=distance>2.5;
+	Controller.SetDockingMode(distance<5);
+	int phase_num=0;
+	if(Aligned)
+		phase_num+=2;
+	if(distance>1){
+		Write("Phase "+(phase_num+1).ToString()+" - "+Math.Round(distance,1).ToString()+"m");
 		MyWaypointInfo Destination=new MyWaypointInfo("Target Position",Target_Position);
 		if((Target_Position-Target_Laser).Length()>(Controller.GetPosition()-Target_Laser).Length())
 			Controller.Direction=Base6Directions.Direction.Down;
@@ -864,13 +870,18 @@ void Travel(){
 			Controller.ClearWaypoints();
 			Controller.AddWaypoint(Destination);
 			Controller.SetCollisionAvoidance(true);
-			Controller.SpeedLimit=100;
+			Controller.SpeedLimit=50;
 			Controller.SetAutoPilotEnabled(true);
 			AutoPilotTimer=0;
 		}
 	}
-	if((Target_Position-Controller.GetPosition()).Length()<100&&GetAngle(Forward_Vector,Target_Forward)>1||GetAngle(Up_Vector,Target_Up)>1){
-		Write("Phase 2 - "+Math.Max(GetAngle(Forward_Vector,Target_Forward),GetAngle(Up_Vector,Target_Up)).ToString()+"°");
+	bool do_align=GetAngle(Forward_Vector,Target_Forward)>1||GetAngle(Up_Vector,Target_Up)>1;
+	Aligned=(Aligned||!do_align);
+	do_align=do_align&&(distance<100||((!Aligned)&&(Controller.CurrentWaypoint.Coords-Target_Position).Length()<1));
+	if(do_align&&!Aligned)
+		Controller.SetAutoPilotEnabled(false);
+	if(do_align){
+		Write("Phase "+(phase_num+2).ToString()+" - "+Math.Max(GetAngle(Forward_Vector,Target_Forward),GetAngle(Up_Vector,Target_Up)).ToString()+"°");
 		RunGyroscope();
 	}
 	else if(!distance_check)
