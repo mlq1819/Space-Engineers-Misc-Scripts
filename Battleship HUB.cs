@@ -1350,6 +1350,9 @@ public Program(){
 			case "Initiated_Firing":
 				bool.TryParse(data,out Initiated_Firing);
 				break;
+			case "SetUp_Timer":
+				double.TryParse(data,out SetUp_Timer);
+				break;
 		}
 	}
 	Room1Doors=GenericMethods<IMyDoor>.GetAllContaining("Room 1 Door");
@@ -1455,6 +1458,7 @@ public void Save(){
 				this.Storage+=Player2Ships[i].ToString();
 		}
 		this.Storage+="•Initiated_Firing:"+Initiated_Firing.ToString();
+		this.Storage+="•SetUp_Timer:"+SetUp_Timer.ToString();
 	}
 }
 
@@ -2387,11 +2391,16 @@ public void Main(string argument, UpdateType updateSource)
 								}
 							}
 							else if(args.Length==3&&args[0].Equals("Target")){
+								Write("Received Targeting Information for "+ShipList[i].Tag);
 								int id;
 								Vector3D target;
 								if(Int32.TryParse(args[1],out id)&&id==ShipList[i].ID){
-									if(Vector3D.TryParse(args[2],out target)){
-										Decoy_Target=target;
+									RealShip Target_Ship=GetTargetedShip();
+									if(Target_Ship.Type==ShipList[i].Type&&Target_Ship.ID==ShipList[i].ID&&Target_Ship.Player_Num==ShipList[i].Player_Num){
+										if(Vector3D.TryParse(args[2],out target)){
+											Decoy_Target=target;
+											Write("Setup Decoy_Target");
+										}
 									}
 								}
 							}
@@ -2418,6 +2427,8 @@ public void Main(string argument, UpdateType updateSource)
 			CallReturn();
 		
 		Echo("Status: "+Status.ToString());
+		if(Decoy_Target.Length()>0)
+			Echo("Decoy Target:"+Decoy_Target.ToString());
 		if(Player1!=null){
 			Echo("Player 1:");
 			Echo("  CanMove:"+Player1.CanMove.ToString());
@@ -2964,17 +2975,26 @@ public void Main(string argument, UpdateType updateSource)
 				Player1Text=HubText;
 				Player2Text=HubText;
 				RealShip Targeted_Ship=GetTargetedShip();
+				if(Targeted_Ship!=null)
+					Write("Targeting "+Targeted_Ship.Tag);
 				if(Initiated_Firing){
+					Write("Firing...");
 					Vector3D Target_Coords=GetTargetedCoordinates();
 					if(Targeted_Ship!=null&&Target_Coords.Length()>0){
 						if(Decoy_Target.Length()==0){
+							Write("Requesting Targeting Information...");
 							IGC.SendBroadcastMessage(Targeted_Ship.Tag_Full,"Request•"+Target_Coords.ToString(),TransmissionDistance.TransmissionDistanceMax);
 						}
-						else if(Cannon_FireStatus==FireStatus.Idle&&Cannon_PrintStatus==PrintStatus.Ready&&!Vigilance.IsRunning)
+						else if(Cannon_FireStatus==FireStatus.Idle&&Cannon_PrintStatus==PrintStatus.Ready&&!Vigilance.IsRunning){
+							Write("Firing, now!");
 							Initiated_Firing=!Vigilance.TryRun("Fire:"+Decoy_Target.ToString());
+						}
 					}
+					else
+						Write("Cannot find Target Ship/Coords");
 				}
 				if((!Initiated_Firing)&&Targeted_Ship!=null&&Decoy_Target.Length()>0){
+					Write("Fired!");
 					IGC.SendBroadcastMessage(Targeted_Ship.Tag_Full,"Fire•"+Decoy_Target.ToString()+"•"+Cannon_Seconds.ToString(),TransmissionDistance.TransmissionDistanceMax);
 				}
 			}

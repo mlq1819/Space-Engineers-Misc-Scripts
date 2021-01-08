@@ -911,7 +911,7 @@ void InPosition(){
 					if(Vector3D.TryParse(args[1],out near)){
 						IMyDecoy Decoy=GetNearest(near);
 						if(Decoy!=null)
-							IGC.SendBroadcastMessage(MyListenerString,"Target•"+ID.ToString()+","+Decoy.GetPosition().ToString(),TransmissionDistance.TransmissionDistanceMax);
+							IGC.SendBroadcastMessage(MyListenerString,"Target•"+ID.ToString()+"•"+Decoy.GetPosition().ToString(),TransmissionDistance.TransmissionDistanceMax);
 					}
 				}
 				else if(args.Length==3&&args[0].Equals("Fire")){
