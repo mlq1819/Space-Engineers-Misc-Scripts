@@ -1079,6 +1079,61 @@ List<IMyDoor> Room1Doors;
 List<IMyDoor> Room2Doors;
 
 IMyProgrammableBlock Vigilance;
+enum FireStatus{
+	Idle=0,
+	Printing=1,
+	Aiming=2,
+	WaitingClear=3,
+	WaitingTarget=4,
+	Firing=5
+}
+enum PrintStatus{
+	StartingPrint=0,
+	Printing=1,
+	WaitingResources=2,
+	EndingPrint=3,
+	Ready=4
+}
+FireStatus Cannon_FireStatus{
+	get{
+		if(Vigilance==null)
+			return -1;
+		string[] args=Vigilance.CustomData.Split('\n');
+		foreach(string arg in args){
+			int index=arg.IndexOf(':');
+			if(index>0){
+				string type=arg.Substring(0,index);
+				string data=arg.Substring(index+1);
+				if(type.Equals("FireStatus")){
+					FireStatus status;
+					if(FireStatus.TryParse(data,out status))
+						return status;
+				}
+			}
+		}
+		return FireStatus.Idle;
+	}
+}
+PrintStatus Cannon_PrintStatus{
+	get{
+		if(Vigilance==null)
+			return -1;
+		string[] args=Vigilance.CustomData.Split('\n');
+		foreach(string arg in args){
+			int index=arg.IndexOf(':');
+			if(index>0){
+				string type=arg.Substring(0,index);
+				string data=arg.Substring(index+1);
+				if(type.Equals("PrintStatus")){
+					PrintStatus status;
+					if(PrintStatus.TryParse(data,out status))
+						return status;
+				}
+			}
+		}
+		return PrintStatus.StartingPrint;
+	}
+}
 double Cannon_Seconds{
 	get{
 		if(Vigilance==null)
@@ -1089,7 +1144,7 @@ double Cannon_Seconds{
 			if(index>0){
 				string type=arg.Substring(0,index);
 				string data=arg.Substring(index+1);
-				if(type.Equals("Countdown"))
+				if(type.Equals("Countdown")){
 					double seconds;
 					if(double.TryParse(data,out seconds))
 						return seconds;
@@ -1102,6 +1157,8 @@ double Cannon_Seconds{
 bool Is_Cannon_Ready{
 	get{
 		if(Vigilance==null)
+			return false;
+		if(Initiated_Firing)
 			return false;
 		string[] args=Vigilance.CustomData.Split('\n');
 		foreach(string arg in args){
@@ -1290,6 +1347,9 @@ public Program(){
 					}
 				}
 				break;
+			case "Initiated_Firing":
+				bool.TryParse(data,out Initiated_Firing);
+				break;
 		}
 	}
 	Room1Doors=GenericMethods<IMyDoor>.GetAllContaining("Room 1 Door");
@@ -1394,6 +1454,7 @@ public void Save(){
 			else
 				this.Storage+=Player2Ships[i].ToString();
 		}
+		this.Storage+="•Initiated_Firing:"+Initiated_Firing.ToString();
 	}
 }
 
@@ -1693,6 +1754,38 @@ void CallReturn(){
 	}
 	if(Release_Timer<30)
 		Release_Timer+=seconds_since_last_update;
+}
+
+void CallHit(Player Attacker,Player Defender,Sound At_Sound,Sound Def_Sound){
+	int x=(int)Attacker.Selection.X;
+	int y=(int)Attacker.Selection.Y;
+	if(!Attacker.EnemyBoard.Grid[y][x].Hit){
+		Defender.OwnBoard.Grid[y][x].Hit=true;
+		Attacker.EnemyBoard.Grid[y][x]=Defender.OwnBoard.Grid[y][x];
+		Player_Turn=(Player_Turn%2)+1;
+		Player_Timer=Turn_Timer;
+		AI_Selection=new Vector2(-1,-1);
+		Attacker.CanMove=false;
+		At_Sound.Sounds.Clear();
+		Def_Sound.Sounds.Clear();
+		At_Sound.Sounds.Enqueue("CompletedId");
+		Def_Sound.Sounds.Enqueue("CompletedId");
+		if(Defender.OwnBoard.Grid[y][x].Ship!=MyShip.None){
+			MyShip Ship=Defender.OwnBoard.Grid[y][x].Ship;
+			int size=Prog.ShipSize(Ship);
+			if(Player1.EnemyBoard.RemainingHits(Ship)==0){
+				At_Sound.Sounds.Enqueue("ShutdownId");
+				Def_Sound.Sounds.Enqueue("ShutdownId");
+			}
+			else{
+				if(size>3)
+					At_Sound.Sounds.Enqueue("Large Ship DetectedId");
+				else if(size>0)
+					At_Sound.Sounds.Enqueue("Small ship detectedId");
+				Def_Sound.Sounds.Enqueue("Damage detectedId");
+			}
+		}
+	}
 }
 
 double DisplayIdleTimer=0;
@@ -2104,62 +2197,14 @@ void Argument_Processor(string argument){
 						}
 						if(Status==GameStatus.InProgress){
 							if(player_num==Player_Turn){
-								if(player_num==1){
-									int x=(int)Player1.Selection.X;
-									int y=(int)Player1.Selection.Y;
-									if(!Player1.EnemyBoard.Grid[y][x].Hit){
-										Player2.OwnBoard.Grid[y][x].Hit=true;
-										Player1.EnemyBoard.Grid[y][x]=Player2.OwnBoard.Grid[y][x];
-										Player_Turn=2;
-										Player_Timer=Turn_Timer;
-										AI_Selection=new Vector2(-1,-1);
-										Player1.CanMove=false;
-										Room1Sound.Sounds.Enqueue("CompletedId");
-										Room2Sound.Sounds.Enqueue("CompletedId");
-										if(Player2.OwnBoard.Grid[y][x].Ship!=MyShip.None){
-											MyShip Ship=Player2.OwnBoard.Grid[y][x].Ship;
-											int size=Prog.ShipSize(Ship);
-											if(Player1.EnemyBoard.RemainingHits(Ship)==0){
-												Room1Sound.Sounds.Enqueue("ShutdownId");
-												Room2Sound.Sounds.Enqueue("ShutdownId");
-											}
-											else{
-												if(size>3)
-													Room1Sound.Sounds.Enqueue("Large Ship DetectedId");
-												else if(size>0)
-													Room1Sound.Sounds.Enqueue("Small ship detectedId");
-												Room2Sound.Sounds.Enqueue("Damage detectedId");
-											}
-										}
+								if(Destroy_Ships)
+									Initiated_Firing=true;
+								else{
+									if(player_num==1){
+										CallHit(Player1,Player2,Room1Sound,Room2Sound);
 									}
-								}
-								else if(player_num==2){
-									int x=(int)Player2.Selection.X;
-									int y=(int)Player2.Selection.Y;
-									if(!Player2.EnemyBoard.Grid[y][x].Hit){
-										Player1.OwnBoard.Grid[y][x].Hit=true;
-										Player2.EnemyBoard.Grid[y][x]=Player1.OwnBoard.Grid[y][x];
-										Player_Turn=1;
-										Player_Timer=Turn_Timer;
-										AI_Selection=new Vector2(-1,-1);
-										Player2.CanMove=false;
-										Room2Sound.Sounds.Enqueue("CompletedId");
-										Room1Sound.Sounds.Enqueue("CompletedId");
-										if(Player1.OwnBoard.Grid[y][x].Ship!=MyShip.None){
-											MyShip Ship=Player1.OwnBoard.Grid[y][x].Ship;
-											int size=Prog.ShipSize(Ship);
-											if(Player2.EnemyBoard.RemainingHits(Ship)==0){
-												Room1Sound.Sounds.Enqueue("ShutdownId");
-												Room2Sound.Sounds.Enqueue("ShutdownId");
-											}
-											else{
-												if(size>3)
-													Room2Sound.Sounds.Enqueue("Large Ship DetectedId");
-												else if(size>0)
-													Room2Sound.Sounds.Enqueue("Small ship detectedId");
-												Room1Sound.Sounds.Enqueue("Damage detectedId");
-											}
-										}
+									else if(player_num==2){
+										CallHit(Player2,Player1,Room2Sound,Room1Sound);
 									}
 								}
 							}
@@ -2228,6 +2273,48 @@ void Argument_Processor(string argument){
 	
 }
 
+Vector3D GetTargetedCoordinates(){
+	Player Attacker,Defender;
+	if(Player_Number==1){
+		Attacker=Player1;
+		Defender=Player2;
+	}
+	else if(Player_Number==2){
+		Attacker=Player2;
+		Defender=Player1;
+	}
+	else
+		return new Vector3D(0,0,0);
+	return TransformCoordinates(Attacker.Selection,(Player_Number%2)+1);
+}
+
+RealShip GetTargetedShip(){
+	Player Attacker,Defender;
+	List<RealShip> ShipList;
+	
+	if(Player_Number==1){
+		Attacker=Player1;
+		Defender=Player2;
+		ShipList=Player2Ships;
+	}
+	else if(Player_Number==2){
+		Attacker=Player2;
+		Defender=Player1;
+		ShipList=Player1Ships;
+	}
+	else
+		return null;
+	int x,y;
+	int x=(int)Attacker.Selection.X;
+	int y=(int)Attacker.Selection.Y;
+	MyShip Type=Defender.OwnBoard.Grid[y][x].Ship;
+	foreach(RealShip Ship in ShipList){
+		if(Ship.Type==Type)
+			return Ship;
+	}
+	return null;
+}
+
 int Last_Winner=-1;
 Vector2 AI_Selection=new Vector2(-1,-1);
 double AI_Timer=0;
@@ -2236,6 +2323,7 @@ int Release_Number=4;
 double Ready_Timer=0;
 double SetUp_Timer=0;
 bool Initiated_Firing=false;
+Vector3D Decoy_Target=new Vector3D(0,0,0);
 public void Main(string argument, UpdateType updateSource)
 {
 	try{
@@ -2249,6 +2337,7 @@ public void Main(string argument, UpdateType updateSource)
 		string HubText="";
 		string Player1Text="";
 		string Player2Text="";
+		Decoy_Target=new Vector3D(0,0,0);
 		List<IMyBroadcastListener> listeners=new List<IMyBroadcastListener>();
 		IGC.GetBroadcastListeners(listeners);
 		for(int j=1;j<=2;j++){
@@ -2295,6 +2384,15 @@ public void Main(string argument, UpdateType updateSource)
 											ShipList[i].Status=status;
 											ShipList[i].Timer=0;
 										}
+									}
+								}
+							}
+							else if(args.Length==3&&args[0].Equals("Target")){
+								int id;
+								Vector3D target;
+								if(Int32.TryParse(args[1],out id)&&id==ShipList[i].ID){
+									if(Vector3D.TryParse(args[2],out target)){
+										Decoy_Target=target;
 									}
 								}
 							}
@@ -2857,6 +2955,20 @@ public void Main(string argument, UpdateType updateSource)
 				HubText="Firing: "+Math.Round(Cannon_Seconds,1).ToString()+"s\nto possible impact";
 				Player1Text=HubText;
 				Player2Text=HubText;
+				RealShip Targeted_Ship=GetTargetedShip();
+				if(Initiated_Firing){
+					Vector3D Target_Coords=GetTargetedCoordinates();
+					if(Targeted_Ship!=null&&Target_Coords.Length()>0){
+						if(Decoy_Target.Length()==0){
+							IGC.SendBroadcastMessage(Targeted_Ship.Tag_Full,"Request•"+Target_Coords.ToString(),TransmissionDistance.TransmissionDistanceMax);
+						}
+						else if(Cannon_FireStatus==FireStatus.Ready&&Cannon_PrintStatus==PrintStatus.Ready&&!Vigilance.IsRunning)
+							Initiated_Firing=!Vigilance.TryRun("Fire:"+Decoy_Target.ToString());
+					}
+				}
+				if((!Initiated_Firing)&&Targeted_Ship!=null&&Decoy_Target.Length()>0){
+					IGC.SendBroadcastMessage(Targeted_Ship.Tag_Full,"Fire•"+Decoy_Target.ToString()+"•"+Cannon_Seconds.ToString(),TransmissionDistance.TransmissionDistanceMax);
+				}
 			}
 		}
 		if(Status==GameStatus.Paused){
