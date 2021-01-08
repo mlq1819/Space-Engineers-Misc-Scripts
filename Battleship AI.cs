@@ -791,6 +791,8 @@ void Wait(){
 				}
 				else if(args.Length==1&&args[0].Equals("Unlink"))
 					Target_Laser=new Vector3D(0,0,0);
+				else if(args.Length==1&&args[0].Equals("Detonate"))
+					Detonate();
 			}
 		}
 	}
