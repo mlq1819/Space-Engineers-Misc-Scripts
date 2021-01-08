@@ -2922,6 +2922,7 @@ public void Main(string argument, UpdateType updateSource)
 				int traveling=0;
 				int receiving=0;
 				int waiting=0;
+				int disconnected=0;
 				int other=0;
 				if(Release_Timer>=30&&Release_Number>0){
 					Release_Number--;
@@ -2934,7 +2935,7 @@ public void Main(string argument, UpdateType updateSource)
 					else
 						ShipList=Player2Ships;
 					for(int j=1;j<=5;j++){
-						if(ShipList[j-1].Status==ShipStatus.InPosition)
+						if(ShipList[j-1].Status==ShipStatus.InPosition&&ShipList[j-1].Timer<60)
 							ready++;
 						else if(ShipList[j-1].Status==ShipStatus.Traveling)
 							traveling++;
@@ -2942,6 +2943,8 @@ public void Main(string argument, UpdateType updateSource)
 							receiving++;
 						else if(ShipList[j-1].Status==ShipStatus.Waiting)
 							waiting++;
+						else if(ShipList[j-1].Timer>60)
+							disconnected++;
 						else
 							other++;
 						if(Release_Number<=(j-1)&&(int)ShipList[j-1].Status<(int)ShipStatus.Traveling){
@@ -2963,6 +2966,8 @@ public void Main(string argument, UpdateType updateSource)
 					Ready_Timer=0;
 				if(ready>0)
 					HubText+="\n  "+ready.ToString()+"/10 Ready";
+				if(disconnected>0)
+					HubText+="\n  "+disconnected.ToString()+" Disconnected";
 				if(traveling>0)
 					HubText+="\n  "+traveling.ToString()+" Traveling";
 				if(receiving>0)

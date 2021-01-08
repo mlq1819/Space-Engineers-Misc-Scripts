@@ -1126,12 +1126,16 @@ public void Main(string argument, UpdateType updateSource)
 		Detonate();
 	if(Status==ShipStatus.Returning)
 		Return();
-	if(Antenna_Timer<7.5)
+	if(Antenna_Timer<10)
 		Antenna_Timer+=seconds_since_last_update;
 	
-	if(Antenna_Timer>=7.5&&Antenna_L.Status!=MyLaserAntennaStatus.Connected&&Target_Laser.Length()!=0&&(Target_Laser-Controller.GetPosition()).Length()<5000){
+	if(Antenna_Timer>=10&&Antenna_L.Status!=MyLaserAntennaStatus.Connected&&Target_Laser.Length()!=0&&(Target_Laser-Controller.GetPosition()).Length()<5000){
 		if((Antenna_L.TargetCoords-Target_Laser).Length()>.5){
 			Antenna_L.SetTargetCoords((new MyWaypointInfo("Target!!!",Target_Laser)).ToString());
+			Antenna_L.Connect();
+			Antenna_Timer=0;
+		}
+		else if(Antenna_L.Status==MyLaserAntennaStatus.Idle){
 			Antenna_L.Connect();
 			Antenna_Timer=0;
 		}
