@@ -713,8 +713,8 @@ void UpdatePositionalInfo(){
 double Print_Timer=0.0;
 void Print(){
 	double rotor_angle=ShellRotor.Angle/Math.PI*180;
-	bool is_forward=Math.Abs(((rotor_angle+365)%360)-5)<1;
-	bool is_backward=Math.Abs(rotor_angle-180)<1;
+	bool is_forward=Math.Abs(rotor_angle-180)<1;
+	bool is_backward=Math.Abs((rotor_angle+360)%360)<1;
 	bool is_printed=Projector.RemainingBlocks==0;
 	ShellRotor.RotorLock=false;
 	if(is_printed){
