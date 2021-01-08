@@ -1078,6 +1078,59 @@ bool ReadyShips(ShipStatus is_at=ShipStatus.Waiting){
 List<IMyDoor> Room1Doors;
 List<IMyDoor> Room2Doors;
 
+IMyProgrammableBlock Vigilance;
+double Cannon_Seconds{
+	get{
+		if(Vigilance==null)
+			return -1;
+		string[] args=Vigilance.CustomData.Split('\n');
+		foreach(string arg in args){
+			int index=arg.IndexOf(':');
+			if(index>0){
+				string type=arg.Substring(0,index);
+				string data=arg.Substring(index+1);
+				if(type.Equals("Countdown"))
+					double seconds;
+					if(double.TryParse(data,out seconds))
+						return seconds;
+				}
+			}
+		}
+		return -1;
+	}
+}
+bool Is_Cannon_Ready{
+	get{
+		if(Vigilance==null)
+			return false;
+		string[] args=Vigilance.CustomData.Split('\n');
+		foreach(string arg in args){
+			int index=arg.IndexOf(':');
+			if(index>0){
+				string type=arg.Substring(0,index);
+				string data=arg.Substring(index+1);
+				switch(type){
+					case "FireStatus":
+						if(!data.Equals("Idle"))
+							return false;
+						break;
+					case "PrintStatus":
+						is(!data.Equals("Ready"))
+							return false;
+						break;
+					case "Countdown":
+						double seconds;
+						if(double.TryParse(data,out seconds)&&seconds>0)
+							return false;
+						break;
+				}
+			}
+		}
+		return true;
+	}
+}
+
+
 int Player_Turn=-1;
 double Player_Timer=0;
 
@@ -1297,7 +1350,7 @@ public Program(){
 	base_vector=new Vector3D(-1,0,0);
 	Left_Vector=LocalToGlobal(base_vector,Controller);
 	Left_Vector.Normalize();
-	
+	Vigilance=GenericMethods<IMyProgrammableBlock>.GetFull("Battleship Vigilance AI Programmable block");
 	
 	Write("Completed Initialization");
 	Runtime.UpdateFrequency=UpdateFrequency.Update10;//60tps
@@ -1752,6 +1805,7 @@ void Argument_Processor(string argument){
 					break;
 				case 6:
 					Destroy_Ships=true;
+					
 					break;
 				case 7:
 					See_Opponent_Choice=true;
@@ -2181,6 +2235,7 @@ double Release_Timer=0;
 int Release_Number=4;
 double Ready_Timer=0;
 double SetUp_Timer=0;
+bool Initiated_Firing=false;
 public void Main(string argument, UpdateType updateSource)
 {
 	try{
@@ -2339,7 +2394,7 @@ public void Main(string argument, UpdateType updateSource)
 				s="> ";
 			else
 				s="";
-			if(Use_Real_Ships&&!ReadyShips())
+			if(Use_Real_Ships&&(!ReadyShips()||(Destroy_Ships&&!Is_Cannon_Ready)))
 				Status=GameStatus.Waiting;
 			else
 				Status=GameStatus.Ready;
@@ -2617,9 +2672,10 @@ public void Main(string argument, UpdateType updateSource)
 		List<ShipStatus> ValidStatuses=new List<ShipStatus>();
 		ValidStatuses.Add(ShipStatus.InPosition);
 		ValidStatuses.Add(ShipStatus.Detonating);
-		bool game_is_ready=(!Use_Real_Ships)||(ReadyShips(ValidStatuses)&&Ready_Timer>=5);
+		bool ships_are_ready=(!Use_Real_Ships)||(ReadyShips(ValidStatuses)&&Ready_Timer>=5);
+		bool cannon_is_ready=(!Destroy_Ships)||Is_Cannon_Ready;
 		if(Status==GameStatus.InProgress){
-			if(game_is_ready){
+			if(ships_are_ready&&cannon_is_ready){
 				if(Player_Turn<0||Player_Turn>2)
 					Player_Turn=1;
 				if(Turn_Timer>=30){
@@ -2732,8 +2788,7 @@ public void Main(string argument, UpdateType updateSource)
 					CallReturn();
 				}
 			}
-			else{
-				Write("Waiting for Ships");
+			else if(!ships_are_ready){
 				HubText="Waiting for Ships:";
 				Player1Text="Waiting for Ships:";
 				Player2Text="Waiting for Ships:";
@@ -2803,6 +2858,11 @@ public void Main(string argument, UpdateType updateSource)
 				Player1Text=HubText;
 				Player2Text=HubText;
 			}
+			else if(!cannon_is_ready){
+				HubText="Firing: "+Math.Round(Cannon_Seconds,1).ToString()+"s\nto possible impact";
+				Player1Text=HubText;
+				Player2Text=HubText;
+			}
 		}
 		if(Status==GameStatus.Paused){
 			HubText="Game is Paused\n";
@@ -2847,12 +2907,20 @@ public void Main(string argument, UpdateType updateSource)
 			Panel.WriteText(Player2Text,false);
 		foreach(IMyTextPanel Panel in HubStatusPanels){
 			Panel.WriteText(HubText,false);
-			if(Player_Turn==1&&game_is_ready)
-				Panel.FontColor=new Color(255,137,137,255);
-			else if(Player_Turn==2&&game_is_ready)
-				Panel.FontColor=new Color(137,137,255,255);
-			else
-				Panel.FontColor=new Color(255,255,255,255);
+			if(ships_are_ready&&!cannon_is_ready){
+				if(Player_Turn==1)
+					Panel.FontColor=new Color(137,137,255,255);
+				else if(Player_Turn==2)
+					Panel.FontColor=new Color(255,137,137,255);
+			}
+			else{
+				if(Player_Turn==1&&ships_are_ready)
+					Panel.FontColor=new Color(255,137,137,255);
+				else if(Player_Turn==2&&game_is_ready)
+					Panel.FontColor=new Color(137,137,255,255);
+				else
+					Panel.FontColor=new Color(255,255,255,255);
+			}
 		}
 	}
 	catch (Exception e){
