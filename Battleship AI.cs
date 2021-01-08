@@ -852,7 +852,10 @@ void Travel(){
 	if((Target_Position-Controller.GetPosition()).Length()>1){
 		Write("Phase 1 - "+Math.Round((Target_Position-Controller.GetPosition()).Length(),1).ToString()+"m");
 		MyWaypointInfo Destination=new MyWaypointInfo("Target Position",Target_Position);
-		Controller.Direction=Base6Directions.Direction.Down;
+		if((Target_Position-Target_Laser).Length()>(Controller.GetPosition()-Target_Laser).Length())
+			Controller.Direction=Base6Directions.Direction.Down;
+		else
+			Controller.Direction=Base6Directions.Direction.Up;
 		if((Controller.GetPosition()-Target_Laser).Length()<500){
 			Destination.Coords=Controller.GetPosition()-1000*Target_Up;
 			Controller.Direction=Base6Directions.Direction.Backward;
@@ -1003,6 +1006,13 @@ void Detonate(){
 				Turret.Enabled=true;
 			}
 		}
+		foreach(IMyThrust Thrust in GenericMethods<IMyThrust>.GetAllIncluding(""))
+			Thrust.Enabled=false;
+		foreach(IMyGyro Gyro in GenericMethods<IMyGyro>.GetAllIncluding(""))
+			Gyro.Enabled=false;
+		IGC.SendBroadcastMessage(MyListenerString,"Status•"+ID.ToString()+"•"+ShipStatus.Detonating.ToString(),TransmissionDistance.TransmissionDistanceMax);
+		Antenna_R.Enabled=false;
+		Antenna_L.Enabled=false;
 	}
 	else if(Fire_Timer>0)
 		Write(Math.Round(Fire_Timer,1).ToString()+" seconds to Detonation");
