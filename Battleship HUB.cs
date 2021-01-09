@@ -2998,7 +2998,7 @@ public void Main(string argument, UpdateType updateSource)
 				if(Release_Number>0){
 					HubText+="\nSent "+(5-Release_Number).ToString()+"/5 Ships\n"+Math.Round(30-Release_Timer,1)+" seconds to next batch";
 				}
-				for(int i=5;i>Math.Max(1,Release_Number);i--)
+				for(int i=5;i>Math.Max(0,Release_Number);i--)
 					HubText+="\nReleased "+((MyShip)i).ToString()+"s";
 				if(Release_Timer<30)
 					Release_Timer+=seconds_since_last_update;
@@ -3008,7 +3008,7 @@ public void Main(string argument, UpdateType updateSource)
 			else if(!cannon_is_ready){
 				HubText="Player "+Player_Turn.ToString()+" ";
 				if(Cannon_FireStatus==FireStatus.Aiming)
-					HubText+="Aiming...";
+					HubText+="Aiming... ("+loading_char+")";
 				else
 					HubText+="Firing: "+Math.Round(Cannon_Seconds,1).ToString()+"s\nto possible impact";
 				Player1Text=HubText;
