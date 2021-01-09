@@ -1417,6 +1417,7 @@ void Detonate(){
 
 void Return(){
 	Write("Game has ended");
+	Called_Positions.Clear();
 	int missing=ShipSize(Type);
 	Antenna_R.Enabled=true;
 	foreach(IMyDecoy Decoy in Decoys){
