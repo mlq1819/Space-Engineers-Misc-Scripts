@@ -3010,7 +3010,7 @@ public void Main(string argument, UpdateType updateSource)
 				if(Cannon_FireStatus==FireStatus.Aiming)
 					HubText+="Aiming... ("+loading_char+")";
 				else
-					HubText+="Firing... ("+loading_char+")\n"+Math.Round(Cannon_Seconds,1).ToString()+"s to possible impact";
+					HubText+="Firing... ("+loading_char+")\n"+Math.Round(Cannon_Seconds,1).ToString()+"s to detonation";
 				Player1Text=HubText;
 				Player2Text=HubText;
 				RealShip Targeted_Ship=GetTargetedShip();
