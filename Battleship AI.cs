@@ -491,7 +491,7 @@ Vector3D DecoyPosition(int index){
 	return new Vector3D(0,0,0);
 }
 
-List<Vector3D> Called_Positions=new List<Vector3D>()l
+List<Vector3D> Called_Positions=new List<Vector3D>();
 
 double ShipMass{
 	get{
@@ -830,6 +830,14 @@ public Program(){
 				case "Fire_Timer":
 					double.TryParse(data,out Fire_Timer);
 					break;
+				case "Called_Positions":
+					string[] called_positions=data.Split(';');
+					foreach(string str in called_positions){
+						Vector3D try_vector;
+						if(Vector3D.TryParse(str,out try_vector))
+							Called_Positions.Add(try_vector);
+					}
+					break;
 			}
 		}
 	}
@@ -892,6 +900,12 @@ public void Save(){
 	for(int i=0;i<6;i++){
 		foreach(IMyThrust Thruster in All_Thrusters[i])
 			Thruster.ThrustOverridePercentage=0;
+	}
+	this.Storage+="•Called_Positions:";
+	for(int i=0;i<Called_Positions.Count;i++){
+		if(i>0)
+			this.Storage+=";";
+		this.Storage+=Called_Positions[i].ToString();
 	}
 }
 
@@ -1269,7 +1283,7 @@ void InPosition(){
 						}
 						else{
 							foreach(Vector3D called in Called_Positions){
-								if((near-called).Length()<10){
+								if((near-LocalToGlobalPosition(called,Controller)).Length()<10){
 									IGC.SendBroadcastMessage(MyListenerString,"Target•"+ID.ToString()+"•"+called.ToString(),TransmissionDistance.TransmissionDistanceMax);
 									break;
 								}
@@ -1285,13 +1299,13 @@ void InPosition(){
 					if(Vector3D.TryParse(args[1],out near)){
 						bool already_called=false;
 						foreach(Vector3D called in Called_Positions){
-							if((near-called).Length()<10){
+							if((near-LocalToGlobalPosition(called,Controller)).Length()<10){
 								already_called=true;
 								break;
 							}
 						}
 						if(!already_called){
-							Called_Positions.Add(near);
+							Called_Positions.Add(GlobalToLocalPosition(near,Controller));
 							IMyDecoy Decoy=GetNearest(near,5);
 							if(Decoy!=null)
 								Decoy.Enabled=false;
