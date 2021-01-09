@@ -3006,10 +3006,11 @@ public void Main(string argument, UpdateType updateSource)
 				Player2Text=HubText;
 			}
 			else if(!cannon_is_ready){
+				HubText="Player "+Player_Turn.ToString()+" ";
 				if(Cannon_FireStatus==FireStatus.Aiming)
-					HubText="Aiming...";
+					HubText+="Aiming...";
 				else
-					HubText="Firing: "+Math.Round(Cannon_Seconds,1).ToString()+"s\nto possible impact";
+					HubText+="Firing: "+Math.Round(Cannon_Seconds,1).ToString()+"s\nto possible impact";
 				Player1Text=HubText;
 				Player2Text=HubText;
 				RealShip Targeted_Ship=GetTargetedShip();
@@ -3055,7 +3056,7 @@ public void Main(string argument, UpdateType updateSource)
 						Play=Player1;
 					else
 						Play=Player2;
-					HubText+="\nPlayer "+i.ToString();
+					string output="\nPlayer "+i.ToString();
 					
 					int sum=0;
 					int count=0;
@@ -3063,32 +3064,37 @@ public void Main(string argument, UpdateType updateSource)
 						sum+=Play.OwnBoard.RemainingHits((MyShip)j);
 						count+=ShipSize((MyShip)j);
 					}
-					HubText+=": "+Math.Round((100.0f*sum)/count,1).ToString()+"%\n[";
+					output+=": "+Math.Round((100.0f*sum)/count,1).ToString()+"%\n[";
 					for(int j=1;j<=5;j++){
 						int Rem=Play.OwnBoard.RemainingHits((MyShip)j);
 						int Total=ShipSize((MyShip)j);
 						for(int k=0;k<Total;k++){
 							if(k<Rem)
-								HubText+="|";
+								output+="|";
 							else
-								HubText+=" ";
+								output+=" ";
 						}
 					}
-					HubText+="]";
+					output+="]";
 					for(int j=1;j<=5;j++){
 						int Rem=Play.OwnBoard.RemainingHits((MyShip)j);
 						int Total=ShipSize((MyShip)j);
 						if(Rem<Total&&Rem>0){
-							HubText+="\n"+((MyShip)j).ToString()+"  [";
+							output+="\n"+((MyShip)j).ToString()+"  [";
 							for(int k=0;k<Total;k++){
 								if(k<Rem)
-									HubText+="|";
+									output+="|";
 								else
-									HubText+=" ";
+									output+=" ";
 							}
-							HubText+="]";
+							output+="]";
 						}
 					}
+					HubText+=output;
+					if(i==1)
+						Player1Text+=output;
+					else
+						Player2Text+=output;
 				}
 			}
 		}
