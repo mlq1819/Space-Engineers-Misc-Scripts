@@ -947,6 +947,21 @@ class Sound{
 		Sounds=new Queue<string>();
 	}
 	
+	public int RemoveSound(string remove){
+		Queue<string> sounds=new Queue<string>();
+		int count=0;
+		while(Sounds.Count>0)
+			sounds.Enqueue(Sounds.Dequeue());
+		while(sounds.Count>0){
+			string sound=sounds.Dequeue();
+			if(!sound.Equals(remove))
+				Sounds.Enqueue(sound);
+			else
+				count++;
+		}
+		return count;
+	}
+	
 	public void Update(double seconds){
 		if(Timer<2){
 			Timer+=seconds;
@@ -2221,8 +2236,8 @@ void Argument_Processor(string argument){
 						}
 						if(Status==GameStatus.InProgress){
 							if(player_num==Player_Turn){
-								Room1Sound.Sounds.Clear();
-								Room2Sound.Sounds.Clear();
+								Room1Sound.RemoveSound("CompletedId");
+								Room2Sound.RemoveSound("CompletedId");
 								Room1Sound.Sounds.Enqueue("CompletedId");
 								Room2Sound.Sounds.Enqueue("CompletedId");
 								if(Destroy_Ships)
