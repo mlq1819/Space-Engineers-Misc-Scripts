@@ -1293,8 +1293,9 @@ void InPosition(){
 				}
 				else if(args.Length==3&&args[0].Equals("Fire")){
 					Vector3D near;
-					Fire_Timer=10;
+					Fire_Timer=20;
 					double.TryParse(args[2],out Fire_Timer);
+					Fire_Timer=Math.Max(Fire_Timer,15);
 					CurrentStatus=ShipStatus.Receiving;
 					if(Vector3D.TryParse(args[1],out near)){
 						bool already_called=false;
@@ -1343,6 +1344,24 @@ void Receiving(){
 			CurrentStatus=ShipStatus.InPosition;
 		else
 			CurrentStatus=ShipStatus.Detonating;
+	}
+	else {
+		List<IMyBroadcastListener> listeners=new List<IMyBroadcastListener>();
+		IGC.GetBroadcastListeners(listeners);
+		foreach(IMyBroadcastListener Listener in listeners){
+			if(Listener.Tag.Equals(MyListenerString+"-"+ID.ToString())){
+				while(Listener.HasPendingMessage){
+					MyIGCMessage message=Listener.AcceptMessage();
+					Write("Received Message:"+message.Data.ToString());
+					string[] args=message.Data.ToString().Split('•');
+					if(args.Length==3&&args[0].Equals("Fire")){
+						Fire_Timer=20;
+						double.TryParse(args[2],out Fire_Timer);
+						CurrentStatus=ShipStatus.Receiving;
+					}
+				}
+			}
+		}
 	}
 	Runtime.UpdateFrequency=UpdateFrequency.Update1;
 }
