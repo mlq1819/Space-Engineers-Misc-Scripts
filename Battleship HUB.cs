@@ -2945,7 +2945,8 @@ public void Main(string argument, UpdateType updateSource)
 					HubSound.Sounds.Enqueue("Objective CompleteId");
 					Release_Number=0;
 					Release_Timer=0;
-					CallReturn();
+					if(Use_Real_Ships)
+						CallReturn();
 				}
 				else if(Player2.OwnBoard.RemainingSpaces==0){
 					Last_Winner=1;
@@ -2959,7 +2960,8 @@ public void Main(string argument, UpdateType updateSource)
 					HubSound.Sounds.Enqueue("Objective CompleteId");
 					Release_Number=0;
 					Release_Timer=0;
-					CallReturn();
+					if(Use_Real_Ships)
+						CallReturn();
 				}
 			}
 			else if(!ships_are_ready){
