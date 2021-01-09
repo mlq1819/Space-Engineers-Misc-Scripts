@@ -3048,15 +3048,17 @@ public void Main(string argument, UpdateType updateSource)
 						IGC.SendBroadcastMessage(Targeted_Ship.Tag_Full,"Fire•"+Decoy_Target.ToString()+"•"+Cannon_Seconds.ToString(),TransmissionDistance.TransmissionDistanceMax);
 				}
 			}
-			for(int i=1;i<=2;i++){
-				Player Play;
-				if(i==1)
-					Play=Player1;
-				else
-					Play=Player2;
-				HubText+="Player "+i.ToString();
-				for(int j=1;j<=5;j++)
-					HubText+="\n  "+Play.OwnBoard.RemainingHits((MyShip)j).ToString()+"/"+ShipSize((MyShip)j);
+			if(ships_are_ready){
+				for(int i=1;i<=2;i++){
+					Player Play;
+					if(i==1)
+						Play=Player1;
+					else
+						Play=Player2;
+					HubText+="\nPlayer "+i.ToString();
+					for(int j=1;j<=5;j++)
+						HubText+="\n  "+Play.OwnBoard.RemainingHits((MyShip)j).ToString()+"/"+ShipSize((MyShip)j);
+				}
 			}
 		}
 		Was_Firing=!cannon_is_ready;
