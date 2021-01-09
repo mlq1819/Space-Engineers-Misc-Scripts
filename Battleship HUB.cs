@@ -2622,7 +2622,7 @@ public void Main(string argument, UpdateType updateSource)
 			}
 			else{
 				foreach(IMyDoor Door in Room1Doors){
-					Door.Enabled=Door.Status!=DoorStatus.Closed;
+					Door.Enabled=Door.Status!=DoorStatus.Closed||Player_Count==0;
 					Door.CloseDoor();
 				}
 				Player1Text="Waiting for Player 2...\n";
@@ -2639,7 +2639,7 @@ public void Main(string argument, UpdateType updateSource)
 			}
 			else{
 				foreach(IMyDoor Door in Room2Doors){
-					Door.Enabled=Door.Status!=DoorStatus.Closed;
+					Door.Enabled=Door.Status!=DoorStatus.Closed||Player_Count==0;
 					Door.CloseDoor();
 				}
 				Player2Text="Waiting for Player 1...\n";
@@ -2931,8 +2931,8 @@ public void Main(string argument, UpdateType updateSource)
 				HubText="Waiting for Ships:";
 				Player1Text="Waiting for Ships:";
 				Player2Text="Waiting for Ships:";
-				if(SetUp_Timer<210)
-					HubText+="\n~"+Math.Round(210-SetUp_Timer,0).ToString()+" seconds remaining";
+				if(SetUp_Timer<190)
+					HubText+="\n~"+Math.Round(190-SetUp_Timer,0).ToString()+" seconds remaining";
 				else
 					HubText+="\nAlmost ready...";
 				if(SetUp_Timer<300)
@@ -3006,7 +3006,10 @@ public void Main(string argument, UpdateType updateSource)
 				Player2Text=HubText;
 			}
 			else if(!cannon_is_ready){
-				HubText="Firing: "+Math.Round(Cannon_Seconds,1).ToString()+"s\nto possible impact";
+				if(Cannon_FireStatus==FireStatus.Aiming)
+					HubText="Aiming...";
+				else
+					HubText="Firing: "+Math.Round(Cannon_Seconds,1).ToString()+"s\nto possible impact";
 				Player1Text=HubText;
 				Player2Text=HubText;
 				RealShip Targeted_Ship=GetTargetedShip();
@@ -3030,6 +3033,9 @@ public void Main(string argument, UpdateType updateSource)
 						}
 						if(Decoy_Target.Length()>0&&Cannon_FireStatus==FireStatus.Idle&&Cannon_PrintStatus==PrintStatus.Ready&&!Vigilance.IsRunning){
 							Write("Firing, now!");
+							Room1Sound.Sounds.Enqueue("Weapons ArmedId");
+							Room2Sound.Sounds.Enqueue("Weapons ArmedId");
+							HubSound.Sounds.Enqueue("LoadingId");
 							Initiated_Firing=!Vigilance.TryRun("Fire:"+Decoy_Target.ToString());
 						}
 					}
@@ -3087,20 +3093,12 @@ public void Main(string argument, UpdateType updateSource)
 			Panel.WriteText(Player2Text,false);
 		foreach(IMyTextPanel Panel in HubStatusPanels){
 			Panel.WriteText(HubText,false);
-			if(ships_are_ready&&!cannon_is_ready){
-				if(Player_Turn==1)
-					Panel.FontColor=new Color(137,137,255,255);
-				else if(Player_Turn==2)
-					Panel.FontColor=new Color(255,137,137,255);
-			}
-			else{
-				if(Player_Turn==1&&ships_are_ready)
-					Panel.FontColor=new Color(255,137,137,255);
-				else if(Player_Turn==2&&ships_are_ready)
-					Panel.FontColor=new Color(137,137,255,255);
-				else
-					Panel.FontColor=new Color(255,255,255,255);
-			}
+			if(Player_Turn==1&&ships_are_ready)
+				Panel.FontColor=new Color(255,137,137,255);
+			else if(Player_Turn==2&&ships_are_ready)
+				Panel.FontColor=new Color(137,137,255,255);
+			else
+				Panel.FontColor=new Color(255,255,255,255);
 		}
 	}
 	catch (Exception e){
