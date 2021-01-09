@@ -3054,7 +3054,7 @@ public void Main(string argument, UpdateType updateSource)
 					HubText+="Aiming... ("+loading_char+")";
 				else
 					HubText+="Firing... ("+loading_char+")\n"+Math.Round(Cannon_Seconds,1).ToString()+"s to detonation";
-				if(Math.Abs(Cannon_Seconds-5.5)<=0.2){
+				if(Math.Abs(Cannon_Seconds-5.05)<=0.1){
 					if(Room1Sound.Timer>=2&&Room1Sound.Sounds.Count==0){
 						Room1Sound.Block.SelectedSound="5 Second CountdownId";
 						Room1Sound.Block.Play();
