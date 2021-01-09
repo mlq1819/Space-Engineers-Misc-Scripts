@@ -1368,6 +1368,9 @@ public Program(){
 			case "Decoy_Target":
 				Vector3D.TryParse(data,out Decoy_Target);
 				break;
+			case "Started_Game":
+				bool.TryParse(data,out Started_Game);
+				break;
 		}
 	}
 	Room1Doors=GenericMethods<IMyDoor>.GetAllContaining("Room 1 Door");
@@ -1477,6 +1480,7 @@ public void Save(){
 		this.Storage+="•Release_Timer:"+Release_Timer.ToString();
 		this.Storage+="•Release_Number:"+Release_Number.ToString();
 		this.Storage+="•Decoy_Target:"+Decoy_Target.ToString();
+		this.Storage+="•Started_Game:"+Started_Game.ToString();
 	}
 }
 
