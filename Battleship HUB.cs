@@ -1359,6 +1359,9 @@ public Program(){
 			case "Release_Number":
 				Int32.TryParse(data,out Release_Number);
 				break;
+			case "Decoy_Target":
+				Vector3D.TryParse(data,out Decoy_Target);
+				break;
 		}
 	}
 	Room1Doors=GenericMethods<IMyDoor>.GetAllContaining("Room 1 Door");
@@ -1467,6 +1470,7 @@ public void Save(){
 		this.Storage+="•SetUp_Timer:"+SetUp_Timer.ToString();
 		this.Storage+="•Release_Timer:"+Release_Timer.ToString();
 		this.Storage+="•Release_Number:"+Release_Number.ToString();
+		this.Storage+="•Decoy_Target:"+Decoy_Target.ToString();
 	}
 }
 
@@ -2354,6 +2358,7 @@ double SetUp_Timer=0;
 bool Initiated_Firing=false;
 Vector3D Decoy_Target=new Vector3D(0,0,0);
 bool Was_Firing=false;
+bool Started_Game=false;
 public void Main(string argument, UpdateType updateSource)
 {
 	try{
@@ -2367,7 +2372,6 @@ public void Main(string argument, UpdateType updateSource)
 		string HubText="";
 		string Player1Text="";
 		string Player2Text="";
-		Decoy_Target=new Vector3D(0,0,0);
 		List<IMyBroadcastListener> listeners=new List<IMyBroadcastListener>();
 		IGC.GetBroadcastListeners(listeners);
 		for(int j=1;j<=2;j++){
@@ -2781,6 +2785,7 @@ public void Main(string argument, UpdateType updateSource)
 				Release_Timer=0;
 				Ready_Timer=0;
 				SetUp_Timer=0;
+				Started_Game=false;
 			}
 		}
 		if((!call_return)&&Status<=GameStatus.SettingUp){
@@ -2806,10 +2811,12 @@ public void Main(string argument, UpdateType updateSource)
 		List<ShipStatus> ValidStatuses=new List<ShipStatus>();
 		ValidStatuses.Add(ShipStatus.InPosition);
 		ValidStatuses.Add(ShipStatus.Detonating);
-		bool ships_are_ready=(!Use_Real_Ships)||(ReadyShips(ValidStatuses)&&Ready_Timer>=5);
+		bool ships_are_ready=Started_Game||(!Use_Real_Ships)||(ReadyShips(ValidStatuses)&&Ready_Timer>=5);
 		bool cannon_is_ready=(!Destroy_Ships)||Is_Cannon_Ready;
 		if(Status==GameStatus.InProgress){
 			if(ships_are_ready&&cannon_is_ready){
+				Started_Game=true;
+				Decoy_Target=new Vector3D(0,0,0);
 				if(Was_Firing){
 					if(Player_Turn==1)
 						CallHit(Player1,Player2,Room1Sound,Room2Sound);

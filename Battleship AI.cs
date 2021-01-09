@@ -1268,11 +1268,11 @@ void InPosition(){
 				}
 				else if(args.Length==3&&args[0].Equals("Fire")){
 					Vector3D near;
-					Fire_Timer=4;
+					Fire_Timer=10;
 					double.TryParse(args[2],out Fire_Timer);
 					CurrentStatus=ShipStatus.Receiving;
 					if(Vector3D.TryParse(args[1],out near)){
-						IMyDecoy Decoy=GetNearest(near,10);
+						IMyDecoy Decoy=GetNearest(near,5);
 						if(Decoy!=null)
 							Decoy.Enabled=false;
 					}
