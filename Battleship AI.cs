@@ -1448,7 +1448,7 @@ void Return(){
 		}
 	}
 	if(missing>0){
-		Fire_Timer=60;
+		Fire_Timer=0;
 		CurrentStatus=ShipStatus.Detonating;
 		Write("Detonating...");
 		return;
