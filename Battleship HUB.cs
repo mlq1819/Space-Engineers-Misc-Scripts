@@ -1819,6 +1819,7 @@ void CallHit(Player Attacker,Player Defender,Sound At_Sound,Sound Def_Sound){
 			if(Player1.EnemyBoard.RemainingHits(Ship)==0){
 				At_Sound.Sounds.Enqueue("ShutdownId");
 				Def_Sound.Sounds.Enqueue("ShutdownId");
+				HubSound.Sounds.Enqueue("ShutdownId");
 			}
 			else{
 				if(size>3)
@@ -1826,6 +1827,7 @@ void CallHit(Player Attacker,Player Defender,Sound At_Sound,Sound Def_Sound){
 				else if(size>0)
 					At_Sound.Sounds.Enqueue("Small ship detectedId");
 				Def_Sound.Sounds.Enqueue("Damage detectedId");
+				HubSound.Sounds.Enqueue("Damage detectedId");
 			}
 		}
 	}
