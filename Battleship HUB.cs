@@ -732,11 +732,11 @@ class Board{
 				possible=false;
 			if(possible){
 				if(number_hit>0){
-					count+=2;
+					count+=5;
 					if(number_hit>1)
-						count+=3;
+						count+=2;
 					if(RemainingHits(Type)==1)
-						count+=5;
+						count+=3;
 				}
 				else
 					count++;
