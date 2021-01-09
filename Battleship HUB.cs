@@ -732,7 +732,9 @@ class Board{
 				possible=false;
 			if(possible){
 				if(number_hit>0){
-					count+=5;
+					count+=2;
+					if(number_hit>1)
+						count+=3;
 					if(RemainingHits(Type)==1)
 						count+=5;
 				}
@@ -761,7 +763,9 @@ class Board{
 				possible=false;
 			if(possible){
 				if(number_hit>0){
-					count+=5;
+					count+=2;
+					if(number_hit>1)
+						count+=3;
 					if(RemainingHits(Type)==1)
 						count+=5;
 				}
@@ -2150,7 +2154,8 @@ void Argument_Processor(string argument){
 						HubSound.Sounds.Enqueue("Objective CompleteId");
 						Release_Number=0;
 						Release_Timer=0;
-						CallReturn();
+						if(Use_Real_Ships)
+							CallReturn();
 					}
 					else if(player_num==2&&Player2!=null&&Player2.Forfeiting){
 						Last_Winner=1;
@@ -2165,7 +2170,8 @@ void Argument_Processor(string argument){
 						HubSound.Sounds.Enqueue("Objective CompleteId");
 						Release_Number=0;
 						Release_Timer=0;
-						CallReturn();
+						if(Use_Real_Ships)
+							CallReturn();
 					}
 					else{
 						if(Status==GameStatus.Awaiting){
@@ -3048,6 +3054,17 @@ public void Main(string argument, UpdateType updateSource)
 					HubText+="Aiming... ("+loading_char+")";
 				else
 					HubText+="Firing... ("+loading_char+")\n"+Math.Round(Cannon_Seconds,1).ToString()+"s to detonation";
+				if(Math.Abs(Cannon_Seconds-5.5)<=0.2){
+					if(Room1Sound.Timer>=2&&Room1Sound.Sounds.Count==0){
+						Room1Sound.Block.SelectedSound="5 Second CountdownId";
+						Room1Sound.Block.Play();
+					}
+					if(Room2Sound.Timer>=2&&Room2Sound.Sounds.Count==0){
+						Room2Sound.Block.SelectedSound="5 Second CountdownId";
+						Room2Sound.Block.Play();
+					}
+				}
+				
 				Player1Text=HubText;
 				Player2Text=HubText;
 				RealShip Targeted_Ship=GetTargetedShip();
@@ -3095,7 +3112,7 @@ public void Main(string argument, UpdateType updateSource)
 						IGC.SendBroadcastMessage(Targeted_Ship.Tag_Full,"Fire•"+Decoy_Target.ToString()+"•"+Cannon_Seconds.ToString(),TransmissionDistance.TransmissionDistanceMax);
 				}
 			}
-			if(ships_are_ready){
+			if(ships_are_ready&&Player1!=null&&Player2!=null){
 				for(int i=1;i<=2;i++){
 					Player Play;
 					if(i==1)

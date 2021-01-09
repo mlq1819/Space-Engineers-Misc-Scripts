@@ -1355,8 +1355,10 @@ void Receiving(){
 					Write("Received Message:"+message.Data.ToString());
 					string[] args=message.Data.ToString().Split('•');
 					if(args.Length==3&&args[0].Equals("Fire")){
-						Fire_Timer=20;
+						double Last_Fire_Timer=Fire_Timer;
 						double.TryParse(args[2],out Fire_Timer);
+						if(Math.Abs(Last_Fire_Timer-Fire_Timer)>2.5)
+							Fire_Timer=Last_Fire_Timer;
 						CurrentStatus=ShipStatus.Receiving;
 					}
 				}
