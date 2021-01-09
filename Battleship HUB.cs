@@ -3056,8 +3056,31 @@ public void Main(string argument, UpdateType updateSource)
 					else
 						Play=Player2;
 					HubText+="\nPlayer "+i.ToString();
-					for(int j=1;j<=5;j++)
-						HubText+="\n  "+Play.OwnBoard.RemainingHits((MyShip)j).ToString()+"/"+ShipSize((MyShip)j);
+					
+					int sum=0;
+					int count=0;
+					for(int j=1;j<=5;j++){
+						sum+=Play.OwnBoard.RemainingHits((MyShip)j);
+						count+=ShipSize((MyShip)j);
+					}
+					HubText+=": "+Math.Round((100.0f*sum)/count,1).ToString()+"%\n[";
+					for(int j=1;j<=5;j++){
+						int Rem=Play.OwnBoard.RemainingHits((MyShip)j);
+						int Total=ShipSize((MyShip)j);
+						for(int k=0;k<Total;k++){
+							if(k<Rem)
+								HubText+="|";
+							else
+								HubText+=" ";
+						}
+					}
+					HubText+="]";
+					for(int j=1;j<=5;j++){
+						int Rem=Play.OwnBoard.RemainingHits((MyShip)j);
+						int Total=ShipSize((MyShip)j);
+						if(Rem>0&&Rem!=Total)
+							HubText+="\n"+((MyShip)j).ToString()+":"+Rem.ToString()+"/"+Total;
+					}
 				}
 			}
 		}
