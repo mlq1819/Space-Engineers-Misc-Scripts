@@ -562,6 +562,14 @@ Base6Directions.Direction Right{
 
 double Acceleration{
 	get{
+		double min=double.MaxValue;
+		for(int i=0;i<6;i++)
+			min=Math.Min(min,GetThrust(i));
+		for(int i=0;i<6;i++){
+			double thrust=GetThrust(i);
+			if(thrust<=min+0.1)
+				return thrust/ShipMass;
+		}
 		return (Forward_Thrust+Backward_Thrust)/(2*ShipMass);
 	}
 }
