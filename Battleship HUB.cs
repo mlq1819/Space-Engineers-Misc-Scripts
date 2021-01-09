@@ -1030,8 +1030,8 @@ Vector3D Right_Vector{
 int Player_Count=1;
 double Turn_Timer=90;
 bool Allow_Pause=true;
-bool Use_Real_Ships=false;
-bool Destroy_Ships=false;
+bool Use_Real_Ships=true;
+bool Destroy_Ships=true;
 bool See_Opponent_Choice=true;
 GameStatus Status=GameStatus.Ready;
 int AI_Difficulty=1;
