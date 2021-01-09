@@ -756,6 +756,11 @@ class Board{
 				}
 			}
 		}
+		for(int y=0;y<8;y++){
+			for(int x=0;x<8;x++){
+				output[y][x]/=(float)total;
+			}
+		}
 		return output;
 	}
 	public int ShipNumber=1;
