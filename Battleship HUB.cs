@@ -708,120 +708,6 @@ class Board{
 		return true;
 	}
 	
-	public List<List<float>> GetProbabilitiesForShip(MyShip Type){
-		List<List<float>> output=new List<List<float>>();
-		int size=Prog.ShipSize(Type);
-		int total=0;
-		int must_contain=CountShips(Type);
-		for(int y=0;y<8;y++){
-			List<float> row=new List<float>();
-			for(int x=0;x<8;x++){
-				row.Add(0);
-			}
-			output.Add(row);
-		}
-		for(int y=0;y<=8-size;y++){
-			for(int x=0;x<=8-size;x++){
-				bool can_fit=true;
-				int contains=0;
-				for(int dy=0;dy<size;dy++){
-					if(Grid[y+dy][x].Ship==Type){
-						contains++;
-					}
-					else if(Grid[y+dy][x].Ship!=MyShip.Unknown){
-						can_fit=false;
-						break;
-					}
-				}
-				if(can_fit&&contains>=must_contain){
-					for(int dy=0;dy<size;dy++){
-						if(Grid[y+dy][x].Ship==Type)
-							output[y+dy][x]=0;
-						else
-							output[y+dy][x]++;
-					}
-					total++;
-				}
-				can_fit=true;
-				contains=0;
-				for(int dx=0;dx<size;dx++){
-					if(Grid[y][x+dx].Ship==Type){
-						contains++;
-					}
-					else if(Grid[y][x+dx].Ship!=MyShip.Unknown){
-						can_fit=false;
-						break;
-					}
-				}
-				if(can_fit&&contains>=must_contain){
-					for(int dx=0;dx<size;dx++){
-						if(Grid[y][x+dx].Ship==Type)
-							output[y][x+dx]=0;
-						else
-							output[y][x+dx]++;
-					}
-					total++;
-				}
-			}
-		}
-		for(int y=0;y<8;y++)
-			for(int x=0;x<8;x++)
-				output[y][x]/=(float)total;
-		return output;
-	}
-	public int ShipNumber=1;
-	List<List<List<float>>> Probabilities=new List<List<List<float>>>();
-	List<Vector2> GetBestChoices(){
-		if(ShipNumber>5){
-			List<Vector2> output=new List<Vector2>();
-			List<List<float>> Probs=new List<List<float>>();
-			float max_probability=0;
-			for(int y=0;y<8;y++){
-				List<float> row=new List<float>();
-				for(int x=0;x<8;x++){
-					float probability=0;
-					foreach(float chance in Probabilities[y][x])
-						probability=1-((1-probability)*(1-chance));
-					row.Add(probability);
-					max_probability=Math.Max(max_probability,probability);
-				}
-				Probs.Add(row);
-			}
-			do{
-				for(int y=0;y<8;y++){
-					for(int x=0;x<8;x++){
-						int multx=(new Random()).Next(0,19);
-						multx=1+Math.Max(0,multx-17);
-						if(Probs[y][x]>=max_probability-0.05f*multx)
-							output.Add(new Vector2(x,y));
-					}
-				}
-				max_probability=Math.Max(0,max_probability*0.9f);
-			}
-			while(output.Count==0);
-			ShipNumber=1;
-			return output;
-		}
-		else{
-			if(ShipNumber==1){
-				Probabilities.Clear();
-				for(int i=0;i<8;i++){
-					List<List<float>> row=new List<List<float>>();
-					for(int j=0;j<8;j++)
-						row.Add(new List<float>());
-					Probabilities.Add(row);
-				}
-			}
-			List<List<float>> new_probs=GetProbabilitiesForShip((MyShip)ShipNumber);
-			ShipNumber++;
-			for(int y=0;y<8;y++){
-				for(int x=0;x<8;x++)
-					Probabilities[y][x].Add(new_probs[y][x]);
-			}
-			return new List<Vector2>();
-		}
-	}
-	
 	public int GetPossibilitiesForShip(MyShip Type,int X,int Y){
 		int count=0;
 		int number_hit=CountShips(Type);
@@ -894,8 +780,6 @@ class Board{
 	public int Section=0;
 	List<Vector3> Choices=new List<Vector3>();
 	public List<Vector2> GetBestChoices(int stupidity){
-		if(stupidity==0)
-			return GetBestChoices();
 		List<Vector2> output=new List<Vector2>();
 		if(Section>7){
 			Section=0;
