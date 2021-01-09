@@ -2860,18 +2860,18 @@ public void Main(string argument, UpdateType updateSource)
 		bool cannon_is_ready=(!Destroy_Ships)||Is_Cannon_Ready;
 		if(Status==GameStatus.InProgress){
 			if(ships_are_ready&&cannon_is_ready){
+				if(Was_Firing){
+					if(Player_Turn==1)
+						CallHit(Player1,Player2,Room1Sound,Room2Sound);
+					else 
+						CallHit(Player2,Player1,Room2Sound,Room1Sound);
+				}
 				if(Player1.Paused||Player2.Paused){
 					Status=GameStatus.Paused;
 				}
 				else{
 					Started_Game=true;
 					Decoy_Target=new Vector3D(0,0,0);
-					if(Was_Firing){
-						if(Player_Turn==1)
-							CallHit(Player1,Player2,Room1Sound,Room2Sound);
-						else 
-							CallHit(Player2,Player1,Room2Sound,Room1Sound);
-					}
 					if(Player_Turn<0||Player_Turn>2)
 						Player_Turn=1;
 					if(Turn_Timer>=30){
