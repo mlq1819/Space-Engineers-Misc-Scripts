@@ -734,8 +734,12 @@ class Board{
 					}
 				}
 				if(can_fit&&contains>=must_contain){
-					for(int dy=0;dy<size;dy++)
-						output[y+dy][x]++;
+					for(int dy=0;dy<size;dy++){
+						if(Grid[y+dy][x].Ship==Type)
+							output[y+dy][x]=0;
+						else
+							output[y+dy][x]++;
+					}
 					total++;
 				}
 				can_fit=true;
@@ -750,8 +754,12 @@ class Board{
 					}
 				}
 				if(can_fit&&contains>=must_contain){
-					for(int dx=0;dx<size;dx++)
-						output[y][x+dx]++;
+					for(int dx=0;dx<size;dx++){
+						if(Grid[y][x+dx].Ship==Type)
+							output[y][x+dx]=0;
+						else
+							output[y][x+dx]++;
+					}
 					total++;
 				}
 			}
