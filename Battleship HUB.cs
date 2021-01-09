@@ -785,7 +785,9 @@ class Board{
 				max_pos=Math.Max(max_pos,(int)Choice.Z);
 			}
 			foreach(Vector3 Choice in Choices){
-				if(((int)Choice.Z)>=Math.Max(1,max_pos-(stupidity*2)))
+				int rnd=(new Random()).Next(0,19);
+				rnd=Math.Max(0,rnd-17);
+				if(((int)Choice.Z)>=Math.Max(1,max_pos-(stupidity*2)-rnd))
 					output.Add(new Vector2(Choice.X,Choice.Y));
 			}
 			if(output.Count==0){
