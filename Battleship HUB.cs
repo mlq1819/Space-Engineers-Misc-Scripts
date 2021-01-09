@@ -3078,8 +3078,14 @@ public void Main(string argument, UpdateType updateSource)
 					for(int j=1;j<=5;j++){
 						int Rem=Play.OwnBoard.RemainingHits((MyShip)j);
 						int Total=ShipSize((MyShip)j);
-						if(Rem>0&&Rem!=Total)
-							HubText+="\n"+((MyShip)j).ToString()+":"+Rem.ToString()+"/"+Total;
+						HubText+="\n"+((MyShip)j).ToString()+"  [";
+						for(int k=0;k<Total;k++){
+							if(k<Rem)
+								HubText+="|";
+							else
+								HubText+=" ";
+						}
+						HubText+="]";
 					}
 				}
 			}
