@@ -1572,7 +1572,7 @@ void DisplayOwn(DisplayArray Da,Player P,Vector2 EnemyPos){
 						Da.Panels[y][x].AddImageToSelection("Danger");
 					else{
 						Da.Panels[y][x].AddImageToSelection("Cross");
-						color=Color.Multiply(color,0.5f);
+						color=Color.Multiply(color,0.2f);
 					}
 				}
 			}
@@ -1618,7 +1618,7 @@ void DisplayEnemy(DisplayArray Da,Player P){
 						Da.Panels[y][x].AddImageToSelection("Danger");
 					else{
 						Da.Panels[y][x].AddImageToSelection("Cross");
-						color=Color.Multiply(color,0.5f);
+						color=Color.Multiply(color,0.2f);
 					}
 				}
 			}
