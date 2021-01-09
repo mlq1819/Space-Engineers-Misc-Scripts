@@ -731,8 +731,11 @@ class Board{
 			if(number_hit>0&&number_found<number_hit)
 				possible=false;
 			if(possible){
-				if(number_hit>0)
+				if(number_hit>0){
 					count+=5;
+					if(RemainingHits(Type)==1)
+						count+=5;
+				}
 				else
 					count++;
 			}
@@ -757,8 +760,11 @@ class Board{
 			if(number_hit>0&&number_found<number_hit)
 				possible=false;
 			if(possible){
-				if(number_hit>0)
+				if(number_hit>0){
 					count+=5;
+					if(RemainingHits(Type)==1)
+						count+=5;
+				}
 				else
 					count++;
 			}
