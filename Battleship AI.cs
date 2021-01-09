@@ -491,6 +491,8 @@ Vector3D DecoyPosition(int index){
 	return new Vector3D(0,0,0);
 }
 
+List<Vector3D> Called_Positions=new List<Vector3D>()l
+
 double ShipMass{
 	get{
 		return Controller.CalculateShipMass().TotalMass;
@@ -1262,8 +1264,17 @@ void InPosition(){
 					Vector3D near;
 					if(Vector3D.TryParse(args[1],out near)){
 						IMyDecoy Decoy=GetNearest(near);
-						if(Decoy!=null)
+						if(Decoy!=null&&Decoy.Enabled){
 							IGC.SendBroadcastMessage(MyListenerString,"Target•"+ID.ToString()+"•"+Decoy.GetPosition().ToString(),TransmissionDistance.TransmissionDistanceMax);
+						}
+						else{
+							foreach(Vector3D called in Called_Positions){
+								if((near-called).Length()<10){
+									IGC.SendBroadcastMessage(MyListenerString,"Target•"+ID.ToString()+"•"+called.ToString(),TransmissionDistance.TransmissionDistanceMax);
+									break;
+								}
+							}
+						}
 					}
 				}
 				else if(args.Length==3&&args[0].Equals("Fire")){
@@ -1272,9 +1283,19 @@ void InPosition(){
 					double.TryParse(args[2],out Fire_Timer);
 					CurrentStatus=ShipStatus.Receiving;
 					if(Vector3D.TryParse(args[1],out near)){
-						IMyDecoy Decoy=GetNearest(near,5);
-						if(Decoy!=null)
-							Decoy.Enabled=false;
+						bool already_called=false;
+						foreach(Vector3D called in Called_Positions){
+							if((near-called).Length()<10){
+								already_called=true;
+								break;
+							}
+						}
+						if(!already_called){
+							Called_Positions.Add(near);
+							IMyDecoy Decoy=GetNearest(near,5);
+							if(Decoy!=null)
+								Decoy.Enabled=false;
+						}
 					}
 				}
 				else if(args.Length==3&&args[0].Equals("Return")){
