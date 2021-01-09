@@ -2298,7 +2298,26 @@ Vector3D GetTargetedCoordinates(){
 		return new Vector3D(0,0,0);
 	return TransformCoordinates(Attacker.Selection,(Player_Turn%2)+1);
 }
-
+MyShip GetTargetedType(){
+	Player Attacker,Defender;
+	List<RealShip> ShipList;
+	
+	if(Player_Turn==1){
+		Attacker=Player1;
+		Defender=Player2;
+		ShipList=Player2Ships;
+	}
+	else if(Player_Turn==2){
+		Attacker=Player2;
+		Defender=Player1;
+		ShipList=Player1Ships;
+	}
+	else
+		return MyShip.Unknown;
+	int x=(int)Attacker.Selection.X;
+	int y=(int)Attacker.Selection.Y;
+	return Defender.OwnBoard.Grid[y][x].Ship;
+}
 RealShip GetTargetedShip(){
 	Player Attacker,Defender;
 	List<RealShip> ShipList;
@@ -2991,27 +3010,36 @@ public void Main(string argument, UpdateType updateSource)
 				Player1Text=HubText;
 				Player2Text=HubText;
 				RealShip Targeted_Ship=GetTargetedShip();
+				MyShip Targeted_Type=GetTargetedType();
 				if(Targeted_Ship!=null)
 					Write("Targeting "+Targeted_Ship.Tag);
 				if(Initiated_Firing){
 					Write("Firing...");
 					Vector3D Target_Coords=GetTargetedCoordinates();
-					if(Targeted_Ship!=null&&Target_Coords.Length()>0){
+					if(Target_Coords.Length()>0){
 						if(Decoy_Target.Length()==0){
-							Write("Requesting Targeting Information...");
-							IGC.SendBroadcastMessage(Targeted_Ship.Tag_Full,"Request•"+Target_Coords.ToString(),TransmissionDistance.TransmissionDistanceMax);
+							if(Targeted_Ship!=null){
+								Write("Requesting Targeting Information...");
+								IGC.SendBroadcastMessage(Targeted_Ship.Tag_Full,"Request•"+Target_Coords.ToString(),TransmissionDistance.TransmissionDistanceMax);
+							}
+							else if(Targeted_Type==MyShip.None)
+								Decoy_Target=Target_Coords;
+							else
+								Write("Cannot find Target Ship");
+							
 						}
-						else if(Cannon_FireStatus==FireStatus.Idle&&Cannon_PrintStatus==PrintStatus.Ready&&!Vigilance.IsRunning){
+						if(Decoy_Target.Length()>0&&Cannon_FireStatus==FireStatus.Idle&&Cannon_PrintStatus==PrintStatus.Ready&&!Vigilance.IsRunning){
 							Write("Firing, now!");
 							Initiated_Firing=!Vigilance.TryRun("Fire:"+Decoy_Target.ToString());
 						}
 					}
 					else
-						Write("Cannot find Target Ship/Coords");
+						Write("Cannot find Target Coords");
 				}
-				if((!Initiated_Firing)&&Targeted_Ship!=null&&Decoy_Target.Length()>0){
+				if(!Initiated_Firing){
 					Write("Fired!");
-					IGC.SendBroadcastMessage(Targeted_Ship.Tag_Full,"Fire•"+Decoy_Target.ToString()+"•"+Cannon_Seconds.ToString(),TransmissionDistance.TransmissionDistanceMax);
+					if(Targeted_Ship!=null&&Decoy_Target.Length()>0)
+						IGC.SendBroadcastMessage(Targeted_Ship.Tag_Full,"Fire•"+Decoy_Target.ToString()+"•"+Cannon_Seconds.ToString(),TransmissionDistance.TransmissionDistanceMax);
 				}
 			}
 		}
