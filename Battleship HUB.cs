@@ -2411,7 +2411,8 @@ public void Main(string argument, UpdateType updateSource)
 										if(id!=ShipList[i].ID)
 											ShipList[i].ID=id;
 										if(ShipStatus.TryParse(args[2],out status)){
-											ShipList[i].Status=status;
+											if(ShipList[i].Status!=ShipStatus.Detonating||accepting_new)
+												ShipList[i].Status=status;
 											ShipList[i].Timer=0;
 										}
 									}
@@ -3037,6 +3038,15 @@ public void Main(string argument, UpdateType updateSource)
 							Room1Sound.Sounds.Enqueue("Weapons ArmedId");
 							Room2Sound.Sounds.Enqueue("Weapons ArmedId");
 							HubSound.Sounds.Enqueue("LoadingId");
+							if(Targeted_Type!=MyShip.None){
+								Player Defender;
+								if(Player_Turn==1)
+									Defender=Player2;
+								else 
+									Defender=Player1;
+								if(Defender.OwnBoard.RemainingHits(Targeted_Type)<=1&&Targeted_Ship!=null)
+									Targeted_Ship.Status=ShipStatus.Detonating;
+							}
 							Initiated_Firing=!Vigilance.TryRun("Fire:"+Decoy_Target.ToString());
 						}
 					}
