@@ -2248,8 +2248,10 @@ void Argument_Processor(string argument){
 								Room2Sound.RemoveSound("CompletedId");
 								Room1Sound.Sounds.Enqueue("CompletedId");
 								Room2Sound.Sounds.Enqueue("CompletedId");
-								if(Destroy_Ships)
+								if(Destroy_Ships){
 									Initiated_Firing=true;
+									Fire_Timer=0;
+								}
 								else{
 									if(player_num==1){
 										CallHit(Player1,Player2,Room1Sound,Room2Sound);
@@ -2406,6 +2408,7 @@ bool Initiated_Firing=false;
 Vector3D Decoy_Target=new Vector3D(0,0,0);
 bool Was_Firing=false;
 bool Started_Game=false;
+double Fire_Timer=0;
 public void Main(string argument, UpdateType updateSource)
 {
 	try{
@@ -3099,8 +3102,13 @@ public void Main(string argument, UpdateType updateSource)
 					Vector3D Target_Coords=GetTargetedCoordinates();
 					if(Target_Coords.Length()>0){
 						if(Decoy_Target.Length()==0){
-							if(Targeted_Ship!=null){
+							if(Fire_Timer>=10){
+								Decoy_Target=Target_Coords;
+							}
+							else if(Targeted_Ship!=null){
 								Write("Requesting Targeting Information...");
+								if(Fire_Timer<10)
+									Fire_Timer+=seconds_since_last_update;
 								IGC.SendBroadcastMessage(Targeted_Ship.Tag_Full,"Request•"+Target_Coords.ToString(),TransmissionDistance.TransmissionDistanceMax);
 							}
 							else if(Targeted_Type==MyShip.None)
@@ -3131,6 +3139,7 @@ public void Main(string argument, UpdateType updateSource)
 				}
 				if(!Initiated_Firing){
 					Write("Fired!");
+					Fire_Timer=0;
 					if(Targeted_Ship!=null&&Decoy_Target.Length()>0)
 						IGC.SendBroadcastMessage(Targeted_Ship.Tag_Full,"Fire•"+Decoy_Target.ToString()+"•"+Cannon_Seconds.ToString(),TransmissionDistance.TransmissionDistanceMax);
 				}
