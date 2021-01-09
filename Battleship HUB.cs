@@ -3080,6 +3080,10 @@ public void Main(string argument, UpdateType updateSource)
 						Room2Sound.Block.SelectedSound="5 Second CountdownId";
 						Room2Sound.Block.Play();
 					}
+					if(HubSound.Timer>=2&&HubSound.Sounds.Count==0){
+						HubSound.Block.SelectedSound="5 Second CountdownId";
+						HubSound.Block.Play();
+					}
 				}
 				
 				Player1Text=HubText;
