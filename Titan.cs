@@ -362,6 +362,137 @@ void Write(string text,bool new_line=true,bool append=true){
 		Me.GetSurface(0).WriteText(text, append);
 }
 
+struct Angle{
+	public float Degrees_Pos;
+	public float Degrees{
+		get{
+			return (Degrees_Pos+180)%360-180;
+		}
+		set{
+			if(value%360<0)
+				Degrees_Pos=(value%360)+360;
+			else
+				Degrees_Pos=(value%360);
+		}
+	}
+	
+	public Angle(float deg){
+		Degrees_Pos=deg%360;
+		Degrees=deg;
+	}
+	
+	public static Angle FromRadians(float Rads){
+		return new Angle((float)(Rads/Math.PI*180));
+	}
+	
+	public float Difference_From_Top(Angle other){
+		if(other.Degrees>=Degrees)
+			return other.Degrees-Degrees;
+		return other.Degrees-Degrees+360;
+	}
+	
+	public float Difference_From_Bottom(Angle other){
+		if(other.Degrees<=Degrees)
+			return Degrees-other.Degrees;
+		return Degrees-other.Degrees+360;
+	}
+	
+	public float Difference(Angle other){
+		return Math.Min(Difference_From_Top(other),Difference_From_Bottom(other));
+	}
+	
+	public static bool TryParse(string parse,out Angle output){
+		output=new Angle(0);
+		float d;
+		if(!float.TryParse(parse.Substring(0,Math.Max(0,parse.Length-1)),out d))
+			return false;
+		output=new Angle(d);
+		return true;
+	}
+	
+	public static bool IsBetween(Angle Bottom,Angle Middle,Angle Top){
+		return Bottom.Difference_From_Top(Middle)<=Bottom.Difference_From_Top(Top);
+	}
+	
+	public static Angle operator +(Angle a1,Angle a2){
+		return new Angle(a1.Degrees+a2.Degrees);
+	}
+	
+	public static Angle operator +(Angle a1,float a2){
+		return new Angle(a1.Degrees+a2);
+	}
+	
+	public static Angle operator +(float a1,Angle a2){
+		return a2+a1;
+	}
+	
+	public static Angle operator -(Angle a1, Angle a2){
+		return new Angle(a1.Degrees-a2.Degrees);
+	}
+	
+	public static Angle operator -(Angle a1,float a2){
+		return new Angle(a1.Degrees-a2);
+	}
+	
+	public static Angle operator -(float a1, Angle a2){
+		return new Angle(a1-a2.Degrees);
+	}
+	
+	public static Angle operator *(Angle a1,float m){
+		return new Angle(a1.Degrees*m);
+	}
+	
+	public static Angle operator *(float m,Angle a2){
+		return a2*m;
+	}
+	
+	public static Angle operator /(Angle a1,float m){
+		return new Angle(a1.Degrees/m);
+	}
+	
+	public static bool operator ==(Angle a1,Angle a2){
+		return Math.Abs(a1.Degrees-a2.Degrees)<0.000001f;
+	}
+	
+	public static bool operator !=(Angle a1,Angle a2){
+		return Math.Abs(a1.Degrees-a2.Degrees)>=0.000001f;
+	}
+	
+	public override bool Equals(object o){
+		return (o.GetType()==this.GetType())&&this==((Angle)o);
+	}
+	
+	public override int GetHashCode(){
+		return Degrees.GetHashCode();
+	}
+	
+	public static bool operator >(Angle a1,Angle a2){
+		return a1.Difference_From_Top(a2)<a1.Difference_From_Bottom(a2);
+	}
+	
+	public static bool operator >=(Angle a1,Angle a2){
+		return a1==a2||a1>a2;
+	}
+	
+	public static bool operator <=(Angle a1,Angle a2){
+		return a1==a2||a1<a2;
+	}
+	
+	public static bool operator <(Angle a1,Angle a2){
+		return a1.Difference_From_Top(a2)>a1.Difference_From_Bottom(a2);
+	}
+	
+	public override string ToString(){
+		return Degrees.ToString()+'°';
+	}
+	
+	public string ToString(int n){
+		n=Math.Min(0,n);
+		return Math.Round(Degrees,n).ToString()+'°';
+	}
+	
+}
+
 TimeSpan Time_Since_Start=new TimeSpan(0);
 long cycle=0;
 char loading_char='|';
@@ -389,6 +520,7 @@ public Program(){
     // It's recommended to set RuntimeInfo.UpdateFrequency 
     // here, which will allow your script to run itself without a 
     // timer block.
+	Runtime.UpdateFrequency=UpdateFrequency.Update10;
 }
 
 public void Save(){
@@ -426,9 +558,32 @@ void UpdateProgramInfo(){
 	Me.GetSurface(1).WriteText("\n"+ToString(Time_Since_Start)+" since last reboot",true);
 }
 
+float GetRPM(IMyMotorStator Motor){
+	float output=0;
+	if(HasBlockData(Motor,"CurrentRPM"))
+		float.TryParse(GetBlockData(Motor,"CurrentRPM"),out output);
+	return output;
+}
+
+void UpdateMotors(){
+	List<IMyMotorStator> Motors=new List<IMyMotorStator>();
+	GridTerminalSystem.GetBlocksOfType<IMyMotorStator>(Motors);
+	foreach(IMyMotorStator Motor in Motors){
+		Angle LastAngle;
+		Angle CurrentAngle=Angle.FromRadians(Motor.Angle);
+		if(HasBlockData(Motor,"LastAngle")&&Angle.TryParse(GetBlockData(Motor,"LastAngle"),out LastAngle)){
+			float difference=CurrentAngle.Difference(LastAngle);
+			difference=(float)(difference/seconds_since_last_update)/(60*360);
+			SetBlockData(Motor,"CurrentRPM",difference.ToString());
+		}
+		SetBlockData(Motor,"LastAngle",CurrentAngle.ToString());
+	}
+}
+
 public void Main(string argument, UpdateType updateSource)
 {
 	UpdateProgramInfo();
+	UpdateMotors();
     // The main entry point of the script, invoked every time
     // one of the programmable block's Run actions are invoked,
     // or the script updates itself. The updateSource argument
