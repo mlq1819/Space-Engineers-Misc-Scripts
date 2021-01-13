@@ -497,6 +497,52 @@ TimeSpan Time_Since_Start=new TimeSpan(0);
 long cycle=0;
 char loading_char='|';
 double seconds_since_last_update=0;
+IMyShipController Controller;
+
+Base6Directions.Direction GetMotorDirection(IMyMotorStator Motor){
+	try{
+		IMyCubeGrid Grid=Motor.TopGrid;
+		Vector3I base_position=new Vector3I(GlobalToLocalPosition(Motor.Top.GetPosition(),Motor.Top));
+		Vector3I min=new Vector3I(0,0,0);
+		Vector3I max=new Vector3I(0,0,0);
+		int max_int=0;
+		int size=10;
+		for(int x=-1*size;x<=size;x++){
+			for(int y=-1*size;y<=size;y++){
+				for(int z=-1*size;z<=size;z++){
+					Vector3I offset=new Vector3I(x,y,z);
+					if(Grid.CubeExists(base_position+offset)){
+						min.X=Math.Min(min.X,x);
+						max.X=Math.Max(max.X,x);
+						min.Y=Math.Min(min.Y,y);
+						max.Y=Math.Max(max.Y,y);
+						min.Z=Math.Min(min.Z,z);
+						max.Z=Math.Max(max.Z,z);
+						max_int=Math.Max(max_int,Math.Abs(x));
+						max_int=Math.Max(max_int,Math.Abs(y));
+						max_int=Math.Max(max_int,Math.Abs(z));
+					}
+				}
+			}
+		}
+		if(max_int==min.Z)
+			return Base6Directions.Direction.Forward;
+		if(max_int==max.Z)
+			return Base6Directions.Direction.Backward;
+		if(max_int==max.Y)
+			return Base6Directions.Direction.Up;
+		if(max_int==min.Y)
+			return Base6Directions.Direction.Down;
+		if(max_int==min.X)
+			return Base6Directions.Direction.Left;
+		if(max_int==max.X)
+			return Base6Directions.Direction.Right;
+	}
+	catch(Exception){
+		;
+	}
+	return Base6Directions.Direction.Forward;
+}
 
 public Program(){
 	Prog.P=this;
@@ -510,16 +556,11 @@ public Program(){
 	Me.GetSurface(1).FontSize=2.2f;
 	Me.GetSurface(1).TextPadding=40.0f;
 	Echo("Beginning initialization");
-	// The constructor, called only once every session and
-    // always before any other method is called. Use it to
-    // initialize your script. 
-    //     
-    // The constructor is optional and can be removed if not
-    // needed.
-    // 
-    // It's recommended to set RuntimeInfo.UpdateFrequency 
-    // here, which will allow your script to run itself without a 
-    // timer block.
+	Controller=GenericMethods<IMyShipController>.GetContaining("");
+	List<IMyMotorStator> Motors=GenericMethods<IMyMotorStator>.GetAllConstruct("");
+	foreach(IMyMotorStator Motor in Motors)
+		SetBlockData(Motor,"Direction",GetMotorDirection(Motor).ToString());
+	
 	Runtime.UpdateFrequency=UpdateFrequency.Update10;
 }
 
@@ -584,6 +625,7 @@ public void Main(string argument, UpdateType updateSource)
 {
 	UpdateProgramInfo();
 	UpdateMotors();
+	Controller.CustomData=((new MyWaypointInfo("COM",Controller.CenterOfMass))).ToString();
     // The main entry point of the script, invoked every time
     // one of the programmable block's Run actions are invoked,
     // or the script updates itself. The updateSource argument
