@@ -1744,6 +1744,7 @@ void GetSettings(){
 				case "Default_Text_Color":
 					try{
 						DEFAULT_TEXT_COLOR=ColorParse(ags[1]);
+						DEFAULT_TEXT_COLOR.A=255;
 					}
 					catch(Exception){
 						;
@@ -1752,6 +1753,7 @@ void GetSettings(){
 				case "Default_Background_Color":
 					try{
 						DEFAULT_BACKGROUND_COLOR=ColorParse(ags[1]);
+						DEFAULT_BACKGROUND_COLOR.A=255;
 					}
 					catch(Exception){
 						;
