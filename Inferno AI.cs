@@ -1653,6 +1653,10 @@ bool FactoryReset(object obj=null){
 		foreach(IMyThrust Thruster in All_Thrusters[i])
 			ResetThruster(Thruster);
 	}
+	foreach(Airlock airlock in Airlocks){
+		airlock.Door1.Enabled=true;
+		airlock.Door2.Enabled=true;
+	}
 	Me.CustomData="";
 	this.Storage="";
 	Reset();
@@ -1748,7 +1752,7 @@ void UpdateAirlock(Airlock airlock){
 		if(!both_closed)
 			airlock.AirlockTimer=0;
 		airlock.Door1.Enabled=(airlock.Door1.Status!=DoorStatus.Closed);
-		airlock.Door2.Enabled=(airlock.Door1.Status!=DoorStatus.Closed);
+		airlock.Door2.Enabled=(airlock.Door2.Status!=DoorStatus.Closed);
 	}
 	else{
 		SetBlockData(airlock.Door1,"Job","None");
@@ -2031,10 +2035,8 @@ void UpdateProgramInfo(){
 double Thrust_Pod_Timer=30;
 void UpdateTimers(){
 	foreach(Airlock airlock in Airlocks){
-		if(airlock.Door1.Status==DoorStatus.Closed&&airlock.Door2.Status==DoorStatus.Closed){
-			if(airlock.AirlockTimer<10&&airlock.AirlockTimer<Math.Max(3,(airlock.Door1.GetPosition()-airlock.Door2.GetPosition()).Length()))
-				airlock.AirlockTimer+=seconds_since_last_update;
-		}
+		if(airlock.AirlockTimer<10)
+			airlock.AirlockTimer+=seconds_since_last_update;
 		else
 			airlock.AirlockTimer=0;
 	}
@@ -2153,8 +2155,9 @@ public void Main(string argument, UpdateType updateSource)
 		else
 			Write("Last Scan "+Math.Round(Scan_Time,1).ToString());
 		Write(ScanString);
-		foreach(Airlock airlock in Airlocks){
-			UpdateAirlock(airlock);
+		if(cycle%5==0){
+			foreach(Airlock airlock in Airlocks)
+				UpdateAirlock(airlock);
 		}
 		
 		if(cycle%10==0&&Thrust_Pod_Timer>=30){
