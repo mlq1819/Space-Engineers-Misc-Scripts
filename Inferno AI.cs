@@ -1126,6 +1126,7 @@ void SetupAirlocks(){
 }
 
 UpdateFrequency GetUpdateFrequency(){
+	return UpdateFrequency.Update1;
 	if(!Operational)
 		return UpdateFrequency.None;
 	if(Controller.IsUnderControl)
@@ -1294,7 +1295,7 @@ bool Setup(){
 							break;
 					}
 				}
-				else if(GetBlockData(Controller,"UseSurface"+(i).ToString()).Equals("TRUE")){
+				else if(GetBlockData(Ctrl,"UseSurface"+(i).ToString()).Equals("TRUE")){
 					Cockpit.GetSurface(i).ContentType=ContentType.TEXT_AND_IMAGE;
 					switch(valid_surface_count++){
 						case 0:
@@ -1855,7 +1856,7 @@ void SetGyroscopes(){
 		if(Gravity.Length()>0&&Roll_Time>=1){
 			double difference=GetAngle(Left_Vector,Gravity)-GetAngle(Right_Vector,Gravity);
 			if(Math.Abs(difference)>Acceptable_Angle){
-				input_roll-=(float)Math.Min(Math.Max(difference/5,-1),1)*gyro_multx;
+				input_roll-=(float)Math.Min(Math.Max(difference/5,-2),2)*gyro_multx;
 			}
 		}
 	}
@@ -1887,9 +1888,9 @@ void SetThrusters(){
 		Undercontrol=Undercontrol||Ctrl.IsUnderControl;
 	
 	if(Elevation<5000)
-		effective_speed_limit=Math.Min(effective_speed_limit,Elevation*2);
-	if(Time_To_Crash<60 && Time_To_Crash>=0)
-		effective_speed_limit=Math.Min(effective_speed_limit,Time_To_Crash/60*100);
+		effective_speed_limit=Math.Min(effective_speed_limit,(Elevation-30)*10);
+	if(Time_To_Crash<60&&Time_To_Crash>=0)
+		effective_speed_limit=Math.Min(effective_speed_limit,Time_To_Crash/30*100);
 	if(Controller.DampenersOverride){
 		Write("Cruise Control: Off");
 		input_right-=(float)((Relative_CurrentVelocity.X-Relative_RestingVelocity.X)*Mass_Accomodation*damp_multx);
@@ -1909,7 +1910,7 @@ void SetThrusters(){
 		else
 			Write("Stabilizers: Off ("+Math.Round(angle, 1)+"° dev)");
 	}
-	effective_speed_limit=Math.Max(effective_speed_limit,5);
+	effective_speed_limit=Math.Max(effective_speed_limit,10);
 	if(Gravity.Length()>0&&Mass_Accomodation>0&&(Controller.GetShipSpeed()<100||GetAngle(CurrentVelocity,Gravity)>Acceptable_Angle)){
 		if(!(_Autoland&&Time_To_Crash>15&&Controller.GetShipSpeed()>5)){
 			input_right-=(float)Adjusted_Gravity.X;
