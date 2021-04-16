@@ -1,19 +1,14 @@
 /*
-* Ship AI System 
+* Inferno AI System 
 * Built by mlq1616
 * https://github.com/mlq1819
 */
 string Program_Name = "Inferno Ship AI";
 Color DEFAULT_TEXT_COLOR=new Color(255,179,137,255);
 Color DEFAULT_BACKGROUND_COLOR=new Color(88,44,0,255);
-string Lockdown_Door_Name="Air Seal";
-string Autoland_Action_Timer_Name="";
-string Lockdown_Light_Name="";
-double Alert_Distance=15;
 double Speed_Limit=1000;
 double Guest_Mode_Timer=900;
 double Acceptable_Angle=10;
-double Raycast_Distance=10000;
 bool Control_Gyroscopes=true;
 bool Control_Thrusters=true;
 
@@ -744,7 +739,7 @@ string GetRemovedString(string big_string, string small_string){
 	return output;
 }
 
-List<List<IMyDoor>> RemoveDoor(List<List<IMyDoor>> list, IMyDoor Door){
+List<List<IMyDoor>> RemoveDoor(List<List<IMyDoor>> list,IMyDoor Door){
 	List<List<IMyDoor>> output=new List<List<IMyDoor>>();
 	Echo("\tRemoving Door \""+Door.CustomName+"\" from list["+list.Count+"]");
 	if(list.Count==0)
@@ -816,50 +811,7 @@ List<CustomPanel> StatusLCDs;
 List<CustomPanel> DebugLCDs;
 List<CustomPanel> CommandLCDs;
 
-List<IMyDoor> AutoDoors;
 List<Airlock> Airlocks;
-
-EntityList[] EntityLists=new EntityList[5];
-EntityList AsteroidList{
-	set{
-		EntityLists[0]=value;
-	}
-	get{
-		return EntityLists[0];
-	}
-}
-EntityList PlanetList{
-	set{
-		EntityLists[1]=value;
-	}
-	get{
-		return EntityLists[1];
-	}
-}
-EntityList SmallShipList{
-	set{
-		EntityLists[2]=value;
-	}
-	get{
-		return EntityLists[2];
-	}
-}
-EntityList LargeShipList{
-	set{
-		EntityLists[3]=value;
-	}
-	get{
-		return EntityLists[3];
-	}
-}
-EntityList CharacterList{
-	set{
-		EntityLists[4]=value;
-	}
-	get{
-		return EntityLists[4];
-	}
-}
 
 List<IMyThrust>[] All_Thrusters=new List<IMyThrust>[6];
 List<IMyThrust> Forward_Thrusters{
@@ -910,11 +862,18 @@ List<IMyThrust> Right_Thrusters{
 		return All_Thrusters[5];
 	}
 }
-	
-float Angle(ThrustPod Pod,Vector3D Direction){
+
+List<ThrustPod> ThrustPods;
+
+double Angle(ThrustPod Pod,Vector3D Direction){
 	if(Pod.Thrust==null)
 		return -90;
-	
+	Vector3D base_vector=new Vector3D(0,0,1);
+	Thruster_Vector=LocalToGlobal(base_vector,Pod.Thrust);
+	return GetAngle(Thruster_Vector,Direction);
+}
+bool Angled(ThrustPod Pod,Vector3D Direction){
+	return Math.Abs(Angle(Pod,Direction))<1;
 }
 
 struct ThrustPod{
@@ -934,6 +893,10 @@ float Forward_Thrust{
 		float total=0;
 		foreach(IMyThrust Thruster in Forward_Thrusters)
 			total+=Thruster.MaxEffectiveThrust;
+		foreach(ThrustPod Pod in ThrustPod){
+			if(Angled(Pod,Forward_Vector))
+				total+=Pod.Thrust.MaxEffectiveThrust;
+		}
 		return Math.Max(total,1);
 	}
 }
@@ -950,6 +913,10 @@ float Up_Thrust{
 		float total=0;
 		foreach(IMyThrust Thruster in Up_Thrusters)
 			total+=Thruster.MaxEffectiveThrust;
+		foreach(ThrustPod Pod in ThrustPod){
+			if(Angled(Pod,Up_Vector))
+				total+=Pod.Thrust.MaxEffectiveThrust;
+		}
 		return Math.Max(total,1);
 	}
 }
@@ -1064,6 +1031,13 @@ Vector3D Relative_RestingVelocity{
 	}
 }
 Vector3D CurrentVelocity;
+Vector3D Velocity_Direction{
+	get{
+		Vector3D VD=CurrentVelocity;
+		VD.Normalize();
+		return VD;
+	}
+}
 Vector3D Relative_CurrentVelocity{
 	get{
 		Vector3D output=Vector3D.Transform(CurrentVelocity+Controller.GetPosition(),MatrixD.Invert(Controller.WorldMatrix));
@@ -1340,51 +1314,62 @@ bool Setup(){
 		Panel.Display.FontSize=1.0f;
 	}
 	SetupAirlocks();
-	AutoDoors=GenericMethods<IMyDoor>.GetAllConstruct("AutoDoor");
-	Controller=GenericMethods<IMyShipController>.GetClosestFunc(ControllerFunction);
+	Controller=GenericMethods<IMyShipController>.GetFull("Inferno Backup Control Seat");
+	Controllers=GenericMethods<IMyShipController>.GetAllFunc(ControllerFunction);
 	if(Controller==null){
 		Write("Failed to find Controller", false, false);
 		return false;
 	}
+	bool has_main_ctrl=false;
+	foreach(IMyShipController Ctrl in Controllers){
+		if(Ctrl.CustomName.Equals(Controller.CustomName)){
+			has_main_ctrl=true;
+			break;
+		}
+	}
+	if(!has_main_ctrl)
+		Controllers.Add(Controller);
 	Forward=Controller.Orientation.Forward;
 	Up=Controller.Orientation.Up;
 	Left=Controller.Orientation.Left;
-	if((Controller as IMyTextSurfaceProvider)!=null){
-		IMyTextSurfaceProvider Cockpit=Controller as IMyTextSurfaceProvider;
-		int valid_surface_count=0;
-		for(int i=0;i<Cockpit.SurfaceCount;i++){
-			Cockpit.GetSurface(i).FontColor=DEFAULT_TEXT_COLOR;
-			Cockpit.GetSurface(i).BackgroundColor=DEFAULT_BACKGROUND_COLOR;
-			Cockpit.GetSurface(i).Alignment=TextAlignment.CENTER;
-			Cockpit.GetSurface(i).ScriptForegroundColor=DEFAULT_TEXT_COLOR;
-			Cockpit.GetSurface(i).ScriptBackgroundColor=DEFAULT_BACKGROUND_COLOR;
-			if(Cockpit.GetSurface(i).ContentType==ContentType.NONE){
-				Cockpit.GetSurface(i).ContentType=ContentType.TEXT_AND_IMAGE;
-				SetBlockData(Controller,"UseSurface"+(i).ToString(),"TRUE");
-				switch(valid_surface_count++){
-					case 0:
-						CommandLCDs.Add(new CustomPanel(Cockpit.GetSurface(i)));
-						break;
-					case 1:
-						StatusLCDs.Add(new CustomPanel(Cockpit.GetSurface(i)));
-						break;
-					case 2:
-						DebugLCDs.Add(new CustomPanel(Cockpit.GetSurface(i)));
-						break;
+	foreach(IMyShipController Ctrl in Controllers){
+		if((Ctrl as IMyTextSurfaceProvider)!=null){
+			IMyTextSurfaceProvider Cockpit=Ctrl as IMyTextSurfaceProvider;
+			int valid_surface_count=0;
+			for(int i=0;i<Cockpit.SurfaceCount;i++){
+				Cockpit.GetSurface(i).FontColor=DEFAULT_TEXT_COLOR;
+				Cockpit.GetSurface(i).BackgroundColor=DEFAULT_BACKGROUND_COLOR;
+				Cockpit.GetSurface(i).Alignment=TextAlignment.CENTER;
+				Cockpit.GetSurface(i).ScriptForegroundColor=DEFAULT_TEXT_COLOR;
+				Cockpit.GetSurface(i).ScriptBackgroundColor=DEFAULT_BACKGROUND_COLOR;
+				if(Cockpit.GetSurface(i).ContentType==ContentType.NONE){
+					Cockpit.GetSurface(i).ContentType=ContentType.TEXT_AND_IMAGE;
+					SetBlockData(Ctrl,"UseSurface"+(i).ToString(),"TRUE");
+					switch(valid_surface_count++){
+						case 0:
+							CommandLCDs.Add(new CustomPanel(Cockpit.GetSurface(i)));
+							break;
+						case 1:
+							StatusLCDs.Add(new CustomPanel(Cockpit.GetSurface(i)));
+							break;
+						case 2:
+							DebugLCDs.Add(new CustomPanel(Cockpit.GetSurface(i)));
+							break;
+					}
 				}
-			}
-			else if(GetBlockData(Controller,"UseSurface"+(i).ToString()).Equals("TRUE")){
-				Cockpit.GetSurface(i).ContentType=ContentType.TEXT_AND_IMAGE;
-				switch(valid_surface_count++){
-					case 0:
-						CommandLCDs.Add(new CustomPanel(Cockpit.GetSurface(i)));
-						break;
-					case 1:
-						StatusLCDs.Add(new CustomPanel(Cockpit.GetSurface(i)));
-						break;
-					case 2:
-						DebugLCDs.Add(new CustomPanel(Cockpit.GetSurface(i)));
-						break;
+				else if(GetBlockData(Controller,"UseSurface"+(i).ToString()).Equals("TRUE")){
+					Cockpit.GetSurface(i).ContentType=ContentType.TEXT_AND_IMAGE;
+					switch(valid_surface_count++){
+						case 0:
+							CommandLCDs.Add(new CustomPanel(Cockpit.GetSurface(i)));
+							break;
+						case 1:
+							StatusLCDs.Add(new CustomPanel(Cockpit.GetSurface(i)));
+							break;
+						case 2:
+							DebugLCDs.Add(new CustomPanel(Cockpit.GetSurface(i)));
+							break;
+					}
 				}
 			}
 		}
@@ -1435,6 +1420,18 @@ bool Setup(){
 	SetThrusterList(Down_Thrusters,"Down");
 	SetThrusterList(Left_Thrusters,"Left");
 	SetThrusterList(Right_Thrusters,"Right");
+	ThrustPods=new List<ThrustPod>();
+	List<IMyMotorStator> PodRotors=GenericMethods<IMyMotorStator>.GetAllContaining("Inferno Pod Rotor ");
+	foreach(IMyMotorStator Rotor in PodRotors)
+		ThrustPods.Add(new ThrustPod(Rotor));
+	
+	List<IMyTerminalBlock> AllTerminalBlocks=new List<IMyTerminalBlock>();
+	GridTerminalSystem.GetBlocksOfType<IMyTerminalBlock>(AllTerminalBlocks);
+	MySize=0;
+	foreach(IMyTerminalBlock Block in AllTerminalBlocks){
+		double distance=(Controller.GetPosition()-Block.GetPosition()).Length();
+		MySize=Math.Max(MySize,distance);
+	}
 	Operational=Me.IsWorking;
 	Runtime.UpdateFrequency=GetUpdateFrequency();
 	return true;
@@ -1449,36 +1446,6 @@ void GetSettings(){
 				case "Program_Name":
 					Program_Name=ags[1];
 					break;
-				case "Default_Text_Color":
-					try{
-						DEFAULT_TEXT_COLOR=ColorParse(ags[1]);
-						DEFAULT_TEXT_COLOR.A=255;
-					}
-					catch(Exception){
-						;
-					}
-					break;
-				case "Default_Background_Color":
-					try{
-						DEFAULT_BACKGROUND_COLOR=ColorParse(ags[1]);
-						DEFAULT_BACKGROUND_COLOR.A=255;
-					}
-					catch(Exception){
-						;
-					}
-					break;
-				case "Lockdown_Door_Name":
-					Lockdown_Door_Name=ags[1];
-					break;
-				case "Lockdown_Light_Name":
-					Lockdown_Light_Name=ags[1];
-					break;
-				case "Autoland_Action_Timer_Name":
-					Autoland_Action_Timer_Name=ags[1];
-					break;
-				case "Alert_Distance":
-					double.TryParse(ags[1],out Alert_Distance);
-					break;
 				case "Speed_Limit":
 					double.TryParse(ags[1],out Speed_Limit);
 					break;
@@ -1487,9 +1454,6 @@ void GetSettings(){
 					break;
 				case "Acceptable_Angle":
 					double.TryParse(ags[1],out Acceptable_Angle);
-					break;
-				case "Raycast_Distance":
-					double.TryParse(ags[1],out Raycast_Distance);
 					break;
 				case "Control_Gyroscopes":
 					bool.TryParse(ags[1],out Control_Gyroscopes);
@@ -1569,18 +1533,10 @@ public void Save(){
 	bool ship=!Me.CubeGrid.IsStatic;
 	GetSettings();
 	Me.CustomData="Program_Name"+';'+Program_Name;
-	Me.CustomData+='\n'+"Default_Text_Color"+';'+DEFAULT_TEXT_COLOR.ToString();
-	Me.CustomData+='\n'+"Default_Background_Color"+';'+DEFAULT_BACKGROUND_COLOR.ToString();
-	Me.CustomData+='\n'+"Lockdown_Door_Name"+';'+Lockdown_Door_Name;
-	Me.CustomData+='\n'+"Lockdown_Light_Name"+';'+Lockdown_Light_Name;
-	if(ship)
-		Me.CustomData+='\n'+"Autoland_Action_Timer_Name"+';'+Autoland_Action_Timer_Name;
-	Me.CustomData+='\n'+"Alert_Distance"+';'+Alert_Distance.ToString();
 	if(ship)
 		Me.CustomData+='\n'+"Speed_Limit"+';'+Speed_Limit.ToString();
 	Me.CustomData+='\n'+"Guest_Mode_Timer"+';'+Guest_Mode_Timer.ToString();
 	Me.CustomData+='\n'+"Acceptable_Angle"+';'+Acceptable_Angle.ToString();
-	Me.CustomData+='\n'+"Raycast_Distance"+';'+Raycast_Distance.ToString();
 	if(ship)
 		Me.CustomData+='\n'+"Control_Gyroscopes"+';'+Control_Gyroscopes.ToString();
 	if(ship)
@@ -1684,13 +1640,23 @@ AlertStatus ShipStatus{
 			if(_Autoland&&CurrentVelocity.Length()>1){
 				AlertStatus nw_sts=AlertStatus.Blue;
 				status=(AlertStatus) Math.Max((int)status, (int)nw_sts);
-				Submessage += "\nAutoland Enabled";
+				Submessage+="\nAutoland Enabled";
 			}
 		}
-		if(_Lockdown){
+		if(TurretTimer<30){
+			AlertStatus nw_sts=AlertStatus.Red;
+			status=(AlertStatus) Math.Max((int)status,(int)nw_sts);
+			Submessage+="\nEnemy Detected ("+Math.Round(TurretTimer,1).ToString()+" seconds ago";
+		}
+		else if(TurretTimer<120){
+			AlertStatus nw_sts=AlertStatus.Orange;
+			status=(AlertStatus) Math.Max((int)status,(int)nw_sts);
+			Submessage+="\nEnemy Detected ("+Math.Round(TurretTimer,1).ToString()+" seconds ago";
+		}
+		else if(TurretTimer<300){
 			AlertStatus nw_sts=AlertStatus.Yellow;
-			status=(AlertStatus) Math.Max((int)status, (int)nw_sts);
-			Submessage += "\nCurrently in Lockdown";
+			status=(AlertStatus) Math.Max((int)status,(int)nw_sts);
+			Submessage+="\nEnemy Detected ("+Math.Round(TurretTimer,1).ToString()+" seconds ago";
 		}
 		
 		if(Guest_Mode){
@@ -1709,65 +1675,18 @@ AlertStatus ShipStatus{
 			status=(AlertStatus)Math.Max((int)status,(int)nw_sts);
 			Submessage+="\nCargo at "+Math.Round(Cargo_Status*100,1).ToString()+"% Capacity";
 		}
-		
-		double ActualEnemyShipDistance=Math.Min(SmallShipList.ClosestDistance(MyRelationsBetweenPlayerAndBlock.Enemies),LargeShipList.ClosestDistance(MyRelationsBetweenPlayerAndBlock.Enemies));
-		double EnemyShipDistance=Math.Min(SmallShipList.ClosestDistance(MyRelationsBetweenPlayerAndBlock.Enemies), LargeShipList.ClosestDistance(MyRelationsBetweenPlayerAndBlock.Enemies)/2);
-		if(EnemyShipDistance<800){
-			AlertStatus nw_sts=AlertStatus.Red;
-			status=(AlertStatus) Math.Max((int)status, (int)nw_sts);
-			Submessage += "\nEnemy Ship at "+Math.Round(ActualEnemyShipDistance, 0)+" meters";
-		}
-		else if(EnemyShipDistance<2500){
-			AlertStatus nw_sts=AlertStatus.Orange;
-			status=(AlertStatus) Math.Max((int)status, (int)nw_sts);
-			Submessage += "\nEnemy Ship at "+Math.Round(ActualEnemyShipDistance, 0)+" meters";
-		}
-		else if(EnemyShipDistance<5000){
-			AlertStatus nw_sts=AlertStatus.Yellow;
-			status=(AlertStatus) Math.Max((int)status, (int)nw_sts);
-			Submessage += "\nEnemy Ship at "+Math.Round(ActualEnemyShipDistance, 0)+" meters";
-		}
-		
-		double EnemyCharacterDistance=CharacterList.ClosestDistance(MyRelationsBetweenPlayerAndBlock.Enemies);
-		if(EnemyCharacterDistance-MySize<0){
-			AlertStatus nw_sts=AlertStatus.Red;
-			status=(AlertStatus) Math.Max((int)status, (int)nw_sts);
-			Submessage += "\nEnemy Creature has boarded ship";
-		}
-		else if(EnemyCharacterDistance-MySize<800){
-			AlertStatus nw_sts=AlertStatus.Orange;
-			status=(AlertStatus) Math.Max((int)status, (int)nw_sts);
-			Submessage += "\nEnemy Creature at "+Math.Round(EnemyCharacterDistance, 0)+" meters";
-		}
-		else if(EnemyCharacterDistance-MySize<2000){
-			AlertStatus nw_sts=AlertStatus.Yellow;
-			status=(AlertStatus) Math.Max((int)status, (int)nw_sts);
-			Submessage += "\nEnemy Creature at "+Math.Round(EnemyCharacterDistance, 0)+" meters";
-		}
-		
-		double ShipDistance=Math.Min(SmallShipList.ClosestDistance(),LargeShipList.ClosestDistance())-MySize;
-		if(ShipDistance<500&&ShipDistance>0){
-			AlertStatus nw_sts=AlertStatus.Blue;
-			status=(AlertStatus) Math.Max((int)status, (int)nw_sts);
-			Submessage += "\nNearby ship at "+Math.Round(ShipDistance, 0)+" meters";
-		}
-		if((!Me.CubeGrid.IsStatic)&&AsteroidList.ClosestDistance()<500){
-			AlertStatus nw_sts=AlertStatus.Blue;
-			status=(AlertStatus) Math.Max((int)status, (int)nw_sts);
-			Submessage += "\nNearby asteroid at "+Math.Round(AsteroidList.ClosestDistance(), 0)+" meters";
-		}
-		if(Controller.GetShipSpeed()>30){
+		if(Controller.GetShipSpeed()>50){
 			AlertStatus nw_sts=AlertStatus.Blue;
 			status=(AlertStatus) Math.Max((int)status, (int)nw_sts);
 			double Speed=Controller.GetShipSpeed();
 			Submessage += "\nHigh Ship Speed [";
 			const int SECTIONS=20;
 			for(int i=0; i<SECTIONS; i++){
-				if(Speed >= ((100.0/SECTIONS)*i)){
-					Submessage += '|';
+				if(Speed>=((1000.0/SECTIONS)*i)){
+					Submessage+='|';
 				}
 				else {
-					Submessage += ' ';
+					Submessage+=' ';
 				}
 			}
 			Submessage += ']';
@@ -1798,30 +1717,6 @@ void SetStatus(string message, Color TextColor, Color BackgroundColor){
 	}
 }
 
-void UpdateList(List<MyDetectedEntityInfo> list,MyDetectedEntityInfo new_entity){
-	if(new_entity.Type==MyDetectedEntityType.None||new_entity.EntityId==Me.CubeGrid.EntityId)
-		return;
-	for(int i=0;i<list.Count;i++){
-		if(list[i].EntityId==new_entity.EntityId){
-			if(list[i].TimeStamp<new_entity.TimeStamp||((list[i].HitPosition==null)&&(new_entity.HitPosition!=null)))
-				list[i]=new_entity;
-			return;
-		}
-	}
-	list.Add(new_entity);
-}
-void UpdateList(List<EntityInfo>list,EntityInfo new_entity){
-	if(new_entity.Type==MyDetectedEntityType.None||new_entity.ID == Me.CubeGrid.EntityId)
-		return;
-	for(int i=0;i<list.Count;i++){
-		if(list[i].ID==new_entity.ID){
-			list[i]=new_entity;
-			return;
-		}
-	}
-	list.Add(new_entity);
-}
-
 void ResetThrusters(){
 	for(int i=0;i<All_Thrusters.Length;i++){
 		foreach(IMyThrust Thruster in All_Thrusters[i])
@@ -1842,60 +1737,11 @@ bool Disable(object obj=null){
 	Me.Enabled=false;
 	return true;
 }
-bool ToggleThrusters(object obj=null){
-	Control_Thrusters=!Control_Thrusters;
-	_Autoland=false;
-	return true;
-}
 bool _Autoland=false;
 bool Autoland(object obj=null){
 	if((!_Autoland)&&!Control_Thrusters)
 		return false;
 	_Autoland=!_Autoland;
-	return true;
-}
-bool _Lockdown=false;
-bool Lockdown(object obj=null){
-	_Lockdown=!_Lockdown;
-	List<IMyDoor> Seals=GenericMethods<IMyDoor>.GetAllIncluding(Lockdown_Door_Name);
-	foreach(IMyDoor Door in Seals){
-		if(CanHaveJob(Door,"Lockdown")){
-			if(_Lockdown){
-				SetBlockData(Door,"Job","Lockdown");
-				Door.Enabled=true;
-				Door.CloseDoor();
-			}
-			else{
-				SetBlockData(Door,"Job","None");
-				Door.Enabled=true;
-				Door.OpenDoor();
-			}
-		}
-	}
-	if(Lockdown_Light_Name.Length>0){
-		List<IMyInteriorLight> Lights=GenericMethods<IMyInteriorLight>.GetAllIncluding(Lockdown_Light_Name);
-		foreach(IMyInteriorLight Light in Lights){
-			if(CanHaveJob(Light,"Lockdown")){
-				if(_Lockdown){
-					SetBlockData(Light,"Job","Lockdown");
-					if(!HasBlockData(Light,"DefaultColor"))
-						SetBlockData(Light,"DefaultColor",Light.Color.ToString());
-					Light.Color=new Color(255,255,0,255);
-				}
-				else{
-					SetBlockData(Light,"Job","None");
-					if(HasBlockData(Light,"DefaultColor")){
-						try{
-							Light.Color=ColorParse(GetBlockData(Light,"DefaultColor"));
-						}
-						catch(Exception){
-							Echo("Failed to parse color");
-						}
-					}
-				}
-			}
-		}
-	}
 	return true;
 }
 bool FactoryReset(object obj=null){
@@ -1923,109 +1769,15 @@ bool Orbit(object obj=null){
 	//something about orbiting a planet
 }
 
-bool UpdateEntityListing(Menu_Submenu Menu){
-	EntityList list=null;
-	switch(Menu.Name()){
-		case "Asteroids":
-			list=AsteroidList;
-			break;
-		case "Planets":
-			list=PlanetList;
-			break;
-		case "Small Ships":
-			list=SmallShipList;
-			break;
-		case "Large Ships":
-			list=LargeShipList;
-			break;
-		case "Characters":
-			list=CharacterList;
-			break;
-	}
-	if(list==null)
-		return false;
-	Menu=new Menu_Submenu(Menu.Name());
-	Menu.Add(new Menu_Command<Menu_Submenu>("Refresh",UpdateEntityListing,"Updates "+Menu.Name(),Menu));
-	list.Sort(Controller.GetPosition());
-	for(int i=0;i<list.Count;i++)
-		Menu.Add(new Menu_Display(list[i]));
-	if(Command_Menu.Replace(Menu)){
-		DisplayMenu();
-		return true;
-	}
-	return false;
-}
-
-Menu_Submenu[] Object_Menus=new Menu_Submenu[5];
-Menu_Submenu AsteroidMenu{
-	set{
-		Object_Menus[0]=value;
-	}
-	get{
-		return Object_Menus[0];
-	}
-}
-Menu_Submenu PlanetMenu{
-	set{
-		Object_Menus[1]=value;
-	}
-	get{
-		return Object_Menus[1];
-	}
-}
-Menu_Submenu SmallShipMenu{
-	set{
-		Object_Menus[2]=value;
-	}
-	get{
-		return Object_Menus[2];
-	}
-}
-Menu_Submenu LargeShipMenu{
-	set{
-		Object_Menus[3]=value;
-	}
-	get{
-		return Object_Menus[3];
-	}
-}
-Menu_Submenu CharacterMenu{
-	set{
-		Object_Menus[4]=value;
-	}
-	get{
-		return Object_Menus[4];
-	}
-}
 bool CreateMenu(object obj=null){
 	Command_Menu=new Menu_Submenu("Command Menu");
 	Command_Menu.Add(new Menu_Command<object>("Update Menu", CreateMenu, "Refreshes menu"));
-	Menu_Submenu ShipCommands=new Menu_Submenu("Commands");
 	if(!Me.CubeGrid.IsStatic)
-		ShipCommands.Add(new Menu_Command<object>("Toggle Autoland",Autoland,"Toggles On/Off the Autoland feature\nLands at 5 m/s\nDo not use on ships with poor mobility!"));
-	ShipCommands.Add(new Menu_Command<object>("Disable AI",Disable,"Resets Thrusters, Gyroscope, and Airlocks, and turns off the program"));
-	if(!Me.CubeGrid.IsStatic)
-		ShipCommands.Add(new Menu_Command<object>("Toggle Thrusters",ToggleThrusters,"Toggles Thruster Controls"));
-	ShipCommands.Add(new Menu_Command<object>("Scan",PerformScan,"Immediately performs a scan operation"));
-	ShipCommands.Add(new Menu_Command<object>("Guest Mode",GuestMode,"Puts the base in Guest Mode for "+Math.Round(Guest_Mode_Timer,0)+" seconds or turns it off"));
-	ShipCommands.Add(new Menu_Command<object>("Toggle Lockdown", Lockdown, "Closes/Opens Air Seals"));
-	ShipCommands.Add(new Menu_Command<object>("Factory Reset", FactoryReset, "Resets AI memory and settings, and turns it off"));
-	Command_Menu.Add(ShipCommands);
-	AsteroidMenu=new Menu_Submenu("Asteroids");
-	Command_Menu.Add(AsteroidMenu);
-	UpdateEntityListing(AsteroidMenu);
-	PlanetMenu=new Menu_Submenu("Planets");
-	Command_Menu.Add(PlanetMenu);
-	UpdateEntityListing(PlanetMenu);
-	SmallShipMenu=new Menu_Submenu("Small Ships");
-	Command_Menu.Add(SmallShipMenu);
-	UpdateEntityListing(SmallShipMenu);
-	LargeShipMenu=new Menu_Submenu("Large Ships");
-	Command_Menu.Add(LargeShipMenu);
-	UpdateEntityListing(LargeShipMenu);
-	CharacterMenu=new Menu_Submenu("Characters");
-	Command_Menu.Add(CharacterMenu);
-	UpdateEntityListing(CharacterMenu);
+		Command_Menu.Add(new Menu_Command<object>("Toggle Autoland",Autoland,"Toggles On/Off the Autoland feature\nLands at 5 m/s\nDo not use on ships with poor mobility!"));
+	Command_Menu.Add(new Menu_Command<object>("Guest Mode",GuestMode,"Puts the base in Guest Mode for "+Math.Round(Guest_Mode_Timer,0)+" seconds or turns it off"));
+	Command_Menu.Add(new Menu_Command<object>("Verify Warheads", VerifyWarheads, "Verifies all currently inactive warheads, preventing the auto-disarm from deactivating them"));
+	Command_Menu.Add(new Menu_Command<object>("Shut Down",Disable,"Resets Thrusters, Gyroscope, and Airlocks, and turns off the program"));
+	Command_Menu.Add(new Menu_Command<object>("Factory Reset", FactoryReset, "Resets AI memory and settings, and turns it off"));
 	return true;
 }
 void DisplayMenu(){
@@ -2046,428 +1798,26 @@ void DisplayMenu(){
 	}
 }
 
-bool last_performed_alarm=false;
-void PerformAlarm(){
-	bool nearby_enemy=(!Guest_Mode)&&(CharacterList.ClosestDistance(MyRelationsBetweenPlayerAndBlock.Enemies)<=(float)MySize);
-	if(!nearby_enemy&&!last_performed_alarm)
-		return;
-	last_performed_alarm=nearby_enemy;
-	List<IMyInteriorLight> AllLights=GenericMethods<IMyInteriorLight>.GetAllConstruct("");
-	foreach(IMyInteriorLight Light in AllLights){
-		if(!CanHaveJob(Light,"PlayerAlert"))
-			continue;
-		double distance=double.MaxValue;
-		foreach(EntityInfo Entity in CharacterList){
-			if((Entity.Relationship==MyRelationsBetweenPlayerAndBlock.Enemies)&&Entity.Age.TotalSeconds<=60)
-				distance=Math.Min(distance,Entity.GetDistance(Light.GetPosition()));
-		}
-		if(distance<=Alert_Distance){
-			if(!HasBlockData(Light, "DefaultColor")){
-				SetBlockData(Light, "DefaultColor", Light.Color.ToString());
-			}
-			if(!HasBlockData(Light, "DefaultBlinkLength")){
-				SetBlockData(Light, "DefaultBlinkLength", Light.BlinkLength.ToString());
-			}
-			if(!HasBlockData(Light, "DefaultBlinkInterval")){
-				SetBlockData(Light, "DefaultBlinkInterval", Light.BlinkIntervalSeconds.ToString());
-			}
-			SetBlockData(Light, "Job", "PlayerAlert");
-			Light.Color=new Color(255,0,0,255);
-			Light.BlinkLength=100.0f-(((float)(distance/Alert_Distance))*50.0f);
-			Light.BlinkIntervalSeconds=1.0f;
-		}
-		else {
-			if(HasBlockData(Light,"Job")&&GetBlockData(Light,"Job").Equals("PlayerAlert")){
-				if(HasBlockData(Light,"DefaultColor")){
-					try{
-						Light.Color=ColorParse(GetBlockData(Light,"DefaultColor"));
-					}
-					catch(Exception){
-						Echo("Failed to parse color");
-					}
-				}
-				if(HasBlockData(Light,"DefaultBlinkLength")){
-					try{
-						Light.BlinkLength=float.Parse(GetBlockData(Light,"DefaultBlinkLength"));
-					}
-					catch(Exception){
-						;
-					}
-				}
-				if(HasBlockData(Light,"DefaultBlinkInterval")){
-					try{
-						Light.BlinkIntervalSeconds=float.Parse(GetBlockData(Light,"DefaultBlinkInterval"));
-					}
-					catch(Exception){
-						;
-					}
-				}
-				SetBlockData(Light,"Job","None");
-			}
-		}
-	}
-	List<IMySoundBlock> AllSounds=GenericMethods<IMySoundBlock>.GetAllConstruct("");
-	foreach(IMySoundBlock Sound in AllSounds){
-		if(!CanHaveJob(Sound,"PlayerAlert"))
-			continue;
-		double distance=double.MaxValue;
-		foreach(EntityInfo Entity in CharacterList){
-			if((Entity.Relationship==MyRelationsBetweenPlayerAndBlock.Enemies)&&Entity.Age.TotalSeconds<=60)
-				distance=Math.Min(distance,Entity.GetDistance(Sound.GetPosition()));
-		}
-		if(distance<=Alert_Distance){
-			if(!HasBlockData(Sound,"DefaultSound"))
-				SetBlockData(Sound,"DefaultSound",Sound.SelectedSound);
-			if(!HasBlockData(Sound,"DefaultVolume"))
-				SetBlockData(Sound,"DefaultVolume",Sound.Volume.ToString());
-			SetBlockData(Sound,"Job","PlayerAlert");
-			if(!HasBlockData(Sound,"Playing")||!GetBlockData(Sound,"Playing").Equals("True")){
-				Sound.SelectedSound="SoundBlockEnemyDetected";
-				Sound.Volume=100.0f;
-				Sound.Play();
-				SetBlockData(Sound,"Playing","True");
-			}
-		}
-		else{
-			if(HasBlockData(Sound,"Job")&&GetBlockData(Sound,"Job").Equals("PlayerAlert")){
-				if(HasBlockData(Sound,"DefaultSound"))
-					Sound.SelectedSound=GetBlockData(Sound,"DefaultSound");
-				if(HasBlockData(Sound,"DefaultVolume")){
-					try{
-						Sound.Volume=float.Parse(GetBlockData(Sound,"DefaultVolume"));
-					}
-					catch(Exception){
-						;
-					}
-				}
-				Sound.Stop();
-				SetBlockData(Sound,"Playing","False");
-				SetBlockData(Sound,"Job","None");
-			}
-		}
-	}
-	List<IMyDoor> AllDoors=GenericMethods<IMyDoor>.GetAllConstruct("");
-	foreach(IMyDoor Door in AllDoors){
-		if(!CanHaveJob(Door,"PlayerAlert"))
-			continue;
-		double distance=double.MaxValue;
-		double friendly=double.MaxValue;
-		foreach(EntityInfo Entity in CharacterList){
-			if(Entity.Age.TotalSeconds<=60){
-				if(Entity.Relationship==MyRelationsBetweenPlayerAndBlock.Enemies)
-					distance=Math.Min(distance,Entity.GetDistance(Door.GetPosition()));
-				else if(Entity.Relationship!=MyRelationsBetweenPlayerAndBlock.Neutral)
-					friendly=Math.Min(friendly,Entity.GetDistance(Door.GetPosition()));
-			}
-		}
-		if(distance<=Alert_Distance&&distance<friendly){
-			if(!HasBlockData(Door,"DefaultState")){
-				if(Door.Status.ToString().Contains("Open"))
-					SetBlockData(Door,"DefaultState","Open");
-				else
-					SetBlockData(Door,"DefaultState","Closed");
-			}
-			if(!HasBlockData(Door,"DefaultPower")){
-				if(Door.Enabled)
-					SetBlockData(Door,"DefaultPower","On");
-				else
-					SetBlockData(Door,"DefaultPower","Off");
-			}
-			SetBlockData(Door,"Job","PlayerAlert");
-			Door.Enabled=(Door.Status!=DoorStatus.Closed);
-			Door.CloseDoor();
-		}
-		else{
-			if(HasBlockData(Door,"Job")&&GetBlockData(Door,"Job").Equals("PlayerAlert")){
-				if(HasBlockData(Door,"DefaultPower"))
-					Door.Enabled=GetBlockData(Door,"DefaultPower").Equals("On");
-				if(HasBlockData(Door,"DefaultState")){
-					if(GetBlockData(Door,"DefaultState").Equals("Open"))
-						Door.OpenDoor();
-					else
-						Door.CloseDoor();
-				}
-				SetBlockData(Door,"Job","None");
-			}
-		}
-	}
-}
-
-List<IMyCameraBlock> GetValidCameras(){
-	List<IMyCameraBlock> AllCameras=GenericMethods<IMyCameraBlock>.GetAllConstruct("");
-	List<IMyCameraBlock> output=new List<IMyCameraBlock>();
-	foreach(IMyCameraBlock Camera in AllCameras){
-		if(!HasBlockData(Camera,"DoRaycast")){
-			SetBlockData(Camera,"DoRaycast","maybe");
-			SetBlockData(Camera,"RaycastTestCount","0");
-		}
-		if(GetBlockData(Camera,"DoRaycast").Equals("false")){
-			continue;
-		}
-		Camera.EnableRaycast=true;
-		output.Add(Camera);
-	}
-	return output;
-}
-Vector3D Closest_Hit_Position=new Vector3D(0,0,0);
-double Scan_Frequency{
-	get{
-		double output=10;
-		double MySize=Me.CubeGrid.GridSize;
-		output=Math.Max(1,Math.Min(output,11-(CurrentVelocity.Length()/10)));
-		double distance=SmallShipList.ClosestDistance();
-		if(distance>=MySize)
-			output=Math.Min(output,Math.Max(1,Math.Min(10,(distance+MySize+100)/100)));
-		distance=SmallShipList.ClosestDistance(MyRelationsBetweenPlayerAndBlock.Enemies);
-		output=Math.Min(output,Math.Max(1,Math.Min(10,(distance-MySize+100)/100)));
-		distance=LargeShipList.ClosestDistance();
-		if(distance>=MySize)
-			output=Math.Min(output,Math.Max(1,Math.Min(10,(distance+MySize+100)/100)));
-		distance=LargeShipList.ClosestDistance(MyRelationsBetweenPlayerAndBlock.Enemies);
-		output=Math.Min(output,Math.Max(1,Math.Min(10,(distance-MySize+100)/100)));
-		distance=CharacterList.ClosestDistance();
-		output=Math.Min(output,Math.Max(1,Math.Min(10,(distance+MySize+100)/100)));
-		if(Controller.IsUnderControl)
-			output=Math.Min(output,5);
-		return output;
-	}
-}
-bool CanDetect(IMySensorBlock Sensor,MyRelationsBetweenPlayerAndBlock Relationship){
-	switch(Relationship){
-		case MyRelationsBetweenPlayerAndBlock.Owner:
-			return Sensor.DetectOwner;
-		case MyRelationsBetweenPlayerAndBlock.Friends:
-			return Sensor.DetectFriendly;
-		case MyRelationsBetweenPlayerAndBlock.Enemies:
-			return Sensor.DetectEnemy;
-	}
-	return Sensor.DetectNeutral;
-}
-bool CanDetect(IMySensorBlock Sensor,MyDetectedEntityType Type){
-	switch(Type){
-		case MyDetectedEntityType.SmallGrid:
-			return Sensor.DetectSmallShips;
-		case MyDetectedEntityType.LargeGrid:
-			return Sensor.DetectLargeShips&&Sensor.DetectStations;
-		case MyDetectedEntityType.CharacterHuman:
-			return Sensor.DetectPlayers;
-		case MyDetectedEntityType.CharacterOther:
-			return Sensor.DetectPlayers;
-		case MyDetectedEntityType.Asteroid:
-			return Sensor.DetectAsteroids;
-		case MyDetectedEntityType.Planet:
-			return Sensor.DetectAsteroids;
-	}
-	return false;
-}
-bool CanDetect(IMySensorBlock Sensor,EntityInfo Entity){
-	return Sensor.IsWorking&&CanDetect(Sensor,Entity.Type)&&CanDetect(Sensor,Entity.Relationship);
-}
-bool IsDetecting(IMySensorBlock Sensor,EntityInfo Entity){
-	List<MyDetectedEntityInfo> Entities=new List<MyDetectedEntityInfo>();
-	Sensor.DetectedEntities(Entities);
-	foreach(MyDetectedEntityInfo entity in Entities){
-		if(entity.EntityId==Entity.ID||(Entity.GetDistance(entity.Position)<=0.5f&&Entity.Type==entity.Type))
-			return true;
-	}
-	return false;
-}
-float SensorRange(IMySensorBlock Sensor){
-	float range=Sensor.LeftExtend;
-	range=Math.Min(range,Sensor.RightExtend);
-	range=Math.Min(range,Sensor.TopExtend);
-	range=Math.Min(range,Sensor.BottomExtend);
-	range=Math.Min(range,Sensor.FrontExtend);
-	range=Math.Min(range,Sensor.BackExtend);
-	return range;
-}
-
-Vector3D GetOffsetPosition(Vector3D Position, double Target_Size=0){
-	Vector3D direction=Position-Controller.GetPosition();
-	double distance=direction.Length();
-	direction.Normalize();
-	if(distance>1000)
-		distance-=400;
-	else
-		distance=distance/10*9;
-	distance-=Target_Size;
-	double controller_offset=(Controller.GetPosition()-Controller.GetPosition()).Length();
-	distance-=Math.Max(0,MySize/2-controller_offset);
-	return (distance*direction)+Controller.GetPosition();
-}
-
 double Scan_Time=10;
 string ScanString="";
 double MySize=0;
+double TurretTimer=300;
 bool PerformScan(object obj=null){
 	Write("Beginning Scan");
 	GetSettings();
 	ScanString="";
-	for(int i=0;i<EntityLists.Length;i++)
-		EntityLists[i].UpdatePositions(Scan_Time);
 	PerformDisarm();
-	List<IMyTerminalBlock> AllTerminalBlocks=new List<IMyTerminalBlock>();
-	GridTerminalSystem.GetBlocksOfType<IMyTerminalBlock>(AllTerminalBlocks);
-	MySize=0;
-	foreach(IMyTerminalBlock Block in AllTerminalBlocks){
-		double distance=(Controller.GetPosition()-Block.GetPosition()).Length();
-		MySize=Math.Max(MySize,distance);
-	}
+	
 	
 	List<MyDetectedEntityInfo> DetectedEntities=new List<MyDetectedEntityInfo>();
 	List<IMySensorBlock> AllSensors=new List<IMySensorBlock>();
-	GridTerminalSystem.GetBlocksOfType<IMySensorBlock>(AllSensors);
-	foreach(IMySensorBlock Sensor in AllSensors){
-		MyDetectedEntityInfo LastEntity=Sensor.LastDetectedEntity;
-		if(Sensor.CustomName.ToLower().Contains("locking")||Sensor.CustomName.ToLower().Contains("tracking")){
-			if(Sensor.Enabled&&LastEntity.Relationship==MyRelationsBetweenPlayerAndBlock.Enemies&&(LastEntity.Position-Sensor.GetPosition()).Length()<1000)
-				Sensor.Enabled=false;
-			else if((!Sensor.Enabled)&&LastEntity.Relationship!=MyRelationsBetweenPlayerAndBlock.Enemies)
-				Sensor.Enabled=true;
-			if(!Sensor.Enabled)
-				ScanString+='\n'+Sensor.CustomName+":LOCKED";
-		}
-		UpdateList(DetectedEntities,LastEntity);
-		List<MyDetectedEntityInfo> entities=new List<MyDetectedEntityInfo>();
-		Sensor.DetectedEntities(entities);
-		foreach(MyDetectedEntityInfo Entity in entities)
-			UpdateList(DetectedEntities, Entity);
-	}
+	
 	List<IMyLargeTurretBase> AllTurrets=new List<IMyLargeTurretBase>();
 	GridTerminalSystem.GetBlocksOfType<IMyLargeTurretBase>(AllTurrets);
 	foreach(IMyLargeTurretBase Turret in AllTurrets){
-		if(Turret.HasTarget)
-			UpdateList(DetectedEntities, Turret.GetTargetedEntity());
-	}
-	List<bool> raycast_check=new List<bool>();
-	for(int i=0;i<DetectedEntities.Count;i++)
-		raycast_check.Add(false);
-	double Scan_Crash_Time=double.MaxValue;
-	List<IMyCameraBlock> MyCameras=GetValidCameras();
-	foreach(IMyCameraBlock Camera in MyCameras){
-		int count=0;
-		bool update_me=false;
-		if(GetBlockData(Camera,"DoRaycast").Equals("maybe")){
-			Int32.TryParse(GetBlockData(Camera, "RaycastTestCount"), out count);
-			if(count>=100){
-				SetBlockData(Camera, "DoRaycast", "false");
-				continue;
-			}
-			update_me=true;
-		}
-		double raycast_distance=Raycast_Distance;
-		if(Camera.RaycastDistanceLimit!=-1)
-			raycast_distance=Math.Min(raycast_distance,Camera.AvailableScanRange);
-		MyDetectedEntityInfo Raycast_Entity=Camera.Raycast(raycast_distance,0,0);
-		if(update_me && Raycast_Entity.EntityId!=Me.CubeGrid.EntityId&&Raycast_Entity.EntityId!=Camera.CubeGrid.EntityId){
-			SetBlockData(Camera,"DoRaycast","true");
-			update_me=true;
-		}
-		UpdateList(DetectedEntities,Raycast_Entity);
-		if(!update_me){
-			if((Time_To_Crash<60&&Elevation<500)){
-				Vector3D Velocity_Direction=CurrentVelocity;
-				Velocity_Direction.Normalize();
-				double speed_check=15*CurrentVelocity.Length();
-				double distance=Math.Min(speed_check, Camera.AvailableScanRange/2);
-				if(Camera.CanScan(distance,Velocity_Direction)){
-					MyDetectedEntityInfo Entity=Camera.Raycast(distance,Velocity_Direction);
-					if(Entity.Type!=MyDetectedEntityType.None&&Entity.EntityId!=Me.CubeGrid.EntityId){
-						try{
-							double new_distance=(((Vector3D)Entity.HitPosition)-Camera.GetPosition()).Length();
-							double new_time=new_distance/CurrentVelocity.Length();
-							if(new_time<Scan_Crash_Time){
-								Scan_Crash_Time=new_time;
-								Closest_Hit_Position=((Vector3D)Entity.HitPosition);
-							}
-						}
-						catch(Exception){
-							;
-						}
-					}
-				}
-			}
-			for(int i=0;i<Math.Min(raycast_check.Count,DetectedEntities.Count);i++){
-				if(raycast_check[i]&&Camera.CanScan(DetectedEntities[i].Position)){
-					Raycast_Entity=Camera.Raycast(DetectedEntities[i].Position);
-					UpdateList(DetectedEntities, Raycast_Entity);
-					if(Raycast_Entity.Type!=MyDetectedEntityType.None&&Raycast_Entity.EntityId!=Me.CubeGrid.EntityId)
-						raycast_check[i]=false;
-				}
-			}
-		}
-	}
-	ScanString+="Retrieved updated data\non "+DetectedEntities.Count+" relevant entities"+'\n';
-	List<IMyBroadcastListener> listeners=new List<IMyBroadcastListener>();
-	IGC.GetBroadcastListeners(listeners);
-	MyDetectedEntityType MyType=MyDetectedEntityType.LargeGrid;
-	if(Controller.CubeGrid.GridSizeEnum==MyCubeSize.Small)
-		MyType=MyDetectedEntityType.SmallGrid;
-	EntityInfo Myself=new EntityInfo(Controller.CubeGrid.EntityId,Controller.CubeGrid.CustomName,MyType,(Vector3D?)(Controller.GetPosition()),CurrentVelocity,MyRelationsBetweenPlayerAndBlock.Owner,Controller.CubeGrid.GetPosition());
-	
-	foreach(IMyBroadcastListener Listener in listeners)
-		IGC.SendBroadcastMessage(Listener.Tag,Myself.ToString(),TransmissionDistance.TransmissionDistanceMax);
-	foreach(MyDetectedEntityInfo entity in DetectedEntities){
-		EntityInfo Entity=new EntityInfo(entity);
-		foreach(IMyBroadcastListener Listener in listeners)
-			IGC.SendBroadcastMessage(Listener.Tag,Entity.ToString(),TransmissionDistance.TransmissionDistanceMax);
-	}
-	List<EntityInfo> Entities=new List<EntityInfo>();
-	foreach(MyDetectedEntityInfo entity in DetectedEntities)
-		Entities.Add(new EntityInfo(entity));
-	foreach(IMyBroadcastListener Listener in listeners){
-		int count=0;
-		while(Listener.HasPendingMessage){
-			MyIGCMessage message=Listener.AcceptMessage();
-			count++;
-			EntityInfo Entity;
-			if(EntityInfo.TryParse(message.Data.ToString(), out Entity))
-				UpdateList(Entities, Entity);
-		}
-		if(count>0)
-			ScanString+="Received "+count.ToString()+" messages on "+Listener.Tag+'\n';
-	}
-	foreach(EntityInfo Entity in Entities){
-		switch(Entity.Type){
-			case MyDetectedEntityType.Asteroid:
-				AsteroidList.UpdateEntry(Entity);
-				break;
-			case MyDetectedEntityType.Planet:
-				PlanetList.UpdateEntry(Entity);
-				break;
-			case MyDetectedEntityType.SmallGrid:
-				SmallShipList.UpdateEntry(Entity);
-				break;
-			case MyDetectedEntityType.LargeGrid:
-				LargeShipList.UpdateEntry(Entity);
-				break;
-			case MyDetectedEntityType.CharacterHuman:
-				CharacterList.UpdateEntry(Entity);
-				break;
-			case MyDetectedEntityType.CharacterOther:
-				CharacterList.UpdateEntry(Entity);
-				break;
-		}
-	}
-	
-	for(int j=2;j<EntityLists.Length;j++){
-		for(int i=0;i<EntityLists[j].Count;i++){
-			bool Remove=false;
-			EntityInfo Entity=EntityLists[j][i];
-			foreach(IMySensorBlock Sensor in AllSensors){
-				if(CanDetect(Sensor,Entity)){
-					if(IsDetecting(Sensor,Entity)){
-						Remove=false;
-						break;
-					}
-					else
-						Remove=true;
-				}
-			}
-			if(Remove){
-				EntityLists[j].RemoveEntry(Entity);
-				i--;
-			}
+		if(Turret.HasTarget){
+			TurretTimer=0;
+			break;
 		}
 	}
 	
@@ -2490,111 +1840,49 @@ void UpdateAirlock(Airlock airlock){
 	if(!(CanHaveJob(airlock.Door1,"Airlock")&&(CanHaveJob(airlock.Door2,"Airlock"))))
 		return;
 	bool detected=false;
-	double min_distance_1=double.MaxValue;
-	double min_distance_2=double.MaxValue;
-	double min_distance_check=3.75*(1+(Controller.GetShipSpeed()/200));
-	foreach(EntityInfo Entity in CharacterList){
-		if(Guest_Mode||(Entity.Relationship!=MyRelationsBetweenPlayerAndBlock.Enemies&&Entity.Relationship!=MyRelationsBetweenPlayerAndBlock.Neutral)){
-			Vector3D position=Entity.Position+CurrentVelocity/100;
-			double distance=airlock.Distance(Entity.Position);
-			bool is_closest_to_this_airlock=distance <= min_distance_check;
-			if(is_closest_to_this_airlock){
-				foreach(Airlock alock in Airlocks){
-					if(is_closest_to_this_airlock && !alock.Equals(airlock))
-						is_closest_to_this_airlock=is_closest_to_this_airlock&&distance<(alock.Distance(position));
-				}
-			}
-			if(is_closest_to_this_airlock){
-				detected=true;
-				min_distance_1=Math.Min(min_distance_1,(airlock.Door1.GetPosition()-position).Length());
-				min_distance_2=Math.Min(min_distance_2,(airlock.Door2.GetPosition()-position).Length());
-			}
-		}
-	}
+	bool both_closed=(airlock.Door1.Status==DoorStatus.Closed)&&(airlock.Door2.Status==DoorStatus.Closed);
+	
 	double wait=1;
 	if(airlock.Vent!=null)
 		wait=3;
-	if(detected){
+	if(airlock.AirlockTimer<wait||!both_closed){
 		SetBlockData(airlock.Door1,"Job","Airlock");
 		SetBlockData(airlock.Door2,"Job","Airlock");
-		if(min_distance_1<=min_distance_2){
-			airlock.Door2.Enabled=(airlock.Door2.Status!=DoorStatus.Closed);
-			if(airlock.Door2.Status!=DoorStatus.Closing)
-				airlock.Door2.CloseDoor();
-			if(airlock.Door2.Enabled){
-				airlock.Door1.Enabled=(airlock.Door1.Status!=DoorStatus.Closed);
-				if(airlock.Door1.Status!=DoorStatus.Closing)
-					airlock.Door1.CloseDoor();
-				Write(airlock.Name+":"+"Closing Door 2");
-			}
-			else{
-				airlock.Door1.Enabled=true;
-				if(airlock.Door1.Status!=DoorStatus.Opening&&airlock.AirlockTimer>wait)
-					airlock.Door1.OpenDoor();
-				Write(airlock.Name+":"+"Opening Door 1");
-			}
-		}
-		else {
-			airlock.Door1.Enabled=(airlock.Door1.Status!=DoorStatus.Closed);
-			if(airlock.Door1.Status!=DoorStatus.Closing)
-				airlock.Door1.CloseDoor();
-			if(airlock.Door1.Enabled){
-				airlock.Door2.Enabled=(airlock.Door2.Status!=DoorStatus.Closed);
-				if(airlock.Door2.Status!=DoorStatus.Closing)
-					airlock.Door2.CloseDoor();
-				Write(airlock.Name+":"+"Closing Door 1");
-			}
-			else {
-				airlock.Door2.Enabled=true;
-				if(airlock.Door2.Status!=DoorStatus.Opening&&airlock.AirlockTimer>wait)
-					airlock.Door2.OpenDoor();
-				Write(airlock.Name+":"+"Opening Door 2");
-			}
-		}
+		if(!both_closed)
+			airlock.AirlockTimer=0;
+		airlock.Door1.Enabled=(airlock.Door1.Status!=DoorStatus.Closed);
+		airlock.Door2.Enabled=(airlock.Door1.Status!=DoorStatus.Closed);
 	}
 	else{
 		SetBlockData(airlock.Door1,"Job","None");
 		SetBlockData(airlock.Door2,"Job","None");
-		airlock.Door1.Enabled=(airlock.Door1.Status!=DoorStatus.Closed);
-		if(airlock.Door1.Status!=DoorStatus.Closing)
-			airlock.Door1.CloseDoor();
-		airlock.Door2.Enabled=(airlock.Door2.Status!=DoorStatus.Closed);
-		if(airlock.Door2.Status!=DoorStatus.Closing)
-			airlock.Door2.CloseDoor();
-		Write(airlock.Name+":"+"Closing both Doors");
-	}
-}
-void UpdateAutoDoors(){
-	foreach(IMyDoor AutoDoor in AutoDoors){
-		bool found_entity=false;
-		double min_distance_check=3.75*(1+(Controller.GetShipSpeed()/200));
-		foreach(EntityInfo Entity in CharacterList){
-			if(Entity.Relationship!=MyRelationsBetweenPlayerAndBlock.Enemies&&Entity.Relationship!=MyRelationsBetweenPlayerAndBlock.Neutral){
-				Vector3D position=Entity.Position+CurrentVelocity/100;
-				double distance=(AutoDoor.GetPosition()-Entity.Position).Length();
-				bool is_closest_to_this_airlock=distance<=min_distance_check;
-				if(distance<min_distance_check){
-					found_entity=true;
-					if(!_Lockdown)
-						AutoDoor.OpenDoor();
-					break;
-				}
-			}
-		}
-		if(!found_entity)
-			AutoDoor.CloseDoor();
+		airlock.Door1.Enabled=true;
+		airlock.Door2.Enabled=true;
 	}
 }
 void PerformDisarm(){
 	List<IMyWarhead> Warheads=new List<IMyWarhead>();
 	GridTerminalSystem.GetBlocksOfType<IMyWarhead>(Warheads);
 	foreach(IMyWarhead Warhead in Warheads){
-		if(HasBlockData(Warhead, "VerifiedWarhead")&&GetBlockData(Warhead,"VerifiedWahead").Equals("Active"))
+		if(HasBlockData(Warhead,"VerifiedWarhead")&&GetBlockData(Warhead,"VerifiedWahead").Equals("Active"))
 			continue;
 		Warhead.DetonationTime=Math.Max(60,Warhead.DetonationTime);
 		Warhead.IsArmed=false;
 		Warhead.StopCountdown();
 	}
+}
+
+bool VerifyWarheads(object obj=null){
+	List<IMyWarhead> Warheads=new List<IMyWarhead>();
+	GridTerminalSystem.GetBlocksOfType<IMyWarhead>(Warheads);
+	int count=0;
+	foreach(IMyWarhead Warhead in Warheads){
+		if(Warhead.IsArmed==false&&!Warhead.IsCountingDown){
+			SetBlockData(Warhead,"VerifiedWahead","Active");
+			count++;
+		}
+	}
+	return count>0;
 }
 
 //Sets gyroscope outputs from player input, dampeners, gravity, and autopilot
@@ -2627,7 +1915,12 @@ void SetGyroscopes(){
 	if(Roll_Time<1)
 		Roll_Time+=seconds_since_last_update;
 	
-	input_pitch=Math.Min(Math.Max(Controller.RotationIndicator.X/100,-1),1);
+	bool Undercontrol=false;
+	foreach(IMyShipController Ctrl in Controllers)
+		Undercontrol=Undercontrol||Ctrl.IsUnderControl;
+	
+	foreach(IMyShipController Ctrl in Controllers)
+		input_pitch+=Math.Min(Math.Max(Ctrl.RotationIndicator.X/100,-1),1);
 	if(Math.Abs(input_pitch)<0.05f){
 		input_pitch=current_pitch*0.99f;
 		if((((Elevation-MySize)<Controller.GetShipSpeed()*2&&(Elevation-MySize)<50)||(Controller.DampenersOverride&&!Controller.IsUnderControl))&&GetAngle(Gravity,Forward_Vector)<90&&Pitch_Time>=1){
@@ -2635,7 +1928,7 @@ void SetGyroscopes(){
 			if(difference<90)
 				input_pitch-=10*gyro_multx*((float)Math.Min(Math.Abs((90-difference)/90),1));
 		}
-		if((Controller.DampenersOverride&&!Controller.IsUnderControl)&&(GetAngle(Gravity,Forward_Vector)>(90+Acceptable_Angle/2))){
+		if((Controller.DampenersOverride&&!Undercontrol)&&(GetAngle(Gravity,Forward_Vector)>(90+Acceptable_Angle/2))){
 			double difference=Math.Abs(GetAngle(Gravity,Forward_Vector));
 			if(difference>90+Acceptable_Angle/2)
 				input_pitch+=10*gyro_multx*((float)Math.Min(Math.Abs((difference-90)/90),1));
@@ -2645,7 +1938,8 @@ void SetGyroscopes(){
 		Pitch_Time=0;
 		input_pitch*=30;
 	}
-	input_yaw=Math.Min(Math.Max(Controller.RotationIndicator.Y/100,-1),1);
+	foreach(IMyShipController Ctrl in Controllers)
+		input_yaw+=Math.Min(Math.Max(Ctrl.RotationIndicator.Y/100,-1),1);
 	if(Math.Abs(input_yaw)<0.05f){
 		input_yaw=current_yaw*0.99f;
 	}
@@ -2653,7 +1947,8 @@ void SetGyroscopes(){
 		Yaw_Time=0;
 		input_yaw*=30;
 	}
-	input_roll=Controller.RollIndicator;
+	foreach(IMyShipController Ctrl in Controllers)
+		input_roll+=Ctrll.RollIndicator;
 	if(Math.Abs(input_roll)<0.05f){
 		input_roll=current_roll*0.99f;
 		if(Gravity.Length()>0&&Roll_Time>=1){
@@ -2685,6 +1980,10 @@ void SetThrusters(){
 	float input_right=0.0f;
 	float damp_multx=0.99f;
 	double effective_speed_limit=Speed_Limit;
+	
+	bool Undercontrol=false;
+	foreach(IMyShipController Ctrl in Controllers)
+		Undercontrol=Undercontrol||Ctrl.IsUnderControl;
 	
 	if(Elevation<5000)
 		effective_speed_limit=Math.Min(effective_speed_limit,Elevation*2);
@@ -2718,46 +2017,52 @@ void SetThrusters(){
 		}
 	}
 	
-	if(Math.Abs(Controller.MoveIndicator.X)>0.5f){
-		if(Controller.MoveIndicator.X>0){
-			if((CurrentVelocity+Right_Vector-RestingVelocity).Length()<=effective_speed_limit)
-				input_right=0.95f*Right_Thrust;
-			else
-				input_right=Math.Min(input_right,0);
-		} else {
-			if((CurrentVelocity+Left_Vector-RestingVelocity).Length()<=effective_speed_limit)
-				input_right=-0.95f*Left_Thrust;
-			else
-				input_right=Math.Max(input_right,0);
+	foreach(IMyShipController Ctrl in Controllers){
+		if(Ctrl.IsUnderControl&&Math.Abs(Ctrl.MoveIndicator.X)>0.5f){
+			if(Ctrl.MoveIndicator.X>0){
+				if((CurrentVelocity+Right_Vector-RestingVelocity).Length()<=effective_speed_limit)
+					input_right=0.95f*Right_Thrust;
+				else
+					input_right=Math.Min(input_right,0);
+			} else {
+				if((CurrentVelocity+Left_Vector-RestingVelocity).Length()<=effective_speed_limit)
+					input_right=-0.95f*Left_Thrust;
+				else
+					input_right=Math.Max(input_right,0);
+			}
 		}
 	}
 	
-	if(Math.Abs(Controller.MoveIndicator.Y)>0.5f){
-		if(Controller.MoveIndicator.Y>0){
-			if((CurrentVelocity+Up_Vector-RestingVelocity).Length()<=effective_speed_limit)
-				input_up=0.95f*Up_Thrust;
-			else
-				input_up=Math.Min(input_up,0);
-		} else {
-			if((CurrentVelocity+Down_Vector-RestingVelocity).Length()<=effective_speed_limit)
-				input_up=-0.95f*Down_Thrust;
-			else
-				input_up=Math.Max(input_up,0);
+	foreach(IMyShipController Ctrl in Controllers){
+		if(Ctrl.IsUnderControl&&Math.Abs(Ctrl.MoveIndicator.Y)>0.5f){
+			if(Ctrl.MoveIndicator.Y>0){
+				if((CurrentVelocity+Up_Vector-RestingVelocity).Length()<=effective_speed_limit)
+					input_up=0.95f*Up_Thrust;
+				else
+					input_up=Math.Min(input_up,0);
+			} else {
+				if((CurrentVelocity+Down_Vector-RestingVelocity).Length()<=effective_speed_limit)
+					input_up=-0.95f*Down_Thrust;
+				else
+					input_up=Math.Max(input_up,0);
+			}
 		}
 	}
 	
-	if(Math.Abs(Controller.MoveIndicator.Z)>0.5f){
-		if(Controller.MoveIndicator.Z<0){
-			if((CurrentVelocity+Up_Vector-RestingVelocity).Length()<=effective_speed_limit)
-				input_forward=0.95f*Forward_Thrust;
-			else
-				input_forward=Math.Min(input_forward,0);
-		} 
-		else{
-			if((CurrentVelocity+Down_Vector-RestingVelocity).Length()<=effective_speed_limit)
-				input_forward=-0.95f*Backward_Thrust;
-			else
-				input_forward=Math.Max(input_forward,0);
+	foreach(IMyShipController Ctrl in Controllers){
+		if(Ctrl.IsUnderControl&&Math.Abs(Ctrl.MoveIndicator.Z)>0.5f){
+			if(Ctrl.MoveIndicator.Z<0){
+				if((CurrentVelocity+Up_Vector-RestingVelocity).Length()<=effective_speed_limit)
+					input_forward=0.95f*Forward_Thrust;
+				else
+					input_forward=Math.Min(input_forward,0);
+			} 
+			else{
+				if((CurrentVelocity+Down_Vector-RestingVelocity).Length()<=effective_speed_limit)
+					input_forward=-0.95f*Backward_Thrust;
+				else
+					input_forward=Math.Max(input_forward,0);
+			}
 		}
 	}
 	
@@ -2792,6 +2097,12 @@ void SetThrusters(){
 		Thruster.ThrustOverridePercentage=output_right;
 	foreach(IMyThrust Thruster in Left_Thrusters)
 		Thruster.ThrustOverridePercentage=output_left;
+	foreach(ThrustPod Pod in ThrustPod){
+		if(Angled(Pod,Up_Vector))
+			Pod.Thrust.ThrustOverridePercentage=output_up;
+		else if(Angled(Pod,Forward_Vector))
+			Pod.Thrust.ThrustOverridePercentage=output_forward;
+	}
 }
 
 void UpdateProgramInfo(){
@@ -2820,6 +2131,7 @@ void UpdateProgramInfo(){
 	Me.GetSurface(1).WriteText("\n"+ToString(Time_Since_Start)+" since last reboot",true);
 }
 
+double Thrust_Pod_Timer=30;
 void UpdateTimers(){
 	foreach(Airlock airlock in Airlocks){
 		if(airlock.Door1.Status==DoorStatus.Closed&&airlock.Door2.Status==DoorStatus.Closed){
@@ -2834,6 +2146,10 @@ void UpdateTimers(){
 		if(Guest_Timer>=Guest_Mode_Timer)
 			Guest_Mode=false;
 	}
+	if(TurretTimer<300)
+		TurretTimer+=seconds_since_last_update;
+	if(Thrust_Pod_Timer<30)
+		Thrust_Pod_Timer+=seconds_since_last_update;
 	Scan_Time+=seconds_since_last_update;
 }
 
@@ -2851,6 +2167,7 @@ void UpdateSystemData(){
 	Gravity=Controller.GetNaturalGravity();
 	CurrentVelocity=Controller.GetShipVelocities().LinearVelocity;
 	AngularVelocity=Controller.GetShipVelocities().AngularVelocity;
+	
 	Time_To_Crash=-1;
 	Elevation=double.MaxValue;
 	if(Controller.TryGetPlanetElevation(MyPlanetElevation.Sealevel,out Sealevel)){
@@ -2862,10 +2179,10 @@ void UpdateSystemData(){
 				}
 				else if(Elevation<50){
 					double terrain_height=(Controller.GetPosition()-PlanetCenter).Length()-Elevation;
-					List<IMyTerminalBlock> AllBlocks=new List<IMyTerminalBlock>();
-					GridTerminalSystem.GetBlocksOfType<IMyTerminalBlock>(AllBlocks);
-					foreach(IMyTerminalBlock Block in AllBlocks)
-						Elevation=Math.Min(Elevation, (Block.GetPosition()-PlanetCenter).Length()-terrain_height);
+					List<IMyLandingGear> AllBlocks=new List<IMyLandingGear>();
+					GridTerminalSystem.GetBlocksOfType<IMyLandingGear>(AllBlocks);
+					foreach(IMyLandingGear Block in AllBlocks)
+						Elevation=Math.Min(Elevation,(Block.GetPosition()-PlanetCenter).Length()-terrain_height);
 				}
 			}
 			else
@@ -2883,26 +2200,20 @@ void UpdateSystemData(){
 					Time_To_Crash=Math.Min(Time_To_Crash,(Closest_Hit_Position-Controller.GetPosition()).Length()/CurrentVelocity.Length());
 				bool need_print=true;
 				if(Time_To_Crash>0){
-					if(Time_To_Crash<15 && Controller.GetShipSpeed()>5){
+					if(Time_To_Crash<15&&Controller.GetShipSpeed()>5){
 						Controller.DampenersOverride=true;
 						RestingVelocity=new Vector3D(0,0,0);
 						Write("Crash predicted within 15 seconds; enabling Dampeners");
 						need_print=false;
 					}
-					else if(Time_To_Crash*Math.Max(Elevation,1000)<1800000 && Controller.GetShipSpeed() > 1.0f){
+					else if(Time_To_Crash*Math.Max(Elevation,1000)<1800000&&Controller.GetShipSpeed()>1.0f){
 						Write(Math.Round(Time_To_Crash, 1).ToString()+" seconds to crash");
 						if(_Autoland && Time_To_Crash>30)
 							Controller.DampenersOverride=false;
 						need_print=false;
 					}
-					if(Elevation-MySize<5&&_Autoland){
+					if(Elevation-MySize<5&&_Autoland)
 						_Autoland=false;
-						if(Autoland_Action_Timer_Name.Length>0){
-							IMyTimerBlock Timer=GenericMethods<IMyTimerBlock>.GetConstruct(Autoland_Action_Timer_Name);
-							if(Timer!=null)
-								Timer.Trigger();
-						}
-					}
 				}
 				if(need_print)
 					Write("No crash likely at current velocity");
@@ -2924,6 +2235,11 @@ void UpdateSystemData(){
 		}
 		Cargo_Status=sum/total;
 	}
+	
+}
+
+double FromRad(double rad){
+	return rad*180/Math.PI;
 }
 
 public void Main(string argument, UpdateType updateSource)
@@ -2949,7 +2265,75 @@ public void Main(string argument, UpdateType updateSource)
 		foreach(Airlock airlock in Airlocks){
 			UpdateAirlock(airlock);
 		}
-		UpdateAutoDoors();
+		
+		if(cycle%10==0&&Thrust_Pod_Timer>=30){
+			double GV_A=GetAngle(Velocity_Direction,Gravity_Direction);
+			if(GV_A>120&&Gravity.Length()<=0.981){
+				foreach(ThrustPod Pod in ThrustPods){
+					if(Pod.Thrust!=null&&Pod.Rotor!=null){
+						if(Pod.Rotor.CustomName.Contains("Inferno Pod Rotor L")){
+							if(Pod.Rotor.TargetVelocityRPM>=0){
+								Pod.Rotor.TargetVelocityRPM=-6;
+								SetBlockData(Pod.Rotor,"Target",Pod.Rotor.LowerLimitDeg.ToString());
+								Pod.Rotor.RotorLock=false;
+								Thrust_Pod_Timer=0;
+							}
+						} 
+						else if(Pod.Rotor.CustomName.Contains("Inferno Pod Rotor R")){
+							if(Pod.Rotor.TargetVelocityRPM<=0){
+								Pod.Rotor.TargetVelocityRPM=6;
+								SetBlockData(Pod.Rotor,"Target",Pod.Rotor.UpperLimitDeg.ToString());
+								Pod.Rotor.RotorLock=false;
+								Thrust_Pod_Timer=0;
+							}
+						}
+					}
+				}
+			}
+			else if(GV_A<60&&Gravity.Length()>=0.981){
+				foreach(ThrustPod Pod in ThrustPods){
+					if(Pod.Thrust!=null&&Pod.Rotor!=null){
+						if(Pod.Rotor.CustomName.Contains("Inferno Pod Rotor L")){
+							if(Pod.Rotor.TargetVelocityRPM<=0){
+								Pod.Rotor.TargetVelocityRPM=6;
+								SetBlockData(Pod.Rotor,"Target",Pod.Rotor.UpperLimitDeg.ToString());
+								Pod.Rotor.RotorLock=false;
+								Thrust_Pod_Timer=0;
+							}
+						} 
+						else if(Pod.Rotor.CustomName.Contains("Inferno Pod Rotor R")){
+							if(Pod.Rotor.TargetVelocityRPM>=0){
+								Pod.Rotor.TargetVelocityRPM=-6;
+								SetBlockData(Pod.Rotor,"Target",Pod.Rotor.LowerLimitDeg.ToString());
+								Pod.Rotor.RotorLock=false;
+								Thrust_Pod_Timer=0;
+							}
+						}
+					}
+				}
+			}
+		}
+		if(Thrust_Pod_Timer<30){
+			foreach(ThrustPod Pod in ThrustPods){
+				if(Pod.Thrust!=null&&Pod.Rotor!=null){
+					double target;
+					if(HasBlockData(Pod.Rotor,"Target")&&double.TryParse(GetBlockData(Pod.Rotor,"Target"),out target)){
+						double angle=(FromRad(Pod.Rotor.Angle)+180)%360;
+						target=(target+180)%360;
+						if(Math.Abs(angle-target)<0.05){
+							Pod.Rotor.RotorLock=true;
+							Pod.Thrust.Enabled=true;
+						}
+						else{
+							Pod.Rotor.RotorLock=false;
+							Pod.Rotor.Enabled=true;
+							Pod.Thrust.Enabled=false;
+							Thrust_Pod_Timer=Math.Min(Thrust_Pod_Timer,15);
+						}
+					}
+				}
+			}
+		}
 		
 		if(argument.ToLower().Equals("back")){
 			Command_Menu.Back();
@@ -2967,9 +2351,6 @@ public void Main(string argument, UpdateType updateSource)
 			Command_Menu.Select();
 			DisplayMenu();
 		}
-		else if(argument.ToLower().Equals("lockdown")){
-			Lockdown();
-		}
 		else if(argument.ToLower().Equals("autoland")){
 			Autoland();
 		}
@@ -2983,8 +2364,6 @@ public void Main(string argument, UpdateType updateSource)
 		}
 		if(_Autoland)
 			Write("Autoland Enabled");
-
-		Echo(GenericMethods<IMyDoor>.GetAllIncluding("Air Seal").Count.ToString()+" Air Seals");
 		
 		if(!Me.CubeGrid.IsStatic&&Controller.CalculateShipMass().PhysicalMass>0){
 			if(Control_Thrusters)
@@ -3016,9 +2395,6 @@ public void Main(string argument, UpdateType updateSource)
 				SetStatus("Condition "+ShipStatus.ToString()+Submessage, new Color(255, 137, 137, 255), new Color(151, 0, 0, 255));
 				break;
 		}
-		
-		foreach(IMyCameraBlock Camera in GetValidCameras())
-			Write(Camera.CustomName+" Charge: "+Math.Round(Camera.AvailableScanRange/1000,1).ToString()+"kM");
 		
 		Runtime.UpdateFrequency=GetUpdateFrequency();
 	}
