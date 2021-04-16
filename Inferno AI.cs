@@ -8,7 +8,7 @@ Color DEFAULT_TEXT_COLOR=new Color(255,179,137,255);
 Color DEFAULT_BACKGROUND_COLOR=new Color(88,44,0,255);
 double Speed_Limit=1000;
 double Guest_Mode_Timer=900;
-double Acceptable_Angle=10;
+double Acceptable_Angle=1;
 bool Control_Gyroscopes=true;
 bool Control_Thrusters=true;
 
@@ -1127,15 +1127,6 @@ void SetupAirlocks(){
 
 UpdateFrequency GetUpdateFrequency(){
 	return UpdateFrequency.Update1;
-	if(!Operational)
-		return UpdateFrequency.None;
-	if(Controller.IsUnderControl)
-		return UpdateFrequency.Update1;
-	if(Controller.GetShipVelocities().AngularVelocity.Length()>.1f)
-		return UpdateFrequency.Update1;
-	if((Controller.GetShipVelocities().LinearVelocity-RestingVelocity).Length()>.5)
-		return UpdateFrequency.Update1;
-	return UpdateFrequency.Update10;
 }
 
 string GetThrustTypeName(IMyThrust Thruster){
@@ -1856,7 +1847,7 @@ void SetGyroscopes(){
 		if(Gravity.Length()>0&&Roll_Time>=1){
 			double difference=GetAngle(Left_Vector,Gravity)-GetAngle(Right_Vector,Gravity);
 			if(Math.Abs(difference)>Acceptable_Angle){
-				input_roll-=(float)Math.Min(Math.Max(difference/2,-5),5)*gyro_multx;
+				input_roll-=(float)Math.Min(Math.Max(difference*5,-5),25)*gyro_multx;
 			}
 		}
 	}
@@ -2077,7 +2068,7 @@ void UpdateSystemData(){
 					double difference=Sealevel-5000;
 					Elevation=((Elevation*(1000-difference))+(Sealevel*difference))/1000;
 				}
-				else if(Elevation<50){
+				else if(Elevation<500){
 					double terrain_height=(Controller.GetPosition()-PlanetCenter).Length()-Elevation;
 					List<IMyLandingGear> AllBlocks=new List<IMyLandingGear>();
 					GridTerminalSystem.GetBlocksOfType<IMyLandingGear>(AllBlocks);
@@ -2151,7 +2142,7 @@ public void Main(string argument, UpdateType updateSource)
 			Write("Maximum Power (Launching): "+Math.Round(Math.Max(Up_Gs,Forward_Gs),2)+"Gs");
 		}
 		Write("Cargo at "+Math.Round(Cargo_Status*100,1).ToString()+"% Capacity");
-		if(Scan_Time>=10)
+		if(Scan_Time>=5)
 			PerformScan();
 		else
 			Write("Last Scan "+Math.Round(Scan_Time,1).ToString());
