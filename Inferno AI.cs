@@ -539,66 +539,6 @@ class Menu_Command<T>:MenuOption where T:class{
 	}
 }
 
-class Menu_Display:MenuOption{
-	public string Name(){
-		if(Entity==null)
-			return "null";
-		string name=Entity.Name.Substring(0,Math.Min(24,Entity.Name.Length));
-		string[] args=name.Split(' ');
-		int number=0;
-		if(args.Length==3&&args[1].ToLower().Equals("grid")&&Int32.TryParse(args[2],out number))
-			name="Unnamed "+args[0]+' '+args[1];
-		double distance=Entity.GetDistance(Prog.P.Me.GetPosition())-Entity.Size;
-		string distance_string=Math.Round(distance,0).ToString()+"M";
-		if(distance>=1000)
-			distance_string=Math.Round(distance/1000,1).ToString()+"kM";
-		string output=' '+name+' '+distance_string;
-		switch(Entity.Relationship){
-			case MyRelationsBetweenPlayerAndBlock.Owner:
-				return ''+output;
-			case MyRelationsBetweenPlayerAndBlock.FactionShare:
-				return ''+output;
-			case MyRelationsBetweenPlayerAndBlock.Friends:
-				return ''+output;
-			case MyRelationsBetweenPlayerAndBlock.NoOwnership:
-				return ''+output;
-			case MyRelationsBetweenPlayerAndBlock.Enemies:
-				return ''+output;
-		}
-		return ''+output;
-	}
-	public MenuType Type(){
-		return MenuType.Display;
-	}
-	public bool AutoRefresh(){
-		return true;
-	}
-	public int Depth(){
-		return 1;
-	}
-	EntityInfo Entity;
-	
-	public Menu_Display(EntityInfo entity){
-		Entity=entity;
-	}
-	
-	public bool Select(){
-		return false;
-	}
-	
-	public bool Back(){
-		return false;
-	}
-	
-	public override string ToString(){
-		double distance=Entity.GetDistance(Prog.P.Me.GetPosition());
-		string distance_string=Math.Round(distance,0)+"M";
-		if(distance>=1000)
-			distance_string=Math.Round(distance/1000,1)+"kM";
-		return Entity.NiceString()+"Distance: "+distance_string;
-	}
-}
-
 class Airlock{
 	public IMyDoor Door1;
 	public IMyDoor Door2;
@@ -869,7 +809,7 @@ double Angle(ThrustPod Pod,Vector3D Direction){
 	if(Pod.Thrust==null)
 		return -90;
 	Vector3D base_vector=new Vector3D(0,0,1);
-	Thruster_Vector=LocalToGlobal(base_vector,Pod.Thrust);
+	Vector3D Thruster_Vector=LocalToGlobal(base_vector,Pod.Thrust);
 	return GetAngle(Thruster_Vector,Direction);
 }
 bool Angled(ThrustPod Pod,Vector3D Direction){
@@ -893,7 +833,7 @@ float Forward_Thrust{
 		float total=0;
 		foreach(IMyThrust Thruster in Forward_Thrusters)
 			total+=Thruster.MaxEffectiveThrust;
-		foreach(ThrustPod Pod in ThrustPod){
+		foreach(ThrustPod Pod in ThrustPods){
 			if(Angled(Pod,Forward_Vector))
 				total+=Pod.Thrust.MaxEffectiveThrust;
 		}
@@ -913,7 +853,7 @@ float Up_Thrust{
 		float total=0;
 		foreach(IMyThrust Thruster in Up_Thrusters)
 			total+=Thruster.MaxEffectiveThrust;
-		foreach(ThrustPod Pod in ThrustPod){
+		foreach(ThrustPod Pod in ThrustPods){
 			if(Angled(Pod,Up_Vector))
 				total+=Pod.Thrust.MaxEffectiveThrust;
 		}
@@ -1276,13 +1216,10 @@ void Reset(){
 	Runtime.UpdateFrequency=UpdateFrequency.None;
 	Controller=null;
 	Gyroscope=null;
-	for(int i=0;i<EntityLists.Length;i++)
-		EntityLists[i]=new EntityList();
 	StatusLCDs=new List<CustomPanel>();
 	DebugLCDs=new List<CustomPanel>();
 	CommandLCDs=new List<CustomPanel>();
 	List<Airlock> Airlocks=new List<Airlock>();
-	AutoDoors=new List<IMyDoor>();
 	for(int i=0;i<All_Thrusters.Length;i++)
 		All_Thrusters[i]=new List<IMyThrust>();
 	RestingVelocity=new Vector3D(0,0,0);
@@ -1482,48 +1419,12 @@ public Program(){
 	Echo("Beginning initialization");
 	Rnd=new Random();
 	Setup();
-	string[] args=this.Storage.Split('•');
-	foreach(string arg in args){
-		EntityInfo Entity=null;
-		if(EntityInfo.TryParse(arg,out Entity)){
-			switch(Entity.Type){
-				case MyDetectedEntityType.Asteroid:
-					AsteroidList.UpdateEntry(Entity);
-					break;
-				case MyDetectedEntityType.Planet:
-					PlanetList.UpdateEntry(Entity);
-					break;
-				case MyDetectedEntityType.SmallGrid:
-					SmallShipList.UpdateEntry(Entity);
-					break;
-				case MyDetectedEntityType.LargeGrid:
-					LargeShipList.UpdateEntry(Entity);
-					break;
-				case MyDetectedEntityType.CharacterHuman:
-					CharacterList.UpdateEntry(Entity);
-					break;
-				case MyDetectedEntityType.CharacterOther:
-					CharacterList.UpdateEntry(Entity);
-					break;
-			}
-		}
-		else if(arg.IndexOf("Lockdown:")==0){
-			bool.TryParse(arg.Substring("Lockdown:".Length), out _Lockdown);
-		}
-	}
-	IGC.RegisterBroadcastListener("Urean AI");
-	IGC.RegisterBroadcastListener("Entity Report");
-	IGC.RegisterBroadcastListener(Me.CubeGrid.CustomName);
 	CreateMenu();
 	DisplayMenu();
 }
 
 public void Save(){
-    this.Storage="Lockdown:"+_Lockdown.ToString();
-	for(int i=0;i<EntityLists.Length;i++){
-		foreach(EntityInfo Entity in EntityLists[i])
-			this.Storage+='•'+Entity.ToString();
-	}
+    this.Storage="";
 	if(Gyroscope!=null)
 		Gyroscope.GyroOverride=false;
 	for(int i=0;i<All_Thrusters.Length;i++){
@@ -1752,8 +1653,6 @@ bool FactoryReset(object obj=null){
 		foreach(IMyThrust Thruster in All_Thrusters[i])
 			ResetThruster(Thruster);
 	}
-	for(int i=0;i<EntityLists.Length;i++)
-		EntityLists[i].Clear();
 	Me.CustomData="";
 	this.Storage="";
 	Reset();
@@ -1767,6 +1666,7 @@ bool GuestMode(object obj=null){
 }
 bool Orbit(object obj=null){
 	//something about orbiting a planet
+	return false;
 }
 
 bool CreateMenu(object obj=null){
@@ -1821,8 +1721,6 @@ bool PerformScan(object obj=null){
 		}
 	}
 	
-	PerformAlarm();
-	
 	if(Command_Menu.AutoRefresh())
 		DisplayMenu();
 	
@@ -1839,7 +1737,6 @@ void UpdateAirlock(Airlock airlock){
 	}
 	if(!(CanHaveJob(airlock.Door1,"Airlock")&&(CanHaveJob(airlock.Door2,"Airlock"))))
 		return;
-	bool detected=false;
 	bool both_closed=(airlock.Door1.Status==DoorStatus.Closed)&&(airlock.Door2.Status==DoorStatus.Closed);
 	
 	double wait=1;
@@ -1948,7 +1845,7 @@ void SetGyroscopes(){
 		input_yaw*=30;
 	}
 	foreach(IMyShipController Ctrl in Controllers)
-		input_roll+=Ctrll.RollIndicator;
+		input_roll+=Ctrl.RollIndicator;
 	if(Math.Abs(input_roll)<0.05f){
 		input_roll=current_roll*0.99f;
 		if(Gravity.Length()>0&&Roll_Time>=1){
@@ -2097,7 +1994,7 @@ void SetThrusters(){
 		Thruster.ThrustOverridePercentage=output_right;
 	foreach(IMyThrust Thruster in Left_Thrusters)
 		Thruster.ThrustOverridePercentage=output_left;
-	foreach(ThrustPod Pod in ThrustPod){
+	foreach(ThrustPod Pod in ThrustPods){
 		if(Angled(Pod,Up_Vector))
 			Pod.Thrust.ThrustOverridePercentage=output_up;
 		else if(Angled(Pod,Forward_Vector))
@@ -2192,12 +2089,6 @@ void UpdateSystemData(){
 				Vector3D next_position=Controller.GetPosition()+1*CurrentVelocity;
 				double Elevation_per_second=(from_center-(next_position-PlanetCenter).Length());
 				Time_To_Crash=Elevation/Elevation_per_second;
-				Vector3D Closest_Crash_Direction=Closest_Hit_Position;
-				Closest_Crash_Direction.Normalize();
-				Vector3D Movement_Direction=CurrentVelocity;
-				Movement_Direction.Normalize();
-				if(GetAngle(Movement_Direction,Closest_Crash_Direction)<=Acceptable_Angle)
-					Time_To_Crash=Math.Min(Time_To_Crash,(Closest_Hit_Position-Controller.GetPosition()).Length()/CurrentVelocity.Length());
 				bool need_print=true;
 				if(Time_To_Crash>0){
 					if(Time_To_Crash<15&&Controller.GetShipSpeed()>5){
@@ -2257,7 +2148,7 @@ public void Main(string argument, UpdateType updateSource)
 			Write("Maximum Power (Launching): "+Math.Round(Math.Max(Up_Gs,Forward_Gs),2)+"Gs");
 		}
 		Write("Cargo at "+Math.Round(Cargo_Status*100,1).ToString()+"% Capacity");
-		if(Scan_Time>=Scan_Frequency)
+		if(Scan_Time>=10)
 			PerformScan();
 		else
 			Write("Last Scan "+Math.Round(Scan_Time,1).ToString());
