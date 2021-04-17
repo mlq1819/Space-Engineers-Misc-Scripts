@@ -2166,7 +2166,7 @@ void UpdateSystemData(){
 	}
 	else
 		Sealevel=double.MaxValue;
-	if(Orbiting&&(Gravity.Length()==0||Elevation<500)){
+	if(Orbiting&&(Gravity.Length()==0||Elevation<100)){
 		Orbiting=false;
 		RestingSpeed=0;
 	}
