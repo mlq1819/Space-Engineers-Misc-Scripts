@@ -964,7 +964,14 @@ bool Guest_Mode=false;
 
 float Mass_Accomodation=0.0f;
 
-Vector3D RestingVelocity;
+double RestingSpeed=0;
+Vector3D RestingVelocity{
+	get{
+		if(RestingSpeed==0)
+			return new Vector3D(0,0,0);
+		return RestingSpeed*Velocity_Direction;
+	}
+}
 Vector3D Relative_RestingVelocity{
 	get{
 		return GlobalToLocal(RestingVelocity,Controller);
@@ -1214,7 +1221,7 @@ void Reset(){
 	List<Airlock> Airlocks=new List<Airlock>();
 	for(int i=0;i<All_Thrusters.Length;i++)
 		All_Thrusters[i]=new List<IMyThrust>();
-	RestingVelocity=new Vector3D(0,0,0);
+	RestingSpeed=0;
 }
 
 bool Setup(){
@@ -1661,8 +1668,15 @@ bool GuestMode(object obj=null){
 	return true;
 }
 bool Orbit(object obj=null){
-	//something about orbiting a planet
-	return false;
+	if(RestingSpeed==0){
+		if(Elevation<1000)
+			return false;
+		RestingSpeed=CurrentVelocity.Length();
+	}
+	else{
+		RestingSpeed=0;
+	}
+	return true;
 }
 
 bool CreateMenu(object obj=null){
@@ -1670,6 +1684,7 @@ bool CreateMenu(object obj=null){
 	//Command_Menu.Add(new Menu_Command<object>("Update Menu", CreateMenu, "Refreshes menu"));
 	if(!Me.CubeGrid.IsStatic)
 		Command_Menu.Add(new Menu_Command<object>("Toggle Autoland",Autoland,"Toggles On/Off the Autoland feature\nLands at 5 m/s\nDo not use on ships with poor mobility!"));
+	Command_Menu.Add(new Menu_Command<object>("Toggle Orbiting", Orbit, "Locks current Speed, allowing the ship to cruise at the current approximate altitude. Minimum 1km Elevation."));
 	Command_Menu.Add(new Menu_Command<object>("Guest Mode",GuestMode,"Puts the base in Guest Mode for "+Math.Round(Guest_Mode_Timer,0)+" seconds or turns it off"));
 	Command_Menu.Add(new Menu_Command<object>("Verify Warheads", VerifyWarheads, "Verifies all currently inactive warheads, preventing the auto-disarm from deactivating them"));
 	Command_Menu.Add(new Menu_Command<object>("Shut Down",Disable,"Resets Thrusters, Gyroscope, and Airlocks, and turns off the program"));
@@ -2098,7 +2113,7 @@ void UpdateSystemData(){
 				if(Time_To_Crash>0){
 					if(Time_To_Crash<15&&Controller.GetShipSpeed()>5){
 						Controller.DampenersOverride=true;
-						RestingVelocity=new Vector3D(0,0,0);
+						RestingSpeed=0;
 						Write("Crash predicted within 15 seconds; enabling Dampeners");
 						need_print=false;
 					}
