@@ -1517,7 +1517,7 @@ AlertStatus ShipStatus{
 			if(Orbiting){
 				AlertStatus nw_sts=AlertStatus.Blue;
 				status=(AlertStatus) Math.Max((int)status, (int)nw_sts);
-				string altitude=Math.Round(Elevation,0).ToString()+" M";
+				string altitude=(Math.Round(Elevation/5,0)*5).ToString()+" M";
 				if(Elevation>=1500)
 					altitude=Math.Round(Elevation/1000,1).ToString()+" kM";
 				Submessage+="\nOrbiting at "+altitude;
