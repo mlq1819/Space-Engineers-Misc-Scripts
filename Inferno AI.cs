@@ -969,7 +969,7 @@ Vector3D RestingVelocity{
 	get{
 		if(RestingSpeed==0)
 			return new Vector3D(0,0,0);
-		return RestingSpeed*Velocity_Direction;
+		return RestingSpeed*Forward_Vector;
 	}
 }
 Vector3D Relative_RestingVelocity{
@@ -1518,7 +1518,7 @@ AlertStatus ShipStatus{
 				AlertStatus nw_sts=AlertStatus.Blue;
 				status=(AlertStatus) Math.Max((int)status, (int)nw_sts);
 				string altitude=Math.Round(Elevation,0).ToString()+" M";
-				if(Elevation>=1000)
+				if(Elevation>=1500)
 					altitude=Math.Round(Elevation/1000,1).ToString()+" kM";
 				Submessage+="\nOrbiting at "+altitude;
 			}
@@ -1597,7 +1597,7 @@ AlertStatus ShipStatus{
 					Submessage+=' ';
 				}
 			}
-			Submessage += ']';
+			Submessage+=']';
 		}
 		if(status == AlertStatus.Green)
 			Submessage="\nNo issues";
@@ -1682,6 +1682,7 @@ bool Orbit(object obj=null){
 			return false;
 		RestingSpeed=CurrentVelocity.Length();
 		Orbiting=true;
+		Controller.DampenersOverride=true;
 	}
 	else{
 		RestingSpeed=0;
@@ -1852,6 +1853,8 @@ void SetGyroscopes(){
 		}
 		if((Orbiting||(Controller.DampenersOverride&&!Undercontrol))&&(GetAngle(Gravity,Forward_Vector)>(90+Acceptable_Angle/2)||(Orbiting&&GetAngle(Gravity,Forward_Vector)>90))){
 			double difference=Math.Abs(GetAngle(Gravity,Forward_Vector));
+			if(Orbiting)
+				difference+=5;
 			if(difference>90+Acceptable_Angle/2||(Orbiting&&difference>90))
 				input_pitch+=10*gyro_multx*((float)Math.Min(Math.Abs((difference-90)/90),1))*orbit_multx;
 		}
@@ -2149,6 +2152,10 @@ void UpdateSystemData(){
 	}
 	else
 		Sealevel=double.MaxValue;
+	if(Orbiting&&(Gravity.Length()==0||Elevation<500)){
+		Orbiting=false;
+		RestingSpeed=0;
+	}
 	Mass_Accomodation=(float)(Controller.CalculateShipMass().PhysicalMass*Gravity.Length());
 	Cargo_Status=0;
 	List<IMyCargoContainer> Cargos=GenericMethods<IMyCargoContainer>.GetAllConstruct("");
