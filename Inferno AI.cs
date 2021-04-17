@@ -1679,7 +1679,7 @@ bool Orbiting=false;
 double Orbital_Altitude=1000;
 bool Orbit(object obj=null){
 	if(RestingSpeed==0){
-		if(Elevation<500)
+		if(Elevation<500||Sealevel<100)
 			return false;
 		RestingSpeed=CurrentVelocity.Length();
 		Orbiting=true;
