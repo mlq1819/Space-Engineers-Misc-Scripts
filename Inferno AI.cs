@@ -1998,10 +1998,14 @@ void SetThrusters(){
 	foreach(IMyThrust Thruster in Left_Thrusters)
 		Thruster.ThrustOverridePercentage=output_left;
 	foreach(ThrustPod Pod in ThrustPods){
-		if(Angled(Pod,Up_Vector))
+		if(Angled(Pod,Up_Vector)){
 			Pod.Thrust.ThrustOverridePercentage=output_up;
-		else if(Angled(Pod,Forward_Vector))
+			Pod.Thrust.Enabled=(output_up>0);
+		}
+		else if(Angled(Pod,Forward_Vector)){
 			Pod.Thrust.ThrustOverridePercentage=output_forward;
+			Pod.Thrust.Enabled=(output_forward>0);
+		}
 	}
 }
 
