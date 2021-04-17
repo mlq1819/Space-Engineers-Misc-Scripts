@@ -1510,7 +1510,7 @@ AlertStatus ShipStatus{
 			if(Elevation-MySize<50){
 				AlertStatus nw_sts=AlertStatus.Blue;
 				status=(AlertStatus) Math.Max((int)status, (int)nw_sts);
-				double psuedo_elevation=Math.Max(Elevation-MySize,0);
+				double psuedo_elevation=Math.Max(Elevation-MySize/2,0);
 				Submessage+="\nShip at low Altitude ("+Math.Round(psuedo_elevation,1).ToString()+"-"+Math.Round(Elevation,1).ToString()+" meters)";
 			}
 			if(Time_To_Crash>0){
