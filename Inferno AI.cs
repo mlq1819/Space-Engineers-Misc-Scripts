@@ -1884,22 +1884,29 @@ void SetThrusters(){
 		effective_speed_limit=Math.Min(effective_speed_limit,Time_To_Crash/30*100);
 	if(Controller.DampenersOverride){
 		Write("Cruise Control: Off");
+		Write("Dampeners: On");
 		input_right-=(float)((Relative_CurrentVelocity.X-Relative_RestingVelocity.X)*Mass_Accomodation*damp_multx);
 		input_up-=(float)((Relative_CurrentVelocity.Y-Relative_RestingVelocity.Y)*Mass_Accomodation*damp_multx);
 		input_forward+=(float)((Relative_CurrentVelocity.Z-Relative_RestingVelocity.Z)*Mass_Accomodation*damp_multx);
 	}
 	else{
-		Write("Cruise Control: On");
-		Vector3D velocity_direction=CurrentVelocity;
-		velocity_direction.Normalize();
-		double angle=Math.Min(GetAngle(Forward_Vector, velocity_direction), GetAngle(Backward_Vector, velocity_direction));
-		if(angle<=Acceptable_Angle / 2){
-			input_right-=(float)((Relative_CurrentVelocity.X-Relative_RestingVelocity.X)*Mass_Accomodation*damp_multx);
-			input_up-=(float)((Relative_CurrentVelocity.Y-Relative_RestingVelocity.Y)*Mass_Accomodation*damp_multx);
-			Write("Stabilizers: On ("+Math.Round(angle, 1)+"° dev)");
+		if(Elevation>50||CurrentVelocity.Length()>10){
+			Write("Cruise Control: On");
+			Vector3D velocity_direction=CurrentVelocity;
+			velocity_direction.Normalize();
+			double angle=Math.Min(GetAngle(Forward_Vector, velocity_direction),GetAngle(Backward_Vector, velocity_direction));
+			if(angle<=Acceptable_Angle/2){
+				input_right-=(float)((Relative_CurrentVelocity.X-Relative_RestingVelocity.X)*Mass_Accomodation*damp_multx);
+				input_up-=(float)((Relative_CurrentVelocity.Y-Relative_RestingVelocity.Y)*Mass_Accomodation*damp_multx);
+				Write("Stabilizers: On ("+Math.Round(angle, 1)+"° dev)");
+			}
+			else
+				Write("Stabilizers: Off ("+Math.Round(angle, 1)+"° dev)");
 		}
-		else
-			Write("Stabilizers: Off ("+Math.Round(angle, 1)+"° dev)");
+		else{
+			Write("Cruise Control: Off");
+			Write("Dampeners: Off");
+		}
 	}
 	effective_speed_limit=Math.Max(effective_speed_limit,10);
 	if(Gravity.Length()>0&&Mass_Accomodation>0&&(Controller.GetShipSpeed()<100||GetAngle(CurrentVelocity,Gravity)>Acceptable_Angle)){
@@ -2147,7 +2154,7 @@ public void Main(string argument, UpdateType updateSource)
 		else
 			Write("Last Scan "+Math.Round(Scan_Time,1).ToString());
 		Write(ScanString);
-		if(cycle%5==0){
+		if(cycle%25==0){
 			foreach(Airlock airlock in Airlocks)
 				UpdateAirlock(airlock);
 		}
