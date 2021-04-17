@@ -2161,7 +2161,7 @@ public void Main(string argument, UpdateType updateSource)
 		
 		if(cycle%10==0&&Thrust_Pod_Timer>=30){
 			double GV_A=GetAngle(Velocity_Direction,Gravity_Direction);
-			if(GV_A>120&&Gravity.Length()<=0.981){
+			if(Gravity.Length()==0||(GV_A>120&&Gravity.Length()<=0.981)){
 				foreach(ThrustPod Pod in ThrustPods){
 					if(Pod.Thrust!=null&&Pod.Rotor!=null){
 						if(Pod.Rotor.CustomName.Contains("Inferno Pod Rotor L")){
