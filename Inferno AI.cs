@@ -1528,7 +1528,7 @@ AlertStatus ShipStatus{
 				Submessage+="\nOrbiting at "+altitude;
 			}
 			if(Controller.CalculateShipMass().PhysicalMass>0&&Mass_Accomodation>0){
-				if(Controller.GetShipSpeed()>0.1&&Elevation-MySize/2<50){
+				if(Controller.GetShipSpeed()>0.01&&Elevation-MySize/2<50){
 					AlertStatus nw_sts=AlertStatus.Blue;
 					status=(AlertStatus) Math.Max((int)status, (int)nw_sts);
 					double psuedo_elevation=Math.Max(Elevation-MySize/2,0);
