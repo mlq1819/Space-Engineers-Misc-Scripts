@@ -1514,6 +1514,14 @@ AlertStatus ShipStatus{
 					status=(AlertStatus)Math.Max((int)status,(int)nw_sts);
 				}
 			}
+			if(Orbiting){
+				AlertStatus nw_sts=AlertStatus.Blue;
+				status=(AlertStatus) Math.Max((int)status, (int)nw_sts);
+				string altitude=Math.Round(Elevation,0).ToString()+" M";
+				if(Elevation>=1000)
+					altitude=Math.Round(Elevation/1000,1).ToString()+" kM";
+				Submessage+="\nOrbiting at "+altitude;
+			}
 			if(Elevation-MySize<50){
 				AlertStatus nw_sts=AlertStatus.Blue;
 				status=(AlertStatus) Math.Max((int)status, (int)nw_sts);
@@ -1667,14 +1675,17 @@ bool GuestMode(object obj=null){
 	Guest_Timer=0;
 	return true;
 }
+bool Orbiting=false;
 bool Orbit(object obj=null){
 	if(RestingSpeed==0){
-		if(Elevation<1000)
+		if(Elevation<500)
 			return false;
 		RestingSpeed=CurrentVelocity.Length();
+		Orbiting=true;
 	}
 	else{
 		RestingSpeed=0;
+		Orbiting=false;
 	}
 	return true;
 }
@@ -1684,7 +1695,7 @@ bool CreateMenu(object obj=null){
 	//Command_Menu.Add(new Menu_Command<object>("Update Menu", CreateMenu, "Refreshes menu"));
 	if(!Me.CubeGrid.IsStatic)
 		Command_Menu.Add(new Menu_Command<object>("Toggle Autoland",Autoland,"Toggles On/Off the Autoland feature\nLands at 5 m/s\nDo not use on ships with poor mobility!"));
-	Command_Menu.Add(new Menu_Command<object>("Toggle Orbiting", Orbit, "Locks current Speed, allowing the ship to cruise at the current approximate altitude. Minimum 1km Elevation."));
+	Command_Menu.Add(new Menu_Command<object>("Toggle Orbiting", Orbit, "Locks current Speed, allowing the ship to cruise at the current approximate altitude. Minimum 500m Elevation."));
 	Command_Menu.Add(new Menu_Command<object>("Guest Mode",GuestMode,"Puts the base in Guest Mode for "+Math.Round(Guest_Mode_Timer,0)+" seconds or turns it off"));
 	Command_Menu.Add(new Menu_Command<object>("Verify Warheads", VerifyWarheads, "Verifies all currently inactive warheads, preventing the auto-disarm from deactivating them"));
 	Command_Menu.Add(new Menu_Command<object>("Shut Down",Disable,"Resets Thrusters, Gyroscope, and Airlocks, and turns off the program"));
@@ -1831,15 +1842,20 @@ void SetGyroscopes(){
 		input_pitch+=Math.Min(Math.Max(Ctrl.RotationIndicator.X/100,-1),1);
 	if(Math.Abs(input_pitch)<0.05f){
 		input_pitch=current_pitch*0.99f;
+		float orbit_multx=1;
+		if(Orbiting)
+			orbit_multx=50;
 		if((((Elevation-MySize)<Controller.GetShipSpeed()*2&&(Elevation-MySize)<50)||(Controller.DampenersOverride&&!Controller.IsUnderControl))&&GetAngle(Gravity,Forward_Vector)<90&&Pitch_Time>=1){
 			double difference=Math.Abs(GetAngle(Gravity,Forward_Vector));
 			if(difference<90)
 				input_pitch-=10*gyro_multx*((float)Math.Min(Math.Abs((90-difference)/90),1));
 		}
-		if((Controller.DampenersOverride&&!Undercontrol)&&(GetAngle(Gravity,Forward_Vector)>(90+Acceptable_Angle/2))){
+		if((Orbiting||(Controller.DampenersOverride&&!Undercontrol))&&(GetAngle(Gravity,Forward_Vector)>(90+Acceptable_Angle/2))){
 			double difference=Math.Abs(GetAngle(Gravity,Forward_Vector));
+			if(Orbiting)
+				difference+=10;
 			if(difference>90+Acceptable_Angle/2)
-				input_pitch+=10*gyro_multx*((float)Math.Min(Math.Abs((difference-90)/90),1));
+				input_pitch+=10*gyro_multx*((float)Math.Min(Math.Abs((difference-90)/90),1))*orbit_multx;
 		}
 	}
 	else{
