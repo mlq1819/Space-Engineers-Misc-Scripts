@@ -1850,11 +1850,9 @@ void SetGyroscopes(){
 			if(difference<90)
 				input_pitch-=10*gyro_multx*((float)Math.Min(Math.Abs((90-difference)/90),1));
 		}
-		if((Orbiting||(Controller.DampenersOverride&&!Undercontrol))&&(GetAngle(Gravity,Forward_Vector)>(90+Acceptable_Angle/2))){
+		if((Orbiting||(Controller.DampenersOverride&&!Undercontrol))&&(GetAngle(Gravity,Forward_Vector)>(90+Acceptable_Angle/2)||(Orbiting&&GetAngle(Gravity,Forward_Vector)>90))){
 			double difference=Math.Abs(GetAngle(Gravity,Forward_Vector));
-			if(Orbiting)
-				difference+=10;
-			if(difference>90+Acceptable_Angle/2)
+			if(difference>90+Acceptable_Angle/2||(Orbiting&&difference>90))
 				input_pitch+=10*gyro_multx*((float)Math.Min(Math.Abs((difference-90)/90),1))*orbit_multx;
 		}
 	}
