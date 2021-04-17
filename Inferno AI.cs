@@ -1847,7 +1847,7 @@ void SetGyroscopes(){
 		if(Gravity.Length()>0&&Roll_Time>=1){
 			double difference=GetAngle(Left_Vector,Gravity)-GetAngle(Right_Vector,Gravity);
 			if(Math.Abs(difference)>Acceptable_Angle){
-				input_roll-=(float)Math.Min(Math.Max(difference*5,-5),25)*gyro_multx;
+				input_roll-=(float)Math.Min(Math.Max(difference*5,-5),25)*gyro_multx*5;
 			}
 		}
 	}
