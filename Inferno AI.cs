@@ -1676,14 +1676,14 @@ bool GuestMode(object obj=null){
 	return true;
 }
 bool Orbiting=false;
-double Orbital_Alitude=1000;
+double Orbital_Altitude=1000;
 bool Orbit(object obj=null){
 	if(RestingSpeed==0){
 		if(Elevation<500)
 			return false;
 		RestingSpeed=CurrentVelocity.Length();
 		Orbiting=true;
-		Orbital_Alitude=Sealevel;
+		Orbital_Altitude=Sealevel;
 		Controller.DampenersOverride=true;
 	}
 	else{
@@ -2006,8 +2006,18 @@ void SetThrusters(){
 		output_forward=Math.Min(Math.Abs(input_forward/Forward_Thrust),1);
 	else if(input_forward/Backward_Thrust<-0.05f)
 		output_backward=Math.Min(Math.Abs(input_forward/Backward_Thrust),1);
-	if(Orbiting&&Math.Abs(Orbital_Alitude-Sealevel)>10)
-		input_up*=(float)Math.Max(0.95f,Math.Min(1.05f,(Orbital_Alitude/Sealevel)));
+	if(Orbiting&&Math.Abs(Orbital_Altitude-Sealevel)>1){
+		float difference=(float)Math.Abs(Sealevel-Orbital_Altitude);
+		float up_multx=1;
+		if(Sealevel<Orbital_Altitude)
+			up_multx=(10+difference)/10.0f;
+		else
+			up_multx=10.0f/(10+difference);
+		up_multx=Math.Min(Math.Max(up_multx,0.1f),10);
+		if(input_up<0)
+			up_multx=1.0f/up_multx;
+		input_up*=up_multx;
+	}
 	float output_up=0.0f;
 	float output_down=0.0f;
 	if(input_up/Up_Thrust>0.05f)
