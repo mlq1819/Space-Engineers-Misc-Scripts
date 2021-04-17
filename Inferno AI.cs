@@ -916,6 +916,8 @@ double Right_Gs{
 	}
 }
 
+List<IMyLandingGear> MyGear;
+
 float Cargo_Status=0;
 
 double Time_To_Crash=double.MaxValue;
@@ -1221,6 +1223,7 @@ void Reset(){
 	List<Airlock> Airlocks=new List<Airlock>();
 	for(int i=0;i<All_Thrusters.Length;i++)
 		All_Thrusters[i]=new List<IMyThrust>();
+	MyGear=new List<IMyLandingGear>();
 	RestingSpeed=0;
 }
 
@@ -1249,6 +1252,7 @@ bool Setup(){
 		Panel.Display.TextPadding=10.0f;
 		Panel.Display.FontSize=1.0f;
 	}
+	MyGear=GenericMethods<IMyLandingGear>.GetAllContaining("Inferno Landing Gear ");
 	SetupAirlocks();
 	Controller=GenericMethods<IMyShipController>.GetFull("Inferno Backup Control Seat");
 	Controllers=GenericMethods<IMyShipController>.GetAllFunc(ControllerFunction);
@@ -1455,6 +1459,7 @@ AlertStatus ShipStatus{
 	get{
 		AlertStatus status=AlertStatus.Green;
 		Submessage="";
+		bool check_landing_gear=false;
 		if(!Me.CubeGrid.IsStatic){
 			List<IMyJumpDrive> JumpDrives=GenericMethods<IMyJumpDrive>.GetAllIncluding("");
 			foreach(IMyJumpDrive Drive in JumpDrives){
@@ -1522,11 +1527,20 @@ AlertStatus ShipStatus{
 					altitude=Math.Round(Sealevel/1000,1).ToString()+" kM";
 				Submessage+="\nOrbiting at "+altitude;
 			}
-			if(Elevation-MySize<50){
-				AlertStatus nw_sts=AlertStatus.Blue;
-				status=(AlertStatus) Math.Max((int)status, (int)nw_sts);
-				double psuedo_elevation=Math.Max(Elevation-MySize/2,0);
-				Submessage+="\nShip at low Altitude ("+Math.Round(psuedo_elevation,1).ToString()+"-"+Math.Round(Elevation,1).ToString()+" meters)";
+			if(Controller.CalculateShipMass().PhysicalMass>0&&Mass_Accomodation>0){
+				if(Controller.GetShipSpeed()>0.1&&Elevation-MySize/2<50){
+					AlertStatus nw_sts=AlertStatus.Blue;
+					status=(AlertStatus) Math.Max((int)status, (int)nw_sts);
+					double psuedo_elevation=Math.Max(Elevation-MySize/2,0);
+					double small=Math.Min(psuedo_elevation,Elevation);
+					double large=Math.Max(psuedo_elevation,Elevation);
+					if(Math.Abs(large-small)<0.5)
+						Submessage+="\nShip at low Altitude ("+Math.Round(small,1).ToString()+" meters)";
+					else
+						Submessage+="\nShip at low Altitude ("+Math.Round(small,1).ToString()+"-"+Math.Round(large,1).ToString()+" meters)";
+				}
+				else
+					check_landing_gear=true;
 			}
 			if(Time_To_Crash>0){
 				if(Time_To_Crash<15 && Controller.GetShipSpeed()>5){
@@ -1599,8 +1613,22 @@ AlertStatus ShipStatus{
 			}
 			Submessage+=']';
 		}
-		if(status == AlertStatus.Green)
+		if(status==AlertStatus.Green){
 			Submessage="\nNo issues";
+			if(check_landing_gear){
+				if(MyGear.Count>0){
+					bool unlocked=false;
+					foreach(IMyLandingGear Gear in MyGear){
+						if(Gear.LockMode!=LandingGearMode.Locked){
+							unlocked=true;
+							break;
+						}
+					}
+					if(!unlocked)
+						Submessage+="\nAll Landing Gear Locked";
+				}
+			}
+		}
 		return status;
 	}
 }
@@ -1943,7 +1971,7 @@ void SetThrusters(){
 		}
 	}
 	effective_speed_limit=Math.Max(effective_speed_limit,10);
-	if(Gravity.Length()>0&&Mass_Accomodation>0&&(Controller.GetShipSpeed()<100||GetAngle(CurrentVelocity,Gravity)>Acceptable_Angle)){
+	if(Gravity.Length()>0&&Mass_Accomodation>0&&GetAngle(CurrentVelocity,Gravity)>Acceptable_Angle){
 		if(!(_Autoland&&Time_To_Crash>15&&Controller.GetShipSpeed()>5)){
 			input_right-=(float)Adjusted_Gravity.X;
 			input_up-=(float)Adjusted_Gravity.Y;
@@ -2166,6 +2194,7 @@ void UpdateSystemData(){
 	}
 	else
 		Sealevel=double.MaxValue;
+	Elevation=Math.Max(Elevation,0);
 	if(Orbiting&&(Gravity.Length()==0||Elevation<100)){
 		Orbiting=false;
 		RestingSpeed=0;
