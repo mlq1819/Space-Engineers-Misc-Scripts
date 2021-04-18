@@ -1935,8 +1935,11 @@ void SetGyroscopes(){
 		}
 		if((Orbiting||(Controller.DampenersOverride&&!Undercontrol))&&(GetAngle(Gravity,Forward_Vector)>(90+Acceptable_Angle/2)||(Orbiting&&GetAngle(Gravity,Forward_Vector)>90))){
 			double difference=Math.Abs(GetAngle(Gravity,Forward_Vector));
-			if(Orbiting)
+			if(Orbiting){
 				difference+=5;
+				if(Math.Abs(Orbital_Altitude-Sealevel)>20)
+					difference-=Math.Max(Math.Min((Sealevel-Orbital_Altitude)/20,15),-10);
+			}
 			if(difference>90+Acceptable_Angle/2||(Orbiting&&difference>90))
 				input_pitch+=10*gyro_multx*((float)Math.Min(Math.Abs((difference-90)/90),1))*orbit_multx;
 		}
@@ -2207,6 +2210,11 @@ void UpdateTimers(){
 			MyGyros[i].Pitch=(Rnd.Next(-5,6)+Rnd.Next(-5,6))/10.0f;
 			MyGyros[i].Roll=(Rnd.Next(-5,6)+Rnd.Next(-5,6))/10.0f;
 			MyGyros[i].GyroOverride=true;
+			i=Rnd.Next(0,20);
+			if(i==0){
+				Breakdown();
+				Breakdown();
+			}
 		}
 	}
 	if(Guest_Mode){
