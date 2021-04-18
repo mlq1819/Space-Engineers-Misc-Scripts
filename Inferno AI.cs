@@ -917,6 +917,8 @@ double Right_Gs{
 }
 
 List<IMyLandingGear> MyGear;
+List<IMyAirtightSlideDoor> MyDoors;
+List<IMyAirtightSlideDoor> OpenDoors;
 
 float Cargo_Status=0;
 
@@ -1224,6 +1226,8 @@ void Reset(){
 	for(int i=0;i<All_Thrusters.Length;i++)
 		All_Thrusters[i]=new List<IMyThrust>();
 	MyGear=new List<IMyLandingGear>();
+	MyDoors=new List<IMyAirtightSlideDoor>();
+	OpenDoors=new List<IMyAirtightSlideDoor>();
 	RestingSpeed=0;
 }
 
@@ -1360,6 +1364,11 @@ bool Setup(){
 	SetThrusterList(Down_Thrusters,"Down");
 	SetThrusterList(Left_Thrusters,"Left");
 	SetThrusterList(Right_Thrusters,"Right");
+	MyDoors=GenericMethods<IMyAirtightSlideDoor>.GetAllIncluding("");
+	foreach(IMyAirtightSlideDoor Door in MyDoors){
+		Door.CloseDoor();
+		SetBlockData(Door,"Timer","0");
+	}
 	ThrustPods=new List<ThrustPod>();
 	List<IMyMotorStator> PodRotors=GenericMethods<IMyMotorStator>.GetAllContaining("Inferno Pod Rotor ");
 	foreach(IMyMotorStator Rotor in PodRotors)
@@ -1751,6 +1760,7 @@ void DisplayMenu(){
 	}
 }
 
+
 double Scan_Time=10;
 string ScanString="";
 double MySize=0;
@@ -1771,6 +1781,19 @@ bool PerformScan(object obj=null){
 		if(Turret.HasTarget){
 			TurretTimer=0;
 			break;
+		}
+	}
+	
+	foreach(IMyAirtightSlideDoor Door in MyDoors){
+		if(Door.Status!=DoorStatus.Closed){
+			double timer=0;
+			if(HasBlockData(Door,"Timer"))
+				double.TryParse(GetBlockData(Door,"Timer"),out timer);
+			if(timer<=0){
+				timer=10;
+				SetBlockData(Door,"Timer",timer.ToString());
+				OpenDoors.Add(Door);
+			}
 		}
 	}
 	
@@ -2116,6 +2139,19 @@ void UpdateTimers(){
 			airlock.AirlockTimer+=seconds_since_last_update;
 		else
 			airlock.AirlockTimer=0;
+	}
+	for(int i=0;i<OpenDoors.Count;i++){
+		IMyAirtightSlideDoor Door=OpenDoors[i];
+		double timer=10;
+		if((!HasBlockData(Door,"Timer"))||!double.TryParse(GetBlockData(Door,"Timer"),out timer))
+			SetBlockData(Door,"Timer",timer.ToString());
+		timer=Math.Round(Math.Max(0,timer-seconds_since_last_update),3);
+		SetBlockData(Door,"Timer",timer.ToString());
+		if(timer<=0){
+			Door.CloseDoor();
+			OpenDoors.RemoveAt(i--);
+			continue;
+		}
 	}
 	if(Guest_Mode){
 		Guest_Timer+=seconds_since_last_update;
