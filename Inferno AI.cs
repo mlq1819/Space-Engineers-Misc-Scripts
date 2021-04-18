@@ -1469,6 +1469,11 @@ AlertStatus ShipStatus{
 		AlertStatus status=AlertStatus.Green;
 		Submessage="";
 		bool check_landing_gear=false;
+		if(Do_Breakdown){
+			AlertStatus nw_sts=AlertStatus.Red;
+			status=(AlertStatus)Math.Max((int)status,(int)nw_sts);
+			Submessage+="\nShip is Breaking Down - "+Math.Round(BD_Timer,3)+" s";
+		}
 		if(!Me.CubeGrid.IsStatic){
 			List<IMyJumpDrive> JumpDrives=GenericMethods<IMyJumpDrive>.GetAllIncluding("");
 			foreach(IMyJumpDrive Drive in JumpDrives){
@@ -1729,6 +1734,29 @@ bool Orbit(object obj=null){
 	}
 	return true;
 }
+bool Do_Breakdown;
+double BD_Timer=2;
+bool Breakdown(object obj=null){
+	if(Do_Breakdown){
+		for(int i=0;i<6;i++){
+			foreach(IMyThrust Thrust in All_Thrusters[i])
+				Thrust.Enabled=true;
+		}
+		List<IMyGyro> MyGyros=GenericMethods<IMyGyro>.GetAllIncluding("");
+		foreach(IMyGyro Gyro in MyGyros){
+			Gyro.Yaw=0;
+			Gyro.Pitch=0;
+			Gyro.Roll=0;
+			Gyro.GyroOverride=false;
+		}
+		Do_Breakdown=false;
+	}
+	else{
+		Do_Breakdown=true;
+		BD_Timer=2;
+	}
+	return true;
+}
 
 bool CreateMenu(object obj=null){
 	Command_Menu=new Menu_Submenu("Command Menu");
@@ -1738,6 +1766,7 @@ bool CreateMenu(object obj=null){
 	Command_Menu.Add(new Menu_Command<object>("Toggle Orbiting", Orbit, "Locks current Speed, allowing the ship to cruise at the current approximate altitude. Minimum 500m Elevation."));
 	Command_Menu.Add(new Menu_Command<object>("Guest Mode",GuestMode,"Puts the base in Guest Mode for "+Math.Round(Guest_Mode_Timer,0)+" seconds or turns it off"));
 	Command_Menu.Add(new Menu_Command<object>("Verify Warheads", VerifyWarheads, "Verifies all currently inactive warheads, preventing the auto-disarm from deactivating them"));
+	Command_Menu.Add(new Menu_Command<object>("Breakdown", Breakdown, "Disables thrusters randomly one at a time, and randomly sets Gyro Overrides, at most one every 2 seconds."));
 	Command_Menu.Add(new Menu_Command<object>("Shut Down",Disable,"Resets Thrusters, Gyroscope, and Airlocks, and turns off the program"));
 	Command_Menu.Add(new Menu_Command<object>("Factory Reset", FactoryReset, "Resets AI memory and settings, and turns it off"));
 	return true;
@@ -2151,6 +2180,23 @@ void UpdateTimers(){
 			Door.CloseDoor();
 			OpenDoors.RemoveAt(i--);
 			continue;
+		}
+	}
+	if(Do_Breakdown){
+		BD_Timer-=seconds_since_last_update;
+		if(BD_Timer<=0){
+			BD_Timer=2;
+			int i=Rnd.Next(0,6);
+			if(All_Thrusters[i].Count>0){
+				int j=Rnd.Next(0,All_Thrusters[i].Count);
+				All_Thrusters[i][j].Enabled=false;
+			}
+			List<IMyGyro> MyGyros=GenericMethods<IMyGyro>.GetAllIncluding("");
+			i=Rnd.Next(0,MyGyros.Count);
+			MyGyros[i].Yaw=Rnd.Next(-2,3)+Rnd.Next(-2,3);
+			MyGyros[i].Pitch=Rnd.Next(-2,3)+Rnd.Next(-2,3);
+			MyGyros[i].Roll=Rnd.Next(-2,3)+Rnd.Next(-2,3);
+			MyGyros[i].GyroOverride=true;
 		}
 	}
 	if(Guest_Mode){
