@@ -1472,7 +1472,7 @@ AlertStatus ShipStatus{
 		if(Do_Breakdown){
 			AlertStatus nw_sts=AlertStatus.Red;
 			status=(AlertStatus)Math.Max((int)status,(int)nw_sts);
-			Submessage+="\nShip is Breaking Down - "+Math.Round(BD_Timer,3)+" s - "+BD_Count.ToString();
+			Submessage+="\nShip is Breaking Down - "+Math.Round(BD_Timer,2)+" s - "+BD_Count.ToString();
 		}
 		if(!Me.CubeGrid.IsStatic){
 			List<IMyJumpDrive> JumpDrives=GenericMethods<IMyJumpDrive>.GetAllIncluding("");
@@ -1771,7 +1771,7 @@ bool CreateMenu(object obj=null){
 	Command_Menu.Add(new Menu_Command<object>("Toggle Orbiting", Orbit, "Locks current Speed, allowing the ship to cruise at the current approximate altitude. Minimum 500m Elevation."));
 	Command_Menu.Add(new Menu_Command<object>("Guest Mode",GuestMode,"Puts the base in Guest Mode for "+Math.Round(Guest_Mode_Timer,0)+" seconds or turns it off"));
 	Command_Menu.Add(new Menu_Command<object>("Verify Warheads", VerifyWarheads, "Verifies all currently inactive warheads, preventing the auto-disarm from deactivating them"));
-	Command_Menu.Add(new Menu_Command<object>("Breakdown", Breakdown, "Disables thrusters randomly one at a time, and randomly sets Gyro Overrides. Gets worse as it progresses."));
+	Command_Menu.Add(new Menu_Command<object>("Breakdown", Breakdown, "Disables thrusters randomly one at a time, and randomly sets Gyro Overrides. Gets worse as it progresses. Can randomly reset."));
 	Command_Menu.Add(new Menu_Command<object>("Shut Down",Disable,"Resets Thrusters, Gyroscope, and Airlocks, and turns off the program"));
 	Command_Menu.Add(new Menu_Command<object>("Factory Reset", FactoryReset, "Resets AI memory and settings, and turns it off"));
 	return true;
@@ -2198,7 +2198,7 @@ void UpdateTimers(){
 		BD_Timer-=seconds_since_last_update;
 		if(BD_Timer<=0){
 			BD_Timer=2;
-			int i=Rnd.Next(0,Math.Min(Rnd.Next(5,5+BD_Count),20));
+			int i=Rnd.Next(0,Rnd.Next(5,5+BD_Count/2));
 			if(i==0){
 				Breakdown();
 				Breakdown();
