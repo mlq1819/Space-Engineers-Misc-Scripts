@@ -2189,6 +2189,11 @@ void UpdateTimers(){
 			int i=Rnd.Next(0,6);
 			if(All_Thrusters[i].Count>0){
 				int j=Rnd.Next(0,All_Thrusters[i].Count);
+				All_Thrusters[i][j].Enabled=true;
+			}
+			i=Rnd.Next(0,6);
+			if(All_Thrusters[i].Count>0){
+				int j=Rnd.Next(0,All_Thrusters[i].Count);
 				All_Thrusters[i][j].Enabled=false;
 			}
 			List<IMyGyro> MyGyros=GenericMethods<IMyGyro>.GetAllIncluding("");
@@ -2198,9 +2203,9 @@ void UpdateTimers(){
 			MyGyros[i].Roll=0;
 			MyGyros[i].GyroOverride=false;
 			i=Rnd.Next(0,MyGyros.Count);
-			MyGyros[i].Yaw=Rnd.Next(-2,3)+Rnd.Next(-2,3);
-			MyGyros[i].Pitch=Rnd.Next(-1,2)+Rnd.Next(-1,2);
-			MyGyros[i].Roll=Rnd.Next(-1,2)+Rnd.Next(-1,2);
+			MyGyros[i].Yaw=(Rnd.Next(-5,6)+Rnd.Next(-5,6))/10.0f;
+			MyGyros[i].Pitch=(Rnd.Next(-5,6)+Rnd.Next(-5,6))/10.0f;
+			MyGyros[i].Roll=(Rnd.Next(-5,6)+Rnd.Next(-5,6))/10.0f;
 			MyGyros[i].GyroOverride=true;
 		}
 	}
