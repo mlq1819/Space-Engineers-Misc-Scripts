@@ -1472,7 +1472,7 @@ AlertStatus ShipStatus{
 		if(Do_Breakdown){
 			AlertStatus nw_sts=AlertStatus.Red;
 			status=(AlertStatus)Math.Max((int)status,(int)nw_sts);
-			Submessage+="\nShip is Breaking Down - "+Math.Round(BD_Timer,3)+" s";
+			Submessage+="\nShip is Breaking Down - "+Math.Round(BD_Timer,3)+" s - "+BD_Count.ToString();
 		}
 		if(!Me.CubeGrid.IsStatic){
 			List<IMyJumpDrive> JumpDrives=GenericMethods<IMyJumpDrive>.GetAllIncluding("");
@@ -1537,9 +1537,12 @@ AlertStatus ShipStatus{
 				AlertStatus nw_sts=AlertStatus.Blue;
 				status=(AlertStatus) Math.Max((int)status, (int)nw_sts);
 				string altitude=Math.Round(Sealevel,0).ToString()+" M";
-				if(Sealevel>=1500)
+				string target_altitude=Math.Round(Orbital_Altitude,0).ToString()+" M";
+				if(Orbital_Altitude>=1500){
 					altitude=Math.Round(Sealevel/1000,1).ToString()+" kM";
-				Submessage+="\nOrbiting at "+altitude;
+					target_altitude=Math.Round(Orbital_Altitude/1000,1).ToString()+" kM";
+				}
+				Submessage+="\nOrbiting at "+altitude+":"+target_altitude;
 			}
 			if(Controller.CalculateShipMass().PhysicalMass>0&&Mass_Accomodation>0){
 				if(Controller.GetShipSpeed()>0.01&&Elevation-MySize/2<50){
@@ -1736,6 +1739,7 @@ bool Orbit(object obj=null){
 }
 bool Do_Breakdown;
 double BD_Timer=2;
+int BD_Count=0;
 bool Breakdown(object obj=null){
 	if(Do_Breakdown){
 		for(int i=0;i<6;i++){
@@ -1754,6 +1758,7 @@ bool Breakdown(object obj=null){
 	else{
 		Do_Breakdown=true;
 		BD_Timer=2;
+		BD_Count=0;
 	}
 	return true;
 }
@@ -1928,8 +1933,12 @@ void SetGyroscopes(){
 		float orbit_multx=1;
 		if(Orbiting)
 			orbit_multx=50;
-		if((((Elevation-MySize)<Controller.GetShipSpeed()*2&&(Elevation-MySize)<50)||(Controller.DampenersOverride&&!Controller.IsUnderControl))&&GetAngle(Gravity,Forward_Vector)<90&&Pitch_Time>=1){
+		if((((Elevation-MySize)<Controller.GetShipSpeed()*2&&(Elevation-MySize)<50)||(Controller.DampenersOverride&&!Controller.IsUnderControl)||Orbiting)&&GetAngle(Gravity,Forward_Vector)<90&&Pitch_Time>=1){
 			double difference=Math.Abs(GetAngle(Gravity,Forward_Vector));
+			if(Orbiting){
+				if(Math.Abs(Orbital_Altitude-Sealevel)>20)
+					difference+=Math.Max(Math.Min((Sealevel-Orbital_Altitude)/20,15),-10);
+			}
 			if(difference<90)
 				input_pitch-=10*gyro_multx*((float)Math.Min(Math.Abs((90-difference)/90),1));
 		}
@@ -2189,7 +2198,13 @@ void UpdateTimers(){
 		BD_Timer-=seconds_since_last_update;
 		if(BD_Timer<=0){
 			BD_Timer=2;
-			int i=Rnd.Next(0,6);
+			int i=Rnd.Next(0,20);
+			if(i==0){
+				Breakdown();
+				Breakdown();
+			}
+			BD_Count++;
+			i=Rnd.Next(0,6);
 			if(All_Thrusters[i].Count>0){
 				int j=Rnd.Next(0,All_Thrusters[i].Count);
 				All_Thrusters[i][j].Enabled=true;
@@ -2210,11 +2225,6 @@ void UpdateTimers(){
 			MyGyros[i].Pitch=(Rnd.Next(-5,6)+Rnd.Next(-5,6))/10.0f;
 			MyGyros[i].Roll=(Rnd.Next(-5,6)+Rnd.Next(-5,6))/10.0f;
 			MyGyros[i].GyroOverride=true;
-			i=Rnd.Next(0,20);
-			if(i==0){
-				Breakdown();
-				Breakdown();
-			}
 		}
 	}
 	if(Guest_Mode){
