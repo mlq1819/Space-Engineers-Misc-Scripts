@@ -2198,7 +2198,7 @@ void UpdateTimers(){
 		BD_Timer-=seconds_since_last_update;
 		if(BD_Timer<=0){
 			BD_Timer=2;
-			int i=Rnd.Next(0,Math.Min(Rnd.Next(5,5+BD_Count),25));
+			int i=Rnd.Next(0,Math.Min(Rnd.Next(5,5+BD_Count),20));
 			if(i==0){
 				Breakdown();
 				Breakdown();
@@ -2222,9 +2222,10 @@ void UpdateTimers(){
 					All_Thrusters[i][j].Enabled=false;
 				}
 				i=Rnd.Next(0,MyGyros.Count);
-				MyGyros[i].Yaw=(Rnd.Next(-5,6)+Rnd.Next(-5,6))/10.0f;
-				MyGyros[i].Pitch=(Rnd.Next(-5,6)+Rnd.Next(-5,6))/10.0f;
-				MyGyros[i].Roll=(Rnd.Next(-5,6)+Rnd.Next(-5,6))/10.0f;
+				int pn=Rnd.Next(1,Math.Min(11,1+BD_Count/5));
+				MyGyros[i].Yaw=(Rnd.Next(-1*pn,pn+1)+Rnd.Next(-1*pn,pn+1))/10.0f;
+				MyGyros[i].Pitch=(Rnd.Next(-1*pn,pn+1)+Rnd.Next(-1*pn,pn+1))/10.0f;
+				MyGyros[i].Roll=(Rnd.Next(-1*pn,pn+1)+Rnd.Next(-1*pn,pn+1))/10.0f;
 				MyGyros[i].GyroOverride=true;
 			}
 		}
