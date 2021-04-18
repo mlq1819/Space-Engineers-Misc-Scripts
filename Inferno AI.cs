@@ -1333,11 +1333,11 @@ bool Setup(){
 	for(int i=0;i<2;i++){
 		bool retry=!Me.CubeGrid.IsStatic;
 		foreach(IMyThrust Thruster in MyThrusters){
-			if(HasBlockData(Thruster, "Owner")){
+			/*if(HasBlockData(Thruster, "Owner")){
 				long ID=0;
 				if(i==0&&!Int64.TryParse(GetBlockData(Thruster, "Owner"),out ID)||(ID!=0&&ID!=Me.CubeGrid.EntityId))
 					continue;
-			}
+			}*/
 			if(Thruster.CubeGrid!=Controller.CubeGrid)
 				continue;
 			retry=false;
@@ -2198,7 +2198,7 @@ void UpdateTimers(){
 		BD_Timer-=seconds_since_last_update;
 		if(BD_Timer<=0){
 			BD_Timer=2;
-			int i=Rnd.Next(0,Rnd.Next(5,5+BD_Count/2));
+			int i=Rnd.Next(0,Math.Max(10,BD_Count));
 			if(i==0){
 				Breakdown();
 				Breakdown();
