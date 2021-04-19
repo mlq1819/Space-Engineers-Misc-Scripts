@@ -1677,7 +1677,52 @@ void ResetThrusters(){
 	}
 }
 
+bool Fire(object obj=null){
+	if(Gravity.Length()>0)
+		return false;
+	IMyProjector Projector=GenericMethods<IMyProjector>.GetFull("Inferno Shell Projector");
+	if(Projector==null||Projector.Enabled==false||Projector.RemainingBlocks>0)
+		return false;
+	if(GenericMethods<IMyBatteryBlock>.GetFull("Infernal Shell Battery",Projector,10)==null)
+		return false;
+	IMyTimerBlock Activation=GenericMethods<IMyTimerBlock>.GetFull("Infernal Shell Activation Block",Projector,10);
+	IMyTimerBlock Reload=GenericMethods<IMyTimerBlock>.GetFull("Inferno Reload Timer Block");
+	if(Activation==null||Reload==null||!(Activation.Enabled&&Reload.Enabled))
+		return false;
+	IMyShipMergeBlock Printer_Merge=GenericMethods<IMyShipMergeBlock>.GetFull("Inferno Printer Merge Block",Projector,10);
+	IMyShipMergeBlock Shell_Merge=GenericMethods<IMyShipMergeBlock>.GetFull("Infernal Shell Merge Block",Projector,10);
+	if(Printer_Merge==null||Shell_Merge==null)
+		return false;
+	List<IMySpaceBall> Spaceballs=new List<IMySpaceBall>();
+	List<IMyWarhead> Warheads=new List<IMyWarhead>();
+	for(int i=1;i<=4;i++){
+		IMySpaceBall ball=GenericMethods<IMySpaceBall>.GetFull("Infernal Shell Space Ball "+i.ToString(),Projector,10);
+		if(ball==null)
+			return false;
+		Spaceballs.Add(ball);
+		IMyWarhead bomb=GenericMethods<IMyWarhead>.GetFull("Infernal Shell Warhead "+i.ToString(),Projector,10);
+		if(bomb==null)
+			return false;
+		Warheads.Add(bomb);
+	}
+	if(Spaceballs.Count!=4||Warheads.Count!=4)
+		return false;
+	IMyGravityGenerator Anti_Generator=GenericMethods<IMyGravityGenerator>.GetFull("Inferno Driver Anti-Gravity Generator",Projector,30);
+	List<IMyGravityGenerator> Drivers=GenericMethods<IMyGravityGenerator>.GetAllContaining("Inferno Shell Driver Generator ",Projector,30);
+	if(Anti_Generator==null||(!Anti_Generator.IsFunctional)||Drivers.Count<10)
+		return false;
+	List<IMyShipWelder> Welders=GenericMethods<IMyShipWelder>.GetAllContaining("Inferno Shell Welder ",Projector,20);
+	foreach(IMyShipWelder Welder in Welders)
+		Welder.Enabled=false;
+	Anti_Generator.Enabled=true;
+	foreach(IMyGravityGenerator Driver in Drivers)
+		Driver.Enabled=true;
+	Activation.Trigger();
+	Reload.StartCountdown();
+	return true;
+}
 bool Disable(object obj=null){
+	SetStatus("Status LCD\nOffline", DEFAULT_TEXT_COLOR, DEFAULT_BACKGROUND_COLOR);
 	Operational=false;
 	ResetThrusters();
 	if(Gyroscope!=null)
@@ -1766,11 +1811,11 @@ bool Breakdown(object obj=null){
 bool CreateMenu(object obj=null){
 	Command_Menu=new Menu_Submenu("Command Menu");
 	//Command_Menu.Add(new Menu_Command<object>("Update Menu", CreateMenu, "Refreshes menu"));
+	Command_Menu.Add(new Menu_Command<object>("Fire", Fire, "Fires and reloads the Inferno's Main Cannon; doesn't work in Natural Gravity."));
 	if(!Me.CubeGrid.IsStatic)
 		Command_Menu.Add(new Menu_Command<object>("Toggle Autoland",Autoland,"Toggles On/Off the Autoland feature\nLands at 5 m/s\nDo not use on ships with poor mobility!"));
 	Command_Menu.Add(new Menu_Command<object>("Toggle Orbiting", Orbit, "Locks current Speed, allowing the ship to cruise at the current approximate altitude. Minimum 500m Elevation."));
 	Command_Menu.Add(new Menu_Command<object>("Guest Mode",GuestMode,"Puts the base in Guest Mode for "+Math.Round(Guest_Mode_Timer,0)+" seconds or turns it off"));
-	Command_Menu.Add(new Menu_Command<object>("Verify Warheads", VerifyWarheads, "Verifies all currently inactive warheads, preventing the auto-disarm from deactivating them"));
 	Command_Menu.Add(new Menu_Command<object>("Breakdown", Breakdown, "Disables thrusters randomly one at a time, and randomly sets Gyro Overrides. Gets worse as it progresses. Can randomly reset."));
 	Command_Menu.Add(new Menu_Command<object>("Shut Down",Disable,"Resets Thrusters, Gyroscope, and Airlocks, and turns off the program"));
 	Command_Menu.Add(new Menu_Command<object>("Factory Reset", FactoryReset, "Resets AI memory and settings, and turns it off"));
@@ -1803,7 +1848,6 @@ bool PerformScan(object obj=null){
 	Write("Beginning Scan");
 	GetSettings();
 	ScanString="";
-	PerformDisarm();
 	
 	
 	List<MyDetectedEntityInfo> DetectedEntities=new List<MyDetectedEntityInfo>();
@@ -1866,30 +1910,6 @@ void UpdateAirlock(Airlock airlock){
 		airlock.Door1.Enabled=true;
 		airlock.Door2.Enabled=true;
 	}
-}
-void PerformDisarm(){
-	List<IMyWarhead> Warheads=new List<IMyWarhead>();
-	GridTerminalSystem.GetBlocksOfType<IMyWarhead>(Warheads);
-	foreach(IMyWarhead Warhead in Warheads){
-		if(HasBlockData(Warhead,"VerifiedWarhead")&&GetBlockData(Warhead,"VerifiedWahead").Equals("Active"))
-			continue;
-		Warhead.DetonationTime=Math.Max(60,Warhead.DetonationTime);
-		Warhead.IsArmed=false;
-		Warhead.StopCountdown();
-	}
-}
-
-bool VerifyWarheads(object obj=null){
-	List<IMyWarhead> Warheads=new List<IMyWarhead>();
-	GridTerminalSystem.GetBlocksOfType<IMyWarhead>(Warheads);
-	int count=0;
-	foreach(IMyWarhead Warhead in Warheads){
-		if(Warhead.IsArmed==false&&!Warhead.IsCountingDown){
-			SetBlockData(Warhead,"VerifiedWahead","Active");
-			count++;
-		}
-	}
-	return count>0;
 }
 
 //Sets gyroscope outputs from player input, dampeners, gravity, and autopilot
