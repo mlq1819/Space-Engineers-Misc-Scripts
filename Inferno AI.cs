@@ -1799,6 +1799,12 @@ bool ToggleSafety(object obj=null){
 	if(Orbiting)
 		return false;
 	Safety=!Safety;
+	if(Safety){
+		for(int i=0;i<6;i++){
+			foreach(IMyThrust Thrust in All_Thrusters[i])
+				Thrust.Enabled=true;
+		}
+	}
 	return true;
 }
 bool Do_Breakdown;
@@ -2169,18 +2175,36 @@ void SetThrusters(){
 	else if(input_right/Left_Thrust<-0.01f)
 		output_left=Math.Min(Math.Abs(input_right/Left_Thrust), 1);
 	
-	foreach(IMyThrust Thruster in Forward_Thrusters)
+	foreach(IMyThrust Thruster in Forward_Thrusters){
 		Thruster.ThrustOverridePercentage=output_forward;
-	foreach(IMyThrust Thruster in Backward_Thrusters)
+		if(!Safety)
+			Thruster.Enabled=output_forward>0;
+	}
+	foreach(IMyThrust Thruster in Backward_Thrusters){
 		Thruster.ThrustOverridePercentage=output_backward;
-	foreach(IMyThrust Thruster in Up_Thrusters)
+		if(!Safety)
+			Thruster.Enabled=output_backward>0;
+	}
+	foreach(IMyThrust Thruster in Up_Thrusters){
 		Thruster.ThrustOverridePercentage=output_up;
-	foreach(IMyThrust Thruster in Down_Thrusters)
+		if(!Safety)
+			Thruster.Enabled=output_up>0;
+	}
+	foreach(IMyThrust Thruster in Down_Thrusters){
 		Thruster.ThrustOverridePercentage=output_down;
-	foreach(IMyThrust Thruster in Right_Thrusters)
+		if(!Safety)
+			Thruster.Enabled=output_down>0;
+	}
+	foreach(IMyThrust Thruster in Right_Thrusters){
 		Thruster.ThrustOverridePercentage=output_right;
-	foreach(IMyThrust Thruster in Left_Thrusters)
+		if(!Safety)
+			Thruster.Enabled=output_right>0;
+	}
+	foreach(IMyThrust Thruster in Left_Thrusters){
 		Thruster.ThrustOverridePercentage=output_left;
+		if(!Safety)
+			Thruster.Enabled=output_left>0;
+	}
 	foreach(ThrustPod Pod in ThrustPods){
 		if(Angled(Pod,Up_Vector)){
 			Pod.Thrust.ThrustOverridePercentage=output_up;
