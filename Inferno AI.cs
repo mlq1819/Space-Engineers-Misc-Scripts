@@ -1475,12 +1475,12 @@ AlertStatus ShipStatus{
 			Submessage+="\nSafety Protocols disengaged";
 		}
 		if(Do_Breakdown){
-			float bd_percent=((float)BD_Count)/(20+BD_Count)*100;
+			float bd_percent=((float)BD_Count)/(30+BD_Count)*100;
 			AlertStatus nw_sts=AlertStatus.Orange;
-			if(bd_percent>=50)
+			if(bd_percent>=40)
 				nw_sts=AlertStatus.Red;
 			status=(AlertStatus)Math.Max((int)status,(int)nw_sts);
-			Submessage+="\nShip is Breaking Down - "+Math.Round(BD_Timer,2)+" s - "+Math.Round(bd_percent,1).ToString()+"%";
+			Submessage+="\nShip is Breaking Down - "+Math.Round(BD_Timer,2)+" s\n"+Math.Round(bd_percent,1).ToString()+"% Broken Down";
 		}
 		if(!Me.CubeGrid.IsStatic){
 			List<IMyJumpDrive> JumpDrives=GenericMethods<IMyJumpDrive>.GetAllIncluding("");
