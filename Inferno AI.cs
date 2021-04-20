@@ -2444,10 +2444,14 @@ void MarkAltitude(bool do_new=true){
 		}
 	}
 	
-	if(do_new){
-		string time=Math.Round(Altitude_Timer,3).ToString();
-		for(int i=1;i<=time.Length;i++)
-			Graph[34][XFULL-i]=time[time.Length-i];
+	if(Orbitting){
+		int Y=(int)Math.Round((Orbital_Altitude-min)/interval,0);
+		if(Y>=0&&Y<35){
+			for(int X=3;X<XFULL;X++){
+				if(X%2==0)
+					Graph[Y][X]='=';
+			}
+		}
 	}
 	
 	double time_interval=Graph_Length_Seconds/((double)XLEN);
@@ -2467,9 +2471,11 @@ void MarkAltitude(bool do_new=true){
 			}
 		}
 	}
-	
-	
-	
+	if(do_new){
+		string time=Math.Round(Altitude_Timer,3).ToString();
+		for(int i=1;i<=time.Length;i++)
+			Graph[34][XFULL-i]=time[time.Length-i];
+	}
 	string text="";
 	for(int y=34;y>=0;y--){
 		if(y<34)
