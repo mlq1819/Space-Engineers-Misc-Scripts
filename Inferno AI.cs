@@ -750,6 +750,7 @@ IMyGyro Gyroscope;
 List<CustomPanel> StatusLCDs;
 List<CustomPanel> DebugLCDs;
 List<CustomPanel> CommandLCDs;
+List<CustomPanel> AltitudeLCDs;
 
 List<Airlock> Airlocks;
 
@@ -1222,6 +1223,7 @@ void Reset(){
 	StatusLCDs=new List<CustomPanel>();
 	DebugLCDs=new List<CustomPanel>();
 	CommandLCDs=new List<CustomPanel>();
+	AltitudeLCDs=new List<CustomPanel>();
 	List<Airlock> Airlocks=new List<Airlock>();
 	for(int i=0;i<All_Thrusters.Length;i++)
 		All_Thrusters[i]=new List<IMyThrust>();
@@ -1242,6 +1244,24 @@ bool Setup(){
 	LCDs=GenericMethods<IMyTextPanel>.GetAllConstruct("Command Menu Display");
 	foreach(IMyTextPanel Panel in LCDs)
 		CommandLCDs.Add(new CustomPanel(Panel));
+	LCDs=GenericMethods<IMyTextPanel.GetAllConstruct("Altitude");
+	foreach(IMyTextPanel Panel in LCDs)
+		AltitudeLCDs.Add(new CustomPanel(Panel));
+	foreach(CustomPanel Panel in AltitudeLCDs){
+		if(Panel.Trans){
+			Panel.Display.FontColor=DEFAULT_BACKGROUND_COLOR;
+			Panel.Display.BackgroundColor=new Color(0,0,0,0);
+		}
+		else{
+			Panel.Display.FontColor=DEFAULT_TEXT_COLOR;
+			Panel.Display.BackgroundColor=DEFAULT_BACKGROUND_COLOR;
+		}
+		Panel.Display.Font="Monospace";
+		Panel.Display.Alignment=TextAlignment.CENTER;
+		Panel.Display.ContentType=ContentType.TEXT_AND_IMAGE;
+		Panel.Display.TextPadding=0.0f;
+		Panel.Display.FontSize=0.1f;
+	}
 	foreach(CustomPanel Panel in DebugLCDs){
 		if(Panel.Trans){
 			Panel.Display.FontColor=DEFAULT_BACKGROUND_COLOR;
