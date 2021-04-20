@@ -2383,7 +2383,8 @@ bool Terrain=false;
 void MarkAltitude(bool do_new=true){
 	const int XLEN=48;
 	const int XFULL=51;
-	
+	if(do_new)
+		Altitude_Timer=((double)Graph_Length_Seconds)/XFULL;
 	while(Altitude_Graph.Count>0&&Time_Since_Start.TotalSeconds-Altitude_Graph.Peek().Timestamp.TotalSeconds>Graph_Length_Seconds)
 		Altitude_Graph.Dequeue();
 	if(do_new&&Altitude_Graph.Count<XLEN&&Gravity.Length()>0)
@@ -2423,6 +2424,12 @@ void MarkAltitude(bool do_new=true){
 		}
 	}
 	
+	if(do_new){
+		string time=Math.Round(Altitude_Timer,3).ToString();
+		for(int i=1;i<=time.Length;i++)
+			Graph[34][XFULL-i]=time[time.Length-i];
+	}
+	
 	double time_interval=Graph_Length_Seconds/((double)XLEN);
 	double End=Time_Since_Start.TotalSeconds;
 	double Start=End-Graph_Length_Seconds;
@@ -2443,6 +2450,8 @@ void MarkAltitude(bool do_new=true){
 		}
 	}
 	
+	
+	
 	string text="";
 	for(int y=34;y>=0;y--){
 		if(y<34)
@@ -2454,7 +2463,7 @@ void MarkAltitude(bool do_new=true){
 	foreach(CustomPanel Panel in AltitudeLCDs){
 		Panel.Display.WriteText(text,false);
 	}
-	Altitude_Timer=((double)Graph_Length_Seconds)/XFULL;
+	
 }
 
 double Thrust_Pod_Timer=30;
