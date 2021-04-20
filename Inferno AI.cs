@@ -1579,17 +1579,17 @@ AlertStatus ShipStatus{
 				if(Obt_f>1.2||Obt_f<0.8||Math.Abs(Obt_d)>250){
 					nw_sts=AlertStatus.Red;
 					status=(AlertStatus)Math.Max((int)status,(int)nw_sts);
-					Submessage+="\nOrbital Decay: "+Math.Round(Obt_d,0).ToString()+" M: "+Obt_f;
+					Submessage+="\nOrbital Decay: "+Math.Round(Obt_d,0).ToString()+" M: "+Obt_fs;
 				}
 				else if(Obt_f>1.1||Obt_f<0.9||Math.Abs(Obt_d)>100){
 					nw_sts=AlertStatus.Orange;
 					status=(AlertStatus)Math.Max((int)status,(int)nw_sts);
-					Submessage+="\nOrbital Decay: "+Math.Round(Obt_d,0).ToString()+" M: "+Obt_f;
+					Submessage+="\nOrbital Decay: "+Math.Round(Obt_d,0).ToString()+" M: "+Obt_fs;
 				}
 				else if(Obt_f>1.025||Obt_f<0.975||Math.Abs(Obt_d)>20){
 					nw_sts=AlertStatus.Yellow;
 					status=(AlertStatus)Math.Max((int)status,(int)nw_sts);
-					Submessage+="\nOrbital Decay: "+Math.Round(Obt_d,0).ToString()+" M: "+Obt_f;
+					Submessage+="\nOrbital Decay: "+Math.Round(Obt_d,0).ToString()+" M: "+Obt_fs;
 				}
 			}
 			if(Controller.CalculateShipMass().PhysicalMass>0&&Mass_Accomodation>0){
