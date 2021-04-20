@@ -2381,11 +2381,14 @@ double Intercept_E(Altitude_Data v1,Altitude_Data v2){
 bool Terrain=false;
 
 void MarkAltitude(bool do_new=true){
+	const int XLEN=48;
+	const int XFULL=51;
+	
 	while(Altitude_Graph.Count>0&&Time_Since_Start.TotalSeconds-Altitude_Graph.Peek().Timestamp.TotalSeconds>Graph_Length_Seconds)
 		Altitude_Graph.Dequeue();
-	if(do_new&&Altitude_Graph.Count<50&&Gravity.Length()>0)
+	if(do_new&&Altitude_Graph.Count<XLEN&&Gravity.Length()>0)
 		Altitude_Graph.Enqueue(new Altitude_Data(Sealevel,Elevation,Time_Since_Start));
-	double max=2500;
+	double max=1000;
 	foreach(Altitude_Data Data in Altitude_Graph){
 		if(Terrain)
 			max=Math.Max(max,Data.Elevation);
@@ -2398,13 +2401,13 @@ void MarkAltitude(bool do_new=true){
 	//50 wide, 30 tall
 	char[][] Graph=new char[35][];
 	for(int y=0;y<35;y++){
-		Graph[y]=new char[53];
+		Graph[y]=new char[XFULL];
 		int altitude=(int)(y*interval);
 		int alt_num=(int)(altitude/1000);
 		int low_alt=(int)((altitude-interval)/1000);
 		char alt_10s=((alt_num/10)%10).ToString()[0];
 		char alt_1s=(alt_num%10).ToString()[0];
-		for(int x=0;x<53;x++){
+		for(int x=0;x<XFULL;x++){
 			Graph[y][x]=' ';
 			if(x<2){
 				if(alt_num>low_alt||y==0){
@@ -2420,69 +2423,15 @@ void MarkAltitude(bool do_new=true){
 		}
 	}
 	
-	double time_interval=Graph_Length_Seconds/50.0;
+	double time_interval=Graph_Length_Seconds/((double)XLEN);
 	double End=Time_Since_Start.TotalSeconds;
 	double Start=End-Graph_Length_Seconds;
-	Altitude_Data[] altitude_graph=(Altitude_Data[]) Altitude_Graph.ToArray();
-	int V1=0;
-	int V2=1;
-	/*while(V2<altitude_graph.Length){
-		double s_e=Slope_E(altitude_graph[V1],altitude_graph[V2]);
-		double i_e=Intercept_E(altitude_graph[V1],altitude_graph[V2]);
-		double s_s=Slope_S(altitude_graph[V1],altitude_graph[V2]);
-		double i_s=Intercept_S(altitude_graph[V1],altitude_graph[V2]);
-		char sc_e='-',sc_s='-';
-		double adj_se=s_e*(End-Start)/max;
-		double adj_ss=s_e*(End-Start)/max;
-		if(Math.Abs(adj_se)>2)
-			sc_e='|';
-		else if(adj_se>0.5)
-			sc_e='/';
-		else if(adj_se<-0.5)
-			sc_e='\\';
-		if(Math.Abs(adj_ss)>2)
-			sc_s='|';
-		else if(adj_ss>0.5)
-			sc_s='/';
-		else if(adj_ss<-0.5)
-			sc_s='\\';
-		int V1_Time=(int)Math.Ceiling((altitude_graph[V1].Timestamp.TotalSeconds-Start)/time_interval);
-		int V2_Time=(int)Math.Floor((altitude_graph[V2].Timestamp.TotalSeconds-Start)/time_interval);
-		for(int x=V1_Time;x<=V2_Time;x++){
-			if(x<0||x>=50)
-				break;
-			double elevation=s_e*x+i_e;
-			double sealevel=s_s*x+i_s;
-			int y_e=(int)Math.Round(elevation/interval,0);
-			int y_s=(int)Math.Round(sealevel/interval,0);
-			if(sc_e=='|')
-				y_e=(int)Math.Floor(elevation/interval);
-			if(sc_s=='|')
-				y_s=(int)Math.Floor(sealevel/interval);
-			if(Terrain){
-				if(y_e>=0&&y_e<35){
-					Graph[y_e][x+3]=sc_e;
-					if(sc_e=='|'&&y_e<34)
-						Graph[y_e+1][x+3]=sc_e;
-				}
-			}
-			else{
-				if(y_s>=0&&y_s<35){
-					Graph[y_s][x+3]=sc_s;
-					if(sc_s=='|'&&y_s<34)
-						Graph[y_s+1][x+3]=sc_s;
-				}
-			}
-		}
-		V1++;
-		V2=V1+1;
-	}*/
 	
 	foreach(Altitude_Data Point in Altitude_Graph){
 		int X=(int)Math.Ceiling((Point.Timestamp.TotalSeconds-Start)/time_interval);
 		int Y_E=(int)Math.Round(Point.Elevation/interval,0);
 		int Y_S=(int)Math.Round(Point.Sealevel/interval,0);
-		if(X>=0&&X<50){
+		if(X>=0&&X<XLEN){
 			if(Terrain){
 				if(Y_E>=0&&Y_E<35)
 					Graph[Y_E][X+3]='○';
@@ -2498,14 +2447,14 @@ void MarkAltitude(bool do_new=true){
 	for(int y=34;y>=0;y--){
 		if(y<34)
 			text+='\n';
-		for(int x=0;x<53;x++){
+		for(int x=0;x<XFULL;x++){
 			text+=Graph[y][x];
 		}
 	}
 	foreach(CustomPanel Panel in AltitudeLCDs){
 		Panel.Display.WriteText(text,false);
 	}
-	Altitude_Timer=Graph_Length_Seconds/50.0;
+	Altitude_Timer=((double)Graph_Length_Seconds)/XFULL;
 }
 
 double Thrust_Pod_Timer=30;
