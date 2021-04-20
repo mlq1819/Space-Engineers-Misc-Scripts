@@ -2439,7 +2439,7 @@ void MarkAltitude(bool do_new=true){
 		}
 	}
 	
-	if(Orbitting){
+	if(Orbiting){
 		int Y=(int)Math.Round((Orbital_Altitude-min)/interval,0);
 		if(Y>=0&&Y<35){
 			for(int X=3;X<XFULL;X++){
