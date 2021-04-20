@@ -2390,28 +2390,38 @@ void MarkAltitude(bool do_new=true){
 	if(do_new&&Altitude_Graph.Count<XLEN&&Gravity.Length()>0)
 		Altitude_Graph.Enqueue(new Altitude_Data(Sealevel,Elevation,Time_Since_Start));
 	double max=1000;
+	double min=double.MaxValue;
 	foreach(Altitude_Data Data in Altitude_Graph){
-		if(Terrain)
+		if(Terrain){
 			max=Math.Max(max,Data.Elevation);
-		else
+			min=Math.Min(min,Data.Elevation);
+		}
+		else{
 			max=Math.Max(max,Data.Sealevel);
+			min=Math.Min(min,Data.Sealevel);
+		}
 	}
 	max+=500;
-	max=Math.Round((max+99)/100,0)*100;
-	double interval=max/34.0;
+	min=Math.Max(min-500,0);
+	max=Math.Ceiling(max/100)*100;
+	min=Math.Floor(min/100)*100;
+	double interval=(max-min)/34.0;
 	//50 wide, 30 tall
 	char[][] Graph=new char[35][];
 	for(int y=0;y<35;y++){
 		Graph[y]=new char[XFULL];
-		int altitude=(int)(y*interval);
+		int altitude=(int)(min+y*interval);
 		int alt_num=(int)(altitude/1000);
 		int low_alt=(int)((altitude-interval)/1000);
 		char alt_10s=((alt_num/10)%10).ToString()[0];
 		char alt_1s=(alt_num%10).ToString()[0];
 		for(int x=0;x<XFULL;x++){
-			Graph[y][x]=' ';
+			if(min==0&&y==0)
+				Graph[y][x]='_';
+			else
+				Graph[y][x]=' ';
 			if(x<2){
-				if(alt_num>low_alt||y==0){
+				if(alt_num>low_alt||(min==0&&y==0)){
 					if(x==0)
 						Graph[y][x]=alt_10s;
 					else
@@ -2436,8 +2446,8 @@ void MarkAltitude(bool do_new=true){
 	
 	foreach(Altitude_Data Point in Altitude_Graph){
 		int X=(int)Math.Ceiling((Point.Timestamp.TotalSeconds-Start)/time_interval);
-		int Y_E=(int)Math.Round(Point.Elevation/interval,0);
-		int Y_S=(int)Math.Round(Point.Sealevel/interval,0);
+		int Y_E=(int)Math.Round((Point.Elevation-min)/interval,0);
+		int Y_S=(int)Math.Round((Point.Sealevel-min)/interval,0);
 		if(X>=0&&X<XLEN){
 			if(Terrain){
 				if(Y_E>=0&&Y_E<35)
