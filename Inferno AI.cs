@@ -2004,7 +2004,7 @@ void SetGyroscopes(){
 				double difference=Math.Abs(GetAngle(Gravity,Forward_Vector));
 				if(Orbiting){
 					if(Math.Abs(Orbital_Altitude-Sealevel)>20)
-						difference+=Math.Max(Math.Min((Sealevel-Orbital_Altitude)/20,15),-10);
+						difference+=2*Math.Max(Math.Min((Sealevel-Orbital_Altitude)/20,15),-10);
 				}
 				if(difference<90)
 					input_pitch-=10*gyro_multx*((float)Math.Min(Math.Abs((90-difference)/90),1));
@@ -2014,7 +2014,7 @@ void SetGyroscopes(){
 				if(Orbiting){
 					difference+=5;
 					if(Math.Abs(Orbital_Altitude-Sealevel)>20)
-						difference-=Math.Max(Math.Min((Sealevel-Orbital_Altitude)/20,15),-10);
+						difference-=2*Math.Max(Math.Min((Sealevel-Orbital_Altitude)/20,15),-10);
 				}
 				if(difference>90+Acceptable_Angle/2||(Orbiting&&difference>90))
 					input_pitch+=10*gyro_multx*((float)Math.Min(Math.Abs((difference-90)/90),1))*orbit_multx;
@@ -2180,7 +2180,7 @@ void SetThrusters(){
 		up_multx=Math.Min(Math.Max(up_multx,0.1f),10);
 		if(input_up<0)
 			up_multx=1.0f/up_multx;
-		input_up*=up_multx;
+		input_up*=2*up_multx;
 	}
 	float output_up=0.0f;
 	float output_down=0.0f;
