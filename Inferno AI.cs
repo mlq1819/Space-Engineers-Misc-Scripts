@@ -1244,7 +1244,7 @@ bool Setup(){
 	LCDs=GenericMethods<IMyTextPanel>.GetAllConstruct("Command Menu Display");
 	foreach(IMyTextPanel Panel in LCDs)
 		CommandLCDs.Add(new CustomPanel(Panel));
-	LCDs=GenericMethods<IMyTextPanel.GetAllConstruct("Altitude");
+	LCDs=GenericMethods<IMyTextPanel>.GetAllConstruct("Altitude");
 	foreach(IMyTextPanel Panel in LCDs)
 		AltitudeLCDs.Add(new CustomPanel(Panel));
 	foreach(CustomPanel Panel in AltitudeLCDs){
@@ -1573,22 +1573,23 @@ AlertStatus ShipStatus{
 					target_altitude=Math.Round(Orbital_Altitude/1000,1).ToString()+" kM";
 				}
 				Submessage+="\nOrbiting at "+altitude+":"+target_altitude;
-				double Obt_f=Orbital_Altittude/Sealevel;
+				double Obt_f=Orbital_Altitude/Sealevel;
+				string Obt_fs=Math.Round(Obt_f*100,1)+"%";
 				double Obt_d=Orbital_Altitude-Sealevel;
-				if(Ort_f>1.2||Ort_f<0.8||Math.Abs(Obt_d)>250){
+				if(Obt_f>1.2||Obt_f<0.8||Math.Abs(Obt_d)>250){
 					nw_sts=AlertStatus.Red;
 					status=(AlertStatus)Math.Max((int)status,(int)nw_sts);
-					Submessage+="\nOrbital Decay: "+Math.Round(Obt_d,0).ToString()+" M";
+					Submessage+="\nOrbital Decay: "+Math.Round(Obt_d,0).ToString()+" M: "+Obt_f;
 				}
-				else if(Ort_f>1.1||Ort_f<0.9||Math.Abs(Obt_d)>100){
+				else if(Obt_f>1.1||Obt_f<0.9||Math.Abs(Obt_d)>100){
 					nw_sts=AlertStatus.Orange;
 					status=(AlertStatus)Math.Max((int)status,(int)nw_sts);
-					Submessage+="\nOrbital Decay: "+Math.Round(Obt_d,0).ToString()+" M";
+					Submessage+="\nOrbital Decay: "+Math.Round(Obt_d,0).ToString()+" M: "+Obt_f;
 				}
-				else if(Ort_f>1.025||Ort_f<0.975||Math.Abs(Obt_d)>20){
+				else if(Obt_f>1.025||Obt_f<0.975||Math.Abs(Obt_d)>20){
 					nw_sts=AlertStatus.Yellow;
 					status=(AlertStatus)Math.Max((int)status,(int)nw_sts);
-					Submessage+="\nOrbital Decay: "+Math.Round(Obt_d,0).ToString()+" M";
+					Submessage+="\nOrbital Decay: "+Math.Round(Obt_d,0).ToString()+" M: "+Obt_f;
 				}
 			}
 			if(Controller.CalculateShipMass().PhysicalMass>0&&Mass_Accomodation>0){
