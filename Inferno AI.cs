@@ -1551,12 +1551,17 @@ AlertStatus ShipStatus{
 					target_altitude=Math.Round(Orbital_Altitude/1000,1).ToString()+" kM";
 				}
 				Submessage+="\nOrbiting at "+altitude+":"+target_altitude;
-				if(Math.Abs(Orbital_Altitude-Sealevel)>250){
-					nw_sts=AlertStatus.Orange;
+				if((Orbital_Altitude/Sealevel)>1.1||(Orbital_Altitude/Sealevel)<0.9){
+					nw_sts=AlertStatus.Red;
 					status=(AlertStatus)Math.Max((int)status,(int)nw_sts);
 					Submessage+="\nOrbital Decay: "+Math.Round(Sealevel-Orbital_Altitude,0).ToString()+" M";
 				}
 				else if(Math.Abs(Orbital_Altitude-Sealevel)>50){
+					nw_sts=AlertStatus.Orange;
+					status=(AlertStatus)Math.Max((int)status,(int)nw_sts);
+					Submessage+="\nOrbital Decay: "+Math.Round(Sealevel-Orbital_Altitude,0).ToString()+" M";
+				}
+				else if(Math.Abs(Orbital_Altitude-Sealevel)>15){
 					nw_sts=AlertStatus.Yellow;
 					status=(AlertStatus)Math.Max((int)status,(int)nw_sts);
 					Submessage+="\nOrbital Decay: "+Math.Round(Sealevel-Orbital_Altitude,0).ToString()+" M";
