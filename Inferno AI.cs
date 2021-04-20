@@ -1275,10 +1275,10 @@ bool Setup(){
 			Panel.Display.BackgroundColor=DEFAULT_BACKGROUND_COLOR;
 		}
 		Panel.Display.Font="Monospace";
-		Panel.Display.Alignment=TextAlignment.CENTER;
+		Panel.Display.Alignment=TextAlignment.LEFT;
 		Panel.Display.ContentType=ContentType.TEXT_AND_IMAGE;
 		Panel.Display.TextPadding=0.4f;
-		Panel.Display.FontSize=0.5f;
+		Panel.Display.FontSize=0.59f;
 	}
 	foreach(CustomPanel Panel in DebugLCDs){
 		if(Panel.Trans){
@@ -2347,18 +2347,41 @@ void BD_Cycle(bool try_reset=true){
 	}
 }
 
+double Slope_S(Altitude_Data v1,Altitude_Data v2){
+	double run=v2.Timestamp.TotalSeconds-v1.Timestamp.TotalSeconds;
+	double rise=v2.Sealevel-v1.Sealevel;
+	return rise/run;
+}
+double Intercept_S(Altitude_Data v1,Altitude_Data v2){
+	double slope=Slope_S(v1,v2);
+	double expected=v1.TotalSeconds*slope;
+	return v1.Sealevel-expected;
+}
+double Slope_E(Altitude_Data v1,Altitude_Data v2){
+	double run=v2.Timestamp.TotalSeconds-v1.Timestamp.TotalSeconds;
+	double rise=v2.Elevation-v1.Elevation;
+	return rise/run;
+}
+double Intercept_E(Altitude_Data v1,Altitude_Data v2){
+	double slope=Slope_E(v1,v2);
+	double expected=v1.TotalSeconds*slope;
+	return v1.Elevation-expected;
+}
+
 void MarkAltitude(){
 	while(Altitude_Graph.Count>0&&Time_Since_Start.TotalSeconds-Altitude_Graph.Peek().Timestamp.TotalSeconds>(5*60))
 		Altitude_Graph.Dequeue();
 	if(Altitude_Graph.Count<50&&Gravity.Length()>0)
 		Altitude_Graph.Enqueue(new Altitude_Data(Sealevel,Elevation,Time_Since_Start));
-	double max=0;
+	double max=2500;
 	foreach(Altitude_Data Data in Altitude_Graph){
 		max=Math.Max(Math.Max(max,Data.Sealevel),Data.Elevation);
 	}
 	max+=500;
 	max=Math.Round((max+99)/100,0)*100;
 	double interval=max/29.0;
+	
+	
 	
 	//50 wide, 30 tall
 	char[][] Graph=new char[30][];
@@ -2372,7 +2395,7 @@ void MarkAltitude(){
 		for(int x=0;x<53;x++){
 			Graph[y][x]=' ';
 			if(x<2){
-				if(alt_num>low_alt){
+				if(alt_num>low_alt||y==0){
 					if(x==0)
 						Graph[y][x]=alt_10s;
 					else
@@ -2385,9 +2408,74 @@ void MarkAltitude(){
 		}
 	}
 	
+	double time_interval=(5*60)/50.0;
+	double End=Time_Since_Start;
+	double Start=End-5*60;
+	Altitude_Data[] altitude_graph=(Altitude_Data[]) Altitude_Graph.ToArray();
+	int V1=0;
+	int V2=1;
+	while(V2<altitude_graph.Length){
+		double s_e=Slope_E(altitude_graph[V1],altitude_graph[V2]);
+		double i_e=Intercept_E(altitude_graph[V1],altitude_graph[V2]);
+		double s_s=Slope_S(altitude_graph[V1],altitude_graph[V2]);
+		double i_s=Intercept_S(altitude_graph[V1],altitude_graph[V2]);
+		char sc_e='-',sc_s='-';
+		if(Math.Abs(s_e)>2)
+			sc_e='|';
+		else if(s_e>0.5)
+			sc_e='/';
+		else if(s_e<-0.5)
+			sc_e='\\';
+		if(Math.Abs(s_s)>2)
+			sc_s='|';
+		else if(s_s>0.5)
+			sc_s='/';
+		else if(s_s<-0.5)
+			sc_s='\\';
+		int V1_Time=(int)Math.Ceiling((V1.Timestamp.TotalSeconds-Start)/time_interval);
+		int V2_Time=(int)Math.Floor((V2.Timestamp.TotalSeconds-Start)/time_interval);
+		for(int x=V1_Time;x<=V2_Time;x++){
+			if(x<0||x>=50)
+				break;
+			double elevation=s_e*x+i_e;
+			double sealevel=s_s*x+i_s;
+			int y_e=(int)Math.Round(elevation/interval,0);
+			int y_s=(int)Math.Round(sealevel/interval,0);
+			if(sc_e=='|')
+				y_e=(int)Math.Floor(elevation/interval,0);
+			if(sc_s=='|')
+				y_s=(int)Math.Floor(sealevel/interval,0);
+			
+			if(y_e>=0&&y_e<30){
+				Graph[y_e][x+3]=sc_e;
+				if(sc_e=='|'&&y_e<29)
+					Graph[y_e+1][x+3]=sc_e;
+			}
+			if(y_s>=0&&y_s<30){
+				Graph[y_s][x+3]=sc_s;
+				if(sc_s=='|'&&y_s<29)
+					Graph[y_s+1][x+3]=sc_s;
+			}
+		}
+		V1++;
+		V2=V1+1;
+	}
+	
+	foreach(Altitude_Data Point in Altitude_Graph){
+		int X=(int)Math.Ceiling((Point.Timestamp.TotalSeconds-Start)/time_interval);
+		int Y_E=(int)Math.Round(Point.Elevation/interval,0);
+		int Y_S=(int)Math.Round(Point.Sealevel/interval,0);
+		if(X>=0&&X<50){
+			if(Y_E>=0&&Y_E<30)
+				Graph[Y_E][X+3]='';
+			if(Y_S>=0&&Y_S<30)
+				Graph[Y_S][X+3]='';
+		}
+	}
+	
 	string text="";
-	for(int y=0;y<30;y++){
-		if(y>0)
+	for(int y=29;y>=0;y--){
+		if(y<29)
 			text+='\n';
 		for(int x=0;x<53;x++){
 			text+=Graph[y][x];
