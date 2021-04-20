@@ -2354,7 +2354,7 @@ double Slope_S(Altitude_Data v1,Altitude_Data v2){
 }
 double Intercept_S(Altitude_Data v1,Altitude_Data v2){
 	double slope=Slope_S(v1,v2);
-	double expected=v1.TotalSeconds*slope;
+	double expected=v1.Timestamp.TotalSeconds*slope;
 	return v1.Sealevel-expected;
 }
 double Slope_E(Altitude_Data v1,Altitude_Data v2){
@@ -2364,7 +2364,7 @@ double Slope_E(Altitude_Data v1,Altitude_Data v2){
 }
 double Intercept_E(Altitude_Data v1,Altitude_Data v2){
 	double slope=Slope_E(v1,v2);
-	double expected=v1.TotalSeconds*slope;
+	double expected=v1.Timestamp.TotalSeconds*slope;
 	return v1.Elevation-expected;
 }
 
@@ -2380,9 +2380,6 @@ void MarkAltitude(){
 	max+=500;
 	max=Math.Round((max+99)/100,0)*100;
 	double interval=max/29.0;
-	
-	
-	
 	//50 wide, 30 tall
 	char[][] Graph=new char[30][];
 	for(int y=0;y<30;y++){
@@ -2409,7 +2406,7 @@ void MarkAltitude(){
 	}
 	
 	double time_interval=(5*60)/50.0;
-	double End=Time_Since_Start;
+	double End=Time_Since_Start.TotalSeconds;
 	double Start=End-5*60;
 	Altitude_Data[] altitude_graph=(Altitude_Data[]) Altitude_Graph.ToArray();
 	int V1=0;
@@ -2432,8 +2429,8 @@ void MarkAltitude(){
 			sc_s='/';
 		else if(s_s<-0.5)
 			sc_s='\\';
-		int V1_Time=(int)Math.Ceiling((V1.Timestamp.TotalSeconds-Start)/time_interval);
-		int V2_Time=(int)Math.Floor((V2.Timestamp.TotalSeconds-Start)/time_interval);
+		int V1_Time=(int)Math.Ceiling((altitude_graph[V1].Timestamp.TotalSeconds-Start)/time_interval);
+		int V2_Time=(int)Math.Floor((altitude_graph[V2].Timestamp.TotalSeconds-Start)/time_interval);
 		for(int x=V1_Time;x<=V2_Time;x++){
 			if(x<0||x>=50)
 				break;
@@ -2442,9 +2439,9 @@ void MarkAltitude(){
 			int y_e=(int)Math.Round(elevation/interval,0);
 			int y_s=(int)Math.Round(sealevel/interval,0);
 			if(sc_e=='|')
-				y_e=(int)Math.Floor(elevation/interval,0);
+				y_e=(int)Math.Floor(elevation/interval);
 			if(sc_s=='|')
-				y_s=(int)Math.Floor(sealevel/interval,0);
+				y_s=(int)Math.Floor(sealevel/interval);
 			
 			if(y_e>=0&&y_e<30){
 				Graph[y_e][x+3]=sc_e;
