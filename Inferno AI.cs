@@ -1475,9 +1475,12 @@ AlertStatus ShipStatus{
 			Submessage+="\nSafety Protocols disengaged";
 		}
 		if(Do_Breakdown){
-			AlertStatus nw_sts=AlertStatus.Red;
+			float bd_percent=((float)BD_Count)/(20+BD_Count)*100;
+			AlertStatus nw_sts=AlertStatus.Orange;
+			if(bd_percent>=0.5f)
+				nw_sts=AlertStatus.Red;
 			status=(AlertStatus)Math.Max((int)status,(int)nw_sts);
-			Submessage+="\nShip is Breaking Down - "+Math.Round(BD_Timer,2)+" s - "+BD_Count.ToString();
+			Submessage+="\nShip is Breaking Down - "+Math.Round(BD_Timer,2)+" s - "+Math.Round(bd_percent,1).ToString()+"%";
 		}
 		if(!Me.CubeGrid.IsStatic){
 			List<IMyJumpDrive> JumpDrives=GenericMethods<IMyJumpDrive>.GetAllIncluding("");
@@ -1540,7 +1543,7 @@ AlertStatus ShipStatus{
 			}
 			if(Orbiting){
 				AlertStatus nw_sts=AlertStatus.Blue;
-				status=(AlertStatus) Math.Max((int)status, (int)nw_sts);
+				status=(AlertStatus)Math.Max((int)status,(int)nw_sts);
 				string altitude=Math.Round(Sealevel,0).ToString()+" M";
 				string target_altitude=Math.Round(Orbital_Altitude,0).ToString()+" M";
 				if(Orbital_Altitude>=1500){
@@ -1548,6 +1551,16 @@ AlertStatus ShipStatus{
 					target_altitude=Math.Round(Orbital_Altitude/1000,1).ToString()+" kM";
 				}
 				Submessage+="\nOrbiting at "+altitude+":"+target_altitude;
+				if(Math.Abs(Orbital_Altitude-Sealevel)>250){
+					nw_sts=AlertStatus.Orange;
+					status=(AlertStatus)Math.Max((int)status,(int)nw_sts);
+					Submessage+="\nOrbital Decay: "+Math.Round(Sealevel-Orbital_Altitude,0).ToString()+" M";
+				}
+				else if(Math.Abs(Orbital_Altitude-Sealevel)>50){
+					nw_sts=AlertStatus.Yellow;
+					status=(AlertStatus)Math.Max((int)status,(int)nw_sts);
+					Submessage+="\nOrbital Decay: "+Math.Round(Sealevel-Orbital_Altitude,0).ToString()+" M";
+				}
 			}
 			if(Controller.CalculateShipMass().PhysicalMass>0&&Mass_Accomodation>0){
 				if(Controller.GetShipSpeed()>0.01&&Elevation-MySize/2<50){
@@ -2243,6 +2256,45 @@ void UpdateProgramInfo(){
 	Me.GetSurface(1).WriteText("\n"+ToString(Time_Since_Start)+" since last reboot",true);
 }
 
+void BD_Cycle(bool try_reset=true){
+	BD_Timer=2;
+	if(try_reset){
+		int j=Rnd.Next(0,Math.Max(10,BD_Count));
+		if(j==0){
+			j=Rnd.Next(0,Math.Max(1,Math.Min(BD_Count,5)));
+			Breakdown();
+			Breakdown();
+			for(int k=0;k<j;k++)
+				BD_Cycle(false);
+		}
+	}
+	BD_Count++;
+	int i=Rnd.Next(0,6);
+	if(All_Thrusters[i].Count>0){
+		int j=Rnd.Next(0,All_Thrusters[i].Count);
+		All_Thrusters[i][j].Enabled=true;
+	}
+	List<IMyGyro> MyGyros=GenericMethods<IMyGyro>.GetAllIncluding("");
+	i=Rnd.Next(0,MyGyros.Count);
+	MyGyros[i].Yaw=0;
+	MyGyros[i].Pitch=0;
+	MyGyros[i].Roll=0;
+	MyGyros[i].GyroOverride=false;
+	for(int k=0;k<Rnd.Next(1,Math.Max(2,BD_Count));k++){
+		i=Rnd.Next(0,6);
+		if(All_Thrusters[i].Count>0){
+			int j=Rnd.Next(0,All_Thrusters[i].Count);
+			All_Thrusters[i][j].Enabled=false;
+		}
+		i=Rnd.Next(0,MyGyros.Count);
+		int pn=Rnd.Next(1,Math.Min(11,1+BD_Count/5));
+		MyGyros[i].Yaw=(Rnd.Next(-1*pn,pn+1)+Rnd.Next(-1*pn,pn+1))/10.0f;
+		MyGyros[i].Pitch=(Rnd.Next(-1*pn,pn+1)+Rnd.Next(-1*pn,pn+1))/10.0f;
+		MyGyros[i].Roll=(Rnd.Next(-1*pn,pn+1)+Rnd.Next(-1*pn,pn+1))/10.0f;
+		MyGyros[i].GyroOverride=true;
+	}
+}
+
 double Thrust_Pod_Timer=30;
 void UpdateTimers(){
 	foreach(Airlock airlock in Airlocks){
@@ -2266,39 +2318,8 @@ void UpdateTimers(){
 	}
 	if(Do_Breakdown){
 		BD_Timer-=seconds_since_last_update;
-		if(BD_Timer<=0){
-			BD_Timer=2;
-			int i=Rnd.Next(0,Math.Max(10,BD_Count));
-			if(i==0){
-				Breakdown();
-				Breakdown();
-			}
-			BD_Count++;
-			i=Rnd.Next(0,6);
-			if(All_Thrusters[i].Count>0){
-				int j=Rnd.Next(0,All_Thrusters[i].Count);
-				All_Thrusters[i][j].Enabled=true;
-			}
-			List<IMyGyro> MyGyros=GenericMethods<IMyGyro>.GetAllIncluding("");
-			i=Rnd.Next(0,MyGyros.Count);
-			MyGyros[i].Yaw=0;
-			MyGyros[i].Pitch=0;
-			MyGyros[i].Roll=0;
-			MyGyros[i].GyroOverride=false;
-			for(int k=0;k<Rnd.Next(1,Math.Max(2,BD_Count));k++){
-				i=Rnd.Next(0,6);
-				if(All_Thrusters[i].Count>0){
-					int j=Rnd.Next(0,All_Thrusters[i].Count);
-					All_Thrusters[i][j].Enabled=false;
-				}
-				i=Rnd.Next(0,MyGyros.Count);
-				int pn=Rnd.Next(1,Math.Min(11,1+BD_Count/5));
-				MyGyros[i].Yaw=(Rnd.Next(-1*pn,pn+1)+Rnd.Next(-1*pn,pn+1))/10.0f;
-				MyGyros[i].Pitch=(Rnd.Next(-1*pn,pn+1)+Rnd.Next(-1*pn,pn+1))/10.0f;
-				MyGyros[i].Roll=(Rnd.Next(-1*pn,pn+1)+Rnd.Next(-1*pn,pn+1))/10.0f;
-				MyGyros[i].GyroOverride=true;
-			}
-		}
+		if(BD_Timer<=0)
+			BD_Cycle();
 	}
 	if(Guest_Mode){
 		Guest_Timer+=seconds_since_last_update;
