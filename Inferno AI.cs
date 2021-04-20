@@ -2180,7 +2180,11 @@ void SetThrusters(){
 		up_multx=Math.Min(Math.Max(up_multx,0.1f),10);
 		if(input_up<0)
 			up_multx=1.0f/up_multx;
-		input_up*=2*up_multx;
+		if(up_multx<=0.5f){
+			input_up*=-1;
+			up_multx=0.5f/up_multx;
+		}
+		input_up*=up_multx;
 	}
 	float output_up=0.0f;
 	float output_down=0.0f;
