@@ -1574,7 +1574,7 @@ AlertStatus ShipStatus{
 				}
 				Submessage+="\nOrbiting at "+altitude+":"+target_altitude;
 				double Obt_f=Orbital_Altitude/Sealevel;
-				string Obt_fs=Math.Round(Obt_f*100,1)+"%";
+				string Obt_fs=Math.Round((1-Obt_f)*100,1)+"%";
 				double Obt_d=Orbital_Altitude-Sealevel;
 				if(Obt_f>1.2||Obt_f<0.8||Math.Abs(Obt_d)>250){
 					nw_sts=AlertStatus.Red;
