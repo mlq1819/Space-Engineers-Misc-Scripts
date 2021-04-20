@@ -2051,22 +2051,17 @@ void SetGyroscopes(){
 		if(Orbiting)
 			orbit_multx=50;
 		if(Safety){
-			if((((Elevation-MySize)<Controller.GetShipSpeed()*2&&(Elevation-MySize)<50)||(Controller.DampenersOverride&&!Controller.IsUnderControl)||Orbiting)&&GetAngle(Gravity,Forward_Vector)<90&&Pitch_Time>=1){
+			if((((Elevation-MySize)<Controller.GetShipSpeed()*2&&(Elevation-MySize)<50)||(Controller.DampenersOverride&&!Controller.IsUnderControl)||Orbiting)&&GetAngle(Gravity,Forward_Vector)<120&&Pitch_Time>=1){
 				double difference=Math.Abs(GetAngle(Gravity,Forward_Vector));
-				if(Orbiting){
-					if(Math.Abs(Orbital_Altitude-Sealevel)>20)
-						difference+=2*Math.Max(Math.Min((Sealevel-Orbital_Altitude)/20,15),-10);
-				}
+				if(Orbiting&&Orbital_Altitude-Sealevel>100)
+					difference=Math.Max(difference-15,0);
 				if(difference<90)
 					input_pitch-=10*gyro_multx*((float)Math.Min(Math.Abs((90-difference)/90),1));
 			}
-			if((Orbiting||(Controller.DampenersOverride&&!Undercontrol))&&(GetAngle(Gravity,Forward_Vector)>(90+Acceptable_Angle/2)||(Orbiting&&GetAngle(Gravity,Forward_Vector)>90))){
+			if((Orbiting||(Controller.DampenersOverride&&!Undercontrol))&&(GetAngle(Gravity,Forward_Vector)>(90+Acceptable_Angle/2)||(Orbiting&&GetAngle(Gravity,Forward_Vector)>60))){
 				double difference=Math.Abs(GetAngle(Gravity,Forward_Vector));
-				if(Orbiting){
-					difference+=5;
-					if(Math.Abs(Orbital_Altitude-Sealevel)>20)
-						difference-=2*Math.Max(Math.Min((Sealevel-Orbital_Altitude)/20,15),-10);
-				}
+				if(Orbiting&&Sealevel-Orbital_Altitude>100)
+					difference=Math.Min(difference+15,180);
 				if(difference>90+Acceptable_Angle/2||(Orbiting&&difference>90))
 					input_pitch+=10*gyro_multx*((float)Math.Min(Math.Abs((difference-90)/90),1))*orbit_multx;
 			}
