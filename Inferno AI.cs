@@ -11,6 +11,7 @@ double Guest_Mode_Timer=900;
 double Acceptable_Angle=1;
 bool Control_Gyroscopes=true;
 bool Control_Thrusters=true;
+int Graph_Length_Seconds=180;
 
 class Prog{
 	public static MyGridProgram P;
@@ -1277,8 +1278,8 @@ bool Setup(){
 		Panel.Display.Font="Monospace";
 		Panel.Display.Alignment=TextAlignment.LEFT;
 		Panel.Display.ContentType=ContentType.TEXT_AND_IMAGE;
-		Panel.Display.TextPadding=0.4f;
-		Panel.Display.FontSize=0.59f;
+		Panel.Display.TextPadding=0;
+		Panel.Display.FontSize=0.5f;
 	}
 	foreach(CustomPanel Panel in DebugLCDs){
 		if(Panel.Trans){
@@ -1893,6 +1894,10 @@ bool Breakdown(object obj=null){
 	}
 	return true;
 }
+bool Toggle_Terrain(object obj=null){
+	Terrain=!Terrain;
+	return true;
+}
 
 bool CreateMenu(object obj=null){
 	Command_Menu=new Menu_Submenu("Command Menu");
@@ -1903,6 +1908,7 @@ bool CreateMenu(object obj=null){
 	Command_Menu.Add(new Menu_Command<object>("Toggle Orbiting", Orbit, "Locks current Speed, allowing the ship to cruise at the current approximate altitude. Minimum 500m Elevation."));
 	Command_Menu.Add(new Menu_Command<object>("Safety Protocols", ToggleSafety, "Toggles Safety Protocols:\nAnti-Crash, Speed Limit, Auto-Align, Cruise Control"));
 	Command_Menu.Add(new Menu_Command<object>("Guest Mode",GuestMode,"Puts the base in Guest Mode for "+Math.Round(Guest_Mode_Timer,0)+" seconds or turns it off"));
+	Command_Menu.Add(new Menu_Command<object>("Toggle Terrain", Toggle_Terrain, "Toggles whether Altitude LCDs consider Terrain Elevation."));
 	Command_Menu.Add(new Menu_Command<object>("Breakdown", Breakdown, "Disables thrusters randomly one at a time, and randomly sets Gyro Overrides. Gets worse as it progresses. Can randomly reset."));
 	Command_Menu.Add(new Menu_Command<object>("Shut Down",Disable,"Resets Thrusters, Gyroscope, and Airlocks, and turns off the program"));
 	Command_Menu.Add(new Menu_Command<object>("Factory Reset", FactoryReset, "Resets AI memory and settings, and turns it off"));
@@ -2368,21 +2374,26 @@ double Intercept_E(Altitude_Data v1,Altitude_Data v2){
 	return v1.Elevation-expected;
 }
 
+bool Terrain=false;
+
 void MarkAltitude(){
-	while(Altitude_Graph.Count>0&&Time_Since_Start.TotalSeconds-Altitude_Graph.Peek().Timestamp.TotalSeconds>(5*60))
+	while(Altitude_Graph.Count>0&&Time_Since_Start.TotalSeconds-Altitude_Graph.Peek().Timestamp.TotalSeconds>Graph_Length_Seconds)
 		Altitude_Graph.Dequeue();
 	if(Altitude_Graph.Count<50&&Gravity.Length()>0)
 		Altitude_Graph.Enqueue(new Altitude_Data(Sealevel,Elevation,Time_Since_Start));
 	double max=2500;
 	foreach(Altitude_Data Data in Altitude_Graph){
-		max=Math.Max(Math.Max(max,Data.Sealevel),Data.Elevation);
+		if(Terrain)
+			max=Math.Max(max,Data.Elevation);
+		else
+			max=Math.Max(max,Data.Sealevel);
 	}
 	max+=500;
 	max=Math.Round((max+99)/100,0)*100;
-	double interval=max/29.0;
+	double interval=max/34.0;
 	//50 wide, 30 tall
-	char[][] Graph=new char[30][];
-	for(int y=0;y<30;y++){
+	char[][] Graph=new char[35][];
+	for(int y=0;y<35;y++){
 		Graph[y]=new char[53];
 		int altitude=(int)(y*interval);
 		int alt_num=(int)(altitude/1000);
@@ -2405,9 +2416,9 @@ void MarkAltitude(){
 		}
 	}
 	
-	double time_interval=(5*60)/50.0;
+	double time_interval=Graph_Length_Seconds/50.0;
 	double End=Time_Since_Start.TotalSeconds;
-	double Start=End-5*60;
+	double Start=End-Graph_Length_Seconds;
 	Altitude_Data[] altitude_graph=(Altitude_Data[]) Altitude_Graph.ToArray();
 	int V1=0;
 	int V2=1;
@@ -2442,16 +2453,19 @@ void MarkAltitude(){
 				y_e=(int)Math.Floor(elevation/interval);
 			if(sc_s=='|')
 				y_s=(int)Math.Floor(sealevel/interval);
-			
-			if(y_e>=0&&y_e<30){
-				Graph[y_e][x+3]=sc_e;
-				if(sc_e=='|'&&y_e<29)
-					Graph[y_e+1][x+3]=sc_e;
+			if(Terrain){
+				if(y_e>=0&&y_e<35){
+					Graph[y_e][x+3]=sc_e;
+					if(sc_e=='|'&&y_e<34)
+						Graph[y_e+1][x+3]=sc_e;
+				}
 			}
-			if(y_s>=0&&y_s<30){
-				Graph[y_s][x+3]=sc_s;
-				if(sc_s=='|'&&y_s<29)
-					Graph[y_s+1][x+3]=sc_s;
+			else{
+				if(y_s>=0&&y_s<35){
+					Graph[y_s][x+3]=sc_s;
+					if(sc_s=='|'&&y_s<34)
+						Graph[y_s+1][x+3]=sc_s;
+				}
 			}
 		}
 		V1++;
@@ -2463,16 +2477,20 @@ void MarkAltitude(){
 		int Y_E=(int)Math.Round(Point.Elevation/interval,0);
 		int Y_S=(int)Math.Round(Point.Sealevel/interval,0);
 		if(X>=0&&X<50){
-			if(Y_E>=0&&Y_E<30)
-				Graph[Y_E][X+3]='';
-			if(Y_S>=0&&Y_S<30)
-				Graph[Y_S][X+3]='';
+			if(Terrain){
+				if(Y_E>=0&&Y_E<35)
+					Graph[Y_E][X+3]='○';
+			}
+			else{
+				if(Y_S>=0&&Y_S<35)
+					Graph[Y_S][X+3]='○';
+			}
 		}
 	}
 	
 	string text="";
-	for(int y=29;y>=0;y--){
-		if(y<29)
+	for(int y=34;y>=0;y--){
+		if(y<34)
 			text+='\n';
 		for(int x=0;x<53;x++){
 			text+=Graph[y][x];
@@ -2481,7 +2499,7 @@ void MarkAltitude(){
 	foreach(CustomPanel Panel in AltitudeLCDs){
 		Panel.Display.WriteText(text,false);
 	}
-	Altitude_Timer=Math.Min(Math.Max(20-CurrentVelocity.Length()/15,6),20);
+	Altitude_Timer=Math.Min(Math.Max(20-CurrentVelocity.Length()/15,Graph_Length_Seconds/50.0),20);
 }
 
 double Thrust_Pod_Timer=30;
