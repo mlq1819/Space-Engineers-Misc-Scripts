@@ -1811,7 +1811,7 @@ bool _Autoland=false;
 bool Autoland(object obj=null){
 	if((!_Autoland)&&!Control_Thrusters)
 		return false;
-	if(Orbiting||!Saftey)
+	if(Orbiting||!Safety)
 		return false;
 	_Autoland=!_Autoland;
 	return true;
@@ -2426,23 +2426,25 @@ void MarkAltitude(bool do_new=true){
 	Altitude_Data[] altitude_graph=(Altitude_Data[]) Altitude_Graph.ToArray();
 	int V1=0;
 	int V2=1;
-	while(V2<altitude_graph.Length){
+	/*while(V2<altitude_graph.Length){
 		double s_e=Slope_E(altitude_graph[V1],altitude_graph[V2]);
 		double i_e=Intercept_E(altitude_graph[V1],altitude_graph[V2]);
 		double s_s=Slope_S(altitude_graph[V1],altitude_graph[V2]);
 		double i_s=Intercept_S(altitude_graph[V1],altitude_graph[V2]);
 		char sc_e='-',sc_s='-';
-		if(Math.Abs(s_e)>2)
+		double adj_se=s_e*(End-Start)/max;
+		double adj_ss=s_e*(End-Start)/max;
+		if(Math.Abs(adj_se)>2)
 			sc_e='|';
-		else if(s_e>0.5)
+		else if(adj_se>0.5)
 			sc_e='/';
-		else if(s_e<-0.5)
+		else if(adj_se<-0.5)
 			sc_e='\\';
-		if(Math.Abs(s_s)>2)
+		if(Math.Abs(adj_ss)>2)
 			sc_s='|';
-		else if(s_s>0.5)
+		else if(adj_ss>0.5)
 			sc_s='/';
-		else if(s_s<-0.5)
+		else if(adj_ss<-0.5)
 			sc_s='\\';
 		int V1_Time=(int)Math.Ceiling((altitude_graph[V1].Timestamp.TotalSeconds-Start)/time_interval);
 		int V2_Time=(int)Math.Floor((altitude_graph[V2].Timestamp.TotalSeconds-Start)/time_interval);
@@ -2474,7 +2476,7 @@ void MarkAltitude(bool do_new=true){
 		}
 		V1++;
 		V2=V1+1;
-	}
+	}*/
 	
 	foreach(Altitude_Data Point in Altitude_Graph){
 		int X=(int)Math.Ceiling((Point.Timestamp.TotalSeconds-Start)/time_interval);
@@ -2503,7 +2505,7 @@ void MarkAltitude(bool do_new=true){
 	foreach(CustomPanel Panel in AltitudeLCDs){
 		Panel.Display.WriteText(text,false);
 	}
-	Altitude_Timer=Math.Min(Math.Max(20-CurrentVelocity.Length()/15,Graph_Length_Seconds/50.0),20);
+	Altitude_Timer=Graph_Length_Seconds/50.0;
 }
 
 double Thrust_Pod_Timer=30;
