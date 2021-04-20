@@ -737,6 +737,18 @@ struct CustomPanel{
 	}
 }
 
+struct Altitude_Data{
+	public TimeSpan Timestamp;
+	public double Sealevel;
+	public double Elevation;
+	
+	public Altitude_Data(double S,double E,TimeSpan start){
+		Sealevel=S;
+		Elevation=E;
+		Timestamp=start;
+	}
+}
+
 TimeSpan Time_Since_Start=new TimeSpan(0);
 long cycle=0;
 char loading_char='|';
@@ -751,6 +763,9 @@ List<CustomPanel> StatusLCDs;
 List<CustomPanel> DebugLCDs;
 List<CustomPanel> CommandLCDs;
 List<CustomPanel> AltitudeLCDs;
+
+Queue<Altitude_Data> Altitude_Graph;
+double Altitude_Timer=0;
 
 List<Airlock> Airlocks;
 
@@ -1226,6 +1241,7 @@ void Reset(){
 	DebugLCDs=new List<CustomPanel>();
 	CommandLCDs=new List<CustomPanel>();
 	AltitudeLCDs=new List<CustomPanel>();
+	Altitude_Graph=new Queue<Altitude_Data>();
 	List<Airlock> Airlocks=new List<Airlock>();
 	for(int i=0;i<All_Thrusters.Length;i++)
 		All_Thrusters[i]=new List<IMyThrust>();
@@ -1261,8 +1277,8 @@ bool Setup(){
 		Panel.Display.Font="Monospace";
 		Panel.Display.Alignment=TextAlignment.CENTER;
 		Panel.Display.ContentType=ContentType.TEXT_AND_IMAGE;
-		Panel.Display.TextPadding=0.0f;
-		Panel.Display.FontSize=0.1f;
+		Panel.Display.TextPadding=0.4f;
+		Panel.Display.FontSize=0.5f;
 	}
 	foreach(CustomPanel Panel in DebugLCDs){
 		if(Panel.Trans){
@@ -2331,6 +2347,58 @@ void BD_Cycle(bool try_reset=true){
 	}
 }
 
+void MarkAltitude(){
+	while(Altitude_Graph.Count>0&&Time_Since_Start.TotalSeconds-Altitude_Graph.Peek().Timestamp.TotalSeconds>(5*60))
+		Altitude_Graph.Dequeue();
+	if(Altitude_Graph.Count<50&&Gravity.Length()>0)
+		Altitude_Graph.Enqueue(new Altitude_Data(Sealevel,Elevation,Time_Since_Start));
+	double max=0;
+	foreach(Altitude_Data Data in Altitude_Graph){
+		max=Math.Max(Math.Max(max,Data.Sealevel),Data.Elevation);
+	}
+	max+=500;
+	max=Math.Round((max+99)/100,0)*100;
+	double interval=max/29.0;
+	
+	//50 wide, 30 tall
+	char[][] Graph=new char[30][];
+	for(int y=0;y<30;y++){
+		Graph[y]=new char[53];
+		int altitude=(int)(y*interval);
+		int alt_num=(int)(altitude/1000);
+		int low_alt=(int)((altitude-interval)/1000);
+		char alt_10s=((alt_num/10)%10).ToString()[0];
+		char alt_1s=(alt_num%10).ToString()[0];
+		for(int x=0;x<53;x++){
+			Graph[y][x]=' ';
+			if(x<2){
+				if(alt_num>low_alt){
+					if(x==0)
+						Graph[y][x]=alt_10s;
+					else
+						Graph[y][x]=alt_1s;
+				}
+			}
+			else if(x==2){
+				Graph[y][x]='|';
+			}
+		}
+	}
+	
+	string text="";
+	for(int y=0;y<30;y++){
+		if(y>0)
+			text+='\n';
+		for(int x=0;x<53;x++){
+			text+=Graph[y][x];
+		}
+	}
+	foreach(CustomPanel Panel in AltitudeLCDs){
+		Panel.Display.WriteText(text,false);
+	}
+	Altitude_Timer=Math.Min(Math.Max(20-CurrentVelocity.Length()/15,6),20);
+}
+
 double Thrust_Pod_Timer=30;
 void UpdateTimers(){
 	foreach(Airlock airlock in Airlocks){
@@ -2366,6 +2434,8 @@ void UpdateTimers(){
 		TurretTimer+=seconds_since_last_update;
 	if(Thrust_Pod_Timer<30)
 		Thrust_Pod_Timer+=seconds_since_last_update;
+	if(Altitude_Timer>0)
+		Altitude_Timer-=seconds_since_last_update;
 	Scan_Time+=seconds_since_last_update;
 }
 
@@ -2481,6 +2551,8 @@ public void Main(string argument, UpdateType updateSource)
 			foreach(Airlock airlock in Airlocks)
 				UpdateAirlock(airlock);
 		}
+		if(AltitudeLCDs.Count>0&&Altitude_Timer<=0)
+			MarkAltitude();
 		
 		if(cycle%10==0&&Thrust_Pod_Timer>=30){
 			double GV_A=GetAngle(Velocity_Direction,Gravity_Direction);
