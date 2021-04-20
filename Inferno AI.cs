@@ -1477,7 +1477,7 @@ AlertStatus ShipStatus{
 		if(Do_Breakdown){
 			float bd_percent=((float)BD_Count)/(20+BD_Count)*100;
 			AlertStatus nw_sts=AlertStatus.Orange;
-			if(bd_percent>=0.5f)
+			if(bd_percent>=50)
 				nw_sts=AlertStatus.Red;
 			status=(AlertStatus)Math.Max((int)status,(int)nw_sts);
 			Submessage+="\nShip is Breaking Down - "+Math.Round(BD_Timer,2)+" s - "+Math.Round(bd_percent,1).ToString()+"%";
@@ -1795,7 +1795,7 @@ bool Orbit(object obj=null){
 		if(Elevation<500||Sealevel<100)
 			return false;
 		if(!Safety)
-			return false;
+			ToggleSafety();
 		RestingSpeed=CurrentVelocity.Length();
 		Orbiting=true;
 		Orbital_Altitude=Sealevel;
