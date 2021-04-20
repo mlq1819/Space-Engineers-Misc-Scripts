@@ -1217,6 +1217,8 @@ void ResetThruster(IMyThrust Thruster){
 
 void Reset(){
 	Operational=false;
+	if(Do_Breakdown)
+		Breakdown();
 	Runtime.UpdateFrequency=UpdateFrequency.None;
 	Controller=null;
 	Gyroscope=null;
