@@ -1476,9 +1476,11 @@ AlertStatus ShipStatus{
 		}
 		if(Do_Breakdown){
 			float bd_percent=((float)BD_Count)/(30+BD_Count)*100;
-			AlertStatus nw_sts=AlertStatus.Orange;
+			AlertStatus nw_sts=AlertStatus.Yellow;
 			if(bd_percent>=40)
 				nw_sts=AlertStatus.Red;
+			else if(bd_percent>=25)
+				nw_sts=AlertStatus.Orange;
 			status=(AlertStatus)Math.Max((int)status,(int)nw_sts);
 			Submessage+="\nShip is Breaking Down - "+Math.Round(BD_Timer,2)+" s\n"+Math.Round(bd_percent,1).ToString()+"% Broken Down";
 		}
