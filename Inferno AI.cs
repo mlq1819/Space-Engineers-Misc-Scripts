@@ -2392,17 +2392,21 @@ void MarkAltitude(bool do_new=true){
 	double max=1000;
 	double min=double.MaxValue;
 	foreach(Altitude_Data Data in Altitude_Graph){
+		max=Math.Max(max,Data.Sealevel);
+		min=Math.Min(min,Data.Sealevel);
 		if(Terrain){
-			max=Math.Max(max,Data.Elevation);
-			min=Math.Min(min,Data.Elevation);
-		}
-		else{
-			max=Math.Max(max,Data.Sealevel);
-			min=Math.Min(min,Data.Sealevel);
+			max=Math.Max(max,Data.Sealevel-Data.Elevation);
+			min=Math.Min(min,Data.Sealevel-Data.Elevation);
 		}
 	}
-	max+=500;
-	min=Math.Max(min-500,0);
+	if(Terrain)
+		max+=100;
+	else
+		max+=500;
+	if(Terrain)
+		min=Math.Max(min-100,-1100);
+	else
+		min=Math.Max(min-500,0);
 	max=Math.Ceiling(max/100)*100;
 	min=Math.Floor(min/100)*100;
 	double interval=(max-min)/34.0;
@@ -2410,23 +2414,29 @@ void MarkAltitude(bool do_new=true){
 	char[][] Graph=new char[35][];
 	for(int y=0;y<35;y++){
 		Graph[y]=new char[XFULL];
-		int altitude=(int)(min+y*interval);
-		int alt_num=(int)(altitude/1000);
-		int low_alt=(int)((altitude-interval)/1000);
-		char alt_10s=((alt_num/10)%10).ToString()[0];
-		char alt_1s=(alt_num%10).ToString()[0];
+		double altitude=(min+y*interval);
+		int alt_num=(int)Math.Floor(altitude/1000);
+		int low_alt=(int)Math.Floor((altitude-interval)/1000);
+		char alt_10s=((Math.Abs(alt_num)/10)%10).ToString()[0];
+		if(alt_num<0)
+			alt_10s='-';
+		char alt_1s=(Math.Abs(alt_num)%10).ToString()[0];
 		for(int x=0;x<XFULL;x++){
-			if(min==0&&y==0)
-				Graph[y][x]='_';
+			if(min==0&&y==0&&!Terrain)
+				Graph[y][x]='-';
 			else
 				Graph[y][x]=' ';
 			if(x<2){
-				if(alt_num>low_alt||(min==0&&y==0)){
+				if(alt_num!=low_alt||(min==0&&y==0)){
 					if(x==0)
 						Graph[y][x]=alt_10s;
 					else
 						Graph[y][x]=alt_1s;
 				}
+				else if(((int)Math.Floor(altitude/500))!=((int)Math.Floor((altitude-interval)/500)))
+					Graph[y][x]='-';
+				else if(x==1&&((int)Math.Floor(altitude/250))!=((int)Math.Floor((altitude-interval)/250)))
+					Graph[y][x]='-';
 			}
 			else if(x==2){
 				Graph[y][x]='|';
@@ -2446,16 +2456,14 @@ void MarkAltitude(bool do_new=true){
 	
 	foreach(Altitude_Data Point in Altitude_Graph){
 		int X=(int)Math.Ceiling((Point.Timestamp.TotalSeconds-Start)/time_interval);
-		int Y_E=(int)Math.Round((Point.Elevation-min)/interval,0);
+		int Y_E=(int)Math.Round((Point.Sealevel-Point.Elevation)/interval,0);
 		int Y_S=(int)Math.Round((Point.Sealevel-min)/interval,0);
 		if(X>=0&&X<XLEN){
+			if(Y_S>=0&&Y_S<35)
+				Graph[Y_S][X+3]='○';
 			if(Terrain){
 				if(Y_E>=0&&Y_E<35)
-					Graph[Y_E][X+3]='○';
-			}
-			else{
-				if(Y_S>=0&&Y_S<35)
-					Graph[Y_S][X+3]='○';
+					Graph[Y_E][X+3]='_';
 			}
 		}
 	}
