@@ -1811,6 +1811,8 @@ bool _Autoland=false;
 bool Autoland(object obj=null){
 	if((!_Autoland)&&!Control_Thrusters)
 		return false;
+	if(Orbiting||!Saftey)
+		return false;
 	_Autoland=!_Autoland;
 	return true;
 }
@@ -1854,6 +1856,7 @@ bool Orbit(object obj=null){
 		RestingSpeed=0;
 		Orbiting=false;
 	}
+	_Autoland=false;
 	return true;
 }
 bool Safety=true;
@@ -1896,6 +1899,7 @@ bool Breakdown(object obj=null){
 }
 bool Toggle_Terrain(object obj=null){
 	Terrain=!Terrain;
+	MarkAltitude(false);
 	return true;
 }
 
@@ -2376,10 +2380,10 @@ double Intercept_E(Altitude_Data v1,Altitude_Data v2){
 
 bool Terrain=false;
 
-void MarkAltitude(){
+void MarkAltitude(bool do_new=true){
 	while(Altitude_Graph.Count>0&&Time_Since_Start.TotalSeconds-Altitude_Graph.Peek().Timestamp.TotalSeconds>Graph_Length_Seconds)
 		Altitude_Graph.Dequeue();
-	if(Altitude_Graph.Count<50&&Gravity.Length()>0)
+	if(do_new&&Altitude_Graph.Count<50&&Gravity.Length()>0)
 		Altitude_Graph.Enqueue(new Altitude_Data(Sealevel,Elevation,Time_Since_Start));
 	double max=2500;
 	foreach(Altitude_Data Data in Altitude_Graph){
