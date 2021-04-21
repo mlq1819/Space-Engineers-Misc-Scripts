@@ -1909,7 +1909,7 @@ bool CreateMenu(object obj=null){
 	Command_Menu.Add(new Menu_Command<object>("Fire", Fire, "Fires and reloads the Inferno's Main Cannon; doesn't work in Natural Gravity."));
 	if(!Me.CubeGrid.IsStatic)
 		Command_Menu.Add(new Menu_Command<object>("Toggle Autoland",Autoland,"Toggles On/Off the Autoland feature\nLands at 5 m/s\nDo not use on ships with poor mobility!"));
-	Command_Menu.Add(new Menu_Command<object>("Toggle Orbiting", Orbit, "Locks current Speed, allowing the ship to cruise at the current approximate altitude. Minimum 500m Elevation."));
+	Command_Menu.Add(new Menu_Command<object>("Toggle Orbiting", Orbit, "Locks current Speed, allowing the ship to cruise at the current approximate altitude. Will not cruise below 100M."));
 	Command_Menu.Add(new Menu_Command<object>("Safety Protocols", ToggleSafety, "Toggles Safety Protocols:\nAnti-Crash, Speed Limit, Auto-Align, Cruise Control"));
 	Command_Menu.Add(new Menu_Command<object>("Guest Mode",GuestMode,"Puts the base in Guest Mode for "+Math.Round(Guest_Mode_Timer,0)+" seconds or turns it off"));
 	Command_Menu.Add(new Menu_Command<object>("Toggle Terrain", Toggle_Terrain, "Toggles whether Altitude LCDs consider Terrain Elevation."));
