@@ -1843,7 +1843,7 @@ bool Orbiting=false;
 double Orbital_Altitude=1000;
 bool Orbit(object obj=null){
 	if(RestingSpeed==0){
-		if(Elevation<500||Sealevel<100)
+		if(Elevation<250||Sealevel<100)
 			return false;
 		if(!Safety)
 			ToggleSafety();
@@ -2620,7 +2620,7 @@ void UpdateSystemData(){
 	else
 		Sealevel=double.MaxValue;
 	Elevation=Math.Max(Elevation,0);
-	if(Orbiting&&(Gravity.Length()==0||Elevation<100)){
+	if(Orbiting&&(Gravity.Length()==0||Elevation<50)){
 		Orbiting=false;
 		RestingSpeed=0;
 	}
