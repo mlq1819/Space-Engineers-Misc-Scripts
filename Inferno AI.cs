@@ -2054,9 +2054,9 @@ void SetGyroscopes(){
 			if((((Elevation-MySize)<Controller.GetShipSpeed()*2&&(Elevation-MySize)<50)||(Controller.DampenersOverride&&!Controller.IsUnderControl)||Orbiting)&&GetAngle(Gravity,Forward_Vector)<120&&Pitch_Time>=1){
 				double difference=Math.Abs(GetAngle(Gravity,Forward_Vector));
 				if(Orbiting){
-					if(Orbital_Altitude-Sealevel>100)
+					if(Orbital_Altitude-Sealevel>100&&Sealevel>500)
 						difference=Math.Max(difference-15,0);
-					else if(Orbital_Altitude-Sealevel>50)
+					else if(Orbital_Altitude-Sealevel>50&&Sealevel>250)
 						difference=Math.Max(difference-10,0);
 					else if(Orbital_Altitude-Sealevel>25)
 						difference=Math.Max(difference-5,0);
@@ -2413,7 +2413,7 @@ void MarkAltitude(bool do_new=true){
 		Altitude_Graph.Dequeue();
 	if(do_new&&Altitude_Graph.Count<XLEN&&Gravity.Length()>0)
 		Altitude_Graph.Enqueue(new Altitude_Data(Sealevel,Elevation,Time_Since_Start));
-	double max=1000;
+	double max=500;
 	double min=double.MaxValue;
 	foreach(Altitude_Data Data in Altitude_Graph){
 		max=Math.Max(max,Data.Sealevel);
@@ -2595,9 +2595,10 @@ void UpdateSystemData(){
 				Time_To_Crash=Elevation/Elevation_per_second;
 				bool need_print=true;
 				if(Time_To_Crash>0){
-					if(Safety&&Time_To_Crash<15&&Controller.GetShipSpeed()>5){
+					if(((!Orbiting)||Orbital_Altitude>500)&&Safety&&Time_To_Crash<15&&Controller.GetShipSpeed()>5){
 						Controller.DampenersOverride=true;
 						RestingSpeed=0;
+						Orbiting=false;
 						Write("Crash predicted within 15 seconds; enabling Dampeners");
 						need_print=false;
 					}
