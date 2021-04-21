@@ -1469,13 +1469,46 @@ public Program(){
 	Me.GetSurface(1).TextPadding=40.0f;
 	Echo("Beginning initialization");
 	Rnd=new Random();
+	string[] args=this.Storage.Split('•');
+	foreach(string arg in args){
+		if(!arg.Contains(':'))
+			continue;
+		int index=arg.IndexOf(':');
+		string name=arg.Substring(0,index);
+		string data=arg.Substring(index+1);
+		switch(name){
+			case "Breakdown":
+				bool.TryParse(data,out Do_Breakdown);
+				break;
+			case "BD_Count":
+				int.TryParse(data,out BD_Count);
+				break;
+			case "Orbiting":
+				bool.TryParse(data,out Orbiting);
+				break;
+			case "Orbital_Altitude":
+				double.TryParse(data,out Orbital_Altitude);
+				break;
+			case "RestingSpeed":
+				double.TryParse(data,out RestingSpeed);
+				break;
+			case "Terrain":
+				bool.TryParse(data,out Terrain);
+				break;
+		}
+	}
 	Setup();
 	CreateMenu();
 	DisplayMenu();
 }
 
 public void Save(){
-    this.Storage="";
+    this.Storage="Breakdown:"+Do_Breakdown.ToString();
+	this.Storage+="•BD_Count:"+BD_Count.ToString();
+	this.Storage+="•Orbiting:"+Orbiting.ToString();
+	this.Storage+="•Orbital_Altitude:"+Math.Round(Orbital_Altitude,1).ToString();
+	this.Storage+="•RestingSpeed:"+Math.Round(RestingSpeed,1).ToString();
+	this.Storage+="•Terrain:"+Terrain.ToString();
 	if(Gyroscope!=null)
 		Gyroscope.GyroOverride=false;
 	for(int i=0;i<All_Thrusters.Length;i++){
