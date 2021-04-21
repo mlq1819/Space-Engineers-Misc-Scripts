@@ -2349,7 +2349,24 @@ void BD_Cycle(bool try_reset=true){
 	MyGyros[i].Pitch=0;
 	MyGyros[i].Roll=0;
 	MyGyros[i].GyroOverride=false;
-	for(int k=0;k<Rnd.Next(1,Math.Max(2,BD_Count));k++){
+	int min_randomize=1;
+	if(Time_To_Crash>=0&&Time_To_Crash<=30){
+		min_randomize=5;
+		int w=Rnd.Next(5,15);
+		for(int k=0;k<w;k++){
+			i=Rnd.Next(0,6);
+			if(All_Thrusters[i].Count>0){
+				int j=Rnd.Next(0,All_Thrusters[i].Count);
+				All_Thrusters[i][j].Enabled=true;
+			}
+			i=Rnd.Next(0,MyGyros.Count);
+			MyGyros[i].Yaw=0;
+			MyGyros[i].Pitch=0;
+			MyGyros[i].Roll=0;
+			MyGyros[i].GyroOverride=false;
+		}
+	}
+	for(int k=0;k<Rnd.Next(min_randomize,Math.Max(min_randomize+1,BD_Count));k++){
 		i=Rnd.Next(0,6);
 		if(All_Thrusters[i].Count>0){
 			int j=Rnd.Next(0,All_Thrusters[i].Count);
