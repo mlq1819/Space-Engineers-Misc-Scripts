@@ -1843,7 +1843,7 @@ bool Orbiting=false;
 double Orbital_Altitude=1000;
 bool Orbit(object obj=null){
 	if(RestingSpeed==0){
-		if(Elevation<100||Sealevel<100)
+		if(Sealevel<100)
 			return false;
 		if(!Safety)
 			ToggleSafety();
