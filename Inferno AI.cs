@@ -1765,7 +1765,7 @@ void SetStatus(string message, Color TextColor, Color BackgroundColor){
 				for(int j=0;j<16;j++){
 					bits[j]=((shrt/Math.Pow(2,j))%2)==1;
 				}
-				int k=Rnd.Next(0,16);
+				int k=Glitch.Next(0,16);
 				bits[k]=!bits[k];
 				shrt=0;
 				for(int j=0;j<16;j++){
