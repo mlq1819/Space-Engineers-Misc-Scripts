@@ -1547,14 +1547,13 @@ AlertStatus ShipStatus{
 			Submessage+="\nSafety Protocols disengaged";
 		}
 		if(Do_Breakdown){
-			float bd_percent=((float)BD_Count)/(30+BD_Count)*100;
 			AlertStatus nw_sts=AlertStatus.Yellow;
-			if(bd_percent>=40)
+			if(BD_Percent>=40)
 				nw_sts=AlertStatus.Red;
-			else if(bd_percent>=25)
+			else if(BD_Percent>=25)
 				nw_sts=AlertStatus.Orange;
 			status=(AlertStatus)Math.Max((int)status,(int)nw_sts);
-			Submessage+="\nShip is Breaking Down - "+Math.Round(BD_Timer,2)+" s\n"+Math.Round(bd_percent,1).ToString()+"% Broken Down";
+			Submessage+="\nShip is Breaking Down - "+Math.Round(BD_Timer,2)+" s\n"+Math.Round(BD_Percent,1).ToString()+"% Broken Down";
 		}
 		if(!Me.CubeGrid.IsStatic){
 			List<IMyJumpDrive> JumpDrives=GenericMethods<IMyJumpDrive>.GetAllIncluding("");
@@ -1758,7 +1757,27 @@ void SetStatus(string message, Color TextColor, Color BackgroundColor){
 		LCD.Display.FontSize=1.2f;
 		LCD.Display.ContentType=ContentType.TEXT_AND_IMAGE;
 		LCD.Display.TextPadding=padding;
-		LCD.Display.WriteText(message, false);
+		string text=message;
+		if(Do_Breakdown){
+			for(int i=0;i<text.Length;i++){
+				if(Glitch.Next(0,1000)/10.0f<=BD_Percent){
+					short shrt=(short)text[i];
+					bool[] bits=new bool[16];
+					for(int j=0;j<16;j++){
+						bits[j]=((shrt/Math.Pow(2,j))%2)==1;
+					}
+					int k=Glitch.Next(0,16);
+					bits[k]=!bits[k];
+					shrt=0;
+					for(int j=0;j<16;j++){
+						if(bits[j])
+							shrt+=Math.Pow(2,j);
+					}
+					text[i]=(char)shrt;
+				}
+			}
+		}
+		LCD.Display.WriteText(text,false);
 		if(LCD.Trans){
 			LCD.Display.FontColor=BackgroundColor;
 			LCD.Display.BackgroundColor=new Color(0,0,0,255);
@@ -2358,8 +2377,16 @@ void UpdateProgramInfo(){
 	Me.GetSurface(1).WriteText("\n"+ToString(Time_Since_Start)+" since last reboot",true);
 }
 
+int Glitch_Seed=0;
+Random Glitch=new Random(0);
+float BD_Percent{
+	get{
+		return ((float)BD_Count)/(30+BD_Count)*100;
+	}
+}
 void BD_Cycle(bool try_reset=true){
 	BD_Timer=2;
+	glitch_seed=Rnd.Next();
 	if(try_reset){
 		int j=Rnd.Next(0,Math.Max(10,BD_Count));
 		if(j==0){
@@ -2412,27 +2439,6 @@ void BD_Cycle(bool try_reset=true){
 		MyGyros[i].Roll=(Rnd.Next(-1*pn,pn+1)+Rnd.Next(-1*pn,pn+1))/10.0f;
 		MyGyros[i].GyroOverride=true;
 	}
-}
-
-double Slope_S(Altitude_Data v1,Altitude_Data v2){
-	double run=v2.Timestamp.TotalSeconds-v1.Timestamp.TotalSeconds;
-	double rise=v2.Sealevel-v1.Sealevel;
-	return rise/run;
-}
-double Intercept_S(Altitude_Data v1,Altitude_Data v2){
-	double slope=Slope_S(v1,v2);
-	double expected=v1.Timestamp.TotalSeconds*slope;
-	return v1.Sealevel-expected;
-}
-double Slope_E(Altitude_Data v1,Altitude_Data v2){
-	double run=v2.Timestamp.TotalSeconds-v1.Timestamp.TotalSeconds;
-	double rise=v2.Elevation-v1.Elevation;
-	return rise/run;
-}
-double Intercept_E(Altitude_Data v1,Altitude_Data v2){
-	double slope=Slope_E(v1,v2);
-	double expected=v1.Timestamp.TotalSeconds*slope;
-	return v1.Elevation-expected;
 }
 
 bool Terrain=false;
@@ -2669,7 +2675,7 @@ void UpdateSystemData(){
 		}
 		Cargo_Status=sum/total;
 	}
-	
+	Glitch=new Random(Glitch_Seed);
 }
 
 double FromRad(double rad){
@@ -2799,6 +2805,15 @@ public void Main(string argument, UpdateType updateSource)
 			Guest_Mode=!Guest_Mode;
 			Guest_Timer=0;
 		}
+		else if(argument.ToLower().Equals("breakdown")){
+			Breakdown();
+		}
+		else if(argument.ToLower().Equals("toggle safety")){
+			ToggleSafety();
+		}
+		else if(argument.ToLower().Equals("toggle terrain")){
+			Toggle_Terrain();
+		}
 		if(_Autoland)
 			Write("Autoland Enabled");
 		
@@ -2814,6 +2829,7 @@ public void Main(string argument, UpdateType updateSource)
 		}
 		else
 			ResetThrusters();
+		
 		
 		switch(ShipStatus){
 			case AlertStatus.Green:
