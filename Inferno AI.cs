@@ -1544,6 +1544,25 @@ char Bitsplice(char input){
 	return (char)shrt;
 }
 
+string Stringsplice(string input){
+	string text=input;
+	Glitch=new Random(Glitch_Seed);
+	for(int i=0;i<text.Length;i++){
+		bool valid_char=true;
+		char c=text[i];
+		if(c=='\n'||c==' '||c=='|'||c=='['||c==']'||c=='<'||c=='>'||c=='-')
+			valid_char=false;
+		if(valid_char&&Glitch.Next(0,1000)/5.0f<=BD_Percent){
+			char output=Bitsplice(text[i]);
+			if(i<text.Length-1)
+				text=text.Substring(0,i)+output+text.Substring(i+1);
+			else
+				text=text.Substring(0,text.Length-1)+output;
+		}
+	}
+	return text;
+}
+
 enum AlertStatus{
 	Green=0,
 	Blue=1,
@@ -1768,29 +1787,14 @@ void SetStatus(string message, Color TextColor, Color BackgroundColor){
 	float padding=40.0f;
 	string[] lines=message.Split('\n');
 	padding=Math.Max(10.0f, padding-(lines.Length*5.0f));
-	int bd_adder=0;
+	string text=message;
+	if(Do_Breakdown)
+		text=Stringsplice(text);
 	foreach(CustomPanel LCD in StatusLCDs){
 		LCD.Display.Alignment=TextAlignment.CENTER;
 		LCD.Display.FontSize=1.2f;
 		LCD.Display.ContentType=ContentType.TEXT_AND_IMAGE;
 		LCD.Display.TextPadding=padding;
-		string text=message;
-		if(Do_Breakdown){
-			Glitch=new Random(Glitch_Seed+bd_adder++);
-			for(int i=0;i<text.Length;i++){
-				bool valid_char=true;
-				char c=text[i];
-				if(c=='\n'||c==' '||c=='|'||c=='['||c==']')
-					valid_char=false;
-				if(valid_char&&Glitch.Next(0,1000)/5.0f<=BD_Percent){
-					char output=Bitsplice(text[i]);
-					if(i<text.Length-1)
-						text=text.Substring(0,i)+output+text.Substring(i+1);
-					else
-						text=text.Substring(0,text.Length-1)+output;
-				}
-			}
-		}
 		LCD.Display.WriteText(text,false);
 		if(LCD.Trans){
 			LCD.Display.FontColor=BackgroundColor;
@@ -1985,8 +1989,11 @@ bool CreateMenu(object obj=null){
 	return true;
 }
 void DisplayMenu(){
+	string text=Command_Menu.ToString();
+	if(Do_Breakdown)
+		text=Stringsplice(text);
 	foreach(CustomPanel Panel in CommandLCDs){
-		Panel.Display.WriteText(Command_Menu.ToString(),false);
+		Panel.Display.WriteText(text,false);
 		Panel.Display.Alignment=TextAlignment.CENTER;
 		Panel.Display.FontSize=1.2f;
 		Panel.Display.ContentType=ContentType.TEXT_AND_IMAGE;
@@ -2001,7 +2008,6 @@ void DisplayMenu(){
 		}
 	}
 }
-
 
 double Scan_Time=10;
 string ScanString="";
@@ -2561,6 +2567,8 @@ void MarkAltitude(bool do_new=true){
 			text+=Graph[y][x];
 		}
 	}
+	if(Do_Breakdown)
+		text=Stringsplice(text);
 	foreach(CustomPanel Panel in AltitudeLCDs){
 		Panel.Display.WriteText(text,false);
 	}
