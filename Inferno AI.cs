@@ -1752,31 +1752,34 @@ void SetStatus(string message, Color TextColor, Color BackgroundColor){
 	float padding=40.0f;
 	string[] lines=message.Split('\n');
 	padding=Math.Max(10.0f, padding-(lines.Length*5.0f));
+	string text=message;
+	if(Do_Breakdown){
+		for(int i=0;i<text.Length;i++){
+			if(text[i]!='\n'&&Glitch.Next(0,1000)/10.0f<=BD_Percent){
+				short shrt=(short)text[i];
+				bool[] bits=new bool[16];
+				for(int j=0;j<16;j++){
+					bits[j]=((shrt/Math.Pow(2,j))%2)==1;
+				}
+				int k=Rnd.Next(0,16);
+				bits[k]=!bits[k];
+				shrt=0;
+				for(int j=0;j<16;j++){
+					if(bits[j])
+						shrt+=(short)Math.Pow(2,j);
+				}
+				if(i<text.Length-1)
+					text=text.Substring(0,i)+((char)shrt)+text.Substring(i+1);
+				else
+					text=text.Substring(0,text.Length-1)+((char)shrt);
+			}
+		}
+	}
 	foreach(CustomPanel LCD in StatusLCDs){
 		LCD.Display.Alignment=TextAlignment.CENTER;
 		LCD.Display.FontSize=1.2f;
 		LCD.Display.ContentType=ContentType.TEXT_AND_IMAGE;
 		LCD.Display.TextPadding=padding;
-		string text=message;
-		if(Do_Breakdown){
-			for(int i=0;i<text.Length;i++){
-				if(Glitch.Next(0,1000)/10.0f<=BD_Percent){
-					short shrt=(short)text[i];
-					bool[] bits=new bool[16];
-					for(int j=0;j<16;j++){
-						bits[j]=((shrt/Math.Pow(2,j))%2)==1;
-					}
-					int k=Glitch.Next(0,16);
-					bits[k]=!bits[k];
-					shrt=0;
-					for(int j=0;j<16;j++){
-						if(bits[j])
-							shrt+=Math.Pow(2,j);
-					}
-					text[i]=(char)shrt;
-				}
-			}
-		}
 		LCD.Display.WriteText(text,false);
 		if(LCD.Trans){
 			LCD.Display.FontColor=BackgroundColor;
@@ -2386,7 +2389,7 @@ float BD_Percent{
 }
 void BD_Cycle(bool try_reset=true){
 	BD_Timer=2;
-	glitch_seed=Rnd.Next();
+	Glitch_Seed=Rnd.Next();
 	if(try_reset){
 		int j=Rnd.Next(0,Math.Max(10,BD_Count));
 		if(j==0){
