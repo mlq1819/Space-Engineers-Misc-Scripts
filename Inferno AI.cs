@@ -1755,7 +1755,11 @@ void SetStatus(string message, Color TextColor, Color BackgroundColor){
 	string text=message;
 	if(Do_Breakdown){
 		for(int i=0;i<text.Length;i++){
-			if(text[i]!='\n'&&Glitch.Next(0,1000)/10.0f<=BD_Percent){
+			bool valid_char=true;
+			char c=text[i];
+			if(c=='\n'||c==' '||c=='|'||c=='['||c==']')
+				valid_char=false;
+			if(valid_char&&Glitch.Next(0,1000)/5.0f<=BD_Percent){
 				short shrt=(short)text[i];
 				bool[] bits=new bool[16];
 				for(int j=0;j<16;j++){
