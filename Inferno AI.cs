@@ -1528,6 +1528,22 @@ public void Save(){
 		Me.CustomData+='\n'+"Control_Thrusters"+';'+Control_Thrusters.ToString();
 }
 
+char Bitsplice(char input){
+	short shrt=(short)input;
+	bool[] bits=new bool[16];
+	for(int j=0;j<16;j++){
+		bits[j]=((shrt/Math.Pow(2,j))%2)==1;
+	}
+	int k=Glitch.Next(0,16);
+	bits[k]=!bits[k];
+	shrt=0;
+	for(int j=0;j<16;j++){
+		if(bits[j])
+			shrt+=(short)Math.Pow(2,j);
+	}
+	return (char)shrt;
+}
+
 enum AlertStatus{
 	Green=0,
 	Blue=1,
@@ -1752,38 +1768,29 @@ void SetStatus(string message, Color TextColor, Color BackgroundColor){
 	float padding=40.0f;
 	string[] lines=message.Split('\n');
 	padding=Math.Max(10.0f, padding-(lines.Length*5.0f));
-	string text=message;
-	if(Do_Breakdown){
-		for(int i=0;i<text.Length;i++){
-			bool valid_char=true;
-			char c=text[i];
-			if(c=='\n'||c==' '||c=='|'||c=='['||c==']')
-				valid_char=false;
-			if(valid_char&&Glitch.Next(0,1000)/5.0f<=BD_Percent){
-				short shrt=(short)text[i];
-				bool[] bits=new bool[16];
-				for(int j=0;j<16;j++){
-					bits[j]=((shrt/Math.Pow(2,j))%2)==1;
-				}
-				int k=Glitch.Next(0,16);
-				bits[k]=!bits[k];
-				shrt=0;
-				for(int j=0;j<16;j++){
-					if(bits[j])
-						shrt+=(short)Math.Pow(2,j);
-				}
-				if(i<text.Length-1)
-					text=text.Substring(0,i)+((char)shrt)+text.Substring(i+1);
-				else
-					text=text.Substring(0,text.Length-1)+((char)shrt);
-			}
-		}
-	}
+	int bd_adder=0;
 	foreach(CustomPanel LCD in StatusLCDs){
 		LCD.Display.Alignment=TextAlignment.CENTER;
 		LCD.Display.FontSize=1.2f;
 		LCD.Display.ContentType=ContentType.TEXT_AND_IMAGE;
 		LCD.Display.TextPadding=padding;
+		string text=message;
+		if(Do_Breakdown){
+			Glitch=new Random(Glitch_Seed+bd_adder++);
+			for(int i=0;i<text.Length;i++){
+				bool valid_char=true;
+				char c=text[i];
+				if(c=='\n'||c==' '||c=='|'||c=='['||c==']')
+					valid_char=false;
+				if(valid_char&&Glitch.Next(0,1000)/5.0f<=BD_Percent){
+					char output=Bitsplice(text[i]);
+					if(i<text.Length-1)
+						text=text.Substring(0,i)+output+text.Substring(i+1);
+					else
+						text=text.Substring(0,text.Length-1)+output;
+				}
+			}
+		}
 		LCD.Display.WriteText(text,false);
 		if(LCD.Trans){
 			LCD.Display.FontColor=BackgroundColor;
@@ -1853,7 +1860,7 @@ bool Fire(object obj=null){
 	return true;
 }
 bool Disable(object obj=null){
-	SetStatus("Status LCD\nOffline", DEFAULT_TEXT_COLOR, DEFAULT_BACKGROUND_COLOR);
+	SetStatus("Status LCD\nOffline", new Color(255,255,255,255), new Color(0,0,0,255));
 	Operational=false;
 	ResetThrusters();
 	if(Gyroscope!=null)
@@ -2682,7 +2689,6 @@ void UpdateSystemData(){
 		}
 		Cargo_Status=sum/total;
 	}
-	Glitch=new Random(Glitch_Seed);
 }
 
 double FromRad(double rad){
@@ -2860,6 +2866,12 @@ public void Main(string argument, UpdateType updateSource)
 	}
 	catch(Exception E){
 		Write(E.ToString());
+		try{
+			SetStatus("Status LCD\nOffline", new Color(255,255,255,255), new Color(0,0,0,255));
+		}
+		catch(Exception){
+			;
+		}
 		FactoryReset();
 		DisplayMenu();
 	}
