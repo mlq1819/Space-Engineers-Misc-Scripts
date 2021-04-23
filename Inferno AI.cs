@@ -1238,6 +1238,7 @@ void Reset(){
 	Runtime.UpdateFrequency=UpdateFrequency.None;
 	Controller=null;
 	Gyroscope=null;
+	FunctionalBlocks=new List<IMyFunctionalBlock>();
 	StatusLCDs=new List<CustomPanel>();
 	DebugLCDs=new List<CustomPanel>();
 	CommandLCDs=new List<CustomPanel>();
@@ -1254,6 +1255,7 @@ void Reset(){
 
 bool Setup(){
 	Reset();
+	FunctionalBlocks=GenericMethods<IMyFunctionalBlock>.GetAllConstruct("");
 	List<IMyTextPanel> LCDs=GenericMethods<IMyTextPanel>.GetAllConstruct("Ship Status");
 	foreach(IMyTextPanel Panel in LCDs)
 		StatusLCDs.Add(new CustomPanel(Panel));
@@ -2399,6 +2401,7 @@ void UpdateProgramInfo(){
 
 int Glitch_Seed=0;
 Random Glitch=new Random(0);
+List<IMyFunctionalBlock> FunctionalBlocks;
 float BD_Percent{
 	get{
 		return ((float)BD_Count)/(30+BD_Count)*100;
@@ -2408,25 +2411,8 @@ void BD_Cycle(bool try_reset=true){
 	BD_Timer=2;
 	Glitch_Seed=Rnd.Next();
 	int broken=0;
-	for(int j=0;j<6;j++){
-		foreach(IMyThrust Thruster in All_Thrusters[j]){
-			if(!Thruster.IsFunctional)
-				broken++;
-		}
-	}
-	List<IMyGyro> MyGyros=GenericMethods<IMyGyro>.GetAllIncluding("");
-	foreach(IMyGyro Gyro in MyGyros){
-		if(!Gyro.IsFunctional)
-			broken++;
-	}
-	List<IMyPowerProducer> Power=GenericMethods<IMyPowerProducer>.GetAllIncluding("");
-	foreach(IMyPowerProducer power in Power){
-		if(!power.IsFunctional)
-			broken++;
-	}
-	List<IMyGasTank> Gas=GenericMethods<IMyGasTank>.GetAllIncluding("");
-	foreach(IMyGasTank gas in Gas){
-		if(!gas.IsFunctional)
+	foreach(IMyFunctionalBlock Block in FunctionalBlocks){
+		if(Block==null||(!Block.IsFunctional)||(!Block.IsSameConstructAs(Me)))
 			broken++;
 	}
 	if(try_reset){
@@ -2445,6 +2431,7 @@ void BD_Cycle(bool try_reset=true){
 		int j=Rnd.Next(0,All_Thrusters[i].Count);
 		All_Thrusters[i][j].Enabled=true;
 	}
+	List<IMyGyro> MyGyros=GenericMethods<IMyGyro>.GetAllConstruct("");
 	i=Rnd.Next(0,MyGyros.Count);
 	MyGyros[i].Yaw=0;
 	MyGyros[i].Pitch=0;
