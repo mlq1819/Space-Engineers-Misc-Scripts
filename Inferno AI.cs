@@ -1877,6 +1877,14 @@ void SetAlert(int Status_Num,Color color){
 						;
 					}
 				}
+				if(HasBlockData(Light,"DefaultIntensity")){
+					try{
+						Light.Intensity=float.Parse(GetBlockData(Light,"DefaultIntensity"));
+					}
+					catch(Exception){
+						;
+					}
+				}
 				SetBlockData(Light,"Job","None");
 			}
 		}
@@ -1884,13 +1892,16 @@ void SetAlert(int Status_Num,Color color){
 			if(!HasBlockData(Light,"DefaultColor"))
 				SetBlockData(Light,"DefaultColor",Light.Color.ToString());
 			if(!HasBlockData(Light,"DefaultBlinkLength"))
-				SetBlockData(Light,"DefaultBlinkLength", Light.BlinkLength.ToString());
+				SetBlockData(Light,"DefaultBlinkLength",Light.BlinkLength.ToString());
 			if(!HasBlockData(Light,"DefaultBlinkInterval"))
-				SetBlockData(Light,"DefaultBlinkInterval", Light.BlinkIntervalSeconds.ToString());
+				SetBlockData(Light,"DefaultBlinkInterval",Light.BlinkIntervalSeconds.ToString());
+			if(!HasBlockData(Light,"DefaultIntensity"))
+				SetBlockData(Light,"DefaultIntensity",Light.Intensity.ToString());
 			SetBlockData(Light,"Job","StatusAlert");
 			Light.Color=color;
-			Light.BlinkIntervalSeconds=1.0f/(5-Status_Num);
-			Light.BlinkLength=1-(.25f/Light.BlinkIntervalSeconds);
+			Light.BlinkIntervalSeconds=5-Status_Num;
+			Light.BlinkLength=100-(25f/Light.BlinkIntervalSeconds);
+			Light.Intensity=6+Status_Num;
 		}
 	}
 	Last_Status=Status_Num;
