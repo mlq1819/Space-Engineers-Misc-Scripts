@@ -1255,19 +1255,27 @@ void Reset(){
 
 bool Setup(){
 	Reset();
-	FunctionalBlocks=GenericMethods<IMyFunctionalBlock>.GetAllConstruct("");
+	GridTerminalSystem.GetBlocksOfType<IMyFunctionalBlock>(FunctionalBlocks);
 	List<IMyTextPanel> LCDs=GenericMethods<IMyTextPanel>.GetAllConstruct("Ship Status");
-	foreach(IMyTextPanel Panel in LCDs)
+	foreach(IMyTextPanel Panel in LCDs){
 		StatusLCDs.Add(new CustomPanel(Panel));
+		FunctionalBlocks.Add(Panel);
+	}
 	LCDs=GenericMethods<IMyTextPanel>.GetAllConstruct("AI Visual Display");
-	foreach(IMyTextPanel Panel in LCDs)
+	foreach(IMyTextPanel Panel in LCDs){
 		DebugLCDs.Add(new CustomPanel(Panel));
+		FunctionalBlocks.Add(Panel);
+	}
 	LCDs=GenericMethods<IMyTextPanel>.GetAllConstruct("Command Menu Display");
-	foreach(IMyTextPanel Panel in LCDs)
+	foreach(IMyTextPanel Panel in LCDs){
 		CommandLCDs.Add(new CustomPanel(Panel));
+		FunctionalBlocks.Add(Panel);
+	}
 	LCDs=GenericMethods<IMyTextPanel>.GetAllConstruct("Altitude");
-	foreach(IMyTextPanel Panel in LCDs)
+	foreach(IMyTextPanel Panel in LCDs){
 		AltitudeLCDs.Add(new CustomPanel(Panel));
+		FunctionalBlocks.Add(Panel);
+	}
 	foreach(CustomPanel Panel in AltitudeLCDs){
 		if(Panel.Trans){
 			Panel.Display.FontColor=DEFAULT_BACKGROUND_COLOR;
@@ -1395,6 +1403,7 @@ bool Setup(){
 				Left_Thrusters.Add(Thruster);
 			else if(ThrustDirection==Left)
 				Right_Thrusters.Add(Thruster);
+			FunctionalBlocks.Add(Thruster);
 		}
 		if(!retry)
 			break;
@@ -1424,6 +1433,12 @@ bool Setup(){
 	}
 	Operational=Me.IsWorking;
 	Runtime.UpdateFrequency=GetUpdateFrequency();
+	List<IMyPowerProducer> Power=GenericMethods<IMyPowerProducer>.GetAllConstruct("");
+	foreach(IMyPowerProducer power in Power)
+		FunctionalBlocks.Add(power);
+	List<IMyGasTank> Gas=GenericMethods<IMyGasTank>.GetAllConstruct("");
+	foreach(IMyGasTank gas in Gas)
+		FunctionalBlocks.Add(gas);
 	return true;
 }
 
