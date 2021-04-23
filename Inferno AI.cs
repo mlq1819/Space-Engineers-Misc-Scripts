@@ -1570,7 +1570,7 @@ string Stringsplice(string input){
 	for(int i=0;i<text.Length;i++){
 		bool valid_char=true;
 		char c=text[i];
-		if(c=='\n'||c==' '||c=='|'||c=='['||c==']'||c=='<'||c=='>'||c=='-')
+		if(c=='\n'||c==' '||c=='['||c==']'||c=='<'||c=='>'||c=='-')
 			valid_char=false;
 		if(valid_char&&Glitch.Next(0,1000)/5.0f<=BD_Percent){
 			char output=Bitsplice(text[i]);
