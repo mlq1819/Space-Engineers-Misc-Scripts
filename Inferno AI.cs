@@ -1618,7 +1618,7 @@ AlertStatus ShipStatus{
 			else if(BD_Percent>=20)
 				nw_sts=AlertStatus.Orange;
 			status=(AlertStatus)Math.Max((int)status,(int)nw_sts);
-			Submessage+="\n"+Broken.ToString()+" detected damaged/missing blocks";
+			Submessage+="\n"+Broken.ToString()+" detected damaged blocks";
 		}
 		if(!Me.CubeGrid.IsStatic){
 			List<IMyJumpDrive> JumpDrives=GenericMethods<IMyJumpDrive>.GetAllIncluding("");
