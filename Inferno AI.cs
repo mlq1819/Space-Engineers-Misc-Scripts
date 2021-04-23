@@ -1837,6 +1837,68 @@ void SetStatus(string message, Color TextColor, Color BackgroundColor){
 	}
 }
 
+int Last_Status=-1;
+void SetAlert(int Status_Num,Color color){
+	if(!(Last_Status<0||((Last_Status<=1)^(Status=1)))){
+		Last_Status=Status;
+		return;
+	}
+	List<IMyInteriorLight> Lights=GenericMethods<IMyInteriorLight>.GetAllConstruct("");
+	foreach(IMyInteriorLight Light in Lights){
+		if(!CanHaveJob(Light,"StatusAlert"))
+			continue;
+		if(Light.CustomName.Contains("Reactor")||Light.CustomName.Contains("Printer")){
+			SetBlockData(Light,"Job","CustomAlert");
+			continue;
+		}
+		if(Status<=1&&Last_Status>1){
+			if(HasBlockData(Light,"Job")&&GetBlockData(Light,"Job").Equals("StatusAlert")){
+				if(HasBlockData(Light,"DefaultColor")){
+					try{
+						Light.Color=ColorParse(GetBlockData(Light,"DefaultColor"));
+					}
+					catch(Exception){
+						Echo("Failed to parse color");
+					}
+				}
+				if(HasBlockData(Light,"DefaultBlinkLength")){
+					try{
+						Light.BlinkLength=float.Parse(GetBlockData(Light,"DefaultBlinkLength"));
+					}
+					catch(Exception){
+						;
+					}
+				}
+				if(HasBlockData(Light,"DefaultBlinkInterval")){
+					try{
+						Light.BlinkIntervalSeconds=float.Parse(GetBlockData(Light,"DefaultBlinkInterval"));
+					}
+					catch(Exception){
+						;
+					}
+				}
+				SetBlockData(Light,"Job","None");
+			}
+		}
+		else if(Status>1){
+			if(!HasBlockData(Light,"DefaultColor"))
+				SetBlockData(Light,"DefaultColor",Light.Color.ToString());
+			if(!HasBlockData(Light,"DefaultBlinkLength"))
+				SetBlockData(Light,"DefaultBlinkLength", Light.BlinkLength.ToString());
+			if(!HasBlockData(Light,"DefaultBlinkInterval"))
+				SetBlockData(Light,"DefaultBlinkInterval", Light.BlinkIntervalSeconds.ToString());
+			SetBlockData(Light,"Job","StatusAlert");
+			Light.Color=color;
+			Light.BlinkIntervalSeconds=1.0f/(5-Status_Num);
+			Light.BlinkLength=1-(.25f/Light.BlinkIntervalSeconds);
+		}
+	}
+	
+	
+	
+	Last_Status=Status;
+}
+
 void ResetThrusters(){
 	for(int i=0;i<All_Thrusters.Length;i++){
 		foreach(IMyThrust Thruster in All_Thrusters[i])
@@ -2488,7 +2550,7 @@ void BD_Cycle(bool try_reset=true){
 			MyGyros[i].GyroOverride=false;
 		}
 	}
-	min_randomize=Math.Max(1,broken/10);
+	min_randomize=Math.Max(1,broken/5);
 	for(int k=0;k<Rnd.Next(min_randomize,Math.Max(min_randomize+1,BD_Count));k++){
 		i=Rnd.Next(0,6);
 		if(All_Thrusters[i].Count>0){
@@ -2898,18 +2960,23 @@ public void Main(string argument, UpdateType updateSource)
 		switch(ShipStatus){
 			case AlertStatus.Green:
 				SetStatus("Condition "+ShipStatus.ToString()+Submessage, new Color(137, 255, 137, 255), new Color(0, 151, 0, 255));
+				SetAlert(0,new Color(0,151,0,255));
 				break;
 			case AlertStatus.Blue:
 				SetStatus("Condition "+ShipStatus.ToString()+Submessage, new Color(137, 239, 255, 255), new Color(0, 88, 151, 255));
+				SetAlert(1,new Color(0,88,151,255));
 				break;
 			case AlertStatus.Yellow:
 				SetStatus("Condition "+ShipStatus.ToString()+Submessage, new Color(255, 239, 137, 255), new Color(66, 66, 0, 255));
+				SetAlert(2,new Color(66,66,0,255));
 				break;
 			case AlertStatus.Orange:
 				SetStatus("Condition "+ShipStatus.ToString()+Submessage, new Color(255, 197, 0, 255), new Color(88, 44, 0, 255));
+				SetAlert(3,new Color(88,44,0,255));
 				break;
 			case AlertStatus.Red:
 				SetStatus("Condition "+ShipStatus.ToString()+Submessage, new Color(255, 137, 137, 255), new Color(151, 0, 0, 255));
+				SetAlert(4,new Color(151,0,0,255));
 				break;
 		}
 		
