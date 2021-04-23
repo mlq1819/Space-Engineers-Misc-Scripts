@@ -1839,8 +1839,8 @@ void SetStatus(string message, Color TextColor, Color BackgroundColor){
 
 int Last_Status=-1;
 void SetAlert(int Status_Num,Color color){
-	if(!(Last_Status<0||((Last_Status<=1)^(Status=1)))){
-		Last_Status=Status;
+	if(!(Last_Status<0||((Last_Status<=1)==(Status_Num<=1)))){
+		Last_Status=Status_Num;
 		return;
 	}
 	List<IMyInteriorLight> Lights=GenericMethods<IMyInteriorLight>.GetAllConstruct("");
@@ -1851,7 +1851,7 @@ void SetAlert(int Status_Num,Color color){
 			SetBlockData(Light,"Job","CustomAlert");
 			continue;
 		}
-		if(Status<=1&&Last_Status>1){
+		if(Status_Num<=1&&Last_Status>1){
 			if(HasBlockData(Light,"Job")&&GetBlockData(Light,"Job").Equals("StatusAlert")){
 				if(HasBlockData(Light,"DefaultColor")){
 					try{
@@ -1880,7 +1880,7 @@ void SetAlert(int Status_Num,Color color){
 				SetBlockData(Light,"Job","None");
 			}
 		}
-		else if(Status>1){
+		else if(Status_Num>1){
 			if(!HasBlockData(Light,"DefaultColor"))
 				SetBlockData(Light,"DefaultColor",Light.Color.ToString());
 			if(!HasBlockData(Light,"DefaultBlinkLength"))
@@ -1893,10 +1893,7 @@ void SetAlert(int Status_Num,Color color){
 			Light.BlinkLength=1-(.25f/Light.BlinkIntervalSeconds);
 		}
 	}
-	
-	
-	
-	Last_Status=Status;
+	Last_Status=Status_Num;
 }
 
 void ResetThrusters(){
