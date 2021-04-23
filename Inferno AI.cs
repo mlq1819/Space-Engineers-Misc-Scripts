@@ -1554,8 +1554,11 @@ char Bitsplice(char input){
 	for(int j=0;j<16;j++){
 		bits[j]=((shrt/Math.Pow(2,j))%2)==1;
 	}
-	int k=Glitch.Next(0,16);
-	bits[k]=!bits[k];
+	int m=Glitch.Next(1,Math.Max(2,BD_Count/20));
+	for(int i=0;i<m;i++){
+		int k=Glitch.Next(0,16);
+		bits[k]=!bits[k];
+	}
 	shrt=0;
 	for(int j=0;j<16;j++){
 		if(bits[j])
