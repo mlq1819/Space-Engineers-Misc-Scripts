@@ -1439,6 +1439,9 @@ bool Setup(){
 	List<IMyGasTank> Gas=GenericMethods<IMyGasTank>.GetAllConstruct("");
 	foreach(IMyGasTank gas in Gas)
 		FunctionalBlocks.Add(gas);
+	List<IMyLargeTurretBase> Turrets=GenericMethods<IMyLargeTurretBase>.GetAllConstruct("");
+	foreach(IMyLargeTurretBase turret in Turrets)
+		FunctionalBlocks.Add(turret);
 	return true;
 }
 
@@ -1606,6 +1609,16 @@ AlertStatus ShipStatus{
 				nw_sts=AlertStatus.Orange;
 			status=(AlertStatus)Math.Max((int)status,(int)nw_sts);
 			Submessage+="\nShip is Breaking Down - "+Math.Round(BD_Timer,2)+" s\n"+Math.Round(BD_Percent,1).ToString()+"% Broken Down";
+		}
+		int Broken=Broken_Blocks;
+		if(Broken>0){
+			AlertStatus nw_sts=AlertStatus.Yellow;
+			if(Broken>=50)
+				nw_sts=AlertStatus.Red;
+			else if(BD_Percent>=20)
+				nw_sts=AlertStatus.Orange;
+			status=(AlertStatus)Math.Max((int)status,(int)nw_sts);
+			Submessage+="\n"+Broken.ToString()+" detected damaged/missing blocks";
 		}
 		if(!Me.CubeGrid.IsStatic){
 			List<IMyJumpDrive> JumpDrives=GenericMethods<IMyJumpDrive>.GetAllIncluding("");
@@ -2417,6 +2430,16 @@ void UpdateProgramInfo(){
 int Glitch_Seed=0;
 Random Glitch=new Random(0);
 List<IMyFunctionalBlock> FunctionalBlocks;
+int Broken_Blocks{
+	get{
+		int broken=0;
+		foreach(IMyFunctionalBlock Block in FunctionalBlocks){
+			if(Block==null||(!Block.IsFunctional)||(!Block.IsSameConstructAs(Me)))
+				broken++;
+		}
+		return broken;
+	}
+}
 float BD_Percent{
 	get{
 		return ((float)BD_Count)/(30+BD_Count)*100;
@@ -2425,11 +2448,7 @@ float BD_Percent{
 void BD_Cycle(bool try_reset=true){
 	BD_Timer=2;
 	Glitch_Seed=Rnd.Next();
-	int broken=0;
-	foreach(IMyFunctionalBlock Block in FunctionalBlocks){
-		if(Block==null||(!Block.IsFunctional)||(!Block.IsSameConstructAs(Me)))
-			broken++;
-	}
+	int broken=Broken_Blocks;
 	if(try_reset){
 		int j=Rnd.Next(0,Math.Max(10,BD_Count));
 		if(j==0){
