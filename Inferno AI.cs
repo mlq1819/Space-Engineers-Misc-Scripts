@@ -2407,8 +2407,30 @@ float BD_Percent{
 void BD_Cycle(bool try_reset=true){
 	BD_Timer=2;
 	Glitch_Seed=Rnd.Next();
+	int broken=0;
+	for(int j=0;j<6;j++){
+		foreach(IMyThrust Thruster in All_Thrusters[j]){
+			if(!Thruster.IsFunctional)
+				broken++;
+		}
+	}
+	List<IMyGyro> MyGyros=GenericMethods<IMyGyro>.GetAllIncluding("");
+	foreach(IMyGyro Gyro in MyGyros){
+		if(!Gyro.IsFunctional)
+			broken++;
+	}
+	List<IMyPowerProducer> Power=GenericMethods<IMyPowerProducer>.GetAllIncluding("");
+	foreach(IMyPowerProducer power in Power){
+		if(!power.IsFunctional)
+			broken++;
+	}
+	List<IMyGasTank> Gas=GenericMethods<IMyGasTank>.GetAllIncluding("");
+	foreach(IMyGasTank gas in Gas){
+		if(!gas.IsFunctional)
+			broken++;
+	}
 	if(try_reset){
-		int j=Rnd.Next(0,Math.Max(10,BD_Count));
+		int j=Rnd.Next(0,Math.Max(10,BD_Count)+broken);
 		if(j==0){
 			j=Rnd.Next(0,Math.Max(1,Math.Min(BD_Count,5)));
 			Breakdown();
@@ -2423,7 +2445,6 @@ void BD_Cycle(bool try_reset=true){
 		int j=Rnd.Next(0,All_Thrusters[i].Count);
 		All_Thrusters[i][j].Enabled=true;
 	}
-	List<IMyGyro> MyGyros=GenericMethods<IMyGyro>.GetAllIncluding("");
 	i=Rnd.Next(0,MyGyros.Count);
 	MyGyros[i].Yaw=0;
 	MyGyros[i].Pitch=0;
@@ -2446,6 +2467,7 @@ void BD_Cycle(bool try_reset=true){
 			MyGyros[i].GyroOverride=false;
 		}
 	}
+	min_randomize=Math.Max(1,broken);
 	for(int k=0;k<Rnd.Next(min_randomize,Math.Max(min_randomize+1,BD_Count));k++){
 		i=Rnd.Next(0,6);
 		if(All_Thrusters[i].Count>0){
