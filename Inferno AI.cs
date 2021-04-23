@@ -1618,7 +1618,7 @@ AlertStatus ShipStatus{
 			AlertStatus nw_sts=AlertStatus.Yellow;
 			if(Broken>=50)
 				nw_sts=AlertStatus.Red;
-			else if(BD_Percent>=20)
+			else if(Broken>=20)
 				nw_sts=AlertStatus.Orange;
 			status=(AlertStatus)Math.Max((int)status,(int)nw_sts);
 			Submessage+="\n"+Broken.ToString()+" detected damaged blocks";
