@@ -2488,7 +2488,7 @@ void BD_Cycle(bool try_reset=true){
 			MyGyros[i].GyroOverride=false;
 		}
 	}
-	min_randomize=Math.Max(1,broken);
+	min_randomize=Math.Max(1,broken/10);
 	for(int k=0;k<Rnd.Next(min_randomize,Math.Max(min_randomize+1,BD_Count));k++){
 		i=Rnd.Next(0,6);
 		if(All_Thrusters[i].Count>0){
