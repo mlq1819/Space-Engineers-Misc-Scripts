@@ -2416,7 +2416,7 @@ void BD_Cycle(bool try_reset=true){
 			broken++;
 	}
 	if(try_reset){
-		int j=Rnd.Next(0,Math.Max(10,BD_Count)+broken);
+		int j=Rnd.Next(0,Math.Max(10,BD_Count));
 		if(j==0){
 			j=Rnd.Next(0,Math.Max(1,Math.Min(BD_Count,5)));
 			Breakdown();
