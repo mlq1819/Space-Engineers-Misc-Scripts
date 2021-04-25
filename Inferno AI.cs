@@ -1442,6 +1442,12 @@ bool Setup(){
 	List<IMyLargeTurretBase> Turrets=GenericMethods<IMyLargeTurretBase>.GetAllConstruct("");
 	foreach(IMyLargeTurretBase turret in Turrets)
 		FunctionalBlocks.Add(turret);
+	for(int i=0;i<FunctionalBlocks.Count;i++){
+		if(FunctionalBlocks[i].CustomName.Contains("Shell")){
+			FunctionalBlocks.RemoveAt(i--);
+			continue;
+		}
+	}
 	return true;
 }
 
@@ -2588,6 +2594,8 @@ void MarkAltitude(bool do_new=true){
 		Altitude_Graph.Dequeue();
 	if(do_new&&Altitude_Graph.Count<XLEN&&Gravity.Length()>0)
 		Altitude_Graph.Enqueue(new Altitude_Data(Sealevel,Elevation,Time_Since_Start));
+	if(Altitude_Graph.Count==0)
+		return;
 	double max=500;
 	double min=double.MaxValue;
 	foreach(Altitude_Data Data in Altitude_Graph){
