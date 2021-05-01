@@ -2588,6 +2588,8 @@ bool Terrain=false;
 void MarkAltitude(bool do_new=true){
 	const int XLEN=48;
 	const int XFULL=51;
+	if(Gravity.Length()==0)
+		return;
 	if(do_new)
 		Altitude_Timer=((double)Graph_Length_Seconds)/XFULL;
 	while(Altitude_Graph.Count>0&&Time_Since_Start.TotalSeconds-Altitude_Graph.Peek().Timestamp.TotalSeconds>Graph_Length_Seconds)
