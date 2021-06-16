@@ -4,8 +4,8 @@
 * https://github.com/mlq1819
 */
 string Program_Name = "Autoscouter AI";
-Color DEFAULT_TEXT_COLOR=new Color(255,179,137,255);
-Color DEFAULT_BACKGROUND_COLOR=new Color(88,44,0,255);
+Color DEFAULT_TEXT_COLOR=new Color(197,137,255,255);
+Color DEFAULT_BACKGROUND_COLOR=new Color(44,0,88,255);
 double Speed_Limit=1000;
 double Guest_Mode_Timer=900;
 double Acceptable_Angle=1;
@@ -820,40 +820,11 @@ List<IMyThrust> Right_Thrusters{
 	}
 }
 
-List<ThrustPod> ThrustPods;
-
-double Angle(ThrustPod Pod,Vector3D Direction){
-	if(Pod.Thrust==null)
-		return -90;
-	Vector3D base_vector=new Vector3D(0,0,1);
-	Vector3D Thruster_Vector=LocalToGlobal(base_vector,Pod.Thrust);
-	return GetAngle(Thruster_Vector,Direction);
-}
-bool Angled(ThrustPod Pod,Vector3D Direction){
-	return Math.Abs(Angle(Pod,Direction))<1;
-}
-
-struct ThrustPod{
-	public IMyThrust Thrust;
-	public IMyMotorStator Rotor;
-	
-	public ThrustPod(IMyMotorStator R){
-		Rotor=R;
-		Thrust=null;
-		if(Rotor!=null&&Rotor.TopGrid!=null)
-			Thrust=GenericMethods<IMyThrust>.GetGrid("",Rotor.TopGrid);
-	}
-}
-
 float Forward_Thrust{
 	get{
 		float total=0;
 		foreach(IMyThrust Thruster in Forward_Thrusters)
 			total+=Thruster.MaxEffectiveThrust;
-		foreach(ThrustPod Pod in ThrustPods){
-			if(Angled(Pod,Forward_Vector))
-				total+=Pod.Thrust.MaxEffectiveThrust;
-		}
 		return Math.Max(total,1);
 	}
 }
@@ -870,10 +841,6 @@ float Up_Thrust{
 		float total=0;
 		foreach(IMyThrust Thruster in Up_Thrusters)
 			total+=Thruster.MaxEffectiveThrust;
-		foreach(ThrustPod Pod in ThrustPods){
-			if(Angled(Pod,Up_Vector))
-				total+=Pod.Thrust.MaxEffectiveThrust;
-		}
 		return Math.Max(total,1);
 	}
 }
@@ -933,11 +900,8 @@ double Right_Gs{
 	}
 }
 
-List<IMyLandingGear> MyGear;
 List<IMyAirtightSlideDoor> MyDoors;
 List<IMyAirtightSlideDoor> OpenDoors;
-
-float Cargo_Status=0;
 
 double Time_To_Crash=double.MaxValue;
 double Guest_Timer=double.MaxValue;
@@ -1247,7 +1211,6 @@ void Reset(){
 	List<Airlock> Airlocks=new List<Airlock>();
 	for(int i=0;i<All_Thrusters.Length;i++)
 		All_Thrusters[i]=new List<IMyThrust>();
-	MyGear=new List<IMyLandingGear>();
 	MyDoors=new List<IMyAirtightSlideDoor>();
 	OpenDoors=new List<IMyAirtightSlideDoor>();
 	RestingSpeed=0;
@@ -1305,9 +1268,8 @@ bool Setup(){
 		Panel.Display.TextPadding=10.0f;
 		Panel.Display.FontSize=1.0f;
 	}
-	MyGear=GenericMethods<IMyLandingGear>.GetAllContaining("Inferno Landing Gear ");
 	SetupAirlocks();
-	Controller=GenericMethods<IMyShipController>.GetFull("Inferno Backup Control Seat");
+	Controller=(IMyShipController)GenericMethods<IMyRemoteControl>.GetContaining("Remote Control");
 	Controllers=GenericMethods<IMyShipController>.GetAllFunc(ControllerFunction);
 	if(Controller==null){
 		Write("Failed to find Controller", false, false);
@@ -1419,10 +1381,6 @@ bool Setup(){
 		Door.CloseDoor();
 		SetBlockData(Door,"Timer","0");
 	}
-	ThrustPods=new List<ThrustPod>();
-	List<IMyMotorStator> PodRotors=GenericMethods<IMyMotorStator>.GetAllContaining("Inferno Pod Rotor ");
-	foreach(IMyMotorStator Rotor in PodRotors)
-		ThrustPods.Add(new ThrustPod(Rotor));
 	
 	List<IMyTerminalBlock> AllTerminalBlocks=new List<IMyTerminalBlock>();
 	GridTerminalSystem.GetBlocksOfType<IMyTerminalBlock>(AllTerminalBlocks);
@@ -1448,6 +1406,13 @@ bool Setup(){
 			continue;
 		}
 	}
+	
+	if(Orbiting==false){
+		Orbit();
+		Orbital_Altitude=1000;
+		RestingSpeed=25;
+	}
+	
 	return true;
 }
 
@@ -1604,7 +1569,6 @@ AlertStatus ShipStatus{
 	get{
 		AlertStatus status=AlertStatus.Green;
 		Submessage="";
-		bool check_landing_gear=false;
 		if(!Safety){
 			AlertStatus nw_sts=AlertStatus.Yellow;
 			status=(AlertStatus)Math.Max((int)status,(int)nw_sts);
@@ -1691,16 +1655,16 @@ AlertStatus ShipStatus{
 			if(Orbiting){
 				AlertStatus nw_sts=AlertStatus.Blue;
 				status=(AlertStatus)Math.Max((int)status,(int)nw_sts);
-				string altitude=Math.Round(Sealevel,0).ToString()+" M";
+				string altitude=Math.Round(Elevation,0).ToString()+" M";
 				string target_altitude=Math.Round(Orbital_Altitude,0).ToString()+" M";
 				if(Orbital_Altitude>=1500){
-					altitude=Math.Round(Sealevel/1000,1).ToString()+" kM";
+					altitude=Math.Round(Elevation/1000,1).ToString()+" kM";
 					target_altitude=Math.Round(Orbital_Altitude/1000,1).ToString()+" kM";
 				}
 				Submessage+="\nOrbiting at "+altitude+":"+target_altitude;
-				double Obt_f=Orbital_Altitude/Sealevel;
+				double Obt_f=Orbital_Altitude/Elevation;
 				string Obt_fs=Math.Round((1-Obt_f)*100,1)+"%";
-				double Obt_d=Sealevel-Orbital_Altitude;
+				double Obt_d=Elevation-Orbital_Altitude;
 				if(Obt_f>1.2||Obt_f<0.8||Math.Abs(Obt_d)>250){
 					nw_sts=AlertStatus.Red;
 					status=(AlertStatus)Math.Max((int)status,(int)nw_sts);
@@ -1729,8 +1693,6 @@ AlertStatus ShipStatus{
 					else
 						Submessage+="\nShip at low Altitude ("+Math.Round(small,1).ToString()+"-"+Math.Round(large,1).ToString()+" meters)";
 				}
-				else
-					check_landing_gear=true;
 			}
 			if(Time_To_Crash>0){
 				if(Time_To_Crash<15 && Controller.GetShipSpeed()>5){
@@ -1777,16 +1739,6 @@ AlertStatus ShipStatus{
 			Submessage+="\nGuest Mode: "+ToString(FromSeconds(Guest_Mode_Timer-Guest_Timer));
 		}
 		
-		if(Cargo_Status>0.95f){
-			AlertStatus nw_sts=AlertStatus.Yellow;
-			status=(AlertStatus)Math.Max((int)status,(int)nw_sts);
-			Submessage+="\nCargo at "+Math.Round(Cargo_Status*100,1).ToString()+"% Capacity";
-		}
-		else if(Cargo_Status>0.8f){
-			AlertStatus nw_sts=AlertStatus.Blue;
-			status=(AlertStatus)Math.Max((int)status,(int)nw_sts);
-			Submessage+="\nCargo at "+Math.Round(Cargo_Status*100,1).ToString()+"% Capacity";
-		}
 		if(Controller.GetShipSpeed()>50){
 			AlertStatus nw_sts=AlertStatus.Blue;
 			status=(AlertStatus) Math.Max((int)status, (int)nw_sts);
@@ -1805,19 +1757,6 @@ AlertStatus ShipStatus{
 		}
 		if(status==AlertStatus.Green){
 			Submessage="\nNo issues";
-			if(check_landing_gear){
-				if(MyGear.Count>0){
-					bool unlocked=false;
-					foreach(IMyLandingGear Gear in MyGear){
-						if(Gear.LockMode!=LandingGearMode.Locked){
-							unlocked=true;
-							break;
-						}
-					}
-					if(!unlocked)
-						Submessage+="\nAll Landing Gear Locked";
-				}
-			}
 		}
 		return status;
 	}
@@ -1923,55 +1862,6 @@ void ResetThrusters(){
 	}
 }
 
-bool Fire(object obj=null){
-	if(Gravity.Length()>0)
-		return false;
-	IMyProjector Projector=GenericMethods<IMyProjector>.GetFull("Inferno Shell Projector");
-	if(Projector==null||Projector.Enabled==false||Projector.RemainingBlocks>0)
-		return false;
-	if(GenericMethods<IMyBatteryBlock>.GetFull("Infernal Shell Battery",Projector,10)==null)
-		return false;
-	IMyTimerBlock Activation=GenericMethods<IMyTimerBlock>.GetFull("Infernal Shell Activation Block",Projector,10);
-	IMyTimerBlock Reload=GenericMethods<IMyTimerBlock>.GetFull("Inferno Reload Timer Block");
-	if(Activation==null||Reload==null||!(Activation.Enabled&&Reload.Enabled))
-		return false;
-	IMyShipMergeBlock Printer_Merge=GenericMethods<IMyShipMergeBlock>.GetFull("Inferno Printer Merge Block",Projector,10);
-	IMyShipMergeBlock Shell_Merge=GenericMethods<IMyShipMergeBlock>.GetFull("Infernal Shell Merge Block",Projector,10);
-	if(Printer_Merge==null||Shell_Merge==null)
-		return false;
-	List<IMySpaceBall> Spaceballs=new List<IMySpaceBall>();
-	List<IMyWarhead> Warheads=new List<IMyWarhead>();
-	for(int i=1;i<=4;i++){
-		IMySpaceBall ball=GenericMethods<IMySpaceBall>.GetFull("Infernal Shell Space Ball "+i.ToString(),Projector,10);
-		if(ball==null)
-			return false;
-		Spaceballs.Add(ball);
-		IMyWarhead bomb=GenericMethods<IMyWarhead>.GetFull("Infernal Shell Warhead "+i.ToString(),Projector,10);
-		if(bomb==null)
-			return false;
-		Warheads.Add(bomb);
-	}
-	if(Spaceballs.Count!=4||Warheads.Count!=4)
-		return false;
-	IMyGravityGenerator Anti_Generator=GenericMethods<IMyGravityGenerator>.GetFull("Inferno Driver Anti-Gravity Generator",Projector,30);
-	List<IMyGravityGenerator> Drivers=GenericMethods<IMyGravityGenerator>.GetAllContaining("Inferno Shell Driver Generator ",Projector,30);
-	if(Anti_Generator==null||(!Anti_Generator.IsFunctional)||Drivers.Count<10)
-		return false;
-	List<IMyShipWelder> Welders=GenericMethods<IMyShipWelder>.GetAllContaining("Inferno Shell Welder ",Projector,20);
-	foreach(IMyShipWelder Welder in Welders)
-		Welder.Enabled=false;
-	Anti_Generator.Enabled=true;
-	foreach(IMyGravityGenerator Driver in Drivers)
-		Driver.Enabled=true;
-	foreach(IMyWarhead Warhead in Warheads){
-		Warhead.IsArmed=true;
-		Warhead.DetonationTime=30;
-		Warhead.StartCountdown();
-	}
-	Activation.Trigger();
-	Reload.StartCountdown();
-	return true;
-}
 bool Disable(object obj=null){
 	SetStatus("Status LCD\nOffline", new Color(255,255,255,255), new Color(0,0,0,255));
 	Operational=false;
@@ -2022,13 +1912,13 @@ bool Orbiting=false;
 double Orbital_Altitude=1000;
 bool Orbit(object obj=null){
 	if(RestingSpeed==0){
-		if(Sealevel<100)
-			return false;
+		//if(Sealevel<100)
+			//return false;
 		if(!Safety)
 			ToggleSafety();
 		RestingSpeed=CurrentVelocity.Length();
 		Orbiting=true;
-		Orbital_Altitude=Sealevel;
+		Orbital_Altitude=Elevation;
 		Controller.DampenersOverride=true;
 	}
 	else{
@@ -2085,7 +1975,6 @@ bool Toggle_Terrain(object obj=null){
 bool CreateMenu(object obj=null){
 	Command_Menu=new Menu_Submenu("Command Menu");
 	//Command_Menu.Add(new Menu_Command<object>("Update Menu", CreateMenu, "Refreshes menu"));
-	Command_Menu.Add(new Menu_Command<object>("Fire", Fire, "Fires and reloads the Inferno's Main Cannon; doesn't work in Natural Gravity."));
 	if(!Me.CubeGrid.IsStatic)
 		Command_Menu.Add(new Menu_Command<object>("Toggle Autoland",Autoland,"Toggles On/Off the Autoland feature\nLands at 5 m/s\nDo not use on ships with poor mobility!"));
 	Command_Menu.Add(new Menu_Command<object>("Toggle Orbiting", Orbit, "Locks current Speed, allowing the ship to cruise at the current approximate altitude. Will not cruise below 100M."));
@@ -2235,11 +2124,11 @@ void SetGyroscopes(){
 			if((((Elevation-MySize)<Controller.GetShipSpeed()*2&&(Elevation-MySize)<50)||(Controller.DampenersOverride&&!Controller.IsUnderControl)||Orbiting)&&GetAngle(Gravity,Forward_Vector)<120&&Pitch_Time>=1){
 				double difference=Math.Abs(GetAngle(Gravity,Forward_Vector));
 				if(Orbiting){
-					if(Orbital_Altitude-Sealevel>100&&Sealevel>500)
+					if(Orbital_Altitude-Elevation>250&&Elevation>500)
 						difference=Math.Max(difference-15,0);
-					else if(Orbital_Altitude-Sealevel>50&&Sealevel>250)
+					else if(Orbital_Altitude-Elevation>100&&Elevation>250)
 						difference=Math.Max(difference-10,0);
-					else if(Orbital_Altitude-Sealevel>25)
+					else if(Orbital_Altitude-Elevation>25)
 						difference=Math.Max(difference-5,0);
 				}
 				if(difference<90)
@@ -2248,11 +2137,11 @@ void SetGyroscopes(){
 			if((Orbiting||(Controller.DampenersOverride&&!Undercontrol))&&(GetAngle(Gravity,Forward_Vector)>(90+Acceptable_Angle/2)||(Orbiting&&GetAngle(Gravity,Forward_Vector)>60))){
 				double difference=Math.Abs(GetAngle(Gravity,Forward_Vector));
 				if(Orbiting){
-					if(Sealevel-Orbital_Altitude>100)
+					if(Elevation-Orbital_Altitude>250)
 						difference=Math.Min(difference+15,180);
-					else if(Sealevel-Orbital_Altitude>50)
+					else if(Elevation-Orbital_Altitude>100)
 						difference=Math.Min(difference+10,180);
-					else if(Sealevel-Orbital_Altitude>25)
+					else if(Elevation-Orbital_Altitude>25)
 						difference=Math.Min(difference+5,180);
 				}
 				if(difference>90+Acceptable_Angle/2||(Orbiting&&difference>90))
@@ -2409,10 +2298,10 @@ void SetThrusters(){
 		output_forward=Math.Min(Math.Abs(input_forward/Forward_Thrust),1);
 	else if(input_forward/Backward_Thrust<-0.01f)
 		output_backward=Math.Min(Math.Abs(input_forward/Backward_Thrust),1);
-	if(Orbiting&&Math.Abs(Orbital_Altitude-Sealevel)>1){
-		float difference=(float)Math.Abs(Sealevel-Orbital_Altitude);
+	if(Orbiting&&Math.Abs(Orbital_Altitude-Elevation)>1){
+		float difference=(float)Math.Abs(Elevation-Orbital_Altitude);
 		float up_multx=1;
-		if(Sealevel<Orbital_Altitude)
+		if(Elevation<Orbital_Altitude)
 			up_multx=(10+difference)/10.0f;
 		else
 			up_multx=10.0f/(10+difference);
@@ -2467,16 +2356,6 @@ void SetThrusters(){
 		Thruster.ThrustOverridePercentage=output_left;
 		if(!Safety)
 			Thruster.Enabled=output_left>0;
-	}
-	foreach(ThrustPod Pod in ThrustPods){
-		if(Angled(Pod,Up_Vector)){
-			Pod.Thrust.ThrustOverridePercentage=output_up;
-			Pod.Thrust.Enabled=(output_up>0);
-		}
-		else if(Angled(Pod,Forward_Vector)){
-			Pod.Thrust.ThrustOverridePercentage=output_forward;
-			Pod.Thrust.Enabled=(output_forward>0);
-		}
 	}
 }
 
@@ -2583,7 +2462,7 @@ void BD_Cycle(bool try_reset=true){
 	}
 }
 
-bool Terrain=false;
+bool Terrain=true;
 
 void MarkAltitude(bool do_new=true){
 	const int XLEN=48;
@@ -2701,7 +2580,6 @@ void MarkAltitude(bool do_new=true){
 	
 }
 
-double Thrust_Pod_Timer=30;
 void UpdateTimers(){
 	foreach(Airlock airlock in Airlocks){
 		if(airlock.AirlockTimer<10)
@@ -2734,8 +2612,6 @@ void UpdateTimers(){
 	}
 	if(TurretTimer<300)
 		TurretTimer+=seconds_since_last_update;
-	if(Thrust_Pod_Timer<30)
-		Thrust_Pod_Timer+=seconds_since_last_update;
 	if(Altitude_Timer>0)
 		Altitude_Timer-=seconds_since_last_update;
 	Scan_Time+=seconds_since_last_update;
@@ -2813,16 +2689,6 @@ void UpdateSystemData(){
 		RestingSpeed=0;
 	}
 	Mass_Accomodation=(float)(Controller.CalculateShipMass().PhysicalMass*Gravity.Length());
-	Cargo_Status=0;
-	List<IMyCargoContainer> Cargos=GenericMethods<IMyCargoContainer>.GetAllConstruct("");
-	if(Cargos.Count>0){
-		float sum=0,total=0;
-		foreach(IMyCargoContainer Cargo in Cargos){
-			sum+=(float)Cargo.GetInventory().CurrentVolume.ToIntSafe();
-			total+=(float)Cargo.GetInventory().MaxVolume.ToIntSafe();
-		}
-		Cargo_Status=sum/total;
-	}
 }
 
 double FromRad(double rad){
@@ -2836,14 +2702,15 @@ public void Main(string argument, UpdateType updateSource)
 		UpdateSystemData();
 		UpdateTimers();
 		if(!Me.CubeGrid.IsStatic){
-			if(Elevation!=double.MaxValue)
+			if(Elevation!=double.MaxValue){
 				Write("Elevation: "+Math.Round(Elevation,1).ToString());
+				Write("Sealevel: "+Math.Round(Sealevel,1).ToString());
+			}
 			if(Gravity.Length()>0)
 				Write("Gravity:"+Math.Round(Gravity.Length()/9.814,2)+"Gs");
 			Write("Maximum Power (Hovering): "+Math.Round(Up_Gs,2)+"Gs");
 			Write("Maximum Power (Launching): "+Math.Round(Math.Max(Up_Gs,Forward_Gs),2)+"Gs");
 		}
-		Write("Cargo at "+Math.Round(Cargo_Status*100,1).ToString()+"% Capacity");
 		if(Scan_Time>=5)
 			PerformScan();
 		else
@@ -2855,75 +2722,6 @@ public void Main(string argument, UpdateType updateSource)
 		}
 		if(AltitudeLCDs.Count>0&&Altitude_Timer<=0)
 			MarkAltitude();
-		
-		if(cycle%10==0&&Thrust_Pod_Timer>=30){
-			double GV_A=GetAngle(Velocity_Direction,Gravity_Direction);
-			if(Gravity.Length()==0||(GV_A>120&&Gravity.Length()<=0.981)){
-				foreach(ThrustPod Pod in ThrustPods){
-					if(Pod.Thrust!=null&&Pod.Rotor!=null){
-						if(Pod.Rotor.CustomName.Contains("Inferno Pod Rotor L")){
-							if(Pod.Rotor.TargetVelocityRPM>=0){
-								Pod.Rotor.TargetVelocityRPM=-6;
-								SetBlockData(Pod.Rotor,"Target",Pod.Rotor.LowerLimitDeg.ToString());
-								Pod.Rotor.RotorLock=false;
-								Thrust_Pod_Timer=0;
-							}
-						} 
-						else if(Pod.Rotor.CustomName.Contains("Inferno Pod Rotor R")){
-							if(Pod.Rotor.TargetVelocityRPM<=0){
-								Pod.Rotor.TargetVelocityRPM=6;
-								SetBlockData(Pod.Rotor,"Target",Pod.Rotor.UpperLimitDeg.ToString());
-								Pod.Rotor.RotorLock=false;
-								Thrust_Pod_Timer=0;
-							}
-						}
-					}
-				}
-			}
-			else if(GV_A<60&&Gravity.Length()>=0.981){
-				foreach(ThrustPod Pod in ThrustPods){
-					if(Pod.Thrust!=null&&Pod.Rotor!=null){
-						if(Pod.Rotor.CustomName.Contains("Inferno Pod Rotor L")){
-							if(Pod.Rotor.TargetVelocityRPM<=0){
-								Pod.Rotor.TargetVelocityRPM=6;
-								SetBlockData(Pod.Rotor,"Target",Pod.Rotor.UpperLimitDeg.ToString());
-								Pod.Rotor.RotorLock=false;
-								Thrust_Pod_Timer=0;
-							}
-						} 
-						else if(Pod.Rotor.CustomName.Contains("Inferno Pod Rotor R")){
-							if(Pod.Rotor.TargetVelocityRPM>=0){
-								Pod.Rotor.TargetVelocityRPM=-6;
-								SetBlockData(Pod.Rotor,"Target",Pod.Rotor.LowerLimitDeg.ToString());
-								Pod.Rotor.RotorLock=false;
-								Thrust_Pod_Timer=0;
-							}
-						}
-					}
-				}
-			}
-		}
-		if(Thrust_Pod_Timer<30){
-			foreach(ThrustPod Pod in ThrustPods){
-				if(Pod.Thrust!=null&&Pod.Rotor!=null){
-					double target;
-					if(HasBlockData(Pod.Rotor,"Target")&&double.TryParse(GetBlockData(Pod.Rotor,"Target"),out target)){
-						double angle=(FromRad(Pod.Rotor.Angle)+180)%360;
-						target=(target+180)%360;
-						if(Math.Abs(angle-target)<0.05){
-							Pod.Rotor.RotorLock=true;
-							Pod.Thrust.Enabled=true;
-						}
-						else{
-							Pod.Rotor.RotorLock=false;
-							Pod.Rotor.Enabled=true;
-							Pod.Thrust.Enabled=false;
-							Thrust_Pod_Timer=Math.Min(Thrust_Pod_Timer,15);
-						}
-					}
-				}
-			}
-		}
 		
 		if(argument.ToLower().Equals("back")){
 			Command_Menu.Back();
