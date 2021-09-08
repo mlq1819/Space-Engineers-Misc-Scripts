@@ -1103,6 +1103,7 @@ void Reset(){
 	Gyroscope=null;
 	Batteries=new List<IMyBatteryBlock>();
 	FuelingDocks=new List<Dock>();
+	DockingConnector=null;
 	for(int i=0;i<All_Thrusters.Length;i++){
 		if(All_Thrusters[i]!=null){
 			for(int j=0;j<All_Thrusters[i].Count;j++){
@@ -1163,6 +1164,7 @@ bool Setup(){
 	SetThrusterList(Left_Thrusters,"Left");
 	SetThrusterList(Right_Thrusters,"Right");
 	Batteries=GenericMethods<IMyBatteryBlock>.GetAllIncluding("");
+	DockingConnector=GenericMethods<IMyShipConnector>.GetContaining("Stalker Docking Connector");
 	string mode="";
 	string[] args=this.Storage.Split('\n');
 	foreach(string arg in args){
@@ -1247,15 +1249,6 @@ public void Save(){
 	}
 }
 
-bool _Autoland=false;
-bool Autoland(){
-	if((!_Autoland)&&!Control_Thrusters)
-		return false;
-	if(!Safety)
-		return false;
-	_Autoland=!_Autoland;
-	return true;
-}
 bool Disable(){
 	Operational=false;
 	ResetThrusters();
@@ -1305,7 +1298,7 @@ void SetGyroscopes(){
 	}
 	float gyro_multx=(float)Math.Max(0.1f, Math.Min(1, 1.5f/(Controller.CalculateShipMass().PhysicalMass/gyro_count/1000000)));
 	
-	if(Match_Direction&&Do_Position&&Target_Distance>20&&!_Autoland){
+	if(Match_Direction&&Do_Position&&Target_Distance>20){
 		bool do_Match=true;
 		Vector3D target_direction=Target_Position-Controller.GetPosition();
 		target_direction.Normalize();
@@ -1619,16 +1612,14 @@ void SetThrusters(){
 	}
 	
 	if(Gravity.Length()>0&&Mass_Accomodation>0&&(Controller.GetShipSpeed()<100||GetAngle(CurrentVelocity,Gravity)>Acceptable_Angle)){
-		if(!(_Autoland&&Time_To_Crash>15&&(Elevation>200||CurrentSpeed>5))){
-			if(!((!Controller.DampenersOverride)&&Elevation<Ev_Df&&CurrentSpeed<1)){
-				input_right-=(float)Adjusted_Gravity.X;
-				input_up-=(float)Adjusted_Gravity.Y;
-				input_forward+=(float)Adjusted_Gravity.Z;
-			}
+		if(!((!Controller.DampenersOverride)&&Elevation<Ev_Df&&CurrentSpeed<1)){
+			input_right-=(float)Adjusted_Gravity.X;
+			input_up-=(float)Adjusted_Gravity.Y;
+			input_forward+=(float)Adjusted_Gravity.Z;
 		}
 	}
 	
-	if(!_Autoland&&Do_Position){
+	if(Do_Position){
 		if(Target_Distance>1500)
 			Write("Target Position: "+Math.Round(True_Target_Distance/1000,1)+"kM");
 		else
@@ -1820,7 +1811,7 @@ void UpdateProgramInfo(){
 }
 
 double Target_Elevation=double.MaxValue;
-void Crash_And_Autolanding(){
+void Crash_Test(){
 	double from_center=(Controller.GetPosition()-PlanetCenter).Length();
 	Vector3D next_position=Controller.GetPosition()+1*CurrentVelocity;
 	double Elevation_per_second=(from_center-(next_position-PlanetCenter).Length());
@@ -1838,8 +1829,6 @@ void Crash_And_Autolanding(){
 	}
 	Time_To_Crash=(Target_Elevation-MySize/2)/Elevation_per_second;
 	bool need_print=true;
-	if(_Autoland)
-		Write("Autoland Enabled");
 	if(Time_To_Crash>0){
 		if(Safety&&Time_To_Crash-Time_To_Stop<5&&Controller.GetShipSpeed()>5){
 			Controller.DampenersOverride=true;
@@ -1859,18 +1848,12 @@ void Crash_And_Autolanding(){
 			if(Do_Position){
 				Will_Be_Closer=(Controller.GetPosition()-Target_Position).Length()<(Controller.GetPosition()+CurrentVelocity-Target_Position).Length()||CurrentSpeed<5;
 			}
-			if(_Autoland&&Will_Be_Closer&&CurrentSpeed<10&&Math.Abs(Relative_CurrentVelocity.Y)>CurrentSpeed/2&&Target_Elevation>800)
-				Controller.DampenersOverride=false;
-			else if(Time_To_Crash*Math.Max(Target_Elevation,1000)<1800000&&CurrentSpeed>1.0f){
+			if(Time_To_Crash*Math.Max(Target_Elevation,1000)<1800000&&CurrentSpeed>1.0f){
 				Write(Math.Round(Time_To_Crash,1).ToString()+" seconds to crash");
-				if(_Autoland&&(Time_To_Crash-Time_To_Stop>15||(CurrentSpeed<=5&&CurrentSpeed>2.5&&Time_To_Crash-Time_To_Stop>5)))
-					Controller.DampenersOverride=false;
 				need_print=false;
 			}
 			
 		}
-		if(Target_Elevation-MySize<5&&_Autoland)
-			_Autoland=false;
 	}
 	if(need_print)
 		Write("No crash likely at current velocity");
@@ -1927,7 +1910,7 @@ void UpdateSystemData(){
 			else
 				Elevation=Sealevel;
 			if(!Me.CubeGrid.IsStatic)
-				Crash_And_Autolanding();
+				Crash_Test();
 		}
 		else
 			PlanetCenter=new Vector3D(0,0,0);
@@ -2151,13 +2134,7 @@ class Task{
 			new List<Quantifier>(new Quantifier[] {Quantifier.Numbered,Quantifier.Until,Quantifier.Stop}),
 			new Vector2(0,0)
 			)); //No Params
-			
-			output.Add(new TaskFormat(
-			"Autoland",
-			new List<Quantifier>(new Quantifier[] {Quantifier.Numbered,Quantifier.Until,Quantifier.Stop}),
-			new Vector2(1,1)
-			)); //Params: bool
-			
+						
 			return output;
 		}
 	}
@@ -2338,12 +2315,6 @@ bool Task_Go(Task task){
 					Goal_Direction*=-1;
 				Target_Position=Goal_Direction*2500+MyPosition;
 			}
-			else if(Target_Elevation>500&&my_radius-1000>target_radius){
-				if(!_Autoland)
-					Autoland();
-			}
-			if(!_Autoland)
-				Controller.DampenersOverride=true;
 		}
 		return true;
 	}
@@ -2354,18 +2325,6 @@ bool Task_Go(Task task){
 bool Task_Match(Task task){
 	Match_Direction=true;
 	return true;
-}
-
-//Sets Autoland either on or off
-bool Task_Autoland(Task task){
-	bool do_autoland=false;
-	if(bool.TryParse(task.Qualifiers.Last(),out do_autoland)){
-		if(do_autoland)
-			return _Autoland||Autoland();
-		else
-			return (!_Autoland)||Autoland();
-	}
-	return false;
 }
 
 bool PerformTask(Task task){
@@ -2394,8 +2353,6 @@ bool PerformTask(Task task){
 			return Task_Go(task);
 		case "Match":
 			return Task_Match(task);
-		case "Autoland":
-			return Task_Autoland(task);
 		
 	}
 	return false;
@@ -2447,8 +2404,6 @@ void Task_Resetter(){
 	Do_Up=false;
 	Do_Position=false;
 	Match_Direction=false;
-	if(_Autoland)
-		Autoland();
 }
 
 void Task_Pruner(Task task){
@@ -2528,10 +2483,7 @@ void Main_Program(string argument){
 		Display(2,"Acceleration Left:"+Math.Round(Left_Gs,2)+"Gs");
 		Display(2,"Acceleration Right:"+Math.Round(Right_Gs,2)+"Gs");
 	}
-	if(argument.ToLower().Equals("autoland")){
-		Autoland();
-	}
-	else if(argument.ToLower().Equals("factory reset")){
+	if(argument.ToLower().Equals("factory reset")){
 		FactoryReset();
 	}
 	
