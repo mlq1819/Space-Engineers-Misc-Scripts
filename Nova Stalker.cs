@@ -295,6 +295,62 @@ class GenericMethods<T> where T : class, IMyTerminalBlock{
 	}
 }
 
+abstract class OneDone{
+	public static List<OneDone> All;
+	
+	protected OneDone(){
+		if(All==null)
+			All=new List<OneDone>();
+		All.Add(this);
+	}
+	
+	public static void ResetAll(){
+		if(All==null)
+			return;
+		for(int i=0;i<All.Count;i++)
+			All[i].Reset();
+	}
+	
+	public abstract void Reset();
+}
+class OneDone<T>:OneDone{
+	private T Default;
+	public T Value;
+	
+	public OneDone(T value):base(){
+		Default=value;
+		Value=value;
+	}
+	
+	public override void Reset(){
+		Value=Default;
+	}
+}
+class Roo<T>{
+	// Run Only Once
+	private T _Value;
+	public T Value{
+		get{
+			if(!Ran.Value){
+				_Value=Updater();
+				Ran.Value=true;
+			}
+			return _Value;
+		}
+	}
+	private OneDone<bool> Ran;
+	private Func<T> Updater;
+	
+	public Roo(Func<T> updater){
+		Ran=new OneDone<bool>(false);
+		Updater=updater;
+	}
+	
+	public static implicit operator T(Roo<T>){
+		return Value;
+	}
+}
+
 TimeSpan FromSeconds(double seconds){
 	return Prog.FromSeconds(seconds);
 }
@@ -800,7 +856,7 @@ void UpdateStalkerSensors(){
 }
 
 void UpdatePlanets(){
-	Planet newPlanet=new Planet(PlanetCenter,Sealevel,Controller.GetPosition());
+	Planet newPlanet=new Planet(PlanetCenter,Sealevel,ShipPosition);
 	for(int i=0;i<Planets.Count;i++){
 		if(Planets[i].Same(newPlanet)){
 			Planets[i]=new Planet(PlanetCenter,Math.Max(Planets[i].SealevelRadius,newPlanet.SealevelRadius),Math.Max(Planets[i].GravityRadius,newPlanet.GravityRadius));
@@ -1149,112 +1205,110 @@ List<IMyThrust> Right_Thrusters{
 	}
 }
 
-bool Thrust_Check=false;
-float _Max_Thrust;
+float Get_Max_Thrust(){
+	float output=Forward_Thrust;
+	output=Math.Max(output,Backward_Thrust);
+	output=Math.Max(output,Up_Thrust);
+	output=Math.Max(output,Down_Thrust);
+	output=Math.Max(output,Left_Thrust);
+	output=Math.Max(output,Right_Thrust);
+	return output;
+}
+Roo<float> _Max_Thrust=new Roo<float>(Get_Max_Thrust);
 float Max_Thrust{
 	get{
-		if(!Thrust_Check){
-			_Max_Thrust=Forward_Thrust;
-			_Max_Thrust=Math.Max(_Max_Thrust,Backward_Thrust);
-			_Max_Thrust=Math.Max(_Max_Thrust,Up_Thrust);
-			_Max_Thrust=Math.Max(_Max_Thrust,Down_Thrust);
-			_Max_Thrust=Math.Max(_Max_Thrust,Left_Thrust);
-			_Max_Thrust=Math.Max(_Max_Thrust,Right_Thrust);
-			Thrust_Check=true;
-		}
 		return _Max_Thrust;
 	}
 }
 
-float Forward_Thrust{
-	get{
-		float total=0;
-		foreach(IMyThrust Thruster in Forward_Thrusters){
-			if(Thruster.IsWorking)
-				total+=Thruster.MaxEffectiveThrust;
-		}
-		return Math.Max(total,1);
+float Get_Forward_Thrust(){
+	float total=0;
+	foreach(IMyThrust Thruster in Forward_Thrusters){
+		if(Thruster.IsWorking)
+			total+=Thruster.MaxEffectiveThrust;
 	}
+	return Math.Max(total,1);
 }
-float Backward_Thrust{
-	get{
-		float total=0;
-		foreach(IMyThrust Thruster in Backward_Thrusters){
-			if(Thruster.IsWorking)
-				total+=Thruster.MaxEffectiveThrust;
-		}
-		return Math.Max(total,1);
+Roo<float> Forward_Thrust=new Roo<float>(Get_Forward_Thrust);
+
+float Get_Backward_Thrust(){
+	float output=0;
+	foreach(IMyThrust Thruster in Backward_Thrusters){
+		if(Thruster.IsWorking)
+			output+=Thruster.MaxEffectiveThrust;
 	}
+	return Math.Max(output,1);
 }
-float Up_Thrust{
-	get{
-		float total=0;
-		foreach(IMyThrust Thruster in Up_Thrusters){
-			if(Thruster.IsWorking)
-				total+=Thruster.MaxEffectiveThrust;
-		}
-		return Math.Max(total,1);
+Roo<float> Backward_Thrust=new Roo<float>(Get_Backward_Thrust);
+
+float Get_Up_Thrust(){
+	float total=0;
+	foreach(IMyThrust Thruster in Up_Thrusters){
+		if(Thruster.IsWorking)
+			total+=Thruster.MaxEffectiveThrust;
 	}
+	return Math.Max(total,1);
 }
-float Down_Thrust{
-	get{
-		float total=0;
-		foreach(IMyThrust Thruster in Down_Thrusters){
-			if(Thruster.IsWorking)
-				total+=Thruster.MaxEffectiveThrust;
-		}
-		return Math.Max(total,1);
+Roo<float> Up_Thrust=new Roo<float>(Get_Up_Thrust);
+
+float Get_Down_Thrust(){
+	float total=0;
+	foreach(IMyThrust Thruster in Down_Thrusters){
+		if(Thruster.IsWorking)
+			total+=Thruster.MaxEffectiveThrust;
 	}
+	return Math.Max(total,1);
 }
-float Left_Thrust{
-	get{
-		float total=0;
-		foreach(IMyThrust Thruster in Left_Thrusters){
-			if(Thruster.IsWorking)
-				total+=Thruster.MaxEffectiveThrust;
-		}
-		return Math.Max(total,1);
+Roo<float> Down_Thrust=new Roo<float>(Get_Down_Thrust);
+
+float Get_Left_Thrust{
+	float total=0;
+	foreach(IMyThrust Thruster in Left_Thrusters){
+		if(Thruster.IsWorking)
+			total+=Thruster.MaxEffectiveThrust;
 	}
+	return Math.Max(total,1);
 }
-float Right_Thrust{
-	get{
-		float total=0;
-		foreach(IMyThrust Thruster in Right_Thrusters){
-			if(Thruster.IsWorking)
-				total+=Thruster.MaxEffectiveThrust;
-		}
-		return Math.Max(total,1);
+Roo<float> Left_Thrust=new Roo<float>(Get_Left_Thrust);
+
+float Get_Right_Thrust{
+	float total=0;
+	foreach(IMyThrust Thruster in Right_Thrusters){
+		if(Thruster.IsWorking)
+			total+=Thruster.MaxEffectiveThrust;
 	}
+	return Math.Max(total,1);
 }
+Roo<float> Right_Thrust=new Roo<float>(Get_Right_Thrust);
 
 double Forward_Acc{
 	get{
-		return Forward_Thrust/Controller.CalculateShipMass().TotalMass;
+		return Forward_Thrust/ShipMass.TotalMass;
 	}
 }
 double Backward_Acc{
 	get{
-		return Backward_Thrust/Controller.CalculateShipMass().TotalMass;
+		return Backward_Thrust/ShipMass.TotalMass;
 	}
 }
 double Up_Acc{
 	get{
-		return Up_Thrust/Controller.CalculateShipMass().TotalMass;
+		return Up_Thrust/ShipMass.TotalMass;
 	}
 }
 double Down_Acc{
 	get{
-		return Down_Thrust/Controller.CalculateShipMass().TotalMass;
+		return Down_Thrust/ShipMass.TotalMass;
 	}
 }
 double Left_Acc{
 	get{
-		return Left_Thrust/Controller.CalculateShipMass().TotalMass;
+		return Left_Thrust/ShipMass.TotalMass;
 	}
 }
 double Right_Acc{
 	get{
-		return Right_Thrust/Controller.CalculateShipMass().TotalMass;
+		return Right_Thrust/ShipMass.TotalMass;
 	}
 }
 
@@ -1327,9 +1381,16 @@ Vector3D Right_Vector{
 	}
 }
 
-float Mass_Accomodation=0.0f;
+
+Roo<MyShipMass> ShipMass=new Roo<MyShipMass>(Controller.CalculateShipMass());
+float Get_Mass_Accomodation(){
+	return (float)(Gravity.Length()*ShipMass.PhysicalMass);
+}
+Roo<float> Mass_Accomodation=new Roo<float>(Get_Mass_Accomodation);
 double Time_To_Crash=double.MaxValue;
 double Time_To_Stop=0;
+
+Roo<Vector3D> ShipPosition=new Roo<Vector3D>(Controller.GetPosition());
 
 double RestingSpeed=0;
 Vector3D RestingVelocity{
@@ -1349,7 +1410,12 @@ double CurrentSpeed{
 		return CurrentVelocity.Length();
 	}
 }
-Vector3D CurrentVelocity;
+Roo<MyShipVelocities> Velocities=new Roo<MyShipVelocities>(Controller.GetShipVelocities());
+Vector3D CurrentVelocity{
+	get{
+		return Velocities.LinearVelocity;
+	}
+}
 Vector3D Velocity_Direction{
 	get{
 		Vector3D VD=CurrentVelocity;
@@ -1357,15 +1423,16 @@ Vector3D Velocity_Direction{
 		return VD;
 	}
 }
-Vector3D Relative_CurrentVelocity{
-	get{
-		Vector3D output=Vector3D.Transform(CurrentVelocity+Controller.GetPosition(),MatrixD.Invert(Controller.WorldMatrix));
-		output.Normalize();
-		output*=CurrentVelocity.Length();
-		return output;
-	}
+
+Vector3D Get_Relative_CurrentVelocity(){
+	Vector3D output=Vector3D.Transform(CurrentVelocity+ShipPosition,MatrixD.Invert(Controller.WorldMatrix));
+	output.Normalize();
+	output*=CurrentVelocity.Length();
+	return output;
 }
-Vector3D Gravity;
+Roo<Vector3D> Relative_CurrentVelocity=new Roo<Vector3D>(Get_Relative_CurrentVelocity);
+
+Roo<Vector3D> Gravity=new Roo<Vector3D>(Controller.GetNaturalGravity());
 Vector3D Relative_Gravity{
 	get{
 		return GlobalToLocal(Gravity,Controller);
@@ -1390,16 +1457,35 @@ double Speed_Deviation{
 		return (CurrentVelocity-RestingVelocity).Length();
 	}
 }
-Vector3D AngularVelocity;
+Vector3D AngularVelocity{
+	get{
+		return Velocities.AngularVelocity;
+	}
+}
 Vector3D Relative_AngularVelocity{
 	get{
 		return GlobalToLocal(AngularVelocity,Controller);
 	}
 }
 
-double Elevation;
-double Sealevel;
-Vector3D PlanetCenter;
+double Get_Elevation(){
+	double elevation=double.MaxValue;
+	Controller.TryGetPlanetElevation(MyPlanetElevation.Surface,out elevation);
+	return elevation;
+}
+Roo<double> Elevation=new Roo<double>(Get_Elevation);
+double Get_Sealevel(){
+	double sealevel=double.MaxValue;
+	Controller.TryGetPlanetElevation(MyPlanetElevation.Sealevel,out sealevel);
+	return sealevel;
+}
+Roo<double> Sealevel=new Roo<double>(Get_Sealevel);
+Vector3D Get_PlanetCenter(){
+	Vector3D planetCenter=new Vector3D(0,0,0);
+	Controller.TryGetPlanetPosition(out planetCenter);
+	return planetCenter;
+}
+Roo<Vector3D> PlanetCenter=new Roo<double>(Get_Planetcenter);
 
 UpdateFrequency GetUpdateFrequency(){
 	if(Running_Thrusters||(Gyroscope!=null&&Gyroscope.GyroOverride))
@@ -1702,11 +1788,11 @@ void SetGyroscopes(){
 		if(Gyro.IsWorking)
 			gyro_count+=Gyro.GyroPower/100.0f;
 	}
-	float gyro_multx=(float)Math.Max(0.1f, Math.Min(1, 1.5f/(Controller.CalculateShipMass().PhysicalMass/gyro_count/1000000)));
+	float gyro_multx=(float)Math.Max(0.1f, Math.Min(1, 1.5f/(ShipMass.PhysicalMass/gyro_count/1000000)));
 	
 	if(Match_Direction&&Do_Position&&Target_Distance>20){
 		bool do_Match=true;
-		Vector3D target_direction=Target_Position-Controller.GetPosition();
+		Vector3D target_direction=Target_Position-ShipPosition;
 		target_direction.Normalize();
 		if(Gravity.Length()>0){
 			double Grav_Angle=GetAngle(target_direction,Gravity_Direction);
@@ -1877,7 +1963,7 @@ float Match_Thrust(double esl,double Relative_Speed,double Relative_Target_Speed
 	float distance_multx=1.0f;
 	double Target_Speed=0;
 	double speed_change=Relative_Speed-Relative_Target_Speed;
-	double deacceleration=Math.Abs(speed_change*Controller.CalculateShipMass().PhysicalMass);
+	double deacceleration=Math.Abs(speed_change*ShipMass.PhysicalMass);
 	double time=0;
 	//difference is required change in velocity; must be "0" when the target is reached
 	if(speed_change>0)
@@ -1937,12 +2023,12 @@ Vector3D Relative_Target_Position{
 }
 double Target_Distance{
 	get{
-		return (Target_Position-Controller.GetPosition()).Length();
+		return (Target_Position-ShipPosition).Length();
 	}
 }
 double True_Target_Distance{
 	get{
-		return (True_Target_Position-Controller.GetPosition()).Length();
+		return (True_Target_Position-ShipPosition).Length();
 	}
 }
 bool Running_Thrusters=false;
@@ -2184,6 +2270,7 @@ class Notification{
 List<Notification> Notifications;
 
 void UpdateProgramInfo(){
+	OneDone.ResetAll();
 	cycle=(++cycle)%long.MaxValue;
 	switch(loading_char){
 		case '|':
@@ -2217,14 +2304,14 @@ void UpdateProgramInfo(){
 
 double Target_Elevation=double.MaxValue;
 void Crash_Test(){
-	double from_center=(Controller.GetPosition()-PlanetCenter).Length();
-	Vector3D next_position=Controller.GetPosition()+1*CurrentVelocity;
+	double from_center=(ShipPosition-PlanetCenter).Length();
+	Vector3D next_position=ShipPosition+1*CurrentVelocity;
 	double Elevation_per_second=(from_center-(next_position-PlanetCenter).Length());
 	Target_Elevation=Elevation;
 	if(Do_Position){
 		Vector3D target_direction=Target_Position-PlanetCenter;
 		target_direction.Normalize();
-		Vector3D me_direction=Controller.GetPosition()-PlanetCenter;
+		Vector3D me_direction=ShipPosition-PlanetCenter;
 		me_direction.Normalize();
 		double planet_angle=GetAngle(me_direction,target_direction);
 		if(planet_angle<2.5){
@@ -2248,10 +2335,10 @@ void Crash_Test(){
 			need_print=false;
 		}
 		else{
-			bool Will_Descend=(Controller.GetPosition()-PlanetCenter).Length()>(Controller.GetPosition()+CurrentVelocity-PlanetCenter).Length();
+			bool Will_Descend=(ShipPosition-PlanetCenter).Length()>(ShipPosition+CurrentVelocity-PlanetCenter).Length();
 			bool Will_Be_Closer=true;
 			if(Do_Position){
-				Will_Be_Closer=(Controller.GetPosition()-Target_Position).Length()<(Controller.GetPosition()+CurrentVelocity-Target_Position).Length()||CurrentSpeed<5;
+				Will_Be_Closer=(ShipPosition-Target_Position).Length()<(ShipPosition+CurrentVelocity-Target_Position).Length()||CurrentSpeed<5;
 			}
 			if(Time_To_Crash*Math.Max(Target_Elevation,1000)<1800000&&CurrentSpeed>1.0f){
 				Write(Math.Round(Time_To_Crash,1).ToString()+" seconds to crash");
@@ -2265,7 +2352,6 @@ void Crash_Test(){
 }
 double LastElevation=double.MaxValue;
 void UpdateSystemData(){
-	Thrust_Check=false;
 	Vector3D base_vector=new Vector3D(0,0,-1);
 	Forward_Vector=LocalToGlobal(base_vector,Controller);
 	Forward_Vector.Normalize();
@@ -2275,9 +2361,6 @@ void UpdateSystemData(){
 	base_vector=new Vector3D(-1,0,0);
 	Left_Vector=LocalToGlobal(base_vector,Controller);
 	Left_Vector.Normalize();
-	Gravity=Controller.GetNaturalGravity();
-	CurrentVelocity=Controller.GetShipVelocities().LinearVelocity;
-	AngularVelocity=Controller.GetShipVelocities().AngularVelocity;
 	
 	//Time to Stop: Counter Velocity
 	Vector3D Time=new Vector3D(0,0,0);
@@ -2301,29 +2384,8 @@ void UpdateSystemData(){
 	Time_To_Crash=-1;
 	LastElevation=Elevation;
 	Elevation=double.MaxValue;
-	if(Controller.TryGetPlanetElevation(MyPlanetElevation.Sealevel,out Sealevel)){
-		if(Controller.TryGetPlanetPosition(out PlanetCenter)){
-			if(Sealevel<6000&&Controller.TryGetPlanetElevation(MyPlanetElevation.Surface,out Elevation)){
-				if(Sealevel>5000){
-					double difference=Sealevel-5000;
-					Elevation=((Elevation*(1000-difference))+(Sealevel*difference))/1000;
-				}
-				else if(Elevation<500){
-					double terrain_height=(Controller.GetPosition()-PlanetCenter).Length()-Elevation;
-				}
-			}
-			else
-				Elevation=Sealevel;
-			if(!Me.CubeGrid.IsStatic)
-				Crash_Test();
-		}
-		else
-			PlanetCenter=new Vector3D(0,0,0);
-	}
-	else
-		Sealevel=double.MaxValue;
-	Elevation=Math.Max(Elevation,0);
-	Mass_Accomodation=(float)(Controller.CalculateShipMass().PhysicalMass*Gravity.Length());
+	if(!Me.CubeGrid.IsStatic&&Gravity.Length()>0)
+		Crash_Test();
 }
 
 void PrintNotifications(){
@@ -2407,7 +2469,7 @@ bool Task_Direction(Task task){
 	Vector3D direction=new Vector3D(0,0,0);
 	if(task.Qualifiers[0].IndexOf("At ")==0){
 		if(Vector3D.TryParse(task.Qualifiers.Last().Substring(3),out direction)){
-			Target_Direction=direction-Controller.GetPosition();
+			Target_Direction=direction-ShipPosition;
 			Target_Direction.Normalize();
 			Do_Direction=true;
 			return true;
@@ -2506,7 +2568,7 @@ bool Task_Go(Task task){
 		True_Target_Position=position;
 		Do_Position=true;
 		if(Gravity.Length()>0){
-			Vector3D MyPosition=Controller.GetPosition();
+			Vector3D MyPosition=ShipPosition;
 			double my_radius=(MyPosition-PlanetCenter).Length();
 			Vector3D target_direction=Target_Position-PlanetCenter;
 			double target_radius=target_direction.Length();
@@ -2698,7 +2760,7 @@ void Main_Program(string argument){
 		FactoryReset();
 	}
 	
-	if(!Me.CubeGrid.IsStatic&&Controller.CalculateShipMass().PhysicalMass>0){
+	if(!Me.CubeGrid.IsStatic&&ShipMass.PhysicalMass>0){
 		if(Control_Thrusters)
 			SetThrusters();
 		else
