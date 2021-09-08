@@ -710,6 +710,33 @@ struct Planet{
 	public bool Same(Planet O){
 		return (PlanetCenter-O.PlanetCenter).Length()<5;
 	}
+	
+	public override string ToString(){
+		return "{"+PlanetCenter.ToString()+','+SealevelRadius.ToString()+','+GravityRadius.ToString()+"}";
+	}
+	
+	public static Planet Parse(string input){
+		if(input.IndexOf('{'!=0||input.IndexOf('}')!=input.Length-1))
+			throw new ArgumentException("Bad format");
+		string[] args=input.Substring(1,input.Length-2);
+		if(args.Length!=3)
+			throw new ArgumentException("Bad format");
+		Vector3D planetCenter=Vector3D.Parse(args[0]);
+		double sealevelRadius=double.Parse(args[1]);
+		double gravityRadius=double.Parse(args[2]);
+		return new Planet(planetCenter,sealevelRadius,gravityRadius);
+	}
+	
+	public static bool TryParse(string input,out Planet? output){
+		output=null;
+		try{
+			output=Parse(input);
+			return output!=null;
+		}
+		catch{
+			return false;
+		}
+	}
 }
 
 bool ValidTarget(MyDetectedEntityInfo Entity){
@@ -758,6 +785,8 @@ void UpdateStalkerSensors(){
 			Locked[i].Enabled=true;
 		else
 			TargetIds.Add(Target.EntityId);
+		if(Locked[i].Enabled)
+			SetBlockData(Locked[i],"Tracking",false.ToString());
 	}
 	List<IMySensorBlock> Unlocked=UnlockedSensors();
 	for(int i=0;i<Unlocked.Count;i++){
@@ -765,6 +794,7 @@ void UpdateStalkerSensors(){
 		if(ValidTarget(Target)&&!TargetIds.Contains(Target.EntityId)){
 			Unlocked[i].Enabled=false;
 			TargetIds.Add(Target.EntityId);
+			SetBlockData(Unlocked[i],"Tracking",true.ToString());
 		}
 	}
 }
@@ -1230,6 +1260,8 @@ void Reset(){
 	Batteries=new List<IMyBatteryBlock>();
 	FuelingDocks=new List<Dock>();
 	DockingConnector=null;
+	Planets=new List<Planet>();
+	StalkerSensors=new List<IMySensorBlock>();
 	for(int i=0;i<All_Thrusters.Length;i++){
 		if(All_Thrusters[i]!=null){
 			for(int j=0;j<All_Thrusters[i].Count;j++){
@@ -1291,14 +1323,15 @@ bool Setup(){
 	SetThrusterList(Right_Thrusters,"Right");
 	Batteries=GenericMethods<IMyBatteryBlock>.GetAllIncluding("");
 	DockingConnector=GenericMethods<IMyShipConnector>.GetContaining("Stalker Docking Connector");
+	StalkerSensors=GenericMethods<IMyStalkerSensor>.GetContaining("Stalker Sensor");
 	string mode="";
 	string[] args=this.Storage.Split('\n');
 	foreach(string arg in args){
 		switch(arg){
 			case "Docks":
-				mode=arg;
-				break;
+			case "Planets":
 			case "MyTask":
+			case "RestingSpeed":
 				mode=arg;
 				break;
 			default:
@@ -1308,6 +1341,11 @@ bool Setup(){
 						if(Dock.TryParse(arg,out dock))
 							FuelingDocks.Add(dock);
 						break;
+					case "Planets":
+						Planet planet;
+						if(Planet.TryParse(arg,out planet))
+							Planets.Add(planet);
+						break;
 					case "MyTask":
 						try{
 							MyTask=ParseTask(arg);
@@ -1315,6 +1353,11 @@ bool Setup(){
 						catch{
 							MyTask=new Task_None();
 						}
+						break;
+					case "RestingSpeed":
+						double restingSpeed=0;
+						if(double.TryParse(arg,out restingSpeed))
+							RestingSpeed=restingSpeed;
 						break;
 				}
 				break;
@@ -1342,19 +1385,6 @@ public Program(){
 	Me.GetSurface(1).TextPadding=30.0f;
 	Echo("Beginning initialization");
 	Rnd=new Random();
-	string[] args=this.Storage.Split('•');
-	foreach(string arg in args){
-		if(!arg.Contains(':'))
-			continue;
-		int index=arg.IndexOf(':');
-		string name=arg.Substring(0,index);
-		string data=arg.Substring(index+1);
-		switch(name){
-			case "RestingSpeed":
-				double.TryParse(data,out RestingSpeed);
-				break;
-		}
-	}
 	Notifications=new List<Notification>();
 	Task_Queue=new Queue<Task>();
 	TaskParser(Me.CustomData);
@@ -1362,16 +1392,23 @@ public Program(){
 }
 
 public void Save(){
-	this.Storage="RestingSpeed:"+Math.Round(RestingSpeed,1).ToString();
+	this.Storage="\nMyTask\n"+MyTask.ToString();
+	this.Storage+="\nRestingSpeed\n"+Math.Round(RestingSpeed,1).ToString();
+	this.Storage+="\nDocks";
+	foreach(Dock dock in FuelingDocks)
+		this.Storage+='\n'+dock.ToString();
+	this.Storage+="\nPlanets";
+	foreach(Planet planet in Planets)
+		this.Storage+='\n'+planet.ToString();
+	Me.CustomData="";
+	foreach(Task T in Task_Queue){
+		Me.CustomData+=T.ToString()+'•';
+	}
 	if(Gyroscope!=null)
 		Gyroscope.GyroOverride=false;
 	for(int i=0;i<All_Thrusters.Length;i++){
 		foreach(IMyThrust Thruster in All_Thrusters[i])
 			ResetThruster(Thruster);
-	}
-	Me.CustomData="";
-	foreach(Task T in Task_Queue){
-		Me.CustomData+=T.ToString()+'•';
 	}
 }
 
