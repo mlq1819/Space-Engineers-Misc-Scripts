@@ -680,6 +680,38 @@ class Task_Refuel:Ship_Task<Dock>{
 	}
 }
 
+struct Planet{
+	public Vector3D PlanetCenter;
+	public double SealevelRadius;
+	public double GravityRadius;
+	
+	public Planet(Vector3D planetCenter,double sealevelRadius,double gravityRadius){
+		PlanetCenter=planetCenter;
+		SealevelRadius=sealevelRadius;
+		GravityRadius=gravityRadius;
+	}
+	
+	public Planet(Vector3D planetCenter,double sealevel,Vector3D position):this(planetCenter,(position-planetCenter).Length()-sealevel,(position-planetCenter).Length()){
+		;
+	}
+	
+	public double DistanceFromGravity(Vector3D Position){
+		return (Position-PlanetCenter).Length()-GravityRadius;
+	}
+	
+	public double DistanceFromSealevel(Vector3D Position){
+		return (Position-PlanetCenter).Length()-SealevelRadius;
+	}
+	
+	public double GravityDistance(Planet O){
+		return Math.Max(0,(PlanetCenter-O.PlanetCenter).Length()-GravityRadius-O.GravityRadius);
+	}
+	
+	public bool Same(Planet O){
+		return (PlanetCenter-O.PlanetCenter).Length()<5;
+	}
+}
+
 bool ValidTarget(MyDetectedEntityInfo Entity){
 	if(Entity.IsEmpty())
 		return false;
@@ -736,6 +768,19 @@ void UpdateStalkerSensors(){
 		}
 	}
 }
+
+void UpdatePlanets(){
+	Planet newPlanet=new Planet(PlanetCenter,Sealevel,Controller.GetPosition());
+	for(int i=0;i<Planets.Count;i++){
+		if(Planets[i].Same(newPlanet)){
+			Planets[i]=new Planet(PlanetCenter,Math.Max(Planets[i].SealevelRadius,newPlanet.SealevelRadius),Math.Max(Planets[i].GravityRadius,newPlanet.GravityRadius));
+			return;
+		}
+	}
+	Planets.Add(newPlanet);
+}
+
+List<Planet> Planets;
 
 TimeSpan Time_Since_Start=new TimeSpan(0);
 long cycle=0;
