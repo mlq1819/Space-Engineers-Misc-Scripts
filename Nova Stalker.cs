@@ -680,6 +680,62 @@ class Task_Refuel:Ship_Task<Dock>{
 	}
 }
 
+bool ValidTarget(MyDetectedEntityInfo Entity){
+	if(Entity.IsEmpty())
+		return false;
+	switch(Entity.Relationship){
+		case MyRelationsBetweenPlayerAndBlock.Owner:
+		case MyRelationsBetweenPlayerAndBlock.FactionShare:
+		case MyRelationsBetweenPlayerAndBlock.Friends:
+		case MyRelationsBetweenPlayerAndBlock.NoOwnership:
+			return false;
+		case MyRelationsBetweenPlayerAndBlock.Neutral:
+		case MyRelationsBetweenPlayerAndBlock.Enemies:
+			break;
+	}
+	switch(Entity.Type){
+		case MyDetectedEntityType.Planet:
+		case MyDetectedEntityType.Asteroid:
+		case MyDetectedEntityType.None:
+		case MyDetectedEntityType.Unknown:
+		case MyDetectedEntityType.Meteor:
+		case MyDetectedEntityType.Missile:
+		case MyDetectedEntityType.FloatingObject:
+			return false;
+		case MyDetectedEntityType.SmallGrid:
+		case MyDetectedEntityType.LargeGrid:
+		case MyDetectedEntityType.CharacterHuman
+		case MyDetectedEntityType.CharacterOther:
+			break;
+	}
+	return true;
+}
+
+bool IsLocked(IMySensorBlock Sensor){
+	return !Sensor.Enabled;
+}
+
+void UpdateStalkerSensors(){
+	List<long> TargetIds=new List<long>();
+	List<IMySensorBlock> Locked=LockedSensors();
+	for(int i=0;i<Locked.Count;i++){
+		MyDetectedEntityInfo Target=Locked[i].LastDetectedEntity;
+		if(!ValidTarget(Target))
+			Locked[i].Enabled=true;
+		else if(TargetIds.Contains(Target.EntityId))
+			Locked[i].Enabled=true;
+		else
+			TargetIds.Add(Target.EntityId);
+	}
+	List<IMySensorBlock> Unlocked=UnlockedSensors();
+	for(int i=0;i<Unlocked.Count;i++){
+		MyDetectedEntityInfo Target=Locked[i].LastDetectedEntity;
+		if(ValidTarget(Target)&&!TargetIds.Contains(Target.EntityId)){
+			Unlocked[i].Enabled=false;
+			TargetIds.Add(Target.EntityId);
+		}
+	}
+}
 
 TimeSpan Time_Since_Start=new TimeSpan(0);
 long cycle=0;
@@ -703,7 +759,32 @@ float BatteryPower{
 }
 List<Dock> FuelingDocks;
 IMyShipConnector DockingConnector;
-
+List<IMySensorBlock> StalkerSensors;
+List<MyDetectedEntityInfo> StalkerData(){
+	List<MyDetectedEntityInfo> output=new List<MyDetectedEntityInfo>();
+	foreach(IMySensorBlock Sensor in LockedSensors()){
+		MyDetectedEntityInfo Target=Sensor.LastDetectedEntity;
+		if(ValidTarget(Target))
+			output.Add(Target);
+	}
+	return output;
+}
+List<IMySensorBlock> LockedSensors(){
+	List<IMySensorBlock> output=new List<IMySensorBlock>();
+	for(int i=0;i<StalkerSensors.Count;i++){
+		if(IsLocked(StalkerSensors[i]))
+			output.Add(StalkerSensors[i]);
+	}
+	return output;
+}
+List<IMySensorBlock> UnlockedSensors(){
+	List<IMySensorBlock> output=new List<IMySensorBlock>();
+	for(int i=0;i<StalkerSensors.Count;i++){
+		if(!IsLocked(StalkerSensors[i]))
+			output.Add(StalkerSensors[i]);
+	}
+	return output;
+}
 
 List<IMyThrust>[] All_Thrusters=new List<IMyThrust>[6];
 List<IMyThrust> Forward_Thrusters{
