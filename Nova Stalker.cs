@@ -812,11 +812,247 @@ void UpdatePlanets(){
 
 List<Planet> Planets;
 
+class MyShieldController{
+	public IMyTerminalBlock Block;
+	public bool Valid{
+		get{
+			return IsShieldController(Block);
+		}
+	}
+	
+	
+	public bool ToggleShield{
+		get{
+			return Get<bool>("DS-C_ToggleShield");
+		}
+		set{
+			Set<bool>("DS-C_ToggleShield",value);
+		}
+	}
+	public long PowerScale{
+		get{
+			return Get<long>("DS-C_PowerScale");
+		}
+		set{
+			Set<long>("DS-C_PowerScale",value);
+		}
+	}
+	public float PowerWatts{
+		get{
+			return Get<float>("DS-C_PowerWatts");
+		}
+		set{
+			Set<float>("DS-C_PowerWatts",value);
+		}
+	}
+	public float CFit{
+		get{
+			return Get<float>("DS-CFit");
+		}
+		set{
+			Set<float>("DS-CFit",value);
+		}
+	}
+	public bool SphereFit{
+		get{
+			return Get<bool>("DS-C_SphereFit");
+		}
+		set{
+			Set<bool>("DS-C_SphereFit",value);
+		}
+	}
+	public bool ShieldFortify{
+		get{
+			return Get<bool>("DS-C_ShieldFortify");
+		}
+		set{
+			Set<bool>("DS-C_ShieldFortify",value);
+		}
+	}
+	public float WidthSlider{
+		get{
+			return Get<float>("DS-C_WidthSlider");
+		}
+		set{
+			Set<float>("DS-C_WidthSlider",value);
+		}
+	}
+	public float HeightSlider{
+		get{
+			return Get<float>("DS-C_HeightSlider");
+		}
+		set{
+			Set<float>("DS-C_HeightSlider",value);
+		}
+	}
+	public float DepthSlider{
+		get{
+			return Get<float>("DS-C_DepthSlider");
+		}
+		set{
+			Set<float>("DS-C_DepthSlider",value);
+		}
+	}
+	public float OffsetWidthSlider{
+		get{
+			return Get<float>("DS-C_OffsetWidthSlider");
+		}
+		set{
+			Set<float>("DS-C_OffsetWidthSlider",value);
+		}
+	}
+	public float OffsetHeightSlider{
+		get{
+			return Get<float>("DS-C_OffsetHeightSlider");
+		}
+		set{
+			Set<float>("DS-C_OffsetHeightSlider",value);
+		}
+	}
+	public float OffsetDepthSlider{
+		get{
+			return Get<float>("DS-C_OffsetDepthSlider");
+		}
+		set{
+			Set<float>("DS-C_OffsetDepthSlider",value);
+		}
+	}
+	public bool UseBatteries{
+		get{
+			return Get<bool>("DS-C_UseBatteries");
+		}
+		set{
+			Set<bool>("DS-C_UseBatteries",value);
+		}
+	}
+	public bool HideIcon{
+		get{
+			return Get<bool>("DS-C_HideIcon");
+		}
+		set{
+			Set<bool>("DS-C_HideIcon",value);
+		}
+	}
+	public long ShellSelect{
+		get{
+			return Get<long>("DS-C_ShellSelect");
+		}
+		set{
+			Set<long>("DS-C_ShellSelect",value);
+		}
+	}
+	public bool HideActive{
+		get{
+			return Get<bool>("DS-C_HideActive");
+		}
+		set{
+			Set<bool>("DS-C_HideActive",value);
+		}
+	}
+	public bool NoWarningSounds{
+		get{
+			return Get<bool>("DS-C_NoWarningSounds");
+		}
+		set{
+			Set<bool>("DS-C_NoWarningSounds",value);
+		}
+	}
+	public bool DimShieldHits{
+		get{
+			return Get<bool>("DS-C_DimShieldHits");
+		}
+		set{
+			Set<bool>("DS-C_DimShieldHits",value);
+		}
+	}
+	public bool SideRedirect{
+		get{
+			return Get<bool>("DS-C_SideRedirect");
+		}
+		set{
+			Set<bool>("DS-C_SideRedirect",value);
+		}
+	}
+	public bool ShowRedirect{
+		get{
+			return Get<bool>("DS-C_ShowRedirect");
+		}
+		set{
+			Set<bool>("DS-C_ShowRedirect",value);
+		}
+	}
+	public bool TopShield{
+		get{
+			return Get<bool>("DS-C_TopShield");
+		}
+		set{
+			Set<bool>("DS-C_TopShield",value);
+		}
+	}
+	public bool BottomShield{
+		get{
+			return Get<bool>("DS-C_BottomShield");
+		}
+		set{
+			Set<bool>("DS-C_BottomShield",value);
+		}
+	}
+	public bool LeftShield{
+		get{
+			return Get<bool>("DS-C_LeftShield");
+		}
+		set{
+			Set<bool>("DS-C_LeftShield",value);
+		}
+	}
+	public bool RightShield{
+		get{
+			return Get<bool>("DS-C_RightShield");
+		}
+		set{
+			Set<bool>("DS-C_RightShield",value);
+		}
+	}
+	public bool FrontShield{
+		get{
+			return Get<bool>("DS-C_FrontShield");
+		}
+		set{
+			Set<bool>("DS-C_FrontShield",value);
+		}
+	}
+	public bool BackShield{
+		get{
+			return Get<bool>("DS-C_BackShield");
+		}
+		set{
+			Set<bool>("DS-C_BackShield",value);
+		}
+	}
+	
+	private T Get<T>(string name){
+		return Block.GetValue<T>(name);
+	}
+	private void Set<T>(string name,T property){
+		Block.SetValue<T>(name,property);
+	}
+	
+	public MyShieldController(IMyTerminalBlock block){
+		Block=block;
+	}
+	
+	public static bool IsShieldController(IMyTerminalBlock Block){
+		return Block!=null&&Block.DefinitionDisplayNameText.ToLower().Contains("shield")&&Block.DefinitionDisplayNameText.ToLower().Contains("controller");
+	}
+}
+
 TimeSpan Time_Since_Start=new TimeSpan(0);
 long cycle=0;
 char loading_char='|';
 double seconds_since_last_update=0;
 Random Rnd;
+
+Gen_Task MyTask;
 
 IMyRemoteControl Controller;
 IMyGyro Gyroscope;
@@ -834,6 +1070,8 @@ float BatteryPower{
 }
 List<Dock> FuelingDocks;
 IMyShipConnector DockingConnector;
+MyShieldController ShieldController;
+
 List<IMySensorBlock> StalkerSensors;
 List<MyDetectedEntityInfo> StalkerData(){
 	List<MyDetectedEntityInfo> output=new List<MyDetectedEntityInfo>();
@@ -1260,6 +1498,8 @@ void Reset(){
 	Batteries=new List<IMyBatteryBlock>();
 	FuelingDocks=new List<Dock>();
 	DockingConnector=null;
+	ShieldController=null;
+	
 	Planets=new List<Planet>();
 	StalkerSensors=new List<IMySensorBlock>();
 	for(int i=0;i<All_Thrusters.Length;i++){
@@ -1272,6 +1512,7 @@ void Reset(){
 		All_Thrusters[i]=new List<IMyThrust>();
 	}
 	RestingSpeed=0;
+	MyTask=new Task_None();
 	Notifications=new List<Notification>();
 }
 
@@ -1323,6 +1564,8 @@ bool Setup(){
 	SetThrusterList(Right_Thrusters,"Right");
 	Batteries=GenericMethods<IMyBatteryBlock>.GetAllIncluding("");
 	DockingConnector=GenericMethods<IMyShipConnector>.GetContaining("Stalker Docking Connector");
+	ShieldController=new ShieldController(GenericMethods<IMyTerminalBlock>.GetClosestFunc(MyShieldController.IsShieldController));
+	
 	StalkerSensors=GenericMethods<IMyStalkerSensor>.GetContaining("Stalker Sensor");
 	string mode="";
 	string[] args=this.Storage.Split('\n');
@@ -1606,7 +1849,6 @@ void SetGyroscopes(){
 	Gyroscope.Yaw=(float)output.Y;
 	Gyroscope.Roll=(float)output.Z;
 }
-
 
 double Distance_Speed_Limit(double distance){
 	distance=Math.Abs(distance);
@@ -2146,164 +2388,6 @@ public void Main(string argument,UpdateType updateSource){
 	}
 }
 
-enum Quantifier{
-	Once=0,
-	Numbered=1,
-	Until=2,
-	Stop=3
-}
-struct TaskFormat{
-	public string Type;
-	public List<Quantifier> Durations;
-	public Vector2 QualifierLimits;
-	
-	public TaskFormat(string T,List<Quantifier> Q,Vector2 L){
-		Type=T;
-		Durations=new List<Quantifier>();
-		foreach(Quantifier q in Q)
-			Durations.Add(q);
-		QualifierLimits=L;
-	}
-	
-	public bool Validate(Task input){
-		if(!input.Type.Equals(Type))
-			return false;
-		if(!Durations.Contains(input.Duration))
-			return false;
-		if(input.Duration==Quantifier.Numbered){
-			if(input.Qualifiers.Count-1<QualifierLimits.X)
-				return false;
-			if(QualifierLimits.Y>=0&&input.Qualifiers.Count-1>QualifierLimits.Y)
-				return false;
-		}
-		else if(input.Duration==Quantifier.Stop){
-			if(input.Qualifiers.Count!=0)
-				return false;
-		}
-		else{
-			if(input.Qualifiers.Count<QualifierLimits.X)
-				return false;
-			if(QualifierLimits.Y>=0&&input.Qualifiers.Count>QualifierLimits.Y)
-				return false;
-		}
-		return true;
-	}
-}
-class Task{
-	public string Type;
-	public Quantifier Duration;
-	public List<string> Qualifiers;
-	
-	public bool Valid{
-		get{
-			int t=0;
-			if(Type.Length==0)
-				return false;
-			if(!Type.Substring(0,1).Equals(Type.Substring(0,1).ToUpper()))
-				return false;
-			if(!Type.Substring(1).Equals(Type.Substring(1).ToLower()))
-				return false;
-			switch(Duration){
-				case Quantifier.Numbered:
-					if(Qualifiers.Count<1||!Int32.TryParse(Qualifiers[0],out t))
-						return false;
-					if(t<0)
-						return false;
-					break;
-				case Quantifier.Stop:
-					if(Qualifiers.Count>0)
-						return false;
-					break;
-			}
-			foreach(string Q in Qualifiers){
-				if(Q.Contains('•')||Q.Contains('\n'))
-					return false;
-			}
-			foreach(TaskFormat Format in ValidFormats){
-				if(Format.Validate(this))
-					return true;
-			}
-			return false;
-		}
-	}
-	
-	public Task(string T,Quantifier D){
-		Type=T;
-		Duration=D;
-		Qualifiers=new List<string>();
-	}
-	
-	public Task(string T, Quantifier D, List<string> Q):this(T,D){
-		foreach(string s in Q)
-			Qualifiers.Add(s);
-	}
-	
-	public override string ToString(){
-		string output=Type+'\n'+Duration.ToString();
-		foreach(string Q in Qualifiers)
-			output+='\n'+Q;
-		return output;
-	}
-	
-	public static bool TryParse(string input,out Task output){
-		output=null;
-		string[] args=input.Split('\n');
-		if(args.Length<2)
-			return false;
-		if(args[0].Length==0)
-			return false;
-		string type=args[0];
-		Quantifier duration;
-		if(!Quantifier.TryParse(args[1],out duration))
-			return false;
-		List<string> qualifiers=new List<string>();
-		for(int i=2;i<args.Length;i++){
-			qualifiers.Add(args[i]);
-		}
-		output=new Task(type,duration,qualifiers);
-		return output.Valid;
-	}
-	
-	public static List<TaskFormat> ValidFormats{
-		get{
-			List<TaskFormat> output=new List<TaskFormat>();
-			
-			output.Add(new TaskFormat(
-			"Send",
-			new List<Quantifier>(new Quantifier[] {Quantifier.Once,Quantifier.Numbered}),
-			new Vector2(1,-1)
-			)); //Params: ProgName, [Arguments]
-			
-			output.Add(new TaskFormat(
-			"Direction",
-			new List<Quantifier>(new Quantifier[] {Quantifier.Numbered,Quantifier.Until,Quantifier.Stop}),
-			new Vector2(1,1)
-			)); //Params: Vector3D
-			
-			output.Add(new TaskFormat(
-			"Up",
-			new List<Quantifier>(new Quantifier[] {Quantifier.Numbered,Quantifier.Until,Quantifier.Stop}),
-			new Vector2(1,1)
-			)); //Params: Vector3D
-			
-			output.Add(new TaskFormat(
-			"Go",
-			new List<Quantifier>(new Quantifier[] {Quantifier.Numbered,Quantifier.Until,Quantifier.Stop}),
-			new Vector2(1,1)
-			)); //Params: Vector3D
-			
-			output.Add(new TaskFormat(
-			"Match",
-			new List<Quantifier>(new Quantifier[] {Quantifier.Numbered,Quantifier.Until,Quantifier.Stop}),
-			new Vector2(0,0)
-			)); //No Params
-						
-			return output;
-		}
-	}
-}
-Queue<Task> Task_Queue; //When a task is added, it is added to the Task Queue to be performed
-
 //Sends an argument to a programmable block
 bool Task_Send(Task task){
 	IMyProgrammableBlock target=GenericMethods<IMyProgrammableBlock>.GetFull(task.Qualifiers[0]);
@@ -2490,7 +2574,7 @@ bool Task_Match(Task task){
 	return true;
 }
 
-bool PerformTask(Task task){
+bool PerformTask(){
 	if(task.Duration==Quantifier.Stop){
 		Queue<Task> Recycling=new Queue<Task>();
 		bool found=false;
@@ -2523,43 +2607,7 @@ bool PerformTask(Task task){
 
 void ProcessTasks(){
 	Task_Resetter();
-	if(Task_Queue.Count==0)
-		return;
-	Queue<Task> Recycling=new Queue<Task>();
-	while(Task_Queue.Count>0){
-		Task task=Task_Queue.Dequeue();
-		if(!task.Valid){
-			Notifications.Add(new Notification("Discarded invalid Task: \""+task.ToString()+"\"",5));
-			continue;
-		}
-		if(!PerformTask(task)){
-			Recycling.Enqueue(task);
-			Write("Failed to run task "+task.Type.ToUpper());
-		}
-		else{
-			switch(task.Duration){
-				case Quantifier.Numbered:
-					int num=0;
-					Int32.TryParse(task.Qualifiers[0],out num);
-					num--;
-					if(num>0){
-						task.Qualifiers[0]=num.ToString();
-						Recycling.Enqueue(task);
-					}
-					Write("Ran task "+task.Type.ToUpper()+" ["+num.ToString()+"]");
-					break;
-				case Quantifier.Until:
-					Recycling.Enqueue(task);
-					Write("Ran task "+task.Type.ToUpper()+" [u]");
-					break;
-				default:
-					Notifications.Add(new Notification("Ran task "+task.Type.ToUpper(),10));
-					break;
-			}
-		}
-	}
-	while(Recycling.Count>0)
-		Task_Queue.Enqueue(Recycling.Dequeue());
+	PerformTask();
 }
 
 void Task_Resetter(){
