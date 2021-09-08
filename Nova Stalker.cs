@@ -477,8 +477,7 @@ char loading_char='|';
 double seconds_since_last_update=0;
 Random Rnd;
 
-IMyShipController Controller;
-List<IMyShipController> Controllers;
+IMyRemoteControl Controller;
 IMyGyro Gyroscope;
 
 List<IMyThrust>[] All_Thrusters=new List<IMyThrust>[6];
@@ -783,13 +782,6 @@ double Elevation;
 double Sealevel;
 Vector3D PlanetCenter;
 
-bool MainControllerFunction(IMyShipController ctr){
-	return ctr.IsMainCockpit&&ControllerFunction(ctr);
-}
-bool ControllerFunction(IMyShipController ctr){
-	return ctr.IsSameConstructAs(Me)&&ctr.CanControlShip&&ctr.ControlThrusters;
-}
-
 UpdateFrequency GetUpdateFrequency(){
 	if(Running_Thrusters||(Gyroscope!=null&&Gyroscope.GyroOverride))
 		return UpdateFrequency.Update1;
@@ -881,7 +873,6 @@ void Reset(){
 	Operational=false;
 	Runtime.UpdateFrequency=UpdateFrequency.None;
 	Controller=null;
-	Controllers=new List<IMyShipController>();
 	if(Gyroscope!=null)
 		Gyroscope.GyroOverride=false;
 	Gyroscope=null;
@@ -901,23 +892,11 @@ void Reset(){
 double MySize=0;
 bool Setup(){
 	Reset();
-	Controller=GenericMethods<IMyShipController>.GetClosestFunc(MainControllerFunction);
-	if(Controller==null)
-		Controller=GenericMethods<IMyShipController>.GetClosestFunc(ControllerFunction);
-	Controllers=GenericMethods<IMyShipController>.GetAllFunc(ControllerFunction);
+	Controller=GenericMethods<IMyRemoteControl>.GetContaining("");
 	if(Controller==null){
 		Write("Failed to find Controller", false, false);
 		return false;
 	}
-	bool has_main_ctrl=false;
-	foreach(IMyShipController Ctrl in Controllers){
-		if(Ctrl.CustomName.Equals(Controller.CustomName)){
-			has_main_ctrl=true;
-			break;
-		}
-	}
-	if(!has_main_ctrl)
-		Controllers.Add(Controller);
 	Forward=Controller.Orientation.Forward;
 	Up=Controller.Orientation.Up;
 	Left=Controller.Orientation.Left;
@@ -956,6 +935,41 @@ bool Setup(){
 	SetThrusterList(Down_Thrusters,"Down");
 	SetThrusterList(Left_Thrusters,"Left");
 	SetThrusterList(Right_Thrusters,"Right");
+	string mode="";
+	string[] args=this.Storage.Split('\n');
+	foreach(string arg in args){
+		switch(arg){
+			case "Docks":
+				mode=arg;
+				break;
+			case "Cargo Docks":
+				mode=arg;
+				break;
+			default:
+				switch(mode){
+					case "Docks":
+						Dock dock;
+						if(Dock.TryParse(arg,out dock))
+							FuelingDocks.Add(dock);
+						break;
+					case "Cargo Docks":
+						CargoDock cargoDock;
+						if(CargoDock.TryParse(arg,out cargoDock))
+							CargoDocks.Enqueue(cargoDock);
+						break;
+					case "MyTask":
+						try{
+							MyTask=ParseTask(arg);
+						}
+						catch{
+							MyTask=new Task_None();
+						}
+						break;
+				}
+				break;
+		}
+	}
+	
 	
 	Acceptable_Angle=Math.Min(Math.Max(0.5,200/MySize),10);
 	Operational=Me.IsWorking;
@@ -1100,12 +1114,9 @@ void SetGyroscopes(){
 	if(Roll_Time<1)
 		Roll_Time+=seconds_since_last_update;
 	
-	bool Undercontrol=false;
-	foreach(IMyShipController Ctrl in Controllers)
-		Undercontrol=Undercontrol||Ctrl.IsUnderControl;
+	bool Undercontrol=Controller.IsUnderControl;
 	
-	foreach(IMyShipController Ctrl in Controllers)
-		input_pitch+=Math.Min(Math.Max(Ctrl.RotationIndicator.X/100,-1),1);
+	input_pitch+=Math.Min(Math.Max(Controller.RotationIndicator.X/100,-1),1);
 	
 	double Direction_Angle=GetAngle(Forward_Vector,Target_Direction);
 	
@@ -1150,8 +1161,7 @@ void SetGyroscopes(){
 		Pitch_Time=0;
 		input_pitch*=30;
 	}
-	foreach(IMyShipController Ctrl in Controllers)
-		input_yaw+=Math.Min(Math.Max(Ctrl.RotationIndicator.Y/100,-1),1);
+	input_yaw+=Math.Min(Math.Max(Controller.RotationIndicator.Y/100,-1),1);
 	if(Math.Abs(input_yaw)<0.05f){
 		input_yaw=current_yaw*0.99f;
 		if(Do_Direction){
@@ -1172,8 +1182,7 @@ void SetGyroscopes(){
 		Yaw_Time=0;
 		input_yaw*=30;
 	}
-	foreach(IMyShipController Ctrl in Controllers)
-		input_roll+=Ctrl.RollIndicator;
+	input_roll+=Controller.RollIndicator;
 	if(Math.Abs(input_roll)<0.05f){
 		input_roll=current_roll*0.99f;
 		if(Do_Up){
@@ -1324,9 +1333,7 @@ void SetThrusters(){
 	float damp_multx=0.99f;
 	double effective_speed_limit=Speed_Limit;
 	
-	bool Undercontrol=false;
-	foreach(IMyShipController Ctrl in Controllers)
-		Undercontrol=Undercontrol||Ctrl.IsUnderControl;
+	bool Undercontrol=Controller.IsUnderControl;
 	
 	double Ev_Df=Math.Max(0,Math.Min(20,MySize/4))+10;
 	if(Safety){
@@ -1414,56 +1421,50 @@ void SetThrusters(){
 			input_forward=thrust_value*deviation_multx+(float)Adjusted_Gravity.Z;
 	}
 	else{
-		foreach(IMyShipController Ctrl in Controllers){
-			if(Ctrl.IsUnderControl&&Math.Abs(Ctrl.MoveIndicator.X)>0.5f){
-				if(Ctrl.MoveIndicator.X>0){
-					if((!Safety)||(CurrentVelocity+Right_Vector-RestingVelocity).Length()<=effective_speed_limit)
-						input_right=0.95f*Right_Thrust*deviation_multx;
-					else
-						input_right=Math.Min(input_right,0)*deviation_multx;
-				} else {
-					if((!Safety)||(CurrentVelocity+Left_Vector-RestingVelocity).Length()<=effective_speed_limit)
-						input_right=-0.95f*Left_Thrust*deviation_multx;
-					else
-						input_right=Math.Max(input_right,0)*deviation_multx;
-				}
+		if(Controller.IsUnderControl&&Math.Abs(Controller.MoveIndicator.X)>0.5f){
+			if(Controller.MoveIndicator.X>0){
+				if((!Safety)||(CurrentVelocity+Right_Vector-RestingVelocity).Length()<=effective_speed_limit)
+					input_right=0.95f*Right_Thrust*deviation_multx;
+				else
+					input_right=Math.Min(input_right,0)*deviation_multx;
+			} else {
+				if((!Safety)||(CurrentVelocity+Left_Vector-RestingVelocity).Length()<=effective_speed_limit)
+					input_right=-0.95f*Left_Thrust*deviation_multx;
+				else
+					input_right=Math.Max(input_right,0)*deviation_multx;
 			}
 		}
 		
-		foreach(IMyShipController Ctrl in Controllers){
-			if(Ctrl.IsUnderControl&&Math.Abs(Ctrl.MoveIndicator.Y)>0.5f){
-				if(Ctrl.MoveIndicator.Y>0){
-					bool grav=GetAngle(Up_Vector,Gravity_Direction)>150;
-					if((!Safety)||(CurrentVelocity+Up_Vector-RestingVelocity).Length()<=effective_speed_limit||(grav&&(Elevation<100+Ev_Df)))
-						input_up=0.95f*Up_Thrust*deviation_multx;
-					else
-						input_up=Math.Min(input_up,0)*deviation_multx;
-				} else {
-					if((!Safety)||(CurrentVelocity+Down_Vector-RestingVelocity).Length()<=effective_speed_limit)
-						input_up=-0.95f*Down_Thrust*deviation_multx;
-					else
-						input_up=Math.Max(input_up,0)*deviation_multx;
-				}
+		if(Controller.IsUnderControl&&Math.Abs(Controller.MoveIndicator.Y)>0.5f){
+			if(Controller.MoveIndicator.Y>0){
+				bool grav=GetAngle(Up_Vector,Gravity_Direction)>150;
+				if((!Safety)||(CurrentVelocity+Up_Vector-RestingVelocity).Length()<=effective_speed_limit||(grav&&(Elevation<100+Ev_Df)))
+					input_up=0.95f*Up_Thrust*deviation_multx;
+				else
+					input_up=Math.Min(input_up,0)*deviation_multx;
+			} else {
+				if((!Safety)||(CurrentVelocity+Down_Vector-RestingVelocity).Length()<=effective_speed_limit)
+					input_up=-0.95f*Down_Thrust*deviation_multx;
+				else
+					input_up=Math.Max(input_up,0)*deviation_multx;
 			}
 		}
 		
-		foreach(IMyShipController Ctrl in Controllers){
-			if(Ctrl.IsUnderControl&&Math.Abs(Ctrl.MoveIndicator.Z)>0.5f){
-				if(Ctrl.MoveIndicator.Z<0){
-					if((!Safety)||(CurrentVelocity+Up_Vector-RestingVelocity).Length()<=effective_speed_limit)
-						input_forward=0.95f*Forward_Thrust*deviation_multx;
-					else
-						input_forward=Math.Min(input_forward,0)*deviation_multx;
-				} 
-				else{
-					if((!Safety)||(CurrentVelocity+Down_Vector-RestingVelocity).Length()<=effective_speed_limit)
-						input_forward=-0.95f*Backward_Thrust*deviation_multx;
-					else
-						input_forward=Math.Max(input_forward,0)*deviation_multx;
-				}
+		if(Controller.IsUnderControl&&Math.Abs(Controller.MoveIndicator.Z)>0.5f){
+			if(Controller.MoveIndicator.Z<0){
+				if((!Safety)||(CurrentVelocity+Up_Vector-RestingVelocity).Length()<=effective_speed_limit)
+					input_forward=0.95f*Forward_Thrust*deviation_multx;
+				else
+					input_forward=Math.Min(input_forward,0)*deviation_multx;
+			} 
+			else{
+				if((!Safety)||(CurrentVelocity+Down_Vector-RestingVelocity).Length()<=effective_speed_limit)
+					input_forward=-0.95f*Backward_Thrust*deviation_multx;
+				else
+					input_forward=Math.Max(input_forward,0)*deviation_multx;
 			}
 		}
-	}
+}
 	
 	
 	if(Forward_Thrusters.Count>0)
@@ -1692,11 +1693,6 @@ void UpdateSystemData(){
 	if(Controller.TryGetPlanetElevation(MyPlanetElevation.Sealevel,out Sealevel)){
 		if(Controller.TryGetPlanetPosition(out PlanetCenter)){
 			if(Sealevel<6000&&Controller.TryGetPlanetElevation(MyPlanetElevation.Surface,out Elevation)){
-				double elevation=Elevation;
-				foreach(IMyShipController ctrl in Controllers){
-					if(ctrl.TryGetPlanetElevation(MyPlanetElevation.Surface,out Elevation))
-						Elevation=Math.Min(Elevation,elevation);
-				}
 				if(Sealevel>5000){
 					double difference=Sealevel-5000;
 					Elevation=((Elevation*(1000-difference))+(Sealevel*difference))/1000;
