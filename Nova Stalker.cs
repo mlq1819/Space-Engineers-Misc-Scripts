@@ -471,6 +471,216 @@ struct CustomPanel{
 	}
 }
 
+class Dock{
+	private IMyShipConnector _DockingConnector;
+	public IMyShipConnector DockingConnector{
+		get{
+			return _DockingConnector;
+		}
+		set{
+			_DockingConnector=value;
+			RefreshDockName();
+		}
+	}
+	public Vector3D DockPosition;
+	public double DockDistance{
+		get{
+			return (DockingConnector.GetPosition()-DockPosition).Length();
+		}
+	}
+	public string PrettyDistance{
+		get{
+			if(DockDistance/1000>29979.246)
+				return Math.Round(DockDistance/299792.46,3).ToString()+"ls";
+			else if(DockDistance>1000)
+				return Math.Round(DockDistance/1000,1).ToString()+"kM";
+			return Math.Round(DockDistance,0).ToString()+"M";
+		}
+	}
+	public Vector3D DockDirection;
+	public Vector3D DockForward;
+	public Vector3D DockUp;
+	public Vector3D DockFinal{
+		get{
+			return DockPosition+2*DockDirection;
+		}
+	}
+	public Vector3D DockTarget{
+		get{
+			return DockPosition+3.25*DockDirection;
+		}
+	}
+	public Vector3D DockApproach{
+		get{
+			return DockPosition+5*DockDirection-25*DockForward+10*DockUp;
+		}
+	}
+	public string DockName;
+	public bool Docked{
+		get{
+			return DockDistance<3.25&&DockingConnector.Status==MyShipConnectorStatus.Connected;
+		}
+	}
+	
+	public Dock(IMyShipConnector dockingConnector,Vector3D dockPosition,Vector3D dockDirection,Vector3D dockForward, Vector3D dockUp,string dockName="Unnamed Dock"){
+		DockName=dockName;
+		DockingConnector=dockingConnector;
+		DockPosition=dockPosition;
+		DockDirection=dockDirection;
+		DockForward=dockForward;
+		DockUp=dockUp;
+	}
+	
+	public virtual string PrettyString(){
+		return DockName+": "+PrettyDistance;
+	}
+	
+	public override string ToString(){
+		return "{"+DockName+";"+DockingConnector.CustomName.ToString()+";"+DockPosition.ToString()+";"+DockDirection.ToString()+";"+DockForward.ToString()+";"+DockUp.ToString()+"}";
+	}
+	
+	public static bool TryParse(string input,out Dock output){
+		output=null;
+		if(input.IndexOf('{')!=0||input.IndexOf('}')!=input.Length-1)
+			return false;
+		string[] args=input.Substring(1,input.Length-1).Split(';');
+		if(args.Length!=6)
+			return false;
+		IMyShipConnector dockingConnector=GenericMethods<IMyShipConnector>.GetConstruct(args[0]);
+		if(dockingConnector==null)
+			return false;
+		Vector3D dockPosition,dockDirection,dockForward,dockUp;
+		if(!Vector3D.TryParse(args[2],out dockPosition))
+			return false;
+		if(!Vector3D.TryParse(args[3],out dockDirection))
+			return false;
+		if(!Vector3D.TryParse(args[4],out dockForward))
+			return false;
+		if(!Vector3D.TryParse(args[5],out dockUp))
+			return false;
+		output=new Dock(dockingConnector,dockPosition,dockDirection,dockForward,dockUp,args[0]);
+		return true;
+	}
+	
+	public void RefreshDockName(){
+		if(DockingConnector!=null&&DockingConnector.Status==MyShipConnectorStatus.Connected){
+			IMyShipConnector Other=DockingConnector.OtherConnector;
+			if(Other!=null)
+				DockName=Other.CubeGrid.CustomName;
+		}
+	}
+}
+
+enum TaskType{
+	Idle,
+	Transfer,
+	Dock,
+	Travel,
+	Job
+}
+abstract class Gen_Task{
+	public TaskType Type;
+	public string Name;
+}
+abstract class Ship_Task<T>:Gen_Task{
+	public T Data;
+	public virtual bool Valid{
+		get{
+			return Type!=TaskType.Idle;
+		}
+	}
+	
+	protected Ship_Task(string name,TaskType type,T data){
+		Type=type;
+		Name=name;
+		Data=data;
+	}
+	
+	public override string ToString(){
+		return "{("+Name.ToString()+");("+Type.ToString()+");("+Data.ToString()+")}";
+	}
+	
+	public static string[] StringParser(string input){
+		if(input.IndexOf("{(")!=0||!input.Substring(input.Length-2).Equals(")}"))
+			throw new ArgumentException("Bad format");
+		int[] indices={-1,-1};
+		int strCount=0;
+		for(int i=2;i<input.Length-2;i++){
+			if(input.Substring(i,3).Equals(");(")){
+				if(strCount>2)
+					throw new ArgumentException("Bad format");
+				indices[strCount++]=i;
+			}
+		}
+		if(strCount<2)
+			throw new ArgumentException("Bad format");
+		
+		string[] output={input.Substring(2,indices[0]-2),input.Substring(indices[0],indices[1]-indices[0]),input.Substring(indices[2],input.Length-2-indices[2])};
+		return output;
+	}
+	
+}
+class Task_None:Ship_Task<string>{
+	public override bool Valid{
+		get{
+			return (!base.Valid)||Type!=TaskType.Dock;
+		}
+	}
+	
+	public Task_None():base("None",TaskType.Idle,""){
+		;
+	}
+	
+	public Task_None(TaskType type):base("None",type,""){
+		;
+	}
+	
+	public static Task_None Parse(string input){
+		string[] args=Ship_Task<Dock>.StringParser(input);
+		TaskType type;
+		if((!args[0].Equals("None"))||(!Enum.TryParse(args[1],out type))||args[2].Length>0)
+			throw new ArgumentException("Bad Format");
+		return new Task_None(type);
+	}
+	
+	public static bool TryParse(string input,out Task_None output){
+		output=null;
+		try{
+			output=Parse(input);
+			return output!=null;
+		}
+		catch{
+			return false;
+		}
+	}
+}
+class Task_Refuel:Ship_Task<Dock>{
+	public Task_Refuel(TaskType type,Dock data):base("Refuel",type,data){
+		;
+	}
+	
+	public static Task_Refuel Parse(string input){
+		string[] args=Ship_Task<Dock>.StringParser(input);
+		TaskType type;
+		Dock data;
+		if((!args[0].Equals("Refuel"))||(!Enum.TryParse(args[1],out type))||(!Dock.TryParse(args[2],out data)))
+			throw new ArgumentException("Bad Format");
+		return new Task_Refuel(type,data);
+	}
+	
+	public static bool TryParse(string input,out Task_Refuel output){
+		output=null;
+		try{
+			output=Parse(input);
+			return output!=null;
+		}
+		catch{
+			return false;
+		}
+	}
+}
+
+
 TimeSpan Time_Since_Start=new TimeSpan(0);
 long cycle=0;
 char loading_char='|';
@@ -479,6 +689,21 @@ Random Rnd;
 
 IMyRemoteControl Controller;
 IMyGyro Gyroscope;
+List<IMyBatteryBlock> Batteries;
+float BatteryPower{
+	get{
+		float current=0;
+		float max=0;
+		foreach(IMyBatteryBlock Battery in Batteries){
+			current+=Battery.CurrentStoredPower;
+			max+=Battery.MaxStoredPower;
+		}
+		return max>0?current:current/max;
+	}
+}
+List<Dock> FuelingDocks;
+IMyShipConnector DockingConnector;
+
 
 List<IMyThrust>[] All_Thrusters=new List<IMyThrust>[6];
 List<IMyThrust> Forward_Thrusters{
@@ -876,6 +1101,8 @@ void Reset(){
 	if(Gyroscope!=null)
 		Gyroscope.GyroOverride=false;
 	Gyroscope=null;
+	Batteries=new List<IMyBatteryBlock>();
+	FuelingDocks=new List<Dock>();
 	for(int i=0;i<All_Thrusters.Length;i++){
 		if(All_Thrusters[i]!=null){
 			for(int j=0;j<All_Thrusters[i].Count;j++){
@@ -935,6 +1162,7 @@ bool Setup(){
 	SetThrusterList(Down_Thrusters,"Down");
 	SetThrusterList(Left_Thrusters,"Left");
 	SetThrusterList(Right_Thrusters,"Right");
+	Batteries=GenericMethods<IMyBatteryBlock>.GetAllIncluding("");
 	string mode="";
 	string[] args=this.Storage.Split('\n');
 	foreach(string arg in args){
@@ -942,7 +1170,7 @@ bool Setup(){
 			case "Docks":
 				mode=arg;
 				break;
-			case "Cargo Docks":
+			case "MyTask":
 				mode=arg;
 				break;
 			default:
@@ -951,11 +1179,6 @@ bool Setup(){
 						Dock dock;
 						if(Dock.TryParse(arg,out dock))
 							FuelingDocks.Add(dock);
-						break;
-					case "Cargo Docks":
-						CargoDock cargoDock;
-						if(CargoDock.TryParse(arg,out cargoDock))
-							CargoDocks.Enqueue(cargoDock);
 						break;
 					case "MyTask":
 						try{
