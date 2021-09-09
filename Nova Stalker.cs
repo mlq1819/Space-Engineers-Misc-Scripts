@@ -293,6 +293,10 @@ class GenericMethods<T> where T : class, IMyTerminalBlock{
 	public static double GetAngle(Vector3D v1, Vector3D v2){
 		return GetAngle(v1,v2,10);
 	}
+	
+	public static double GetAngle(MatrixD m1,MatrixD v2){
+		return Math.Max(GetAngle(m1.Forward,m2.Forward),GetAngle(m1.Up,m2.Up));
+	}
 }
 
 abstract class OneDone{
@@ -325,6 +329,10 @@ class OneDone<T>:OneDone{
 	public override void Reset(){
 		Value=Default;
 	}
+	
+	public static implicit operator T(OneDone<T> O){
+		return O.Value;
+	}
 }
 class Roo<T>{
 	// Run Only Once
@@ -346,8 +354,8 @@ class Roo<T>{
 		Updater=updater;
 	}
 	
-	public static implicit operator T(Roo<T>){
-		return Value;
+	public static implicit operator T(Roo<T> R){
+		return R.Value;
 	}
 }
 
@@ -627,6 +635,149 @@ class Dock{
 	}
 }
 
+struct VectorDto{
+	public Vector3D V1;
+	public Vector3D V2;
+	
+	public VectorDto(Vector3D v1,Vector3D v2){
+		V1=v1;
+		V2=v2;
+	}
+	
+	public VectorDto(MatrixD Orientation){
+		V1=Orientation.Forward;
+		V2=Orientation.Up;
+	}
+	
+	public VectorDto(BoundingBox Box){
+		V1=Box.Min;
+		V2=Box.Max;
+	}
+	
+	public Vector3D[2] ToArr(){
+		return new Vector3D[2] {V1,V2};
+	}
+	
+	public override string ToString(){
+		return "("+V1.ToString()+";"+V2.ToString()+")";
+	}
+	
+	public static VectorDto Parse(string input){
+		if(input.IndexOf('(')!=0||input.IndexOf(')')!=input.Length-1)
+			throw new ArgumentException("Bad format");
+		string[] args=input.Substring(1,input.Length-1).Split(';');
+		if(args.Length!=2)
+			throw new ArgumentException("Bad format");
+		Vector3D v1,v2;
+		if(!(Vector3D.TryParse(args[0],out v1)&&Vector3D.TryParse(args[2],out v2)))
+			throw new ArgumentException("Bad format");
+		return new VetorDto(v1,v2);
+	}
+	
+	public static bool TryParse(string input,out VectorDto? output){
+		output=null;
+		try{
+			output=Parse(input);
+			return output!=null;
+		}
+		catch{
+			return false;
+		}
+	}
+}
+class Entity{
+	public long EntityId;
+	public string Name;
+	public MyDetectedEntityType Type;
+	public MatrixD Orientation;
+	public Vector3D Velocity;
+	public MyRelationsBetweenPlayerAndBlock Relationship;
+	public BoundingBoxD BoundingBox;
+	public TimeSpan TimeStamp;
+	public Vector3D Position{
+		get{
+			return BoundingBox.Center;
+		}
+	}
+	
+	public Entity(long entityId,string name,MyDetectedEntityType type,MatrixD orientation,Vector3D velocity,MyRelationsBetweenPlayerAndBlock relationship,BoundingBoxD boundingBox,TimeSpan timeStamp){
+		EntityId=entityId;
+		Name=name;
+		Type=type;
+		Orientation=orientation;
+		Velocity=velocity;
+		Relationship=relationship;
+		BoundingBox=boundingBox;
+		TimeStamp=timeStamp;
+	}
+	
+	public Entity(MyDetectedEntityInfo e){
+		EntityId=e.EntityId;
+		Name=e.Name;
+		Type=e.Type;
+		Orientation=e.Orientation;
+		Velocity=e.Velocity;
+		Relationship=e.Relationship;
+		BoundingBox=e.BoundingBox;
+		TimeStamp=e.TimeStamp;
+	}
+	
+	public bool Same(Entity o){
+		if(Type!=o.Type)
+			return false;
+		if(EntityId==o.EntityId)
+			return true;
+		return Name.Equals(o.Name)&&(Position-o.Position).Length()<1&&(Velocity-o.Velocity).Length()<5&&(BoundingBox.Size-o.BoundingBox.Size).Length()<5&&GenericMethods<IMyTerminalBlock>.GetAngle(Orientation,o.Orientation)<10;
+	}
+	
+	public void Update(Entity o){
+		Name=o.Name;
+		Orientation=o.Orientation;
+		Velocity=o.Velocity;
+		Relationship=o.Relationship;
+		BoundingBox=o.BoundingBox;
+		TimeStamp=o.TimeStamp;
+	}
+	
+	public void Update(MyDetectedEntityInfo o){
+		Update(new Entity(o));
+	}
+	
+	public override string ToString(){
+		return "["+EntityId.ToString()+","+Name+","+Type.ToString()+","+(new VectorDto(Orientation)).ToString()+","+Velocity.ToString()+","+Relationship.ToString()+","+(new VectorDto(BoundingBox)).ToString()+","+TimeStamp.ToString()+"]";
+	}
+	
+	public static Entity Parse(string input){
+		if(input[0]!='['||input[input.Length-1]!=']')
+			throw new ArgumentException("Bad format");
+		string[] args=input.Substring(1,input.Length-1).Split(',');
+		if(args.Length!=8)
+			throw new ArgumentException("Bad format");
+		long entityId=long.Parse(args[0]);
+		string name=args[1];
+		MyDetectedEntityType type=Enum.Parse(typeof(MyDetectedEntityType),args[2]);
+		MatrixD orientation=MatrixD.CreateFromDir(VectorDto.Parse(args[3]));
+		Vector3D velocity;
+		if(!Vector3D.TryParse(args[4],out velocity))
+			throw new ArgumentException("Bad format");
+		MyRelationsBetweenPlayerAndBlock relationship=Enum.Parse(typeof(MyRelationsBetweenPlayerAndBlock),args[5]);
+		BoundingBoxD boundingBox=BoundingBox.CreateFromPoints(VectorDto.Parse(args[6]).ToArr());
+		TimeSpan timeStamp=TimeSpan.Parse(args[7]);
+		return new Entity(entityId,name,type,orientation,velocity,relationship,boundingBox,timeStamp);
+	}
+	
+	public static bool TryParse(string input,out Entity output){
+		output=null;
+		try{
+			output=Parse(input);
+			return output!=null;
+		}
+		catch{
+			return false;
+		}
+	}
+}
+
 enum TaskType{
 	Idle,
 	Transfer,
@@ -711,12 +862,8 @@ class Task_None:Ship_Task<string>{
 	}
 }
 class Task_Refuel:Ship_Task<Dock>{
-	public Task_Refuel(TaskType type,Dock data):base("Refuel",type,data){
-		;
-	}
-	
 	public static Task_Refuel Parse(string input){
-		string[] args=Ship_Task<Dock>.StringParser(input);
+		string[] args=StringParser(input);
 		TaskType type;
 		Dock data;
 		if((!args[0].Equals("Refuel"))||(!Enum.TryParse(args[1],out type))||(!Dock.TryParse(args[2],out data)))
@@ -734,6 +881,63 @@ class Task_Refuel:Ship_Task<Dock>{
 			return false;
 		}
 	}
+}
+class Task_Stalking:Ship_Task<Entity>{
+	public static Task_Stalking Parse(string input){
+		string[] args=StringParser(input);
+		TaskType type;
+		Entity data;
+		if(!(args[0].Equals("Stalking")&&Enum.TryParse(args[1],out type)&&Entity.TryParse(args[2],out data)))
+			throw new ArgumentException("Bad Format");
+		return new Task_Stalking(type,data);
+	}
+	
+	public static bool TryParse(string input,out Task_Stalking output){
+		output=null;
+		try{
+			output=Parse(input);
+			return output!=null;
+		}
+		catch{
+			return false;
+		}
+	}
+}
+class Task_Hunting:Ship_Task<Entity>{
+	public static Task_Hunting Parse(string input){
+		string[] args=StringParser(input);
+		TaskType type;
+		Entity data;
+		if(!(args[0].Equals("Hunting")&&Enum.TryParse(args[1],out type)&&Entity.TryParse(args[2],out data)))
+			throw new ArgumentException("Bad Format");
+		return new Task_Hunting(type,data);
+	}
+	
+	public static bool TryParse(string input,out Task_Hunting output){
+		output=null;
+		try{
+			output=Parse(input);
+			return output!=null;
+		}
+		catch{
+			return false;
+		}
+	}
+}
+
+Gen_Task ParseTask(string input){
+	string name=Ship_Task<int>.StringParser(input)[0];
+	switch(name){
+		case "None":
+			return Task_None.Parse(input);
+		case "Refuel":
+			return Task_Refuel.Parse(input);
+		case "Stalking":
+			return Task_Stalking.Parse(input);
+		case "Hunting":
+			return Task_Hunting.Parse(input);
+	}
+	return null;
 }
 
 struct Planet{
@@ -866,7 +1070,283 @@ void UpdatePlanets(){
 	Planets.Add(newPlanet);
 }
 
-List<Planet> Planets;
+class MyShieldController{
+	public IMyTerminalBlock Block;
+	public bool Valid{
+		get{
+			return IsShieldController(Block);
+		}
+	}
+	
+	
+	public bool ToggleShield{
+		get{
+			return Get<bool>("DS-C_ToggleShield");
+		}
+		set{
+			Set<bool>("DS-C_ToggleShield",value);
+		}
+	}
+	public long PowerScale{
+		get{
+			return Get<long>("DS-C_PowerScale");
+		}
+		set{
+			Set<long>("DS-C_PowerScale",value);
+		}
+	}
+	public float PowerWatts{
+		get{
+			return Get<float>("DS-C_PowerWatts");
+		}
+		set{
+			Set<float>("DS-C_PowerWatts",value);
+		}
+	}
+	public float CFit{
+		get{
+			return Get<float>("DS-CFit");
+		}
+		set{
+			Set<float>("DS-CFit",value);
+		}
+	}
+	public bool SphereFit{
+		get{
+			return Get<bool>("DS-C_SphereFit");
+		}
+		set{
+			Set<bool>("DS-C_SphereFit",value);
+		}
+	}
+	public bool ShieldFortify{
+		get{
+			return Get<bool>("DS-C_ShieldFortify");
+		}
+		set{
+			Set<bool>("DS-C_ShieldFortify",value);
+		}
+	}
+	public float WidthSlider{
+		get{
+			return Get<float>("DS-C_WidthSlider");
+		}
+		set{
+			Set<float>("DS-C_WidthSlider",value);
+		}
+	}
+	public float HeightSlider{
+		get{
+			return Get<float>("DS-C_HeightSlider");
+		}
+		set{
+			Set<float>("DS-C_HeightSlider",value);
+		}
+	}
+	public float DepthSlider{
+		get{
+			return Get<float>("DS-C_DepthSlider");
+		}
+		set{
+			Set<float>("DS-C_DepthSlider",value);
+		}
+	}
+	public float OffsetWidthSlider{
+		get{
+			return Get<float>("DS-C_OffsetWidthSlider");
+		}
+		set{
+			Set<float>("DS-C_OffsetWidthSlider",value);
+		}
+	}
+	public float OffsetHeightSlider{
+		get{
+			return Get<float>("DS-C_OffsetHeightSlider");
+		}
+		set{
+			Set<float>("DS-C_OffsetHeightSlider",value);
+		}
+	}
+	public float OffsetDepthSlider{
+		get{
+			return Get<float>("DS-C_OffsetDepthSlider");
+		}
+		set{
+			Set<float>("DS-C_OffsetDepthSlider",value);
+		}
+	}
+	public bool UseBatteries{
+		get{
+			return Get<bool>("DS-C_UseBatteries");
+		}
+		set{
+			Set<bool>("DS-C_UseBatteries",value);
+		}
+	}
+	public bool HideIcon{
+		get{
+			return Get<bool>("DS-C_HideIcon");
+		}
+		set{
+			Set<bool>("DS-C_HideIcon",value);
+		}
+	}
+	public long ShellSelect{
+		get{
+			return Get<long>("DS-C_ShellSelect");
+		}
+		set{
+			Set<long>("DS-C_ShellSelect",value);
+		}
+	}
+	public bool HideActive{
+		get{
+			return Get<bool>("DS-C_HideActive");
+		}
+		set{
+			Set<bool>("DS-C_HideActive",value);
+		}
+	}
+	public bool NoWarningSounds{
+		get{
+			return Get<bool>("DS-C_NoWarningSounds");
+		}
+		set{
+			Set<bool>("DS-C_NoWarningSounds",value);
+		}
+	}
+	public bool DimShieldHits{
+		get{
+			return Get<bool>("DS-C_DimShieldHits");
+		}
+		set{
+			Set<bool>("DS-C_DimShieldHits",value);
+		}
+	}
+	public bool SideRedirect{
+		get{
+			return Get<bool>("DS-C_SideRedirect");
+		}
+		set{
+			Set<bool>("DS-C_SideRedirect",value);
+		}
+	}
+	public bool ShowRedirect{
+		get{
+			return Get<bool>("DS-C_ShowRedirect");
+		}
+		set{
+			Set<bool>("DS-C_ShowRedirect",value);
+		}
+	}
+	public bool TopShield{
+		get{
+			return Get<bool>("DS-C_TopShield");
+		}
+		set{
+			Set<bool>("DS-C_TopShield",value);
+		}
+	}
+	public bool BottomShield{
+		get{
+			return Get<bool>("DS-C_BottomShield");
+		}
+		set{
+			Set<bool>("DS-C_BottomShield",value);
+		}
+	}
+	public bool LeftShield{
+		get{
+			return Get<bool>("DS-C_LeftShield");
+		}
+		set{
+			Set<bool>("DS-C_LeftShield",value);
+		}
+	}
+	public bool RightShield{
+		get{
+			return Get<bool>("DS-C_RightShield");
+		}
+		set{
+			Set<bool>("DS-C_RightShield",value);
+		}
+	}
+	public bool FrontShield{
+		get{
+			return Get<bool>("DS-C_FrontShield");
+		}
+		set{
+			Set<bool>("DS-C_FrontShield",value);
+		}
+	}
+	public bool BackShield{
+		get{
+			return Get<bool>("DS-C_BackShield");
+		}
+		set{
+			Set<bool>("DS-C_BackShield",value);
+		}
+	}
+	
+	private T Get<T>(string name){
+		return Block.GetValue<T>(name);
+	}
+	private void Set<T>(string name,T property){
+		Block.SetValue<T>(name,property);
+	}
+	
+	
+	public PbApiWrapper Api;
+	public MyShieldController(IMyTerminalBlock block){
+		Block=block;
+		Api=new PbApiWrapper(Prog.P.Me);
+		Api.SetActiveShield(Block);
+	}
+	
+	public static bool IsShieldController(IMyTerminalBlock Block){
+		return Block!=null&&Block.DefinitionDisplayNameText.ToLower().Contains("shield")&&Block.DefinitionDisplayNameText.ToLower().Contains("controller");
+	}
+}
+
+class MyWeaponCore{
+	public IMyTerminalBlock Block;
+	
+	public static WcPbApi Api;
+	public MyWeaponCore(IMyTerminalBlock block){
+		Block=block;
+	}
+	
+	public double ExpectCharge(double seconds){
+		double LastChargeTime=60;
+		if(GenericMethods<IMyTerminalBlock>.HasBlockData(Block,"LastChargeTime"))
+			double.TryParse(GenericMethods<IMyTerminalBlock>.GetBlockData(Block,"LastChargeTime"),out LastChargeTime);
+		double ChargeTime=0;
+		if(GenericMethods<IMyTerminalBlock>.HasBlockData(Block,"ChargeTime"))
+			double.TryParse(GenericMethods<IMyTerminalBlock>.GetBlockData(Block,"ChargeTime"),out ChargeTime);
+		bool Ready=Api.IsWeaponReadyToFire(Block);
+		bool WasCharging=Ready;
+		if(GenericMethods<IMyTerminalBlock>.HasBlockData(Block,"WasCharging"))
+			bool.TryParse(GenericMethods<IMyTerminalBlock>.GetBlockData(Block,"WasCharging"),out WasCharging);
+		if(WasCharging^Ready){
+			if(Ready){
+				if(LastChargeTime==60)
+					LastChargeTime=ChargeTime;
+				else
+					LastChargeTime=(LastChargeTime+ChargeTime)/2;
+				GenericMethods<IMyTerminalBlock>.SetBlockData(Block,"LastChargeTime",Math.Round(LastChargeTime,3).ToString());
+			}
+			else
+				ChargeTime=0;
+			GenericMethods<IMyTerminalBlock>.SetBlockData(Block,"WasCharging",Ready.ToString());
+		}
+		if(!Ready){
+			ChargeTime+=seconds;
+			GenericMethods<IMyTerminalBlock>.SetBlockData(Block,"ChargeTime",Math.Round(ChargeTime,3).ToString());
+			return Math.Max(0,LastChargeTime-ChargeTime);
+		}
+		return 0;
+	}
+}
 
 class MyShieldController{
 	public IMyTerminalBlock Block;
@@ -1127,6 +1607,8 @@ float BatteryPower{
 List<Dock> FuelingDocks;
 IMyShipConnector DockingConnector;
 MyShieldController ShieldController;
+
+List<Planet> Planets;
 
 List<IMySensorBlock> StalkerSensors;
 List<MyDetectedEntityInfo> StalkerData(){
@@ -2561,73 +3043,69 @@ struct Line{
 
 Vector3D True_Target_Position=new Vector3D(0,0,0);
 //Tells the ship to fly to a specific location
-bool Task_Go(Task task){
-	Vector3D position=new Vector3D(0,0,0);
-	if(Vector3D.TryParse(task.Qualifiers.Last(),out position)){
-		Target_Position=position;
-		True_Target_Position=position;
-		Do_Position=true;
-		if(Gravity.Length()>0){
-			Vector3D MyPosition=ShipPosition;
-			double my_radius=(MyPosition-PlanetCenter).Length();
-			Vector3D target_direction=Target_Position-PlanetCenter;
-			double target_radius=target_direction.Length();
-			target_direction.Normalize();
-			double planet_radius=my_radius-Target_Elevation;
-			double sealevel_radius=my_radius-Sealevel;
-			Vector3D me_direction=MyPosition-PlanetCenter;
-			me_direction.Normalize();
-			double planet_angle=GetAngle(me_direction,target_direction);
-			Write("Planetary Angle: "+Math.Round(planet_angle,1).ToString()+"°");
-			if(target_radius>sealevel_radius+100){
-				if(target_radius>planet_radius/3){
-					if(planet_angle>30){
-						if(target_radius>my_radius+2000)
-							Target_Position=PlanetCenter-(planet_radius*4/3*Gravity_Direction);
-						return true;
-					}
-				}
-				else if(my_radius<sealevel_radius+400){
-					Target_Position=PlanetCenter-((sealevel_radius+500)*Gravity_Direction);
+bool Task_Go(Vector3D position){
+	Target_Position=position;
+	True_Target_Position=position;
+	Do_Position=true;
+	if(Gravity.Length()>0){
+		Vector3D MyPosition=ShipPosition;
+		double my_radius=(MyPosition-PlanetCenter).Length();
+		Vector3D target_direction=Target_Position-PlanetCenter;
+		double target_radius=target_direction.Length();
+		target_direction.Normalize();
+		double planet_radius=my_radius-Target_Elevation;
+		double sealevel_radius=my_radius-Sealevel;
+		Vector3D me_direction=MyPosition-PlanetCenter;
+		me_direction.Normalize();
+		double planet_angle=GetAngle(me_direction,target_direction);
+		Write("Planetary Angle: "+Math.Round(planet_angle,1).ToString()+"°");
+		if(target_radius>sealevel_radius+100){
+			if(target_radius>planet_radius/3){
+				if(planet_angle>30){
+					if(target_radius>my_radius+2000)
+						Target_Position=PlanetCenter-(planet_radius*4/3*Gravity_Direction);
 					return true;
 				}
 			}
-			if((planet_angle>2.5||(planet_angle>5&&target_radius-my_radius>2000))||Target_Elevation-MySize/2<Math.Max(30,Target_Distance/10)){
-				while(planet_angle==180){
-					//This offsets the angle so we can create a full Plane from the 3 points: Center,Here,Target
-					Vector3D offset=new Vector3D(Rnd.Next(0,10)-5,Rnd.Next(0,10)-5,Rnd.Next(0,10)-5);
-					offset.Normalize();
-					Target_Position+=offset;
-					target_direction=Target_Position-PlanetCenter;
-					target_direction.Normalize();
-					planet_angle=GetAngle(me_direction,target_direction);
-				}
-				double GoalElevation=500;
-				
-				if(Target_Elevation<500+MySize){
-					//This increases the cruising altitude if the elevation is too low, for collision avoidance
-					my_radius+=Math.Max(Math.Min(9.375*2*(GoalElevation-(Target_Elevation-MySize)),5000),400);
-					MyPosition=(my_radius)*me_direction+PlanetCenter;
-				}
-				Target_Position=(my_radius)*target_direction+PlanetCenter;
-				//Target is now at same altitude with respect to sealevel
-				Plane Bisect=new Plane(Target_Position,MyPosition,PlanetCenter);
-				//This plane now bisects the planet along both the current location and target
-				Sphere Planet=new Sphere(PlanetCenter,my_radius);
-				//This sphere now represents the planet at the current elevation
-				Line Tangent=new Line(Bisect,Planet,MyPosition);
-				//This line now represents the tangent of the planet in a direction that lines up with the target
-				Vector3D Goal_Direction=Tangent.V;
-				Vector3D My_Direction=Target_Position-MyPosition;
-				My_Direction.Normalize();
-				if(GetAngle(Goal_Direction,My_Direction)>GetAngle(-1*Goal_Direction,My_Direction))
-					Goal_Direction*=-1;
-				Target_Position=Goal_Direction*2500+MyPosition;
+			else if(my_radius<sealevel_radius+400){
+				Target_Position=PlanetCenter-((sealevel_radius+500)*Gravity_Direction);
+				return true;
 			}
 		}
-		return true;
+		if((planet_angle>2.5||(planet_angle>5&&target_radius-my_radius>2000))||Target_Elevation-MySize/2<Math.Max(30,Target_Distance/10)){
+			while(planet_angle==180){
+				//This offsets the angle so we can create a full Plane from the 3 points: Center,Here,Target
+				Vector3D offset=new Vector3D(Rnd.Next(0,10)-5,Rnd.Next(0,10)-5,Rnd.Next(0,10)-5);
+				offset.Normalize();
+				Target_Position+=offset;
+				target_direction=Target_Position-PlanetCenter;
+				target_direction.Normalize();
+				planet_angle=GetAngle(me_direction,target_direction);
+			}
+			double GoalElevation=500;
+			
+			if(Target_Elevation<500+MySize){
+				//This increases the cruising altitude if the elevation is too low, for collision avoidance
+				my_radius+=Math.Max(Math.Min(9.375*2*(GoalElevation-(Target_Elevation-MySize)),5000),400);
+				MyPosition=(my_radius)*me_direction+PlanetCenter;
+			}
+			Target_Position=(my_radius)*target_direction+PlanetCenter;
+			//Target is now at same altitude with respect to sealevel
+			Plane Bisect=new Plane(Target_Position,MyPosition,PlanetCenter);
+			//This plane now bisects the planet along both the current location and target
+			Sphere Planet=new Sphere(PlanetCenter,my_radius);
+			//This sphere now represents the planet at the current elevation
+			Line Tangent=new Line(Bisect,Planet,MyPosition);
+			//This line now represents the tangent of the planet in a direction that lines up with the target
+			Vector3D Goal_Direction=Tangent.V;
+			Vector3D My_Direction=Target_Position-MyPosition;
+			My_Direction.Normalize();
+			if(GetAngle(Goal_Direction,My_Direction)>GetAngle(-1*Goal_Direction,My_Direction))
+				Goal_Direction*=-1;
+			Target_Position=Goal_Direction*2500+MyPosition;
+		}
 	}
-	return false;
+	return true;
 }
 
 //Tells the ship to match position
@@ -2636,34 +3114,11 @@ bool Task_Match(Task task){
 	return true;
 }
 
+//Main Job Loop
 bool PerformTask(){
-	if(task.Duration==Quantifier.Stop){
-		Queue<Task> Recycling=new Queue<Task>();
-		bool found=false;
-		while(Task_Queue.Count>0){
-			Task t=Task_Queue.Dequeue();
-			if(!t.Type.Equals(task.Type))
-				Recycling.Enqueue(t);
-			else
-				found=true;
-		}
-		while(Recycling.Count>0)
-			Task_Queue.Enqueue(Recycling.Dequeue());
-		return found;
-	}
-	switch(task.Type){
-		case "Send":
-			return Task_Send(task);
-		case "Direction":
-			return Task_Direction(task);
-		case "Up":
-			return Task_Up(task);
-		case "Go":
-			return Task_Go(task);
-		case "Match":
-			return Task_Match(task);
-		
-	}
+	
+	
+	
 	return false;
 }
 
