@@ -1,10 +1,10 @@
 /*
-* Nova Stalker
+* Nova  Miner
 * Built by mlq1616
 * https://github.com/mlq1819/Space-Engineers-Misc-Scripts
-* This script is meant for stalker drones.
+* This script is meant for automining drones.
 */
-string Program_Name="Nova Stalker";
+string Program_Name="Nova Miner";
 Color DEFAULT_TEXT_COLOR=new Color(197,137,255,255);
 Color DEFAULT_BACKGROUND_COLOR=new Color(44,0,88,255);
 double Speed_Limit=100;
@@ -20,6 +20,30 @@ class Prog{
 
 	public static TimeSpan UpdateTimeSpan(TimeSpan old,double seconds){
 		return old+FromSeconds(seconds);
+	}
+	
+	public static Vector2D ConvertCartesian(Vector3D cart){
+		double R=cart.Length();
+		return new Vector2D(Math.Asin(cart.z/R),Math.Atan(cart.y/cart.x));
+	}
+	
+	public static Vector3D ConvertPolar(Vector2D polar,double R=1){
+		double Lat=polar.X;
+		double Lon=polar.Y;
+		Vector3D output=R*(new Vector3D(Math.Cos(Lat)*Math.Cos(Lon),Math.Cos(Lat)*Math.Sin(Lon),Math.Sin(Lat)));
+		if(R==1)
+			output.Normalize();
+		return output;
+	}
+
+	public static Vector2D PolarDegrees(Vector2D polar){
+		return polar*180/Math.PI;
+	}
+	
+	public static double GetAngle(Vector2D P1,Vector2D P2){
+		Vector2D p1=PolarDegrees(P1);
+		Vector2D p2=PolarDegrees(P2);
+		return Math.Sqrt(Math.Pow(GetAngle(p1.X,p2.X),2)+Math.Pow(GetAngle(p1.Y,p2.Y),2));
 	}
 }
 
@@ -882,47 +906,11 @@ class Task_Refuel:Ship_Task<Dock>{
 		}
 	}
 }
-class Task_Stalking:Ship_Task<Entity>{
-	public static Task_Stalking Parse(string input){
-		string[] args=StringParser(input);
-		TaskType type;
-		Entity data;
-		if(!(args[0].Equals("Stalking")&&Enum.TryParse(args[1],out type)&&Entity.TryParse(args[2],out data)))
-			throw new ArgumentException("Bad Format");
-		return new Task_Stalking(type,data);
-	}
+class Task_Scout:Ship_Task<>{
 	
-	public static bool TryParse(string input,out Task_Stalking output){
-		output=null;
-		try{
-			output=Parse(input);
-			return output!=null;
-		}
-		catch{
-			return false;
-		}
-	}
 }
-class Task_Hunting:Ship_Task<Entity>{
-	public static Task_Hunting Parse(string input){
-		string[] args=StringParser(input);
-		TaskType type;
-		Entity data;
-		if(!(args[0].Equals("Hunting")&&Enum.TryParse(args[1],out type)&&Entity.TryParse(args[2],out data)))
-			throw new ArgumentException("Bad Format");
-		return new Task_Hunting(type,data);
-	}
+class Task_Scan:Ship_Task<>{
 	
-	public static bool TryParse(string input,out Task_Hunting output){
-		output=null;
-		try{
-			output=Parse(input);
-			return output!=null;
-		}
-		catch{
-			return false;
-		}
-	}
 }
 
 Gen_Task ParseTask(string input){
@@ -999,64 +987,529 @@ struct Planet{
 	}
 }
 
-bool ValidTarget(MyDetectedEntityInfo Entity){
-	if(Entity.IsEmpty())
-		return false;
-	switch(Entity.Relationship){
-		case MyRelationsBetweenPlayerAndBlock.Owner:
-		case MyRelationsBetweenPlayerAndBlock.FactionShare:
-		case MyRelationsBetweenPlayerAndBlock.Friends:
-		case MyRelationsBetweenPlayerAndBlock.NoOwnership:
-			return false;
-		case MyRelationsBetweenPlayerAndBlock.Neutral:
-		case MyRelationsBetweenPlayerAndBlock.Enemies:
-			break;
-	}
-	switch(Entity.Type){
-		case MyDetectedEntityType.Planet:
-		case MyDetectedEntityType.Asteroid:
-		case MyDetectedEntityType.None:
-		case MyDetectedEntityType.Unknown:
-		case MyDetectedEntityType.Meteor:
-		case MyDetectedEntityType.Missile:
-		case MyDetectedEntityType.FloatingObject:
-			return false;
-		case MyDetectedEntityType.SmallGrid:
-		case MyDetectedEntityType.LargeGrid:
-		case MyDetectedEntityType.CharacterHuman
-		case MyDetectedEntityType.CharacterOther:
-			break;
-	}
-	return true;
-}
-
-bool IsLocked(IMySensorBlock Sensor){
-	return !Sensor.Enabled;
-}
-
-void UpdateStalkerSensors(){
-	List<long> TargetIds=new List<long>();
-	List<IMySensorBlock> Locked=LockedSensors();
-	for(int i=0;i<Locked.Count;i++){
-		MyDetectedEntityInfo Target=Locked[i].LastDetectedEntity;
-		if(!ValidTarget(Target))
-			Locked[i].Enabled=true;
-		else if(TargetIds.Contains(Target.EntityId))
-			Locked[i].Enabled=true;
-		else
-			TargetIds.Add(Target.EntityId);
-		if(Locked[i].Enabled)
-			SetBlockData(Locked[i],"Tracking",false.ToString());
-	}
-	List<IMySensorBlock> Unlocked=UnlockedSensors();
-	for(int i=0;i<Unlocked.Count;i++){
-		MyDetectedEntityInfo Target=Locked[i].LastDetectedEntity;
-		if(ValidTarget(Target)&&!TargetIds.Contains(Target.EntityId)){
-			Unlocked[i].Enabled=false;
-			TargetIds.Add(Target.EntityId);
-			SetBlockData(Unlocked[i],"Tracking",true.ToString());
+abstract class StaggerCalc{
+	protected OneDone<int> Counter;
+	public int Count{
+		get{
+			return Counter.Value;
 		}
 	}
+	
+	public abstract bool RunOnce();
+	public int Run(int cycles){
+		int output=0;
+		while(cycle-->0&&RunOnce())
+			output++;
+		return output;
+	}
+	public int RunAll(){
+		int output=0;
+		while(RunOnce())
+			output++;
+		return output;
+	}
+}
+class StaggerCalc<T>{
+	public T Obj;
+	public Func<T,bool> A;
+	private Action<T> B;
+	
+	protected Staggercalc(T obj,int counter){
+		Obj=obj;
+		Counter=new OneDone<int>(counter);
+	}
+	
+	public StaggerCalc(T obj,Func<T,bool> a,int counter=100):this(obj,counter){
+		A=a;
+	}
+	
+	public StaggerCalc(T obj,Action<T> b,int counter=100):this(obj,counter){
+		B=b;
+		A=C;
+	}
+	
+	private bool C(T input){
+		B(input);
+		return true;
+	}
+	
+	public bool RunOnce(){
+		if(Counter.Value<=0||!A(Obj))
+			return false;
+		Counter.Value--;
+		return true;
+	}
+}
+class StaggerCalc<T,U>:StaggerCalc{
+	public T Obj1;
+	public U Obj2;
+	public Func<T,U,bool> A;
+	private Action<T,U> B;
+	
+	protected Staggercalc(T obj1,U obj2,int counter){
+		Obj1=obj1;
+		Obj2=obj2;
+		Counter=new OneDone<int>(counter);
+	}
+	
+	public StaggerCalc(T obj1,U obj2,Func<T,U,bool> a,int counter=100):this(obj1,obj2,counter){
+		A=a;
+	}
+	
+	public StaggerCalc(T obj1,U obj2,Action<T,U> b,int counter=100):this(obj1,obj2,counter){
+		B=b;
+		A=C;
+	}
+	
+	private bool C(T i1,U i2){
+		B(i1,i2);
+		return true;
+	}
+	
+	public bool RunOnce(){
+		if(Counter.Value<=0)
+			return false;
+		A(Obj1,Obj2);
+		Counter.Value--;
+		return true;
+	}
+}
+
+
+class SurfaceMapper{
+	public double[][] Mapper;
+	public double Degrees;
+	public Roo<Vector2I> Size=new Roo<Vector2I>(CalculateMySize);
+	public Vector2D MinDeg;
+	public Vector2D MaxDeg;
+	public int Count{
+		get{
+			return Size.X*Size.Y;
+		}
+	}
+	
+	public bool Complete{
+		get{
+			return Smallest>=0;
+		}
+	}
+	
+	private double Get_Smallest(){
+		double min=0;
+		for(int x=0;x<Size.X;x++){
+			for(int y=0;y<Size.Y;y++){
+				min=Math.Min(min,Mapper[x][y]);
+			}
+		}
+		return min;
+	}
+	public Roo<double> Smallest=new Roo<double>(Get_Smallest);
+	
+	private double Get_Largest(){
+		double max=0;
+		for(int x=0;x<Size.X;x++){
+			for(int y=0;y<Size.Y;y++){
+				max=Math.Max(max,Mapper[x][y]);
+			}
+		}
+		return max;
+	}
+	public Roo<double> Largest=new Roo<double>(Get_Largest);
+	
+	public Vector2I CalculateMySize(){
+		return CalculateSize(Degrees,MinDeg,MaxDeg);
+	}
+	public static Vector2I CalculateSize(double Deg,Vector2D Min,Vector2D Max){
+		return new Vector2I((int)Math.Ceiling((Max.X-Min.X)/Deg)+1,(int)Math.Ceiling((Max.Y-Min.Y)/Deg)+1);
+	}
+	
+	public SurfaceMapper(double degrees,Vector2D minDeg,Vector2D maxDeg){
+		Degrees=degrees;
+		minDeg.X=Math.Max(minDeg.X,0);
+		minDeg.Y=Math.Max(minDeg.Y,0);
+		maxDeg.X=Math.Min(maxDeg.X,360);
+		maxDeg.Y=Math.Max(maxDeg.Y,180);
+		MinDeg=minDeg;
+		MaxDeg=maxDeg;
+		if(MaxDeg.Y>=180)
+			MaxDeg.Y=181;
+		Mapper=new double[][Size.X];
+		for(int x=0;x<Size.X;x++){
+			Mapper[x]=-1;
+		}
+	}
+	
+	protected SurfaceMapper(double[][] mapper,double degrees,Vector2D minDeg,Vector2D maxDeg){
+		Mapper=mapper;
+		Degrees=degrees;
+		MinDeg=minDeg;
+		MaxDeg=maxDeg;
+	}
+	
+	public bool Maps(Vector2D Pos){
+		return Pos.X>=MinDeg.X&&Pos.Y>=MinDeg.Y&&Pos.X<MaxDeg.X&&Pos.Y<MaxDeg.Y;
+	}
+	
+	public Vector2I Transform(Vector2D Pos){
+		Vector2D Relative=(Pos-MinDeg)/Degrees;
+		return new Vector2I((int)Math.Round(Relative.X,0),(int)Math.Round(Relative.Y,0));
+	}
+	
+	public Vector2I Transform(Vector3D Pos){
+		return Transform(Prog.PolarDegrees(Prog.ConvertCartesian(Pos)));
+	}
+	
+	public bool Map(Vector2D Pos,double Radius){
+		if(!Maps(Pos))
+			return false;
+		Vector2I MyMap=Transform(Pos);
+		Mapper[MyMap.X][MyMap.Y]=Radius;
+		return true;
+	}
+	
+	public bool Map(Vector3D Pos){
+		return Map(Prog.PolarDegrees(Prog.ConvertCartesian(Pos)),Pos.Length());
+	}
+	
+	public Vector3D NextScanDirection(){
+		if(!Complete){
+			for(int x=0;x<Size.X;x++){
+				for(int y=0;y<Size.Y;y++){
+					if(Mapper[x][y]<0){
+						double Lat=MinDeg.X+x*Degrees;
+						double Lon=MinDeg.Y+y*Degrees;
+						return Prog.ConvertPolar(new Vector2D(Lat,Lon));
+					}
+				}
+			}
+		}
+		return new Vector3D(0,0,0);
+	}
+	
+	public override string ToString(){
+		string output="("+Math.Round(Degrees,3).ToString()+","+MinDeg.ToString()+","+MaxDeg.ToString()+"),[";
+		for(int x=0;x<Size.X;x++){
+			output+="[";
+			for(int y=0;y<Size.Y;y++){
+				if(y>0)
+					output+=",";
+				output+=Math.Round(Mapper[x][y],1).ToString();
+			}
+			output+="]";
+		}
+		output+="])";
+		return output;
+	}
+	
+	public static SurfaceMapper Parse(string input){
+		if(!(input[0]=='('&&input.Substring(input.Length-2,2).Equals("])")))
+			throw new ArgumentException("Bad format");
+		input=input.Substring(1,input.Length-1);
+		int brackedIdx=input.IndexOf('[');
+		string[] args=input.Substring(0,brackedIdx-1).Split(',');
+		if(args.Length!=3||input[brackedIndx-1]!=',')
+			throw new ArgumentException("Bad format");
+		double deg=double.Parse(args[0]);
+		Vector2D min,max;
+		if(!(Vector2D.TryParse(args[1],out min)&&Vector2D.TryParse(args[2],out max)))
+			throw new ArgumentException("Bad format");
+		input=input.Substring(brackedIdx+1);
+		Vector2I size=CalculateSize(deg,min,max);
+		double[][] map=new double[][size.X];
+		for(int x=0;x<size.X;x++){
+			map[x]=new double[size.Y];
+		}
+		int[] indices=new int[size.X-1];
+		int strCount=0;
+		for(int i=0;i<input.Length-1;i++){
+			if(input.Substring(i,2).Equals("][")){
+				indices[strCount++]=i;
+			}
+		}
+		if(strCount!=size.X-1)
+			throw new ArgumentException("Bad format");
+		for(int x=0;x<=indices.Length;x++){
+			int min_index=0;
+			int max_index=input.Length;
+			if(x>0)
+				min_index=indices[x-1]+2;
+			if(x<indices.Length)
+				max_index=indices[x];
+			string section=input.Substring(min_index,max_index-min_index);
+			string[] strs=section.Split(',');
+			for(int y=0;y<strs.Length;y++){
+				map[x][y]=double.Parse(strs[y]);
+			}
+		}
+		return new SurfaceMapper(mapper,deg,min,max);
+	}
+	
+	public static bool TryParse(string input,out SurfaceMapper output){
+		output=null;
+		try{
+			output=Parse(input);
+			return output!=null;
+		}
+		catch{
+			return false;
+		}
+	}
+	
+}
+
+class Asteroid{
+	public long EntityId;
+	public BoundingBoxD BoundingBox;
+	public Vector3D Position;
+	public Vector3D Center{
+		get{
+			return BoundingBox.Center;
+		}
+	}
+	
+	private SurfaceMapper GridMap;
+	public bool GridComplete{
+		get{
+			return GridMap.Complete;
+		}
+	}
+	private SurfaceMapper DetailMap;
+	public bool DetailComplete{
+		get{
+			return DetailMap?.Complete??false;
+		}
+	}
+	
+	public double Radius{
+		get{
+			if(GridComplete)
+				return GridMap.Largest;
+			return Math.Max(GridMap.Largest+50,200);
+		}
+	}
+	public double LocalRadius{
+		get{
+			if(DetailComplete)
+				return DetailMap.Largest;
+			return Radius;
+		}
+	}
+	
+	public double Get_DetailedAngle(){
+		return Math.Atan(1.25/LargestRadius)*180/Math.PI;
+	}
+	public Roo<double> DetailedAngle=new Roo<double>(Get_DetailedAngle);
+	
+	public Asteroid(Entity e){
+		EntityId=e.EntityId;
+		BoundingBox=e.EntityId;
+		Position=e.Position;
+		GridMap=new SurfaceMapper(5,new Vector2D(0,0),new Vector2D(360,180));
+		DetailMap=null;
+	}
+	
+	public Asteroid(MyDetectedEntityInfo e):this(new Entity(e)){
+		;
+	}
+	
+	private Asteroid(long entityId,BoundingBoxD boundingBox,Vector3D position,SurfaceMapper gridMap,SurfaceMapper detailMap){
+		EntityId=entityId;
+		BoundingBox=boundingBox;
+		Position=position;
+		GridMap=gridMap;
+		DetailMap=detailMap;
+	}
+	
+	public Vector3D Translate(Vector3D position){
+		return position-Position;
+	}
+	
+}
+
+class Asteroid{
+	public long EntityId;
+	public BoundingBoxD BoundingBox;
+	public Vector3D Position;
+	public Vector3D Center{
+		get{
+			return BoundingBox.Center;
+		}
+	}
+	
+	public SurfaceMapper GridMap;
+	public SurfaceMapper DetailMap;
+	
+	//Break the Asteroid into Polar Coordinates
+	//Each 5° area should be scanned individually
+	//That way, the Asteroid's mapping only requires 5,184 sections
+	
+	
+	
+	public double LargestRadius;
+	private double _LargestRadius;
+	public double Get_PointAngle(){
+		return Math.Atan(2.5/LargestRadius)*180/Math.PI;
+	}
+	public Foo<double> PointAngle=new Foo<double>(Get_PointAngle);
+	
+	private bool[][] PolarChecks;
+	
+	private OneDone<int> RemCycles=new OneDone(200);
+	
+	public List<Vector3D> Mapping{
+		get{
+			List<Vector3D> output=new List<Vector3D>();
+			for(int i=0;i<8;i++){
+				foreach(Vector3D pos in QuadMappings[i]){
+					output.Add(pos);
+				}
+			}
+			return output;
+		}
+	}
+	private List<Vector3D>[8] QuadMappings;
+	private short UpdateMapping;
+	private int UpdateIndex;
+	private Queue<StaggerCalc<Asteroid,Vector3D>> Updates;
+	public bool Updated{
+		get{
+			return Updates.Count==0;
+		}
+	}
+	
+	public bool Calculated=false;
+	
+	public List<Vector3D> ScanVectors{
+		get{
+			List<Vector3D> output=new List<Vector3D>();
+			for(int i=0;i<8;i++){
+				foreach(Vector3D pos in QuadScanVectors[i]){
+					output.Add(pos);
+				}
+			}
+			return output;
+		}
+	}
+	private List<Vector3D>[8] QuadScanVectors;
+	public bool Scanned{
+		get{
+			return ScanVectors.Count==0;
+		}
+	}
+	
+	public Asteroid(Entity e){
+		EntityId=e.EntityId;
+		BoundingBox=e.EntityId;
+		Position=e.Position;
+		QuadMappings=new List<Vector3D>[8];
+		for(int i=0;i<8;i++){
+			QuadMappings[i]=new List<Vector3D>();
+		}
+		LargestRadius=10;
+		_LargestRadius=0;
+		Updates=new Queue<StaggerCalc<Asteroid,Vector3D>>();
+	}
+	
+	public Asteroid(MyDetectedEntityInfo e):this(new Entity(e)){
+		if(e.HitPosition!=null){
+			LargestRadius=Math.Max(LargestRadius,Translate((Vector3D)e.HitPosition).Length());
+			if(ScanDistance)
+		}
+	}
+	
+	private Asteroid(long entityId,BoundingBoxD boundingBox,Vector3D position,List<Vector3D> mapping,List<Vector3D> scanVectors){
+		EntityId=entityId;
+		BoundingBox=boundingBox;
+		Position=position;
+		QuadMappings=new List<Vector3D>[8];
+		QuadScanVectors=new List<Vector3D>[8];
+		for(int i=0;i<8;i++){
+			QuadMappings[i]=new List<Vector3D>();
+			QuadScanVectors[i]=new List<Vector3D>();
+		}
+		LargestRadius=0;
+		foreach(Vector3D pos in mapping){
+			QuadMappings[GetMapping(pos)].Add(pos);
+			LargestRadius=Math.Max(LargestRadius,pos.Length());
+		}
+		foreach(Vector3D pos in scanVectors)
+			QuadScanVectors[GetMapping(pos)].Add(pos);
+		
+		Updates=new Queue<StaggerCalc<Asteroid,Vector3D>>();
+	}
+	
+	public Vector3D Translate(Vector3D position){
+		return position-Position;
+	}
+	
+	public short GetMapping(Vector3D position){
+		int mapping=0;
+		if(position.X<0)
+			mapping+=4;
+		if(position.Y<0)
+			mapping+=2;
+		if(position.Z<0)
+			mapping+=1;
+		return mapping;
+	}
+	
+	public static bool CleanMapping(Asteroid Ast,Vector3D Pos){
+		return Ast.UpdateMapping(Pos);
+	}
+	
+	protected bool CleanMapping(Vector3D pos){
+		int index=UpdateIndex++;
+		UpdateMapping=GetMapping(position);
+		if(index>=QuadMappings[mapping].Count)
+			return false;
+		Vector3D compare=QuadMappings[mapping][index];
+		
+		if((position-compare).Length()<PointAngle*1.2){
+			QuadMappings[mapping].RemoveAt(UpdateIndex--);\
+			compare.Normalize();
+			ScanVectors.Add(compare);
+		}
+		else
+			_LargestRadius=Math.Max(_LargestRadius,compare.Length());
+		return true;
+	}
+	
+	public bool UpdateMapping(Vector3D position){
+		if(position.Length()>2000)
+			position=Translate(position);
+		short mapping=GetMapping(position);
+		StaggerCalc<Asteroid,Vector3D> update=new StaggerCalc<Asteroid,Vector3D>(this,position,CleanMapping);
+		if(Updated){
+			UpdateIndex=0;
+			_LargestRadius=position.Length();
+		}
+		Updates.Add(update);
+		return CompleteUpdates();
+	}
+	
+	public bool CompleteUpdates(){
+		while(RemCycles>0&&Updates.Count>0){
+			RemCycles.Value-=Updates.Peek().Run(RemCycles);
+			if(UpdateIndex>=QuadMappings[UpdateMapping].Count){
+				LargestRadius=_LargestRadius;
+				_LargestRadius=0;
+				Updates.Pop();
+			}
+		}
+		return Updated;
+	}
+	
+	public bool PerformScanCalculation(){
+		
+	}
+	
+	public bool CompleteScanCalcs(){
+		while(RemCycles>0){
+			RemCycles.Value-=ScanCalcs.Peek().Run(RemCycles);
+		}
+		return Calculated;
+	}
+	
 }
 
 void UpdatePlanets(){
@@ -1068,518 +1521,6 @@ void UpdatePlanets(){
 		}
 	}
 	Planets.Add(newPlanet);
-}
-
-class MyShieldController{
-	public IMyTerminalBlock Block;
-	public bool Valid{
-		get{
-			return IsShieldController(Block);
-		}
-	}
-	
-	
-	public bool ToggleShield{
-		get{
-			return Get<bool>("DS-C_ToggleShield");
-		}
-		set{
-			Set<bool>("DS-C_ToggleShield",value);
-		}
-	}
-	public long PowerScale{
-		get{
-			return Get<long>("DS-C_PowerScale");
-		}
-		set{
-			Set<long>("DS-C_PowerScale",value);
-		}
-	}
-	public float PowerWatts{
-		get{
-			return Get<float>("DS-C_PowerWatts");
-		}
-		set{
-			Set<float>("DS-C_PowerWatts",value);
-		}
-	}
-	public float CFit{
-		get{
-			return Get<float>("DS-CFit");
-		}
-		set{
-			Set<float>("DS-CFit",value);
-		}
-	}
-	public bool SphereFit{
-		get{
-			return Get<bool>("DS-C_SphereFit");
-		}
-		set{
-			Set<bool>("DS-C_SphereFit",value);
-		}
-	}
-	public bool ShieldFortify{
-		get{
-			return Get<bool>("DS-C_ShieldFortify");
-		}
-		set{
-			Set<bool>("DS-C_ShieldFortify",value);
-		}
-	}
-	public float WidthSlider{
-		get{
-			return Get<float>("DS-C_WidthSlider");
-		}
-		set{
-			Set<float>("DS-C_WidthSlider",value);
-		}
-	}
-	public float HeightSlider{
-		get{
-			return Get<float>("DS-C_HeightSlider");
-		}
-		set{
-			Set<float>("DS-C_HeightSlider",value);
-		}
-	}
-	public float DepthSlider{
-		get{
-			return Get<float>("DS-C_DepthSlider");
-		}
-		set{
-			Set<float>("DS-C_DepthSlider",value);
-		}
-	}
-	public float OffsetWidthSlider{
-		get{
-			return Get<float>("DS-C_OffsetWidthSlider");
-		}
-		set{
-			Set<float>("DS-C_OffsetWidthSlider",value);
-		}
-	}
-	public float OffsetHeightSlider{
-		get{
-			return Get<float>("DS-C_OffsetHeightSlider");
-		}
-		set{
-			Set<float>("DS-C_OffsetHeightSlider",value);
-		}
-	}
-	public float OffsetDepthSlider{
-		get{
-			return Get<float>("DS-C_OffsetDepthSlider");
-		}
-		set{
-			Set<float>("DS-C_OffsetDepthSlider",value);
-		}
-	}
-	public bool UseBatteries{
-		get{
-			return Get<bool>("DS-C_UseBatteries");
-		}
-		set{
-			Set<bool>("DS-C_UseBatteries",value);
-		}
-	}
-	public bool HideIcon{
-		get{
-			return Get<bool>("DS-C_HideIcon");
-		}
-		set{
-			Set<bool>("DS-C_HideIcon",value);
-		}
-	}
-	public long ShellSelect{
-		get{
-			return Get<long>("DS-C_ShellSelect");
-		}
-		set{
-			Set<long>("DS-C_ShellSelect",value);
-		}
-	}
-	public bool HideActive{
-		get{
-			return Get<bool>("DS-C_HideActive");
-		}
-		set{
-			Set<bool>("DS-C_HideActive",value);
-		}
-	}
-	public bool NoWarningSounds{
-		get{
-			return Get<bool>("DS-C_NoWarningSounds");
-		}
-		set{
-			Set<bool>("DS-C_NoWarningSounds",value);
-		}
-	}
-	public bool DimShieldHits{
-		get{
-			return Get<bool>("DS-C_DimShieldHits");
-		}
-		set{
-			Set<bool>("DS-C_DimShieldHits",value);
-		}
-	}
-	public bool SideRedirect{
-		get{
-			return Get<bool>("DS-C_SideRedirect");
-		}
-		set{
-			Set<bool>("DS-C_SideRedirect",value);
-		}
-	}
-	public bool ShowRedirect{
-		get{
-			return Get<bool>("DS-C_ShowRedirect");
-		}
-		set{
-			Set<bool>("DS-C_ShowRedirect",value);
-		}
-	}
-	public bool TopShield{
-		get{
-			return Get<bool>("DS-C_TopShield");
-		}
-		set{
-			Set<bool>("DS-C_TopShield",value);
-		}
-	}
-	public bool BottomShield{
-		get{
-			return Get<bool>("DS-C_BottomShield");
-		}
-		set{
-			Set<bool>("DS-C_BottomShield",value);
-		}
-	}
-	public bool LeftShield{
-		get{
-			return Get<bool>("DS-C_LeftShield");
-		}
-		set{
-			Set<bool>("DS-C_LeftShield",value);
-		}
-	}
-	public bool RightShield{
-		get{
-			return Get<bool>("DS-C_RightShield");
-		}
-		set{
-			Set<bool>("DS-C_RightShield",value);
-		}
-	}
-	public bool FrontShield{
-		get{
-			return Get<bool>("DS-C_FrontShield");
-		}
-		set{
-			Set<bool>("DS-C_FrontShield",value);
-		}
-	}
-	public bool BackShield{
-		get{
-			return Get<bool>("DS-C_BackShield");
-		}
-		set{
-			Set<bool>("DS-C_BackShield",value);
-		}
-	}
-	
-	private T Get<T>(string name){
-		return Block.GetValue<T>(name);
-	}
-	private void Set<T>(string name,T property){
-		Block.SetValue<T>(name,property);
-	}
-	
-	
-	public PbApiWrapper Api;
-	public MyShieldController(IMyTerminalBlock block){
-		Block=block;
-		Api=new PbApiWrapper(Prog.P.Me);
-		Api.SetActiveShield(Block);
-	}
-	
-	public static bool IsShieldController(IMyTerminalBlock Block){
-		return Block!=null&&Block.DefinitionDisplayNameText.ToLower().Contains("shield")&&Block.DefinitionDisplayNameText.ToLower().Contains("controller");
-	}
-}
-
-class MyWeaponCore{
-	public IMyTerminalBlock Block;
-	
-	public static WcPbApi Api;
-	public MyWeaponCore(IMyTerminalBlock block){
-		Block=block;
-	}
-	
-	public double ExpectCharge(double seconds){
-		double LastChargeTime=60;
-		if(GenericMethods<IMyTerminalBlock>.HasBlockData(Block,"LastChargeTime"))
-			double.TryParse(GenericMethods<IMyTerminalBlock>.GetBlockData(Block,"LastChargeTime"),out LastChargeTime);
-		double ChargeTime=0;
-		if(GenericMethods<IMyTerminalBlock>.HasBlockData(Block,"ChargeTime"))
-			double.TryParse(GenericMethods<IMyTerminalBlock>.GetBlockData(Block,"ChargeTime"),out ChargeTime);
-		bool Ready=Api.IsWeaponReadyToFire(Block);
-		bool WasCharging=Ready;
-		if(GenericMethods<IMyTerminalBlock>.HasBlockData(Block,"WasCharging"))
-			bool.TryParse(GenericMethods<IMyTerminalBlock>.GetBlockData(Block,"WasCharging"),out WasCharging);
-		if(WasCharging^Ready){
-			if(Ready){
-				if(LastChargeTime==60)
-					LastChargeTime=ChargeTime;
-				else
-					LastChargeTime=(LastChargeTime+ChargeTime)/2;
-				GenericMethods<IMyTerminalBlock>.SetBlockData(Block,"LastChargeTime",Math.Round(LastChargeTime,3).ToString());
-			}
-			else
-				ChargeTime=0;
-			GenericMethods<IMyTerminalBlock>.SetBlockData(Block,"WasCharging",Ready.ToString());
-		}
-		if(!Ready){
-			ChargeTime+=seconds;
-			GenericMethods<IMyTerminalBlock>.SetBlockData(Block,"ChargeTime",Math.Round(ChargeTime,3).ToString());
-			return Math.Max(0,LastChargeTime-ChargeTime);
-		}
-		return 0;
-	}
-}
-
-class MyShieldController{
-	public IMyTerminalBlock Block;
-	public bool Valid{
-		get{
-			return IsShieldController(Block);
-		}
-	}
-	
-	
-	public bool ToggleShield{
-		get{
-			return Get<bool>("DS-C_ToggleShield");
-		}
-		set{
-			Set<bool>("DS-C_ToggleShield",value);
-		}
-	}
-	public long PowerScale{
-		get{
-			return Get<long>("DS-C_PowerScale");
-		}
-		set{
-			Set<long>("DS-C_PowerScale",value);
-		}
-	}
-	public float PowerWatts{
-		get{
-			return Get<float>("DS-C_PowerWatts");
-		}
-		set{
-			Set<float>("DS-C_PowerWatts",value);
-		}
-	}
-	public float CFit{
-		get{
-			return Get<float>("DS-CFit");
-		}
-		set{
-			Set<float>("DS-CFit",value);
-		}
-	}
-	public bool SphereFit{
-		get{
-			return Get<bool>("DS-C_SphereFit");
-		}
-		set{
-			Set<bool>("DS-C_SphereFit",value);
-		}
-	}
-	public bool ShieldFortify{
-		get{
-			return Get<bool>("DS-C_ShieldFortify");
-		}
-		set{
-			Set<bool>("DS-C_ShieldFortify",value);
-		}
-	}
-	public float WidthSlider{
-		get{
-			return Get<float>("DS-C_WidthSlider");
-		}
-		set{
-			Set<float>("DS-C_WidthSlider",value);
-		}
-	}
-	public float HeightSlider{
-		get{
-			return Get<float>("DS-C_HeightSlider");
-		}
-		set{
-			Set<float>("DS-C_HeightSlider",value);
-		}
-	}
-	public float DepthSlider{
-		get{
-			return Get<float>("DS-C_DepthSlider");
-		}
-		set{
-			Set<float>("DS-C_DepthSlider",value);
-		}
-	}
-	public float OffsetWidthSlider{
-		get{
-			return Get<float>("DS-C_OffsetWidthSlider");
-		}
-		set{
-			Set<float>("DS-C_OffsetWidthSlider",value);
-		}
-	}
-	public float OffsetHeightSlider{
-		get{
-			return Get<float>("DS-C_OffsetHeightSlider");
-		}
-		set{
-			Set<float>("DS-C_OffsetHeightSlider",value);
-		}
-	}
-	public float OffsetDepthSlider{
-		get{
-			return Get<float>("DS-C_OffsetDepthSlider");
-		}
-		set{
-			Set<float>("DS-C_OffsetDepthSlider",value);
-		}
-	}
-	public bool UseBatteries{
-		get{
-			return Get<bool>("DS-C_UseBatteries");
-		}
-		set{
-			Set<bool>("DS-C_UseBatteries",value);
-		}
-	}
-	public bool HideIcon{
-		get{
-			return Get<bool>("DS-C_HideIcon");
-		}
-		set{
-			Set<bool>("DS-C_HideIcon",value);
-		}
-	}
-	public long ShellSelect{
-		get{
-			return Get<long>("DS-C_ShellSelect");
-		}
-		set{
-			Set<long>("DS-C_ShellSelect",value);
-		}
-	}
-	public bool HideActive{
-		get{
-			return Get<bool>("DS-C_HideActive");
-		}
-		set{
-			Set<bool>("DS-C_HideActive",value);
-		}
-	}
-	public bool NoWarningSounds{
-		get{
-			return Get<bool>("DS-C_NoWarningSounds");
-		}
-		set{
-			Set<bool>("DS-C_NoWarningSounds",value);
-		}
-	}
-	public bool DimShieldHits{
-		get{
-			return Get<bool>("DS-C_DimShieldHits");
-		}
-		set{
-			Set<bool>("DS-C_DimShieldHits",value);
-		}
-	}
-	public bool SideRedirect{
-		get{
-			return Get<bool>("DS-C_SideRedirect");
-		}
-		set{
-			Set<bool>("DS-C_SideRedirect",value);
-		}
-	}
-	public bool ShowRedirect{
-		get{
-			return Get<bool>("DS-C_ShowRedirect");
-		}
-		set{
-			Set<bool>("DS-C_ShowRedirect",value);
-		}
-	}
-	public bool TopShield{
-		get{
-			return Get<bool>("DS-C_TopShield");
-		}
-		set{
-			Set<bool>("DS-C_TopShield",value);
-		}
-	}
-	public bool BottomShield{
-		get{
-			return Get<bool>("DS-C_BottomShield");
-		}
-		set{
-			Set<bool>("DS-C_BottomShield",value);
-		}
-	}
-	public bool LeftShield{
-		get{
-			return Get<bool>("DS-C_LeftShield");
-		}
-		set{
-			Set<bool>("DS-C_LeftShield",value);
-		}
-	}
-	public bool RightShield{
-		get{
-			return Get<bool>("DS-C_RightShield");
-		}
-		set{
-			Set<bool>("DS-C_RightShield",value);
-		}
-	}
-	public bool FrontShield{
-		get{
-			return Get<bool>("DS-C_FrontShield");
-		}
-		set{
-			Set<bool>("DS-C_FrontShield",value);
-		}
-	}
-	public bool BackShield{
-		get{
-			return Get<bool>("DS-C_BackShield");
-		}
-		set{
-			Set<bool>("DS-C_BackShield",value);
-		}
-	}
-	
-	private T Get<T>(string name){
-		return Block.GetValue<T>(name);
-	}
-	private void Set<T>(string name,T property){
-		Block.SetValue<T>(name,property);
-	}
-	
-	public MyShieldController(IMyTerminalBlock block){
-		Block=block;
-	}
-	
-	public static bool IsShieldController(IMyTerminalBlock Block){
-		return Block!=null&&Block.DefinitionDisplayNameText.ToLower().Contains("shield")&&Block.DefinitionDisplayNameText.ToLower().Contains("controller");
-	}
 }
 
 TimeSpan Time_Since_Start=new TimeSpan(0);
