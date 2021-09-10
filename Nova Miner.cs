@@ -785,7 +785,7 @@ class Entity{
 		if(!Vector3D.TryParse(args[4],out velocity))
 			throw new ArgumentException("Bad format");
 		MyRelationsBetweenPlayerAndBlock relationship=Enum.Parse(typeof(MyRelationsBetweenPlayerAndBlock),args[5]);
-		BoundingBoxD boundingBox=BoundingBox.CreateFromPoints(VectorDto.Parse(args[6]).ToArr());
+		BoundingBoxD boundingBox=BoundingBoxD.CreateFromPoints(VectorDto.Parse(args[6]).ToArr());
 		TimeSpan timeStamp=TimeSpan.Parse(args[7]);
 		return new Entity(entityId,name,type,orientation,velocity,relationship,boundingBox,timeStamp);
 	}
@@ -1324,190 +1324,53 @@ class Asteroid{
 		return position-Position;
 	}
 	
-}
-
-class Asteroid{
-	public long EntityId;
-	public BoundingBoxD BoundingBox;
-	public Vector3D Position;
-	public Vector3D Center{
-		get{
-			return BoundingBox.Center;
+	public override string ToString(){
+		return "[{"+EntityId+"},{"+(new VectorDto(BoundingBox)).ToString()+"},{"+Position.ToString()+"},{"+GridMap.ToString()+"},{"+(DetailMap?.ToString()??"Empty")+"}]";
+	}
+	
+	public static Asteroid Parse(string input){
+		if(input[0]!='['||input[input.Length-1]!=']'||input[1]!='{'||input[input.Length-2]!='}')
+			throw new ArugmentException("Bad format");
+		input=input.Substring(2,input.Length-4);
+		int[] indices=new int[4];
+		int strCount=0;
+		for(int i=0;i<input.Length-3;i++){
+			if(input.Substring(i,3).Equals("},{"))
+				indices[strCount++]=i;
 		}
-	}
-	
-	public SurfaceMapper GridMap;
-	public SurfaceMapper DetailMap;
-	
-	//Break the Asteroid into Polar Coordinates
-	//Each 5° area should be scanned individually
-	//That way, the Asteroid's mapping only requires 5,184 sections
-	
-	
-	
-	public double LargestRadius;
-	private double _LargestRadius;
-	public double Get_PointAngle(){
-		return Math.Atan(2.5/LargestRadius)*180/Math.PI;
-	}
-	public Foo<double> PointAngle=new Foo<double>(Get_PointAngle);
-	
-	private bool[][] PolarChecks;
-	
-	private OneDone<int> RemCycles=new OneDone(200);
-	
-	public List<Vector3D> Mapping{
-		get{
-			List<Vector3D> output=new List<Vector3D>();
-			for(int i=0;i<8;i++){
-				foreach(Vector3D pos in QuadMappings[i]){
-					output.Add(pos);
-				}
-			}
-			return output;
+		if(strCount!=4)
+			throw new ArugmentException("Bad format");
+		string[] args=new string[5];
+		for(int i=0;i<5;i++){
+			int min_index=0;
+			int max_index=input.Length;
+			if(i>0)
+				min_index=indices[i-1]+3;
+			if(i<4)
+				max_index=indices[i];
+			args[i]=input.Substring(min_index,max_index-min_index);
 		}
+		long entityId=long.Parse(args[0]);
+		BoundingBoxD boundingBox=BoundingBoxD.CreateFromPoints(VectorDto.Parse(args[1]).ToArr());
+		Vector3D position;
+		if(!Vector3D.TryParse(args[2],out position))
+			throw new ArugmentException("Bad format");
+		SurfaceMapper gridMap=SurfaceMapper.Parse(args[3]);
+		SurfaceMapper detailMap=null;
+		if(!arg[4].Equals("Empty"))
+			SurfaceMapper detailMap=SurfaceMapper.Parse(args[4]);
+		return new Asteroid(entityId,boundingBox,position,gridMap,detailMap);
 	}
-	private List<Vector3D>[8] QuadMappings;
-	private short UpdateMapping;
-	private int UpdateIndex;
-	private Queue<StaggerCalc<Asteroid,Vector3D>> Updates;
-	public bool Updated{
-		get{
-			return Updates.Count==0;
+	
+	public static bool TryParse(string input,out Asteroid output){
+		output=null;
+		try{
+			output=Parse(input);
+			return output!=null;
 		}
-	}
-	
-	public bool Calculated=false;
-	
-	public List<Vector3D> ScanVectors{
-		get{
-			List<Vector3D> output=new List<Vector3D>();
-			for(int i=0;i<8;i++){
-				foreach(Vector3D pos in QuadScanVectors[i]){
-					output.Add(pos);
-				}
-			}
-			return output;
-		}
-	}
-	private List<Vector3D>[8] QuadScanVectors;
-	public bool Scanned{
-		get{
-			return ScanVectors.Count==0;
-		}
-	}
-	
-	public Asteroid(Entity e){
-		EntityId=e.EntityId;
-		BoundingBox=e.EntityId;
-		Position=e.Position;
-		QuadMappings=new List<Vector3D>[8];
-		for(int i=0;i<8;i++){
-			QuadMappings[i]=new List<Vector3D>();
-		}
-		LargestRadius=10;
-		_LargestRadius=0;
-		Updates=new Queue<StaggerCalc<Asteroid,Vector3D>>();
-	}
-	
-	public Asteroid(MyDetectedEntityInfo e):this(new Entity(e)){
-		if(e.HitPosition!=null){
-			LargestRadius=Math.Max(LargestRadius,Translate((Vector3D)e.HitPosition).Length());
-			if(ScanDistance)
-		}
-	}
-	
-	private Asteroid(long entityId,BoundingBoxD boundingBox,Vector3D position,List<Vector3D> mapping,List<Vector3D> scanVectors){
-		EntityId=entityId;
-		BoundingBox=boundingBox;
-		Position=position;
-		QuadMappings=new List<Vector3D>[8];
-		QuadScanVectors=new List<Vector3D>[8];
-		for(int i=0;i<8;i++){
-			QuadMappings[i]=new List<Vector3D>();
-			QuadScanVectors[i]=new List<Vector3D>();
-		}
-		LargestRadius=0;
-		foreach(Vector3D pos in mapping){
-			QuadMappings[GetMapping(pos)].Add(pos);
-			LargestRadius=Math.Max(LargestRadius,pos.Length());
-		}
-		foreach(Vector3D pos in scanVectors)
-			QuadScanVectors[GetMapping(pos)].Add(pos);
-		
-		Updates=new Queue<StaggerCalc<Asteroid,Vector3D>>();
-	}
-	
-	public Vector3D Translate(Vector3D position){
-		return position-Position;
-	}
-	
-	public short GetMapping(Vector3D position){
-		int mapping=0;
-		if(position.X<0)
-			mapping+=4;
-		if(position.Y<0)
-			mapping+=2;
-		if(position.Z<0)
-			mapping+=1;
-		return mapping;
-	}
-	
-	public static bool CleanMapping(Asteroid Ast,Vector3D Pos){
-		return Ast.UpdateMapping(Pos);
-	}
-	
-	protected bool CleanMapping(Vector3D pos){
-		int index=UpdateIndex++;
-		UpdateMapping=GetMapping(position);
-		if(index>=QuadMappings[mapping].Count)
+		catch{
 			return false;
-		Vector3D compare=QuadMappings[mapping][index];
-		
-		if((position-compare).Length()<PointAngle*1.2){
-			QuadMappings[mapping].RemoveAt(UpdateIndex--);\
-			compare.Normalize();
-			ScanVectors.Add(compare);
 		}
-		else
-			_LargestRadius=Math.Max(_LargestRadius,compare.Length());
-		return true;
-	}
-	
-	public bool UpdateMapping(Vector3D position){
-		if(position.Length()>2000)
-			position=Translate(position);
-		short mapping=GetMapping(position);
-		StaggerCalc<Asteroid,Vector3D> update=new StaggerCalc<Asteroid,Vector3D>(this,position,CleanMapping);
-		if(Updated){
-			UpdateIndex=0;
-			_LargestRadius=position.Length();
-		}
-		Updates.Add(update);
-		return CompleteUpdates();
-	}
-	
-	public bool CompleteUpdates(){
-		while(RemCycles>0&&Updates.Count>0){
-			RemCycles.Value-=Updates.Peek().Run(RemCycles);
-			if(UpdateIndex>=QuadMappings[UpdateMapping].Count){
-				LargestRadius=_LargestRadius;
-				_LargestRadius=0;
-				Updates.Pop();
-			}
-		}
-		return Updated;
-	}
-	
-	public bool PerformScanCalculation(){
-		
-	}
-	
-	public bool CompleteScanCalcs(){
-		while(RemCycles>0){
-			RemCycles.Value-=ScanCalcs.Peek().Run(RemCycles);
-		}
-		return Calculated;
 	}
 	
 }
