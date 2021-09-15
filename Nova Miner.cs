@@ -1075,6 +1075,220 @@ class StaggerCalc<T,U>:StaggerCalc{
 	}
 }
 
+class Sector{
+	public int X;
+	public int Y;
+	public int Z;
+	Vector3D[8] Get_Corners(){
+		Vector3D[8] output=new Vector3D[8];
+		for(int i=0;i<8;i++){
+			double x=BoundingBox.Min.X+(i%2==0?0:5000);
+			double y=BoundingBox.Min.Y+(i%4<2?0:5000);
+			double z=BoundingBox.Min.Z+(i<4?0:5000);
+			output[i]=new Vector3D(x,y,z);
+		}
+		return output;
+	}
+	public Foo<Vector3D[8]> Corners=new Foo<Vector3D[8]>(Get_Corners);
+	BoundingBoxD Get_BoundingBox(){
+		int smallX=X*5000;
+		int smallY=Y*5000;
+		int smallZ=Z*5000;
+		Vector3D[2] MinMaxCorners=new Vector3D{new Vector3D(smallX,smallY,smallZ),new Vector3D(smallX+5000,smallY+5000,smallZ+5000)};
+		return BoundingBoxD.CreateFromPoints(MinMaxCorners);
+	}
+	public Foo<BoundingBoxD> BoundingBox=new Foo<BoundingBoxD>(Get_BoundingBox);
+	Vector3D Get_Center(){
+		return new Vector3D(X*5000+2500,Y*5000+2500,Z*5000+2500);
+	}
+	public Foo<Vector3D> Center=new Foo<Vector3D>(Center);
+	
+	public bool[] subsections;
+	public bool Complete{
+		get{
+			foreach(bool b in subsections){
+				if(!b)
+					return false;
+			}
+			return true;
+		}
+	}
+	
+	public Sector(int x,int y,int z){
+		X=x;
+		Y=y;
+		Z=z;
+		subsections=new bool[625];
+		for(int i=0;i<625;i++)
+			subsections[i]=false;
+	}
+	
+	public Sector(Vector3D Point):this((int)(Point.X/5000),(int)(Point.Y/5000),(int)(Point.Z/5000)){
+		;
+	}
+	
+	public Sector(int x,int y,int z,bool[] subs):this(x,y,z){
+		for(int i=0;i<subs.Length;i++)
+			subsections[i]=subs[i];
+	}
+	
+	public static Vector3D GetStart(Vector3D input){
+		Vector3D output=input;
+		output.X=((int)(input.X/5000))*5000;
+		output.Y=((int)(input.Y/5000))*5000;
+		output.Z=((int)(input.Z/5000))*5000;
+		return output;
+	}
+	
+	public int Distance(Vector3D Reference){
+		Vector3D R=Sector.GetStart(Reference);
+		R/=5000;
+		return Math.Abs(X-((int)R.X))+Math.Abs(Y-((int)R.Y))+Math.Abs(Z-((int)R.Z));
+	}
+	
+	public int GetSubInt(Vector3D Coords){
+		if(Math.Abs(Coords.Y-Corners[0].Y)>25)
+			return -1;
+		if(Coords.X<Corners[0].X-25)
+			return -1;
+		if(Coords.X>Corners[1].X+25)
+			return -1;
+		if(Coords.Z<Corners[0].Z-25)
+			return -1;
+		if(Coords.Z>Corners[2].Z+25)
+			return -1;
+		int dx=(int)((Coords.X-Corners[0].X+25)/200);
+		int dz=(int)((Coords.Z-Corners[0].Z+25)/200);
+		int output=dx+5*dz;
+		if(output<0||output>=25)
+			return -1;
+		return output;
+	}
+	
+	public bool Same(Vector3D I){
+		Vector3D O=Sector.GetStart(I);
+		return X==((int)O.X)&&Y==((int)O.Y)&&Z==((int)O.Z);
+	}
+	
+	public bool Same(Sector O){
+		return X==O.X&&Y==O.Y&&Z==O.Z;
+	}
+	
+	public void Update(Sector O){
+		for(int i=0;i<625;i++)
+			subsections[i]=subsections[i]||O.subsections[i];
+	}
+	
+	public override string ToString(){
+		string output="("+X.ToString()+","+Y.ToString()+","+Z.ToString()+")";
+		for(int i=0;i<625;i++){
+			if(i>0)
+				output+=',';
+			output+=subsections[i].ToString();
+		}
+		return output;
+	}
+	
+	public static Sector Parse(string input){
+		string[] parts=Parse.Split(')');
+		if(parts.Length!=2||parts[0].IndexOf('(')!=0)
+			throw new ArgumentException("Bad format");
+		parts[0]=parts[0].Substring(1);
+		string[] coords=parts[0].Split(',');
+		int x=int.Parse(coords[0]);
+		int y=int.Parse(coords[1]);
+		int z=int.Parse(coords[2]);
+		string[] bools=parts[1].Split(',');
+		if(bools.Length!=625)
+			throw new ArgumentException("Bad format");
+		bool[] subsections=new bool[625];
+		for(int i=0;i<625;i++)
+			subsetions[i]=bool.Parse(bools[i]);
+		return new Sector(x,y,z,subsections);
+	}
+	
+	public static bool TryParse(string input,out Sector output){
+		output=null;
+		try{
+			output=Parse(input);
+			return output!=null;
+		}
+		catch{
+			return false;
+		}
+	}
+}
+
+class Zone{
+	public Vector3D Center{
+		get{
+			return BoundingSphere.Center;
+		}
+	}
+	public double Radius{
+		get{
+			return BoundingSphere.Radius;
+		}
+	}
+	public BoundingSphereD BoundingSphere;
+	public bool Outpost=false;
+	public bool Gravity=false;
+	public bool Voxels=false;
+	
+	public Zone(Vector3D c,double r){
+		BoundingSphere=new BoundingSphereD(c,Math.Max(2500,r));
+	}
+	
+	protected Zone(Vector3D c,double r,bool O,bool G,bool V):this(c,r){
+		Output=O;
+		Gravity=G;
+		Voxels=V;
+	}
+	
+	public bool Overlaps(Vector3D S){
+		if((Center-S).Length()<Radius)
+			return true;
+		return Overlaps(new Sector(S));
+	}
+	
+	public bool Overlaps(Sector S){
+		ContainmentType containType;
+		S.BoundingBox.Contains(BoundingSphere,out containType);
+		return containType!=ContaintmentType.Disjoint;
+	}
+	
+	public override string ToString(){
+		return'{'+Center.ToString()+';'+Math.Round(Radius,1).ToString()+';'+Outpost.ToString()+';'+Gravity.ToString()+';'+Voxels.ToString()+'}';
+	}
+	
+	public static Zone Parse(string input){
+		if(Parse[0]!='{'||Parse[Parse.Length-1]!='}')
+			throw new ArgumentException("Bad format");
+		Parse=Parse.Substring(1,Parse.Length-2);
+		string[] args=Parse.Split(';');
+		if(args.Length!=5)
+			throw new ArgumentException("Bad format");
+		Vector3D center;
+		if(!Vector3D.TryParse(args[0],out center))
+			throw new ArgumentException("Bad format");
+		double radius=double.Parse(args[1]);;
+		bool o=bool.Parse(args[2]);
+		bool g=bool.Parse(args[3]);
+		bool v=bool.Parse(args[4]);;
+		return new Zone(center,radius,o,g,v);
+	}
+	
+	public static bool TryParse(string input,out Zone output){
+		output=null;
+		try{
+			output=Parse(input);
+			return output!=null;
+		}
+		catch{
+			return false;
+		}
+	}
+}
 
 class SurfaceMapper{
 	public double[][] Mapper;
@@ -1413,33 +1627,6 @@ IMyShipConnector DockingConnector;
 MyShieldController ShieldController;
 
 List<Planet> Planets;
-
-List<IMySensorBlock> StalkerSensors;
-List<MyDetectedEntityInfo> StalkerData(){
-	List<MyDetectedEntityInfo> output=new List<MyDetectedEntityInfo>();
-	foreach(IMySensorBlock Sensor in LockedSensors()){
-		MyDetectedEntityInfo Target=Sensor.LastDetectedEntity;
-		if(ValidTarget(Target))
-			output.Add(Target);
-	}
-	return output;
-}
-List<IMySensorBlock> LockedSensors(){
-	List<IMySensorBlock> output=new List<IMySensorBlock>();
-	for(int i=0;i<StalkerSensors.Count;i++){
-		if(IsLocked(StalkerSensors[i]))
-			output.Add(StalkerSensors[i]);
-	}
-	return output;
-}
-List<IMySensorBlock> UnlockedSensors(){
-	List<IMySensorBlock> output=new List<IMySensorBlock>();
-	for(int i=0;i<StalkerSensors.Count;i++){
-		if(!IsLocked(StalkerSensors[i]))
-			output.Add(StalkerSensors[i]);
-	}
-	return output;
-}
 
 List<IMyThrust>[] All_Thrusters=new List<IMyThrust>[6];
 List<IMyThrust> Forward_Thrusters{
