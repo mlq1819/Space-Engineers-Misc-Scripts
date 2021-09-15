@@ -3,12 +3,19 @@
 * Built by mlq1616
 * https://github.com/mlq1819/Space-Engineers-Misc-Scripts
 * This script is meant for automining drones.
+* Intended for use only in space.
+* Drone requires a dock to return to when low on power or full of cargo.
+* Drone will depart from dock to scan through a sector of space for asteroids.
+* When it finds one, it scans it to produce a low-resolution surface map. It will communicate with other drones during this.
+* It then picks one section of the map, and scans it to produce a high-resolution local map. It communicates this to other drones.
+* It then mines through the outmost points in that local area until it mines to the core of the Asteroid.
+* It then picks another section to mine through.
 */
 string Program_Name="Nova Miner";
 Color DEFAULT_TEXT_COLOR=new Color(197,137,255,255);
 Color DEFAULT_BACKGROUND_COLOR=new Color(44,0,88,255);
-double Speed_Limit=100;
-double Acceptable_Angle=5;
+OneDone<double> Speed_Limit=new OneDone<double>(100);
+double Acceptable_Angle=1;
 bool Control_Gyroscopes=true;
 bool Control_Thrusters=true;
 
@@ -330,6 +337,10 @@ abstract class OneDone{
 		if(All==null)
 			All=new List<OneDone>();
 		All.Add(this);
+	}
+	~OneDone(){
+		if(All.Contains(this))
+			All.Remove(this);
 	}
 	
 	public static void ResetAll(){
@@ -867,7 +878,7 @@ class Task_None:Ship_Task<string>{
 	}
 	
 	public static Task_None Parse(string input){
-		string[] args=Ship_Task<Dock>.StringParser(input);
+		string[] args=StringParser(input);
 		TaskType type;
 		if((!args[0].Equals("None"))||(!Enum.TryParse(args[1],out type))||args[2].Length>0)
 			throw new ArgumentException("Bad Format");
@@ -886,6 +897,10 @@ class Task_None:Ship_Task<string>{
 	}
 }
 class Task_Refuel:Ship_Task<Dock>{
+	public Task_Refuel(TaskType type,Dock dock):base("Refuel",type,dock){
+		;
+	}
+	
 	public static Task_Refuel Parse(string input){
 		string[] args=StringParser(input);
 		TaskType type;
@@ -906,11 +921,105 @@ class Task_Refuel:Ship_Task<Dock>{
 		}
 	}
 }
-class Task_Scout:Ship_Task<>{
+class Task_Scout:Ship_Task<Sector>{
+	public Task_Scout(TaskType type,Sector sector):base("Scout",type,sector){
+		;
+	}
 	
+	public static Task_Scout Parse(string input){
+		string[] args=StringParser(input);
+		TaskType type;
+		Sector data;
+		if((!args[0].Equals("Scout"))||(!Enum.TryParse(args[1],out type))||(!Sector.TryParse(args[2],out data)))
+			throw new ArgumentException("Bad Format");
+		return new Task_Scout(type,data);
+	}
+	
+	public static bool TryParse(string input,out Task_Scout output){
+		output=null;
+		try{
+			output=Parse(input);
+			return output!=null;
+		}
+		catch{
+			return false;
+		}
+	}
 }
-class Task_Scan:Ship_Task<>{
+class Task_Map:Ship_Task<Asteroid>{
+	public Task_Map(TaskType type,Asteroid asteroid):base("Map",type,asteroid){
+		;
+	}
 	
+	public static Task_Map Parse(string input){
+		string[] args=StringParser(input);
+		TaskType type;
+		Asteroid data;
+		if((!args[0].Equals("Map"))||(!Enum.TryParse(args[1],out type))||(!Asteroid.TryParse(args[2],out data)))
+			throw new ArgumentException("Bad Format");
+		return new Task_Map(type,data);
+	}
+	
+	public static bool TryParse(string input,out Task_Map output){
+		output=null;
+		try{
+			output=Parse(input);
+			return output!=null;
+		}
+		catch{
+			return false;
+		}
+	}
+}
+class Task_Scan:Ship_Task<Asteroid>{
+	public Task_Scan(TaskType type,Asteroid asteroid):base("Scan",type,asteroid){
+		;
+	}
+	
+	public static Task_Scan Parse(string input){
+		string[] args=StringParser(input);
+		TaskType type;
+		Asteroid data;
+		if((!args[0].Equals("Scan"))||(!Enum.TryParse(args[1],out type))||(!Asteroid.TryParse(args[2],out data)))
+			throw new ArgumentException("Bad Format");
+		return new Task_Scan(type,data);
+	}
+	
+	public static bool TryParse(string input,out Task_Scan output){
+		output=null;
+		try{
+			output=Parse(input);
+			return output!=null;
+		}
+		catch{
+			return false;
+		}
+	}
+}
+class Task_Mine:Ship_Task<Asteroid>{
+	public Task_Mine(TaskType type,Asteroid asteroid):base("Mine",type,asteroid){
+		;
+	}
+	
+	public static Task_Scout Parse(string input){
+		string[] args=StringParser(input);
+		TaskType type;
+		Asteroid data;
+		if((!args[0].Equals("Mine"))||(!Enum.TryParse(args[1],out type))||(!Asteroid.TryParse(args[2],out data)))
+			throw new ArgumentException("Bad Format");
+		return new Task_Mine(type,data);
+	}
+	
+	public static bool TryParse(string input,out Task_Mine output){
+		output=null;
+		try{
+			output=Parse(input);
+			return output!=null;
+		}
+		catch{
+			return false;
+		}
+	}
 }
 
 Gen_Task ParseTask(string input){
@@ -920,10 +1029,14 @@ Gen_Task ParseTask(string input){
 			return Task_None.Parse(input);
 		case "Refuel":
 			return Task_Refuel.Parse(input);
-		case "Stalking":
-			return Task_Stalking.Parse(input);
-		case "Hunting":
-			return Task_Hunting.Parse(input);
+		case "Scout":
+			return Task_Scout.Parse(input);
+		case "Map":
+			return Task_Map.Parse(input);
+		case "Scan":
+			return Task_Scan.Parse(input);
+		case "Mine":
+			return Task_Mine.Parse(input);
 	}
 	return null;
 }
@@ -1103,31 +1216,72 @@ class Sector{
 	}
 	public Foo<Vector3D> Center=new Foo<Vector3D>(Center);
 	
-	public bool[] subsections;
-	public bool Complete{
-		get{
-			foreach(bool b in subsections){
-				if(!b)
-					return false;
-			}
-			return true;
-		}
-	}
-	
 	public Sector(int x,int y,int z){
 		X=x;
 		Y=y;
 		Z=z;
-		subsections=new bool[625];
-		for(int i=0;i<625;i++)
-			subsections[i]=false;
 	}
 	
 	public Sector(Vector3D Point):this((int)(Point.X/5000),(int)(Point.Y/5000),(int)(Point.Z/5000)){
 		;
 	}
 	
-	public Sector(int x,int y,int z,bool[] subs):this(x,y,z){
+	public int Distance(Vector3D Reference){
+		Vector3D R=Sector.GetStart(Reference);
+		R/=5000;
+		return Math.Abs(X-((int)R.X))+Math.Abs(Y-((int)R.Y))+Math.Abs(Z-((int)R.Z));
+	}
+	
+	public bool Same(Vector3D I){
+		Vector3D O=Sector.GetStart(I);
+		return X==((int)O.X)&&Y==((int)O.Y)&&Z==((int)O.Z);
+	}
+	
+	public bool Same(Sector O){
+		return X==O.X&&Y==O.Y&&Z==O.Z;
+	}
+	
+	public override string ToString(){
+		return Center.ToString();
+	}
+	
+	public static Sector Parse(string input){
+		Sector output;
+		if(!TryParse(input,out output))
+			throw new ArgumentException("Bad format");
+		return output;
+	}
+	
+	public static bool TryParse(string input,out Sector output){
+		output=null;
+		Vector3D pos;
+		if(Vector3D.TryParse(input,out pos))
+			output=new Sector(pos);
+		return output!=null;
+	}
+}
+class SectorScan:Sector{
+	public bool[] subsections;
+	bool Get_Complete(){
+		foreach(bool b in subsections){
+			if(!b)
+				return false;
+		}
+		return true;
+	}
+	public Foo<bool> Complete=new Foo<bool>(Get_Complete);
+	
+	public SectorScan(int x,int y,int z):base(x,y,z){
+		subsections=new bool[625];
+		for(int i=0;i<625;i++)
+			subsections[i]=false;
+	}
+	
+	public SectorScan(Vector3D Point):this((int)(Point.X/5000),(int)(Point.Y/5000),(int)(Point.Z/5000)){
+		;
+	}
+	
+	protected SectorScan(int x,int y,int z,bool[] subs):this(x,y,z){
 		for(int i=0;i<subs.Length;i++)
 			subsections[i]=subs[i];
 	}
@@ -1138,12 +1292,6 @@ class Sector{
 		output.Y=((int)(input.Y/5000))*5000;
 		output.Z=((int)(input.Z/5000))*5000;
 		return output;
-	}
-	
-	public int Distance(Vector3D Reference){
-		Vector3D R=Sector.GetStart(Reference);
-		R/=5000;
-		return Math.Abs(X-((int)R.X))+Math.Abs(Y-((int)R.Y))+Math.Abs(Z-((int)R.Z));
 	}
 	
 	public int GetSubInt(Vector3D Coords){
@@ -1165,16 +1313,7 @@ class Sector{
 		return output;
 	}
 	
-	public bool Same(Vector3D I){
-		Vector3D O=Sector.GetStart(I);
-		return X==((int)O.X)&&Y==((int)O.Y)&&Z==((int)O.Z);
-	}
-	
-	public bool Same(Sector O){
-		return X==O.X&&Y==O.Y&&Z==O.Z;
-	}
-	
-	public void Update(Sector O){
+	public void Update(SectorScan O){
 		for(int i=0;i<625;i++)
 			subsections[i]=subsections[i]||O.subsections[i];
 	}
@@ -1189,7 +1328,7 @@ class Sector{
 		return output;
 	}
 	
-	public static Sector Parse(string input){
+	public static SectorScan Parse(string input){
 		string[] parts=Parse.Split(')');
 		if(parts.Length!=2||parts[0].IndexOf('(')!=0)
 			throw new ArgumentException("Bad format");
@@ -1204,10 +1343,10 @@ class Sector{
 		bool[] subsections=new bool[625];
 		for(int i=0;i<625;i++)
 			subsetions[i]=bool.Parse(bools[i]);
-		return new Sector(x,y,z,subsections);
+		return new SectorScan(x,y,z,subsections);
 	}
 	
-	public static bool TryParse(string input,out Sector output){
+	public static bool TryParse(string input,out SectorScan output){
 		output=null;
 		try{
 			output=Parse(input);
@@ -1608,23 +1747,42 @@ Random Rnd;
 
 Gen_Task MyTask;
 
+double Get_ShiftTime(){
+	return DateTime.Now.TimeOfDay.TotalSeconds%10800;
+}
+Foo<double> ShiftTime=new Foo<double>(Get_ShiftTime);
+double Get_ReturnTime(){
+	if(FuelingDocks.Count==0)
+		return double.MaxValue;
+	
+}
+Foo<double> ReturnTime=new Foo<double>(Get_ReturnTime);
+
+
 IMyRemoteControl Controller;
 IMyGyro Gyroscope;
 List<IMyBatteryBlock> Batteries;
-float BatteryPower{
-	get{
-		float current=0;
-		float max=0;
-		foreach(IMyBatteryBlock Battery in Batteries){
-			current+=Battery.CurrentStoredPower;
-			max+=Battery.MaxStoredPower;
-		}
-		return max>0?current:current/max;
+float Get_BatteryPower(){
+	float current=0;
+	float max=0;
+	foreach(IMyBatteryBlock Battery in Batteries){
+		current+=Battery.CurrentStoredPower;
+		max+=Battery.MaxStoredPower;
 	}
+	return max>0?current:current/max;
 }
+Roo<float> BatteryPower=new Roo<float>(Get_BatteryPower);
 List<Dock> FuelingDocks;
+
 IMyShipConnector DockingConnector;
-MyShieldController ShieldController;
+IMyRadioAntenna Antenna;
+List<IMyShipDrill> Drills;
+List<IMyCameraBlock> Cameras;
+List<IMyTerminalBlock> OreContainers;
+
+SectorScan CurrentSector;
+List<Sector> ClaimedSectors;
+List<Sector> CompletedSectors;
 
 List<Planet> Planets;
 
@@ -2057,10 +2215,9 @@ void Reset(){
 	Batteries=new List<IMyBatteryBlock>();
 	FuelingDocks=new List<Dock>();
 	DockingConnector=null;
-	ShieldController=null;
+	OreContainers=new List<IMyTerminalBlock>();
 	
 	Planets=new List<Planet>();
-	StalkerSensors=new List<IMySensorBlock>();
 	for(int i=0;i<All_Thrusters.Length;i++){
 		if(All_Thrusters[i]!=null){
 			for(int j=0;j<All_Thrusters[i].Count;j++){
@@ -2123,9 +2280,18 @@ bool Setup(){
 	SetThrusterList(Right_Thrusters,"Right");
 	Batteries=GenericMethods<IMyBatteryBlock>.GetAllIncluding("");
 	DockingConnector=GenericMethods<IMyShipConnector>.GetContaining("Stalker Docking Connector");
-	ShieldController=new ShieldController(GenericMethods<IMyTerminalBlock>.GetClosestFunc(MyShieldController.IsShieldController));
+	OreContainers.Add(DockingConnector);
+	Drills=GenericMethods<IMyCargoContainer>.GetAllConstruct("");
+	foreach(IMyShipDrill Drill in Drills)
+		OreContainers.Add(Drill);
+	List<IMyCargoContainer> Cargos=GenericMethods<IMyCargoContainer>.GetAllConstruct("");
+	foreach(IMyCargoContainer Cargo in Cargos){
+		if(Cargo.GetInventory().CanTransferItemTo(DockingConnector.GetInventory(),new MyItemType("MyObjectBuilder_Ore","Stone")))
+			OreContainers.Add(Cargo);
+	}
 	
-	StalkerSensors=GenericMethods<IMyStalkerSensor>.GetContaining("Stalker Sensor");
+	
+	
 	string mode="";
 	string[] args=this.Storage.Split('\n');
 	foreach(string arg in args){
@@ -2190,6 +2356,7 @@ public Program(){
 	Notifications=new List<Notification>();
 	Task_Queue=new Queue<Task>();
 	TaskParser(Me.CustomData);
+	IGC.RegisterBroadcastListener("Nova Miner");
 	Setup();
 }
 
@@ -2561,12 +2728,13 @@ void SetThrusters(){
 		effective_speed_limit=300000000;
 	
 	Display(3,"Effective Speed Limit:"+Math.Round(effective_speed_limit,1)+"mps");
+	Controller.SpeedLimit=effective_speed_limit;
+	
 	float deviation_multx=1;
 	if(Target_Distance>25&&effective_speed_limit>5&&Math.Abs(effective_speed_limit-Speed_Deviation)<5)
 		deviation_multx=(float)Math.Sqrt(1-Math.Max(Math.Abs(effective_speed_limit-Speed_Deviation),0.1)/5);
 	
-	
-	if(RestingSpeed==0&&Controller.DampenersOverride&&(Speed_Deviation+5)<effective_speed_limit&&!Do_Position){
+	if(Controller.IsAutoPilotEnabled||(RestingSpeed==0&&Controller.DampenersOverride&&(Speed_Deviation+5)<effective_speed_limit&&!Do_Position)){
 		for(int i=0;i<All_Thrusters.Length;i++){
 			foreach(IMyThrust Thruster in All_Thrusters[i])
 				Thruster.ThrustOverride=0;
@@ -2923,200 +3091,280 @@ public void Main(string argument,UpdateType updateSource){
 	}
 }
 
-//Sends an argument to a programmable block
-bool Task_Send(Task task){
-	IMyProgrammableBlock target=GenericMethods<IMyProgrammableBlock>.GetFull(task.Qualifiers[0]);
-	if(target==null)
-		return false;
-	string arguments="";
-	for(int i=1;i<task.Qualifiers.Count;i++){
-		if(i!=1)
-			arguments+='\n';
-		arguments+=task.Qualifiers[i];
-	}
-	return target.TryRun(arguments);
-}
-
-//Tells the ship to orient to a specific forward direction
-bool Task_Direction(Task task){
-	Vector3D direction=new Vector3D(0,0,0);
-	if(task.Qualifiers[0].IndexOf("At ")==0){
-		if(Vector3D.TryParse(task.Qualifiers.Last().Substring(3),out direction)){
-			Target_Direction=direction-ShipPosition;
-			Target_Direction.Normalize();
-			Do_Direction=true;
-			return true;
-		}
-	}
-	else if(Vector3D.TryParse(task.Qualifiers.Last(),out direction)){
-		Target_Direction=direction;
-		if(Target_Direction.Length()==0)
-			return false;
-		Target_Direction.Normalize();
-		Do_Direction=true;
-		return true;
-	}
-	return false;
-}
-
-//Tells the ship to orient to a specific up direction
-bool Task_Up(Task task){
-	Vector3D direction=new Vector3D(0,0,0);
-	if(Vector3D.TryParse(task.Qualifiers.Last(),out direction)){
-		Target_Up=direction;
-		Target_Up.Normalize();
-		Do_Up=true;
-		return true;
-	}
-	return false;
-}
-
-struct Plane{
-	public double A;
-	public double B;
-	public double C;
-	public double D;
-	
-	public Plane(double a,double b,double c,double d){
-		A=a;
-		B=b;
-		C=c;
-		D=d;
-	}
-	
-	public Plane(Vector3D a,Vector3D b,Vector3D c){
-		A=(b.Y-a.Y)*(c.Z-a.Z)-(c.Y-a.Y)*(b.Z-a.Z);
-		B=(b.Z-a.Z)*(c.X-a.X)-(c.Z-a.Z)*(b.X-a.X);
-		C=(b.X-a.X)*(c.Y-a.Y)-(c.X-a.X)*(b.Y-a.Y);
-		D=-1*(A*a.X+B*a.Y+C*a.Z);
-	}
-	
-	//Creates a Tangent Plane at the given point with the given normal
-	public Plane(Vector3D Point,Vector3D Normal){
-		A=Normal.X;
-		B=Normal.Y;
-		C=Normal.Z;
-		D=-1*(Normal.X*Point.X+Normal.Y*Point.Y+Normal.Z*Point.Z);
-	}
-	
-	//Creates a Normal Vector from the plane
-	public Vector3D Normal(){
-		Vector3D output=new Vector3D(A,B,C);
-		output.Normalize();
-		return output;
-	}
-}
-struct Sphere{
-	public Vector3D Center;
-	public double Radius;
-	
-	public Sphere(Vector3D c,double r){
-		Center=c;
-		Radius=r;
-	}
-	
-	public bool On(Vector3D p){
-		return Math.Abs(Math.Pow(p.X-Center.X,2)+Math.Pow(p.Y-Center.Y,2)+Math.Pow(p.Z-Center.Z,2)-Radius)<0.00001;
-	}
-}
-struct Line{
-	public Vector3D R;
-	public Vector3D V;
-	
-	//Tangent Line on the Circle, where Vector3D Point is on the circle that results from the intersection of Plane P and Sphere S
-	public Line(Plane P,Sphere S,Vector3D Point){
-		Vector3D Tangent_Normal=Point-S.Center;
-		Tangent_Normal.Normalize();
-		V=Vector3D.Cross(P.Normal(),Tangent_Normal);
-		R=Point;
-	}
-}
-
 Vector3D True_Target_Position=new Vector3D(0,0,0);
-//Tells the ship to fly to a specific location
-bool Task_Go(Vector3D position){
-	Target_Position=position;
-	True_Target_Position=position;
-	Do_Position=true;
-	if(Gravity.Length()>0){
-		Vector3D MyPosition=ShipPosition;
-		double my_radius=(MyPosition-PlanetCenter).Length();
-		Vector3D target_direction=Target_Position-PlanetCenter;
-		double target_radius=target_direction.Length();
-		target_direction.Normalize();
-		double planet_radius=my_radius-Target_Elevation;
-		double sealevel_radius=my_radius-Sealevel;
-		Vector3D me_direction=MyPosition-PlanetCenter;
-		me_direction.Normalize();
-		double planet_angle=GetAngle(me_direction,target_direction);
-		Write("Planetary Angle: "+Math.Round(planet_angle,1).ToString()+"°");
-		if(target_radius>sealevel_radius+100){
-			if(target_radius>planet_radius/3){
-				if(planet_angle>30){
-					if(target_radius>my_radius+2000)
-						Target_Position=PlanetCenter-(planet_radius*4/3*Gravity_Direction);
-					return true;
-				}
-			}
-			else if(my_radius<sealevel_radius+400){
-				Target_Position=PlanetCenter-((sealevel_radius+500)*Gravity_Direction);
-				return true;
-			}
+
+bool SetAutopilot(Vector3D Target,string Name="AutoPilot Destination"){
+	return SetAutoPilot(Target,new Vector3D(0,0,0),Name);
+}
+bool SetAutopilot(Vector3D Target,Vector3D MyForward,string Name="AutoPilot Destination"){
+	return SetAutoPilot(Target,MyForward,new Vector3D(0,0,0),Name);
+}
+bool SetAutopilot(Vector3D Target,Vector3D MyForward,Vector3D MyUp,string Name="AutoPilot Destination"){
+	True_Target_Position=Target;
+	Target_Position=Target;
+	double Distance=Target_Distance;
+	bool ReadyFly=true;
+	
+	if(Distance<10)
+		SpeedLimit.Value=2;
+	else if(Distance<20)
+		SpeedLimit.Value=5;
+	if(Distance<100){
+		if(MyUp.Length()>0){
+			Target_Up=MyUp;
+			Do_Up=true;
 		}
-		if((planet_angle>2.5||(planet_angle>5&&target_radius-my_radius>2000))||Target_Elevation-MySize/2<Math.Max(30,Target_Distance/10)){
-			while(planet_angle==180){
-				//This offsets the angle so we can create a full Plane from the 3 points: Center,Here,Target
-				Vector3D offset=new Vector3D(Rnd.Next(0,10)-5,Rnd.Next(0,10)-5,Rnd.Next(0,10)-5);
-				offset.Normalize();
-				Target_Position+=offset;
-				target_direction=Target_Position-PlanetCenter;
-				target_direction.Normalize();
-				planet_angle=GetAngle(me_direction,target_direction);
-			}
-			double GoalElevation=500;
-			
-			if(Target_Elevation<500+MySize){
-				//This increases the cruising altitude if the elevation is too low, for collision avoidance
-				my_radius+=Math.Max(Math.Min(9.375*2*(GoalElevation-(Target_Elevation-MySize)),5000),400);
-				MyPosition=(my_radius)*me_direction+PlanetCenter;
-			}
-			Target_Position=(my_radius)*target_direction+PlanetCenter;
-			//Target is now at same altitude with respect to sealevel
-			Plane Bisect=new Plane(Target_Position,MyPosition,PlanetCenter);
-			//This plane now bisects the planet along both the current location and target
-			Sphere Planet=new Sphere(PlanetCenter,my_radius);
-			//This sphere now represents the planet at the current elevation
-			Line Tangent=new Line(Bisect,Planet,MyPosition);
-			//This line now represents the tangent of the planet in a direction that lines up with the target
-			Vector3D Goal_Direction=Tangent.V;
-			Vector3D My_Direction=Target_Position-MyPosition;
-			My_Direction.Normalize();
-			if(GetAngle(Goal_Direction,My_Direction)>GetAngle(-1*Goal_Direction,My_Direction))
-				Goal_Direction*=-1;
-			Target_Position=Goal_Direction*2500+MyPosition;
+		SpeedLimit.Value=10;
+		if(Do_Direction&&GetAngle(Target_Direction,Forward_Vector)>Acceptable_Angle)
+			ReadyFly=false;
+		if(Do_Up&&GetAngle(Target_Up,Up_Vector)>Acceptable_Angle)
+			ReadyFly=false;
+	}
+	if(Distance<250){
+		if(MyForward.Length()>0){
+			Target_Direction=MyForward;
+			Do_Direction=true;
 		}
+	}
+	bool Use_Autopilot=ReadyFly;
+	if(Distance<25)
+		Use_Autopilot=false;
+	if(Use_Autopilot){
+		if((CurrentWaypoint-Target).Length()>1){
+			Controller.ClearWaypoints();
+			Controller.AddWaypoint(Target,Name);
+			Controller.SetCollisionAvoidance(true);
+			Controller.SetCollisionAvoidance(false);
+		}
+	}
+	else
+		Do_Position=ReadyFly;
+	if(Controller.IsAutoPilotEnabled!=Use_Autopilot)
+		Controller.SetAutopilotEnabled=Use_Autopilot;
+	return true;
+}
+bool StopAutopilot(){
+	Do_Position=false;
+	Do_Up=false;
+	Do_Forward=false;
+	if(Controller.IsAutoPilotEnabled){
+		Controller.SetAutopilotEnabled=false;
+		Controller.ClearWaypoints();
 	}
 	return true;
 }
 
-//Tells the ship to match position
-bool Task_Match(Task task){
-	Match_Direction=true;
+Dock GetFuelingDock(){
+	foreach(Dock dock in FuelingDocks){
+		if(dock.Docked)
+			return dock;
+	}
+	return null;
+}
+
+Dock NearestDock(){
+	double distance=double.MaxValue;
+	foreach(Dock dock in FuelingDocks)
+		distance=Math.Min(distance,dock.DockDistance);
+	foreach(Dock dock in FuelingDocks){
+		if(dock.DockDistance-1<=distance)
+			return dock;
+	}
+	return null;
+}
+
+bool AtRefuelStation(){
+	foreach(Dock dock in FuelingDocks){
+		if(dock.Docked)
+			return true;
+	}
+	return false;
+}
+
+bool StartRefuelingSequence(){
+	if(FuelingDocks.Count==0){
+		Notifications.Add(new Notification("Cannot Set Refueling Course; no FuelingDocks known",30));
+		return false;
+	}
+	if(AtRefuelStation())
+		MyTask=new Task_Refuel(TaskType.Transfer,GetFuelingDock());
+	else
+		MyTask=new Task_Refuel(TaskType.Travel,NearestDock());
+	Dock dock=(MyTask as Task_Refuel).Data;
+	Notifications.Add(new Notification("Set Refueling Course to "+dock.DockName,Math.Min(60,dock.DockDistance/50)));
 	return true;
+}
+
+TaskType BeginDocking(TaskType current,Dock dock){
+	IMyShipConnector connector=dock.DockingConnector;
+	
+	Vector3D offset_approach=dock.DockApproach-ConnectorOffset(connector);
+	Vector3D offset_target=dock.DockTarget-ConnectorOffset(connector);
+	Vector3D offset_final=dock.DockFinal-ConnectorOffset(connector);
+	
+	Vector3D DockDirection=dock.DockDirection;
+	Vector3D DockForward=dock.DockForward;
+	Vector3D DockUp=dock.DockUp;
+	double approach_distance=(connector.GetPosition()-offset_approach).Length();
+	double dock_distance=(connector.GetPosition()-offset_target).Length();
+	Vector3D connector_direction=LocalToGlobal(new Vector3D(0,0,-1),connector);
+	
+	if(current==TaskType.Travel){
+		if(Math.Min(approach_distance,dock_distance)<2.5){
+			SetAutopilot(ShipPosition,DockDirection,DockUp,"Dock Stop");
+			current=TaskType.Job;
+			SetBlockData(dock.DockingConnector,"AutoDockTimer","0");
+		}
+		else
+			SetAutopilot(offset_approach,DockDirection,DockUp,"Dock Approach");
+	}
+	if(current==TaskType.Job){
+		if(GetAngle(Forward_Vector,DockForward)<5&&GetAngle(Up_Vector,DockUp)<5){
+			Navigation.TryRun("Go\nUntil\n"+offset_target.ToString());
+			if(dock_distance<0.25){
+				SetAutopilot(offset_final,DockDirection,DockUp,"Dock Final");
+				current=TaskType.Dock;
+				SetBlockData(dock.DockingConnector,"AutoDockTimer","0");
+			}
+			else
+				SetAutopilot(offset_target,DockDirection,DockUp,"Dock Target");
+		}
+		else
+			SetAutopilot(ShipPosition,DockDirection,DockUp,"Dock Stop");
+	}
+	if(current==TaskType.Dock){
+		double autoDockTimer=0;
+		if(dock.DockingConnector.Status==MyShipConnectorStatus.Connectable){
+			double.TryParse(GetBlockData(dock.DockingConnector,"AutoDockTimer"),out autoDockTimer);
+			autoDockTimer+=seconds_since_last_update;
+			if(autoDockTimer>2)
+				dock.DockingConnector.Connect();
+		}
+		if(dock.DockingConnector.Status==MyShipConnectorStatus.Connected){
+			StopAutopilot();
+			current=TaskType.Transfer;
+			SetBlockData(dock.DockingConnector,"AutoDockTimer","0");
+		}
+		else
+			SetBlockData(dock.DockingConnector,"AutoDockTimer",Math.Round(autoDockTimer,3).ToString());
+	}
+	return current;
+}
+
+bool Undock(){
+	Dock dock=GetFuelingDock();
+	if(dock==null)
+		return false;
+	return Undock(dock);
+}
+
+bool Undock(Dock dock){
+	if(!dock.Docked)
+		return false;
+	for(int i=0;i<Batteries.Count;i++)
+		Batteries[i].ChargeMode=ChargeMode.Auto;
+	dock.DockingConnector.Disconnect();
+	Notifications.Add(new Notification("Undocked from "+dock.DockName,10));
+	return true;
+}
+
+bool PerformRefuel(float percent=1){
+	if(DockingConnector.Status!=MyShipConnectorStatus.Connected)
+		return false;
+	MyInventory TargetInventory=DockingConnector.OtherConnector.GetInventory();
+	float completion=1;
+	for(int i=0;i<Batteries.Count;i++){
+		IMyBatteryBlock Battery=Batteries[i];
+		completion=Math.Min(completion,Battery.CurrentStoredPower/Battery.MaxStoredPower);
+		if(Battery.ChargeMode!=ChargeMode.Recharge)
+			Battery.ChargeMode=ChargeMode.Recharge;
+	}
+	
+	bool isFull=TargetInventory.IsFull;
+	for(int i=0;i<OreContainers.Count;i++){
+		MyInventory Inventory=OreContainers[i].GetInventory();
+		if(!isFull){
+			List<MyInventoryItem> Items=new List<MyInventoryItem>();
+			Inventory.GetItems(Items,null);
+			for(int i=0;i<Items.Count&&!isFull;i++){
+				Inventory.TransferItemTo(TargetInventory,Items[i],null);
+				isFull=TargetInventory.IsFull;
+			}
+		}
+		float capacity=((float)(Inventory.CurrentVolume.ToIntSafe()))/Inventory.MaxVolume.ToIntSafe();
+		completion=Math.Min(completion,1-capacity);
+	}
+	return completion>=percent;
+}
+
+//Refuels the ship, unloads cargo
+bool RefuelTask(){
+	Task_Refuel current=MyTask as Task_Refuel;
+	if(current==null)
+		return false;
+	if(current.Type!=TaskType.Transfer)
+		current.Type=BeginDocking(current.Type,current.Data);
+	MyTask=current;
+	if(current.Type==TaskType.Transfer){
+		if(PerformRefuel())
+			MyTask=new Task_None(TaskType.Dock);
+		else
+			Display(1,"Refueling at "+current.Data.DockName);
+	}
+	return true;
+}
+
+Sector StartScouting
+
+//Scouts out Sectors
+bool ScoutingTask(){
+	Task_Scout current=MyTask as Task_Scout;
+	if(current==null)
+		return false;
+	
+}
+
+//Produces a low-resolution Asteroid Mapping
+bool MappingTask(){
+	Task_Map current=MyTask as Task_Map;
+	if(current==null)
+		return false;
+	
+}
+
+//Produces a high-resolution local map
+bool ScanningTask(){
+	Task_Scan current=MyTask as Task_Scan;
+	if(current==null)
+		return false;
+	
+}
+
+//Mines through the Asteroid
+bool MiningTask(){
+	Task_Mine current=MyTask as Task_Mine;
+	if(current==null)
+		return false;
+	
 }
 
 //Main Job Loop
 bool PerformTask(){
 	Display(1,"Task: "+MyTask.Name+": "+MyTask.Type.ToString());
+	Antenna.HudText="Nova AutoMiner --- "+MyTask.Name+":"+MyTask.Type.ToString();
 	switch(MyTask.Name){
 		case "None":
 			return true;
 		case "Refuel":
 			return RefuelTask();
-		case "Stalking":
-			return StalkingTask();
-		case "Hunting":
-			return HuntingTask();
+		case "Scout":
+			return ScoutingTask();
+		case "Map":
+			return MappingTask();
+		case "Scan":
+			return ScanningTask();
+		case "Mine":
+			return MiningTask();
 	}
 	return false;
 }
@@ -3131,6 +3379,7 @@ void Task_Resetter(){
 	Do_Up=false;
 	Do_Position=false;
 	Match_Direction=false;
+	RestingSpeed=0;
 }
 
 void Task_Pruner(Task task){
@@ -3177,42 +3426,46 @@ void TaskParser(string argument){
 	}
 }
 
-void Main_Program(string argument){
-	ProcessTasks();
-	UpdateSystemData();
-	if(!Me.CubeGrid.IsStatic){
-		if(Elevation!=double.MaxValue){
-			Display(1,"Elevation: "+Math.Round(Elevation,1).ToString());
-			Display(1,"Sealevel: "+Math.Round(Sealevel,1).ToString());
+void GetUpdates(){
+	List<IMyBroadcastListener> listeners=new List<IMyBroadcastListener>();
+	IGC.GetBroadcastListeners(listeners);
+	foreach(IMyBroadcastListener Listener in listeners){
+		while(Listener.HasPendingMessage){
+			MyIGCMessage message=Listener.AcceptMessage();
+			string Data=message.Data.ToString();
+			string[] args=Data.Split('\n');
+			string mode="";
+			foreach(string arg in args){
+				switch(arg){
+					case "Claiming":
+						mode=arg;
+						break;
+					default:
+						switch(mode){
+							case "Claiming":
+								Vector3D claimPos;
+								if(Vector3D.TryParse(arg,claimPos)){
+									
+								}
+								break;
+						}
+						break;
+				}
+			}
 		}
-		if(Gravity.Length()>0){
-			Display(1,"Gravity:"+Math.Round(Gravity.Length()/9.814,2)+"Gs");
-			double grav=Relative_Gravity.Y;
-			if(Relative_Gravity.Y>0.1)
-				Display(1,"Gravity Up:"+Math.Round(Math.Abs(grav)/9.814,2)+"Gs");
-			else if(Relative_Gravity.Y<-0.1)
-				Display(1,"Gravity Down:"+Math.Round(Math.Abs(grav)/9.814,2)+"Gs");
-			grav=Relative_Gravity.Z;
-			if(Relative_Gravity.Z>0.1)
-				Display(1,"Gravity Back:"+Math.Round(Math.Abs(grav)/9.814,2)+"Gs");
-			else if(Relative_Gravity.Z<-0.1)
-				Display(1,"Gravity Forwd:"+Math.Round(Math.Abs(grav)/9.814,2)+"Gs");
-			grav=Relative_Gravity.X;
-			if(Relative_Gravity.X>0.1)
-				Display(1,"Gravity Right:"+Math.Round(Math.Abs(grav)/9.814,2)+"Gs");
-			else if(Relative_Gravity.X<-0.1)
-				Display(1,"Gravity Left:"+Math.Round(Math.Abs(grav)/9.814,2)+"Gs");
-		}
-		Display(2,"Acceleration Up:"+Math.Round(Up_Gs,2)+"Gs");
-		Display(2,"Acceleration Forwd:"+Math.Round(Forward_Gs,2)+"Gs");
-		Display(2,"Acceleration Back:"+Math.Round(Backward_Gs,2)+"Gs");
-		Display(2,"Acceleration Down:"+Math.Round(Down_Gs,2)+"Gs");
-		Display(2,"Acceleration Left:"+Math.Round(Left_Gs,2)+"Gs");
-		Display(2,"Acceleration Right:"+Math.Round(Right_Gs,2)+"Gs");
 	}
+}
+
+void Main_Program(string argument){
+	UpdateSystemData();
 	if(argument.ToLower().Equals("factory reset")){
 		FactoryReset();
 	}
+	else if(argument.ToLower().Equals("refuel"))
+		StartRefuelingSequence();
+	
+	GetUpdates();
+	ProcessTasks();
 	
 	if(!Me.CubeGrid.IsStatic&&ShipMass.PhysicalMass>0){
 		if(Control_Thrusters)
