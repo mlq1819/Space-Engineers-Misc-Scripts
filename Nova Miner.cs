@@ -1313,6 +1313,10 @@ class SectorScan:Sector{
 		return output;
 	}
 	
+	public Sector AsSector(){
+		return new Sector(X,Y,Z);
+	}
+	
 	public void Update(SectorScan O){
 		for(int i=0;i<625;i++)
 			subsections[i]=subsections[i]||O.subsections[i];
@@ -1757,7 +1761,7 @@ double Get_ReturnTime(){
 	
 }
 Foo<double> ReturnTime=new Foo<double>(Get_ReturnTime);
-
+bool HasSentUpdates;
 
 IMyRemoteControl Controller;
 IMyGyro Gyroscope;
@@ -1780,9 +1784,10 @@ List<IMyShipDrill> Drills;
 List<IMyCameraBlock> Cameras;
 List<IMyTerminalBlock> OreContainers;
 
+IMyTextPanel BaseLCD=null;
+
 SectorScan CurrentSector;
-List<Sector> ClaimedSectors;
-List<Sector> CompletedSectors;
+Dictionary<Sector,bool> UnavailableSectors;
 
 List<Planet> Planets;
 
@@ -2215,7 +2220,13 @@ void Reset(){
 	Batteries=new List<IMyBatteryBlock>();
 	FuelingDocks=new List<Dock>();
 	DockingConnector=null;
+	Antenna=null;
+	Drills=new List<IMyShipDrill>();
+	Cameras=new List<IMyCameraBlock>();
 	OreContainers=new List<IMyTerminalBlock>();
+	HasSentUpdates=false;
+	CurrentSector=null;
+	UnavailableSectors=new Dictionary<Sector,bool>();
 	
 	Planets=new List<Planet>();
 	for(int i=0;i<All_Thrusters.Length;i++){
@@ -2232,6 +2243,16 @@ void Reset(){
 	Notifications=new List<Notification>();
 }
 
+bool SetBaseLCD(){
+	BaseLCD=GenericMethods<IMyTextPanel>.GetFull(Me.CubeGrid.CustomName+" Base LCD");
+	if(BaseLCD==null)
+		return false;
+	BaseLCD.FontColor=DEFAULT_TEXT_COLOR;
+	BaseLCD.BackgroundColor=DEFAULT_BACKGROUND_COLOR;
+	BaseLCD.Alignment=TextAlignment.CENTER;
+	BaseLCD.ContentType=ContentType.TEXT_AND_IMAGE;
+	return true;
+}
 double MySize=0;
 bool Setup(){
 	Reset();
@@ -2278,8 +2299,11 @@ bool Setup(){
 	SetThrusterList(Down_Thrusters,"Down");
 	SetThrusterList(Left_Thrusters,"Left");
 	SetThrusterList(Right_Thrusters,"Right");
-	Batteries=GenericMethods<IMyBatteryBlock>.GetAllIncluding("");
-	DockingConnector=GenericMethods<IMyShipConnector>.GetContaining("Stalker Docking Connector");
+	Batteries=GenericMethods<IMyBatteryBlock>.GetAllConstruct("");
+	DockingConnector=GenericMethods<IMyShipConnector>.GetConstruct("Docking Connector");
+	if(DockingConnector.Status==MyShipConnectorStatus.Connected)
+		SetBaseLCD();
+	Antenna=GenericMethods<IMyRadioAntenna>.GetConstruct()
 	OreContainers.Add(DockingConnector);
 	Drills=GenericMethods<IMyCargoContainer>.GetAllConstruct("");
 	foreach(IMyShipDrill Drill in Drills)
@@ -2300,10 +2324,24 @@ bool Setup(){
 			case "Planets":
 			case "MyTask":
 			case "RestingSpeed":
+			case "HasSentUpdates":
+			case "UnavailableSectors":
+			case "CurrentSector":
 				mode=arg;
 				break;
 			default:
 				switch(mode){
+					case "UnavailableSectors":
+						Sector unavailable;
+						bool completed;
+						string sub_args=arg.Split(';');
+						if(sub_args.Length==2&&Sector.TryParse(sub_args[0],out unavailable)&&bool.TryParse(sub_args[1],out completed)){
+							if(UnavailableSectors.ContainsKey(unavailable))
+								UnavailableSectors[unavailable]=completed;
+							else
+								UnavailableSectors.Add(unavailable,completed);
+						}
+						break;
 					case "Docks":
 						Dock dock;
 						if(Dock.TryParse(arg,out dock))
@@ -2322,11 +2360,22 @@ bool Setup(){
 							MyTask=new Task_None();
 						}
 						break;
+					case "CurrentSector":
+						SectorScan currentSector;
+						if(SectorScan.TryParse(arg,out currentSector))
+							CurrentSector=currentSector;
+						break;
 					case "RestingSpeed":
 						double restingSpeed=0;
 						if(double.TryParse(arg,out restingSpeed))
 							RestingSpeed=restingSpeed;
 						break;
+					case "HasSentUpdates":
+						bool hasSentUpdates=false;
+						if(bool.TryParse(arg,out hasSentUpdates))
+							HasSentUpdates=hasSentUpdates;
+						break;
+					
 				}
 				break;
 		}
@@ -2369,6 +2418,12 @@ public void Save(){
 	this.Storage+="\nPlanets";
 	foreach(Planet planet in Planets)
 		this.Storage+='\n'+planet.ToString();
+	this.Storage+="\nHasSentUpdates\n"+HasSentUpdates.ToString();
+	this.Storage+="\nUnavailableSectors";
+	foreach(Sector sector in UnavailableSectors.Keys)
+		this.Storage+="\n"+sector.ToString()+';'+UnavailableSectors[sector].ToString();
+	this.Storage+="\nCurrentSector\n"+CurrentSector.ToString();
+	
 	Me.CustomData="";
 	foreach(Task T in Task_Queue){
 		Me.CustomData+=T.ToString()+'•';
@@ -3242,6 +3297,8 @@ TaskType BeginDocking(TaskType current,Dock dock){
 		}
 		if(dock.DockingConnector.Status==MyShipConnectorStatus.Connected){
 			StopAutopilot();
+			if(BaseLCD==null)
+				SetBaseLCD();
 			current=TaskType.Transfer;
 			SetBlockData(dock.DockingConnector,"AutoDockTimer","0");
 		}
@@ -3314,7 +3371,96 @@ bool RefuelTask(){
 	return true;
 }
 
-Sector StartScouting
+bool CheckAvailable(Sector sector){
+	if(UnavailableSectors.Count<=Zones.Count/2){
+		if(UnavailableSectors.ContainsKey(sector))
+			return false;
+		foreach(Zone zone in Zones){
+			if(zone.Overlaps(sector))
+				return false;
+		}
+	}
+	else{
+		foreach(Zone zone in Zones){
+			if(zone.Overlaps(sector))
+				return false;
+		}
+		if(UnavailableSectors.ContainsKey(sector))
+			return false;
+	}
+	return true;
+}
+
+int MinScoutRadius=1;
+SectorScan StartScouting(){
+	Vector3D start=NearestDock().DockPosition;
+	bool available=false;
+	Vector3D pos=start;
+	for(int R=MinScoutRadius;R<10;R++){
+		MinScoutRadius=Math.Max(MinScoutRadius,R);
+		for(int y=-R;y<=R;y++){
+			for(int z=-R;z<=R;z++){
+				for(int i=0;i<2;i++){
+					int x=(i>0?-R:R);
+					Vector3D difference=5000*(new Vector3D(x,y,z));
+					Sector consider=new Sector(start+difference);
+					if(CheckAvailable(consider)){
+						pos=start+difference;
+						available=true;
+						break;
+					}
+				}
+				if(available)
+					break;
+			}
+			if(available)
+				break;
+		}
+		if(available)
+			break;
+		for(int x=-R;x<=R;x++){
+			for(int z=-R;z<=R;z++){
+				for(int i=0;i<2;i++){
+					int y=(i>0?-R:R);
+					Vector3D difference=5000*(new Vector3D(x,y,z));
+					Sector consider=new Sector(start+difference);
+					if(CheckAvailable(consider)){
+						pos=start+difference;
+						available=true;
+						break;
+					}
+				}
+				if(available)
+					break;
+			}
+			if(available)
+				break;
+		}
+		if(available)
+			break;
+		for(int x=-R;x<=R;x++){
+			for(int y=-R;y<=R;y++){
+				for(int i=0;i<2;i++){
+					int z=(i>0?-R:R);
+					Vector3D difference=5000*(new Vector3D(x,y,z));
+					Sector consider=new Sector(start+difference);
+					if(CheckAvailable(consider)){
+						pos=start+difference;
+						available=true;
+						break;
+					}
+				}
+				if(available)
+					break;
+			}
+			if(available)
+				break;
+		}
+		if(available)
+			break;
+	}
+	return new SectorScan(pos);
+}
 
 //Scouts out Sectors
 bool ScoutingTask(){
@@ -3352,6 +3498,13 @@ bool MiningTask(){
 bool PerformTask(){
 	Display(1,"Task: "+MyTask.Name+": "+MyTask.Type.ToString());
 	Antenna.HudText="Nova AutoMiner --- "+MyTask.Name+":"+MyTask.Type.ToString();
+	if(BaseLCD!=null){
+		string outputText="--Nova Mining Drone--";
+		outputText+="\n"+Me.CubeGrid.CustomName+" --- "+MyTask.Name+":"+MyTask.Type.ToString();
+		outputText+="\nLast Connected:"+DateTime.Now.ToString();
+		outputText+="\n"+(new MyWaypointInfo("Last Known Position",ShipPosition)).ToString();
+		BaseLCD.WriteText(outputText,false);
+	}
 	switch(MyTask.Name){
 		case "None":
 			return true;
@@ -3438,14 +3591,21 @@ void GetUpdates(){
 			foreach(string arg in args){
 				switch(arg){
 					case "Claiming":
+					case "Completed":
 						mode=arg;
 						break;
 					default:
 						switch(mode){
 							case "Claiming":
-								Vector3D claimPos;
-								if(Vector3D.TryParse(arg,claimPos)){
-									
+							case "Completed":
+								Vector3D sectorPos;
+								if(Vector3D.TryParse(arg,sectorPos)){
+									Sector sector=new Sector(sectorPos);
+									bool completed=mode.Equals("Completed");
+									if(UnavailableSectors.ContainsKey(sector))
+										UnavailableSectors[sector]=completed;
+									else
+										UnavailableSectors.Add(sector,completed);
 								}
 								break;
 						}
