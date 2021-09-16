@@ -921,16 +921,16 @@ class Task_Refuel:Ship_Task<Dock>{
 		}
 	}
 }
-class Task_Scout:Ship_Task<Sector>{
-	public Task_Scout(TaskType type,Sector sector):base("Scout",type,sector){
+class Task_Scout:Ship_Task<SectorScan>{
+	public Task_Scout(TaskType type,SectorScan sector):base("Scout",type,sector){
 		;
 	}
 	
 	public static Task_Scout Parse(string input){
 		string[] args=StringParser(input);
 		TaskType type;
-		Sector data;
-		if((!args[0].Equals("Scout"))||(!Enum.TryParse(args[1],out type))||(!Sector.TryParse(args[2],out data)))
+		SectorScan data;
+		if((!args[0].Equals("Scout"))||(!Enum.TryParse(args[1],out type))||(!SectorScan.TryParse(args[2],out data)))
 			throw new ArgumentException("Bad Format");
 		return new Task_Scout(type,data);
 	}
@@ -1261,7 +1261,7 @@ class Sector{
 	}
 }
 class SectorScan:Sector{
-	public bool[] subsections;
+	public bool[][] subsections;
 	bool Get_Complete(){
 		foreach(bool b in subsections){
 			if(!b)
@@ -1272,18 +1272,25 @@ class SectorScan:Sector{
 	public Foo<bool> Complete=new Foo<bool>(Get_Complete);
 	
 	public SectorScan(int x,int y,int z):base(x,y,z){
-		subsections=new bool[625];
-		for(int i=0;i<625;i++)
-			subsections[i]=false;
+		subsections=new bool[][25];
+		for(int x=0;x<25;x++){
+			subsections[x]=new bool[25];
+			for(int y=0;y<25;y++){
+				subsections[x][y]=false;
+			}
+		}
 	}
 	
 	public SectorScan(Vector3D Point):this((int)(Point.X/5000),(int)(Point.Y/5000),(int)(Point.Z/5000)){
 		;
 	}
 	
-	protected SectorScan(int x,int y,int z,bool[] subs):this(x,y,z){
-		for(int i=0;i<subs.Length;i++)
-			subsections[i]=subs[i];
+	protected SectorScan(int x,int y,int z,bool[][] subs):this(x,y,z){
+		for(int x=0;x<25;x++){
+			for(int y=0;y<25;y++){
+				subsections[x][y]=subs[x][y];
+			}
+		}
 	}
 	
 	public static Vector3D GetStart(Vector3D input){
@@ -1317,6 +1324,139 @@ class SectorScan:Sector{
 		return new Sector(X,Y,Z);
 	}
 	
+	public bool CompletedRow(Vector3D Current){
+		int X=GetMyRow(Current);
+		for(int y=0;y<25;y++){
+			if(!subsections[X][y])
+				return false;
+		}
+		return true;
+	}
+	
+	public Vector3D TravelDirection(Vector3D Current){
+		Vector3D output=new Vector3D(0,0,0);
+		Vector2I position=GetMyPosition(Current);
+		int below=0;
+		int above=0;
+		for(int y=0;y<25;y++){
+			if(!subsections[position.X,y]){
+				if(y<position.Y)
+					below++;
+				else if(y>position.Y)
+					above++;
+			}
+		}
+		if(below==0||above==0){
+			if(below>0)
+				return new Vector3D(0,-1,0);
+			if(above>0)
+				return new Vector3D(0,1,0);
+		}
+		else{
+			if(below<=above)
+				return new Vector3D(0,-1,0);
+			else
+				return new Vector3D(0,1,0);
+		}
+	}
+	
+	Vector3D GetPos(int x,int y){
+		return BoundingBox.Min+200*(new Vector3D(x,y,0));
+	}
+	
+	Vector2I GetMyPosition(Vector3D Current){
+		int x=0;
+		int y=0;
+		bool best=false;
+		do{
+			Vector3D position=GetPos(x,y);
+			double distance=(Current-position).Length();
+			if(x<24&&distance>(Current-GetPos(x+1,y)).Length()){
+				x++;
+				continue;
+			}
+			if(x>0&&distance>(Current-GetPos(x-1,y)).Length()){
+				x--;
+				continue;
+			}
+			if(y<24&&distance>(Current-GetPos(x,y+1)).Length()){
+				y++;
+				continue;
+			}
+			if(y>0&&distance>(Current-GetPos(x,y-1)).Length()){
+				y--;
+				continue;
+			}
+			best=true;
+		}
+		while(!best);
+		return new Vector2I(x,y);
+	}
+	
+	public Vector3D NearestInRow(Vector3D Current){
+		int X=GetMyPosition(Current);
+		double closest=double.MaxValue;
+		for(int y=0;y<25;y++){
+			if(subsections[X][y])
+				continue;
+			closest=Math.Min(closest,(Current-GetPos(X,y)).Length());
+		}
+		for(int y=0;y<25;y++){
+			if(subsections[X][y])
+				continue;
+			Vector3D position=GetPos(X,y);
+			double distance=(Current-position).Length();
+			if(distance-1<=closest)
+				return position;
+		}
+		return new Vector3D(0,0,0);
+	}
+	
+	int GetMyRow(Vector3D Current){
+		int x=0;
+		bool best=false;
+		do{
+			Vector3D position=GetPos(x,0);
+			double distance=(Current-position).Length();
+			if(x<24&&distance>(Current-GetPos(x+1,0)).Length()){
+				x++;
+				continue;
+			}
+			if(x>0&&distance>(Current-GetPos(x-1,0)).Length()){
+				x--;
+				continue;
+			}
+			best=true;
+		}
+		while(!best);
+		return x;
+	}
+	
+	public Vector3D GetStartingLine(Vector3D Current){
+		Vector3D output=BoundingBox.Min;
+		for(int x=0;x<25;x++){
+			bool completed=true;
+			int minY=25;
+			int maxY=0;
+			for(int y=0;y<25;y++){
+				if(!subsections[x][y]){
+					completed=false;
+					minY=Math.Min(minY,y);
+					maxY=Math.Max(maxY,y);
+				}
+			}
+			if(completed)
+				continue;
+			Vector3D bottom=Corners[0]+(new Vector3D(x*200,200*minY,0));
+			Vector3D top=Corners[0]+(new Vector3D(x*200,200*maxY,0));
+			if((Current-output).Length()>(Current-bottom).Length())
+				output=bottom;
+			if((Current-output).Length()>(Current-top).Length())
+				output=top;
+		}
+		return output;
+	}
+	
 	public void Update(SectorScan O){
 		for(int i=0;i<625;i++)
 			subsections[i]=subsections[i]||O.subsections[i];
@@ -1327,7 +1467,7 @@ class SectorScan:Sector{
 		for(int i=0;i<625;i++){
 			if(i>0)
 				output+=',';
-			output+=subsections[i].ToString();
+			output+=subsections[i/25][i%25].ToString();
 		}
 		return output;
 	}
@@ -1344,9 +1484,11 @@ class SectorScan:Sector{
 		string[] bools=parts[1].Split(',');
 		if(bools.Length!=625)
 			throw new ArgumentException("Bad format");
-		bool[] subsections=new bool[625];
+		bool[][] subsections=new bool[][25];
+		for(int x=0;x<25;x++)
+			subsections[x]=new bool[25];
 		for(int i=0;i<625;i++)
-			subsetions[i]=bool.Parse(bools[i]);
+			subsetions[i/25][i%25]=bool.Parse(bools[i]);
 		return new SectorScan(x,y,z,subsections);
 	}
 	
@@ -1782,11 +1924,12 @@ IMyShipConnector DockingConnector;
 IMyRadioAntenna Antenna;
 List<IMyShipDrill> Drills;
 List<IMyCameraBlock> Cameras;
+List<IMySensorBlock> Sensors;
 List<IMyTerminalBlock> OreContainers;
+List<IMyLightingBlock> Spotlights;
 
 IMyTextPanel BaseLCD=null;
 
-SectorScan CurrentSector;
 Dictionary<Sector,bool> UnavailableSectors;
 
 List<Planet> Planets;
@@ -2028,14 +2171,12 @@ double Time_To_Stop=0;
 
 Roo<Vector3D> ShipPosition=new Roo<Vector3D>(Controller.GetPosition());
 
-double RestingSpeed=0;
-Vector3D RestingVelocity{
+double RestingSpeed{
 	get{
-		if(RestingSpeed==0)
-			return new Vector3D(0,0,0);
-		return RestingSpeed*Forward_Vector;
+		return RestingVelocity.Length();
 	}
 }
+Vector3D RestingVelocity=new Vector3D(0,0,0);
 Vector3D Relative_RestingVelocity{
 	get{
 		return GlobalToLocal(RestingVelocity,Controller);
@@ -2223,9 +2364,10 @@ void Reset(){
 	Antenna=null;
 	Drills=new List<IMyShipDrill>();
 	Cameras=new List<IMyCameraBlock>();
+	Sensors=new List<IMySensorBlock>();
+	Spotlights=new List<IMyLightingBlock>();
 	OreContainers=new List<IMyTerminalBlock>();
 	HasSentUpdates=false;
-	CurrentSector=null;
 	UnavailableSectors=new Dictionary<Sector,bool>();
 	
 	Planets=new List<Planet>();
@@ -2238,7 +2380,7 @@ void Reset(){
 		}
 		All_Thrusters[i]=new List<IMyThrust>();
 	}
-	RestingSpeed=0;
+	RestingVelocity=new Vector3D(0,0,0);
 	MyTask=new Task_None();
 	Notifications=new List<Notification>();
 }
@@ -2303,7 +2445,12 @@ bool Setup(){
 	DockingConnector=GenericMethods<IMyShipConnector>.GetConstruct("Docking Connector");
 	if(DockingConnector.Status==MyShipConnectorStatus.Connected)
 		SetBaseLCD();
-	Antenna=GenericMethods<IMyRadioAntenna>.GetConstruct()
+	Antenna=GenericMethods<IMyRadioAntenna>.GetConstruct("");
+	Cameras=GenericMethods<IMyCameraBlock>.GetAllConstruct("");
+	for(int i=0;i<Cameras.Count;i++)
+		Cameras[i].EnableRaycast=true;
+	Sensors=GenericMethods<IMySensorBlock>.GetAllConstruct("");
+	Spotlights=GenericMethods<IMyLightingBlock>.GetAllConstruct("Spotlight");
 	OreContainers.Add(DockingConnector);
 	Drills=GenericMethods<IMyCargoContainer>.GetAllConstruct("");
 	foreach(IMyShipDrill Drill in Drills)
@@ -2326,7 +2473,6 @@ bool Setup(){
 			case "RestingSpeed":
 			case "HasSentUpdates":
 			case "UnavailableSectors":
-			case "CurrentSector":
 				mode=arg;
 				break;
 			default:
@@ -2360,15 +2506,10 @@ bool Setup(){
 							MyTask=new Task_None();
 						}
 						break;
-					case "CurrentSector":
-						SectorScan currentSector;
-						if(SectorScan.TryParse(arg,out currentSector))
-							CurrentSector=currentSector;
-						break;
-					case "RestingSpeed":
-						double restingSpeed=0;
-						if(double.TryParse(arg,out restingSpeed))
-							RestingSpeed=restingSpeed;
+					case "RestingVelocity":
+						Vector3D restingVelocity=new Vector3D(0,0,0);
+						if(Vector3D.TryParse(arg,out restingVelocity))
+							RestingVelocity=restingVelocity;
 						break;
 					case "HasSentUpdates":
 						bool hasSentUpdates=false;
@@ -2411,7 +2552,7 @@ public Program(){
 
 public void Save(){
 	this.Storage="\nMyTask\n"+MyTask.ToString();
-	this.Storage+="\nRestingSpeed\n"+Math.Round(RestingSpeed,1).ToString();
+	this.Storage+="\nRestingVelocity\n"+RestingVelocity.ToString();
 	this.Storage+="\nDocks";
 	foreach(Dock dock in FuelingDocks)
 		this.Storage+='\n'+dock.ToString();
@@ -2422,7 +2563,6 @@ public void Save(){
 	this.Storage+="\nUnavailableSectors";
 	foreach(Sector sector in UnavailableSectors.Keys)
 		this.Storage+="\n"+sector.ToString()+';'+UnavailableSectors[sector].ToString();
-	this.Storage+="\nCurrentSector\n"+CurrentSector.ToString();
 	
 	Me.CustomData="";
 	foreach(Task T in Task_Queue){
@@ -2446,6 +2586,7 @@ bool Disable(){
 	return true;
 }
 bool FactoryReset(){
+	Controller?.SetAutoPilotEnabled(false);
 	if(Gyroscope!=null)
 		Gyroscope.GyroOverride=false;
 	for(int i=0;i<All_Thrusters.Length;i++){
@@ -3020,7 +3161,7 @@ void Crash_Test(){
 	if(Time_To_Crash>0){
 		if(Safety&&Time_To_Crash-Time_To_Stop<5&&Controller.GetShipSpeed()>5){
 			Controller.DampenersOverride=true;
-			RestingSpeed=0;
+			RestingVelocity=new Vector3D(0,0,0);
 			for(int i=0;i<Notifications.Count;i++){
 				if(Notifications[i].Text.IndexOf("Crash predicted within ")==0&&Notifications[i].Text.Contains(" seconds:\nEnabling Dampeners...")){
 					Notifications.RemoveAt(i--);
@@ -3462,12 +3603,95 @@ SectorScan StartScouting(){
 	return new SectorScan(pos);
 }
 
+bool CheckEntity(MyDetectedEntityInfo Entity){
+	if(Entity.IsEmpty)
+		return false;
+	return Entity.Type==MyDetectedEntityType.Asteroid;
+}
+
 //Scouts out Sectors
 bool ScoutingTask(){
 	Task_Scout current=MyTask as Task_Scout;
 	if(current==null)
 		return false;
-	
+	if(current.Type==TaskType.Dock){
+		if(Undock())
+			current.Type=TaskType.Travel;
+	}
+	if(current.Type==TaskType.Travel){
+		if(current.Data.Complete){
+			Notifications.Add(new Notification("Completed scanning sector "+current.Data.X+'-'+current.Data.Y+'-'+current.Data.Z,10));
+			MyTask=new Task_Refuel(TaskType.Travel,NearestDock());
+			return true;
+		}
+		Vector3D StartingLine=current.Data.GetStartingLine(ShipPosition);
+		if((ShipPosition-StartingLine).Length()<2.5)
+			current.Type=TaskType.Job;
+		else
+			SetAutopilot(StartingLine,new Vector3D(0,0,1),new Vector3D(1,0,0),"Scouting Row Start");
+	}
+	if(current.Type==TaskType.Job){
+		if(current.Data.CompletedRow(ShipPosition)){
+			current.Type=TaskType.Travel;
+			MyTask=current;
+			return ScoutingTask();
+		}
+		else{
+			RestingVelocity=current.Data.TravelDirection(ShipPosition)*37.5;
+			Vector3D nearest=current.Data.NearestInRow(ShipPosition);
+			if((ShipPosition-Nearest).Length()<5){
+				if(Cameras.Count>0){
+					Vector3D target=nearest+(new Vector3D(0,0,5000));
+					if(Cameras[0].CanScan(target)){
+						MyDetectedEntityInfo Entity=Cameras[0].Raycast(target);
+						if(CheckEntity(Entity)){
+							if(UnavailableSectors.ContainsKey(current.Data.AsSector()))
+								UnavailableSectors[current.Data.AsSector()]=true;
+							else
+								UnavailableSectors.Add(current.Data.AsSector(),true);
+							IGC.SendBroadcastMessage("Nova Miner","Asteroid\n"+(new Asteroid(Entity)).ToString());
+							IGC.SendBroadcastMessage("Nova Miner","Completed\n"+current.Data.AsSector().ToString());
+							Notifications.Add(new Notification("Found an Asteroid!",600));
+							MyTask=new Task_Map(TaskType.Travel,new Asteroid(Entity));
+							return true;
+						}
+						for(int i=1;i<Cameras.Count;i++){
+							int direction=(i-1)%4;
+							int distance=200*((i-1)/4);
+							Vector3D offset=new Vector3D(0,0,0);
+							switch(direction){
+								case 0:
+									offset.X=1;
+									break;
+								case 1:
+									offset.Y=1;
+									break;
+								case 2:
+									offset.X=-1;
+									break;
+								case 3:
+									offset.Y=-1;
+									break;
+							}
+							Entity=Cameras[i].Raycast(target+offset*distance);
+							if(CheckEntity(Entity)){
+								if(UnavailableSectors.ContainsKey(current.Data.AsSector()))
+									UnavailableSectors[current.Data.AsSector()]=true;
+								else
+									UnavailableSectors.Add(current.Data.AsSector(),true);
+								IGC.SendBroadcastMessage("Nova Miner","Asteroid\n"+(new Asteroid(Entity)).ToString());
+								IGC.SendBroadcastMessage("Nova Miner","Completed\n"+current.Data.AsSector().ToString());
+								Notifications.Add(new Notification("Found an Asteroid!",600));
+								MyTask=new Task_Map(TaskType.Travel,new Asteroid(Entity));
+								return true;
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+	return true;
 }
 
 //Produces a low-resolution Asteroid Mapping
@@ -3475,7 +3699,38 @@ bool MappingTask(){
 	Task_Map current=MyTask as Task_Map;
 	if(current==null)
 		return false;
-	
+	//Asteroid.GridMap
+	//Asteroid.Radius
+	Antenna.Radius=Math.Min(current.Data.Radius*3,(ShipPosition-current.Data.Position).Length());
+	if(!current.Data.GridComplete){
+		Vector3D Direction=current.Data.GridMap.NextScanDirection();
+		Vector3D TargetPosition=current.Data.Position+(20*current.Data.Radius)*Direction;
+		Vector3D TargetDirection=current.Data.Position-ShipPosition;
+		TargetDirection.Normalize();
+		if(current.Type==TaskType.Travel){
+			SetAutopilot(TargetPosition,TargetDirection,"Mapping Asteroid");
+			if((TargetPosition-ShipPosition).Length()<0.25){
+				current.Type=TaskType.Job;
+			}
+		}
+		if(current.Type==TaskType.Job){
+			if(Cameras.Count>0){
+				if(Cameras[0].CanScan(current.Data.Position)){
+					MyDetectedEntityInfo Entity=Cameras[0].CanScan(current.Data.Position);
+					if(CheckEntity(Entity)&&Entity.HitPosition!=null){
+						current.Data.GridMap.Map(((Vector3D)Entity.HitPosition)-current.Data.Position);
+						current.Type=TaskType.Travel;
+					}
+				}
+			}
+		}
+	}
+	MyTask=current;
+	if(current.Data.GridComplete){
+		Notifications.Add()
+		MyTask=new Task_Scan(TaskType.Travel,current.Data);
+	}
+	return true;
 }
 
 //Produces a high-resolution local map
@@ -3483,6 +3738,8 @@ bool ScanningTask(){
 	Task_Scan current=MyTask as Task_Scan;
 	if(current==null)
 		return false;
+	//Asteroid.DetailMap
+	//Asteroid.LocalRadius
 	
 }
 
@@ -3532,7 +3789,8 @@ void Task_Resetter(){
 	Do_Up=false;
 	Do_Position=false;
 	Match_Direction=false;
-	RestingSpeed=0;
+	Speed_Limit=100;
+	RestingVelocity=new Vector3D(0,0,0);
 }
 
 void Task_Pruner(Task task){
