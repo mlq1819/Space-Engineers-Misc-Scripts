@@ -66,10 +66,15 @@ class GenericMethods<T> where T : class, IMyTerminalBlock{
 		}
 	}
 	
+	static List<T> Get_AllBlocks(){
+		List<T> output=new List<T>();
+		TerminalSystem.GetBlocksOfType<T>(output);
+		return output;
+	}
+	static Rool<T> AllBlocks=new Rool<T>(Get_AllBlocks);
+	
 	public static T GetFull(string name,Vector3D Ref,double mx_d=double.MaxValue){
-		List<T> AllBlocks=new List<T>();
 		List<T> MyBlocks=new List<T>();
-		TerminalSystem.GetBlocksOfType<T>(AllBlocks);
 		double min_distance=mx_d;
 		foreach(T Block in AllBlocks){
 			if(Block.CustomName.Equals(name)){
@@ -120,9 +125,7 @@ class GenericMethods<T> where T : class, IMyTerminalBlock{
 	}
 	
 	public static T GetContaining(string name,Vector3D Ref,double mx_d){
-		List<T> AllBlocks=new List<T>();
 		List<T> MyBlocks=new List<T>();
-		TerminalSystem.GetBlocksOfType<T>(AllBlocks);
 		double min_distance=mx_d;
 		foreach(T Block in AllBlocks){
 			if(Block.CustomName.Contains(name)){
@@ -148,10 +151,8 @@ class GenericMethods<T> where T : class, IMyTerminalBlock{
 	}
 	
 	public static List<T> GetAllContaining(string name,Vector3D Ref,double mx_d){
-		List<T> AllBlocks=new List<T>();
 		List<List<T>> MyLists=new List<List<T>>();
 		List<T> MyBlocks=new List<T>();
-		TerminalSystem.GetBlocksOfType<T>(AllBlocks);
 		foreach(T Block in AllBlocks){
 			if(Block.CustomName.Contains(name)){
 				bool has_with_name=false;
@@ -191,9 +192,9 @@ class GenericMethods<T> where T : class, IMyTerminalBlock{
 	}
 	
 	public static List<T> GetAllIncluding(string name,Vector3D Ref,double mx_d=double.MaxValue){
-		List<T> AllBlocks=new List<T>();
+		if(name.Length==0&&mx_d==double.MaxValue)
+			return AllBlocks;
 		List<T> MyBlocks=new List<T>();
-		TerminalSystem.GetBlocksOfType<T>(AllBlocks);
 		foreach(T Block in AllBlocks){
 			double distance=(Ref-Block.GetPosition()).Length();
 			if(Block.CustomName.Contains(name)&&distance<=mx_d)
@@ -219,9 +220,7 @@ class GenericMethods<T> where T : class, IMyTerminalBlock{
 	}
 	
 	public static List<T> GetAllFunc(Func<T,bool> f){
-		List<T> AllBlocks=new List<T>();
 		List<T> MyBlocks=new List<T>();
-		TerminalSystem.GetBlocksOfType<T>(AllBlocks);
 		foreach(T Block in AllBlocks){
 			if(f(Block))
 				MyBlocks.Add(Block);
@@ -338,10 +337,6 @@ abstract class OneDone{
 			All=new List<OneDone>();
 		All.Add(this);
 	}
-	~OneDone(){
-		if(All.Contains(this))
-			All.Remove(this);
-	}
 	
 	public static void ResetAll(){
 		if(All==null)
@@ -367,6 +362,39 @@ class OneDone<T>:OneDone{
 	
 	public static implicit operator T(OneDone<T> O){
 		return O.Value;
+	}
+}
+public class Rool<T>:IEnumerable<T>{
+	// Run Only Once
+	private List<T> _Value;
+	public List<T> Value{
+		get{
+			if(!Ran.Value){
+				_Value=Updater();
+				Ran.Value=true;
+			}
+			return _Value;
+		}
+	}
+	private OneDone<bool> Ran;
+	private Func<List<T>> Updater;
+	
+	public Rool(Func<List<T>> updater){
+		Ran=new OneDone<bool>(false);
+		Updater=updater;
+	}
+	
+	public IEnumerator<T> GetEnumerator(){
+		return Value.GetEnumerator();
+	}
+	
+	IEnumerator IEnumerable.GetEnumerator()
+	{
+		return this.GetEnumerator();
+	}
+	
+	public static implicit operator List<T>(Rool<T> R){
+		return R.Value;
 	}
 }
 class Roo<T>{
