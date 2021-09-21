@@ -717,8 +717,8 @@ struct VectorDto{
 		V2=Box.Max;
 	}
 	
-	public Vector3D[2] ToArr(){
-		return new Vector3D[2] {V1,V2};
+	public Vector3D[] ToArr(){
+		return new Vector3D[2]{V1,V2};
 	}
 	
 	public override string ToString(){
@@ -1128,100 +1128,12 @@ struct Planet{
 	}
 }
 
-abstract class StaggerCalc{
-	protected OneDone<int> Counter;
-	public int Count{
-		get{
-			return Counter.Value;
-		}
-	}
-	
-	public abstract bool RunOnce();
-	public int Run(int cycles){
-		int output=0;
-		while(cycle-->0&&RunOnce())
-			output++;
-		return output;
-	}
-	public int RunAll(){
-		int output=0;
-		while(RunOnce())
-			output++;
-		return output;
-	}
-}
-class StaggerCalc<T>{
-	public T Obj;
-	public Func<T,bool> A;
-	private Action<T> B;
-	
-	protected Staggercalc(T obj,int counter){
-		Obj=obj;
-		Counter=new OneDone<int>(counter);
-	}
-	
-	public StaggerCalc(T obj,Func<T,bool> a,int counter=100):this(obj,counter){
-		A=a;
-	}
-	
-	public StaggerCalc(T obj,Action<T> b,int counter=100):this(obj,counter){
-		B=b;
-		A=C;
-	}
-	
-	private bool C(T input){
-		B(input);
-		return true;
-	}
-	
-	public bool RunOnce(){
-		if(Counter.Value<=0||!A(Obj))
-			return false;
-		Counter.Value--;
-		return true;
-	}
-}
-class StaggerCalc<T,U>:StaggerCalc{
-	public T Obj1;
-	public U Obj2;
-	public Func<T,U,bool> A;
-	private Action<T,U> B;
-	
-	protected Staggercalc(T obj1,U obj2,int counter){
-		Obj1=obj1;
-		Obj2=obj2;
-		Counter=new OneDone<int>(counter);
-	}
-	
-	public StaggerCalc(T obj1,U obj2,Func<T,U,bool> a,int counter=100):this(obj1,obj2,counter){
-		A=a;
-	}
-	
-	public StaggerCalc(T obj1,U obj2,Action<T,U> b,int counter=100):this(obj1,obj2,counter){
-		B=b;
-		A=C;
-	}
-	
-	private bool C(T i1,U i2){
-		B(i1,i2);
-		return true;
-	}
-	
-	public bool RunOnce(){
-		if(Counter.Value<=0)
-			return false;
-		A(Obj1,Obj2);
-		Counter.Value--;
-		return true;
-	}
-}
-
 class Sector{
 	public int X;
 	public int Y;
 	public int Z;
-	Vector3D[8] Get_Corners(){
-		Vector3D[8] output=new Vector3D[8];
+	Vector3D[] Get_Corners(){
+		Vector3D[] output=new Vector3D[8];
 		for(int i=0;i<8;i++){
 			double x=BoundingBox.Min.X+(i%2==0?0:5000);
 			double y=BoundingBox.Min.Y+(i%4<2?0:5000);
@@ -1230,19 +1142,19 @@ class Sector{
 		}
 		return output;
 	}
-	public Foo<Vector3D[8]> Corners=new Foo<Vector3D[8]>(Get_Corners);
+	public Roo<Vector3D[]> Corners=new Roo<Vector3D[]>(Get_Corners);
 	BoundingBoxD Get_BoundingBox(){
 		int smallX=X*5000;
 		int smallY=Y*5000;
 		int smallZ=Z*5000;
-		Vector3D[2] MinMaxCorners=new Vector3D{new Vector3D(smallX,smallY,smallZ),new Vector3D(smallX+5000,smallY+5000,smallZ+5000)};
+		Vector3D[] MinMaxCorners=new Vector3D[2]{new Vector3D(smallX,smallY,smallZ),new Vector3D(smallX+5000,smallY+5000,smallZ+5000)};
 		return BoundingBoxD.CreateFromPoints(MinMaxCorners);
 	}
-	public Foo<BoundingBoxD> BoundingBox=new Foo<BoundingBoxD>(Get_BoundingBox);
+	public Roo<BoundingBoxD> BoundingBox=new Roo<BoundingBoxD>(Get_BoundingBox);
 	Vector3D Get_Center(){
 		return new Vector3D(X*5000+2500,Y*5000+2500,Z*5000+2500);
 	}
-	public Foo<Vector3D> Center=new Foo<Vector3D>(Center);
+	public Roo<Vector3D> Center=new Roo<Vector3D>(Center);
 	
 	public Sector(int x,int y,int z){
 		X=x;
@@ -1297,10 +1209,10 @@ class SectorScan:Sector{
 		}
 		return true;
 	}
-	public Foo<bool> Complete=new Foo<bool>(Get_Complete);
+	public Roo<bool> Complete=new Roo<bool>(Get_Complete);
 	
 	public SectorScan(int x,int y,int z):base(x,y,z){
-		subsections=new bool[][25];
+		subsections=new bool[25][];
 		for(int x=0;x<25;x++){
 			subsections[x]=new bool[25];
 			for(int y=0;y<25;y++){
@@ -1512,7 +1424,7 @@ class SectorScan:Sector{
 		string[] bools=parts[1].Split(',');
 		if(bools.Length!=625)
 			throw new ArgumentException("Bad format");
-		bool[][] subsections=new bool[][25];
+		bool[][] subsections=new bool[25][];
 		for(int x=0;x<25;x++)
 			subsections[x]=new bool[25];
 		for(int i=0;i<625;i++)
@@ -1660,7 +1572,7 @@ class SurfaceMapper{
 		MaxDeg=maxDeg;
 		if(MaxDeg.Y>=180)
 			MaxDeg.Y=181;
-		Mapper=new double[][Size.X];
+		Mapper=new double[Size.X][];
 		for(int x=0;x<Size.X;x++){
 			Mapper[x]=-1;
 		}
@@ -1742,7 +1654,7 @@ class SurfaceMapper{
 			throw new ArgumentException("Bad format");
 		input=input.Substring(brackedIdx+1);
 		Vector2I size=CalculateSize(deg,min,max);
-		double[][] map=new double[][size.X];
+		double[][] map=new double[size.X][];
 		for(int x=0;x<size.X;x++){
 			map[x]=new double[size.Y];
 		}
@@ -1921,16 +1833,16 @@ Random Rnd;
 
 Gen_Task MyTask;
 
-double Get_ShiftTime(){
+public double Get_ShiftTime(){
 	return DateTime.Now.TimeOfDay.TotalSeconds%10800;
 }
-Foo<double> ShiftTime=new Foo<double>(Get_ShiftTime);
-double Get_ReturnTime(){
+Roo<double> ShiftTime=new Roo<double>(Get_ShiftTime);
+public double Get_ReturnTime(){
 	if(FuelingDocks.Count==0)
 		return double.MaxValue;
 	
 }
-Foo<double> ReturnTime=new Foo<double>(Get_ReturnTime);
+Roo<double> ReturnTime=new Roo<double>(Get_ReturnTime);
 bool HasSentUpdates;
 
 IMyRemoteControl Controller;
@@ -2012,7 +1924,7 @@ List<IMyThrust> Right_Thrusters{
 	}
 }
 
-float Get_Max_Thrust(){
+public float Get_Max_Thrust(){
 	float output=Forward_Thrust;
 	output=Math.Max(output,Backward_Thrust);
 	output=Math.Max(output,Up_Thrust);
@@ -2028,7 +1940,7 @@ float Max_Thrust{
 	}
 }
 
-float Get_Forward_Thrust(){
+public float Get_Forward_Thrust(){
 	float total=0;
 	foreach(IMyThrust Thruster in Forward_Thrusters){
 		if(Thruster.IsWorking)
@@ -2038,7 +1950,7 @@ float Get_Forward_Thrust(){
 }
 Roo<float> Forward_Thrust=new Roo<float>(Get_Forward_Thrust);
 
-float Get_Backward_Thrust(){
+public float Get_Backward_Thrust(){
 	float output=0;
 	foreach(IMyThrust Thruster in Backward_Thrusters){
 		if(Thruster.IsWorking)
@@ -2048,7 +1960,7 @@ float Get_Backward_Thrust(){
 }
 Roo<float> Backward_Thrust=new Roo<float>(Get_Backward_Thrust);
 
-float Get_Up_Thrust(){
+public float Get_Up_Thrust(){
 	float total=0;
 	foreach(IMyThrust Thruster in Up_Thrusters){
 		if(Thruster.IsWorking)
@@ -2058,7 +1970,7 @@ float Get_Up_Thrust(){
 }
 Roo<float> Up_Thrust=new Roo<float>(Get_Up_Thrust);
 
-float Get_Down_Thrust(){
+public float Get_Down_Thrust(){
 	float total=0;
 	foreach(IMyThrust Thruster in Down_Thrusters){
 		if(Thruster.IsWorking)
@@ -2068,7 +1980,7 @@ float Get_Down_Thrust(){
 }
 Roo<float> Down_Thrust=new Roo<float>(Get_Down_Thrust);
 
-float Get_Left_Thrust{
+public float Get_Left_Thrust(){
 	float total=0;
 	foreach(IMyThrust Thruster in Left_Thrusters){
 		if(Thruster.IsWorking)
@@ -2078,7 +1990,7 @@ float Get_Left_Thrust{
 }
 Roo<float> Left_Thrust=new Roo<float>(Get_Left_Thrust);
 
-float Get_Right_Thrust{
+public float Get_Right_Thrust(){
 	float total=0;
 	foreach(IMyThrust Thruster in Right_Thrusters){
 		if(Thruster.IsWorking)
@@ -2190,7 +2102,7 @@ Vector3D Right_Vector{
 
 
 Roo<MyShipMass> ShipMass=new Roo<MyShipMass>(Controller.CalculateShipMass());
-float Get_Mass_Accomodation(){
+public float Get_Mass_Accomodation(){
 	return (float)(Gravity.Length()*ShipMass.PhysicalMass);
 }
 Roo<float> Mass_Accomodation=new Roo<float>(Get_Mass_Accomodation);
@@ -2229,7 +2141,7 @@ Vector3D Velocity_Direction{
 	}
 }
 
-Vector3D Get_Relative_CurrentVelocity(){
+public Vector3D Get_Relative_CurrentVelocity(){
 	Vector3D output=Vector3D.Transform(CurrentVelocity+ShipPosition,MatrixD.Invert(Controller.WorldMatrix));
 	output.Normalize();
 	output*=CurrentVelocity.Length();
@@ -2273,19 +2185,19 @@ Vector3D Relative_AngularVelocity{
 	}
 }
 
-double Get_Elevation(){
+public double Get_Elevation(){
 	double elevation=double.MaxValue;
 	Controller.TryGetPlanetElevation(MyPlanetElevation.Surface,out elevation);
 	return elevation;
 }
 Roo<double> Elevation=new Roo<double>(Get_Elevation);
-double Get_Sealevel(){
+public double Get_Sealevel(){
 	double sealevel=double.MaxValue;
 	Controller.TryGetPlanetElevation(MyPlanetElevation.Sealevel,out sealevel);
 	return sealevel;
 }
 Roo<double> Sealevel=new Roo<double>(Get_Sealevel);
-Vector3D Get_PlanetCenter(){
+public Vector3D Get_PlanetCenter(){
 	Vector3D planetCenter=new Vector3D(0,0,0);
 	Controller.TryGetPlanetPosition(out planetCenter);
 	return planetCenter;
@@ -3755,7 +3667,7 @@ bool MappingTask(){
 	}
 	MyTask=current;
 	if(current.Data.GridComplete){
-		Notifications.Add()
+		Notifications.Add(new Notification("Completed scan",30));
 		MyTask=new Task_Scan(TaskType.Travel,current.Data);
 	}
 	return true;
@@ -3819,50 +3731,6 @@ void Task_Resetter(){
 	Match_Direction=false;
 	Speed_Limit=100;
 	RestingVelocity=new Vector3D(0,0,0);
-}
-
-void Task_Pruner(Task task){
-	bool duplicate=false;
-	foreach(Task t in Task_Queue){
-		if(t.Type==task.Type){
-			duplicate=true;
-			break;
-		}
-	}
-	if(duplicate){
-		Queue<Task> Recycling=new Queue<Task>();
-		while(Task_Queue.Count>0){
-			Task t=Task_Queue.Dequeue();
-			if(!t.Type.Equals(task.Type))
-				Recycling.Enqueue(t);
-		}
-		while(Recycling.Count>0)
-			Task_Queue.Enqueue(Recycling.Dequeue());
-	}
-}
-
-void TaskParser(string argument){
-	string[] tasks=argument.Split('•');
-	foreach(string task in tasks){
-		if(task.Trim().Length==0)
-			continue;
-		Task t=null;
-		if(Task.TryParse(task,out t)){
-			if(t.Duration==Quantifier.Stop)
-				PerformTask(t);
-			else{
-				Task_Pruner(t);
-				Task_Queue.Enqueue(t);
-			}
-		}
-		else{
-			if(t==null)
-				Notifications.Add(new Notification("Failed to parse \""+task+"\"",15));
-			else{
-				Notifications.Add(new Notification("Failed to parse \""+task+"\": Got\""+t.ToString()+"\"",15));
-			}
-		}
-	}
 }
 
 void GetUpdates(){
