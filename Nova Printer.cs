@@ -24,6 +24,8 @@ public void Main(string argument,UpdateType updateSource){
 }
 
 
+
+
 // Initialization and Objects
 public Program(){
 	Echo("Beginning initialization.");
@@ -94,15 +96,17 @@ public Program(){
 	Echo("Loading Welding Drone... "+(SetupDrone()?"success":"failed"));
 	
 	
-	Runtime.UpdateFrequency=UpdateFrequency.None;
+	Runtime.UpdateFrequency=UpdateFrequency.Update10;
 	Echo("Completed initialization!");
 }
 
 bool SetupDrone(){
 	if(Drone!=null)
 		return true;
-	IMyRemoteControl droneRemote=CollectionMethods<IMyRemoteControl>.ByFullName("Nova Printer Drone Remote Control",CollectionMethods<IMyRemoteControl>.AllBlocks);
-	Drone=MyDrone.TryCreate(droneRemote);
+	if(Dock.Status==MyShipConnectorStatus.Connectable)
+		Dock.Connect();
+	if(Dock.Status==MyShipConnectorStatus.Connected)
+		Drone=MyDrone.TryCreate(Dock.OtherConnector);
 	return Drone!=null;
 }
 
@@ -113,6 +117,15 @@ IMyCargoContainer Container;
 IMyShipConnector Dock;
 MyDrone Drone;
 
+
+public enum MyDroneStatus{
+	Docked,
+	Idle,
+	Stocking,
+	Traveling,
+	Welding,
+	Docking
+}
 class MyDrone{
 	public IMyRemoteControl Remote;
 	public List<IMyShipWelder> Welders;
@@ -123,9 +136,9 @@ class MyDrone{
 	
 	public Roo<float> ChargePercent;
 	
+	public MyDroneStatus Status;
 	
-	
-	protected MyDrone(IMyRemoteControl remote,List<IMyShipWelder> welders,List<IMyCargoContainer> containers,List<IMyCameraBlock> cameras,IMyShipConnector connector,List<IMyBatteryBlock> batteries){
+	protected MyDrone(IMyShipConnector connector,IMyRemoteControl remote,List<IMyShipWelder> welders,List<IMyCargoContainer> containers,List<IMyCameraBlock> cameras,List<IMyBatteryBlock> batteries){
 		Remote=remote;
 		Welders=welders;
 		Containers=containers;
@@ -133,9 +146,16 @@ class MyDrone{
 		Connector=connector;
 		Batteries=batteries;
 		ChargePercent=new Roo<float>(Get_ChargePercent);
+		if(ChargePercent>=0.99f)
+			Status=MyDroneStatus.Idle;
+		else
+			Status=MyDroneStatus.Docked;
 	}
 	
-	public static MyDrone TryCreate(IMyRemoteControl remote){
+	public static MyDrone TryCreate(IMyShipConnector connector){
+		if(!(connector?.CustomName.Contains("Nova Printer Drone")??false))
+			return null;
+		IMyRemoteControl remote=CollectionMethods<IMyRemoteControl>.ByName("Nova Printer Drone",CollectionMethods<IMyRemoteControl>.AllByGrid(connector.CubeGrid));
 		if(remote==null)
 			return null;
 		List<IMyShipWelder> welders=CollectionMethods<IMyShipWelder>.AllByName("Nova Printer Drone",CollectionMethods<IMyShipWelder>.AllByGrid(remote.CubeGrid));
@@ -143,11 +163,25 @@ class MyDrone{
 			return null;
 		List<IMyCargoContainer> containers=CollectionMethods<IMyCargoContainer>.AllByName("Nova Printer Drone",CollectionMethods<IMyCargoContainer>.AllByGrid(remote.CubeGrid));
 		List<IMyCameraBlock> cameras=CollectionMethods<IMyCameraBlock>.AllByName("Nova Printer Drone",CollectionMethods<IMyCameraBlock>.AllByGrid(remote.CubeGrid));
-		IMyShipConnector connector=CollectionMethods<IMyShipConnector>.ByFullName("Nova Printer Drone",CollectionMethods<IMyShipConnector>.AllByGrid(remote.CubeGrid));
 		List<IMyBatteryBlock> cameras=CollectionMethods<IMyBatteryBlock>.AllByName("Nova Printer Drone",CollectionMethods<IMyBatteryBlock>.AllByGrid(remote.CubeGrid));
 		if(containers.Count==0||cameras.Count==0||connector==null||batteries.Count==0)
 			return null;
-		return new MyDrone(remote,welders,containers,cameras,connector);
+		return new MyDrone(connector,remote,welders,containers,cameras,batteries);
+	}
+	
+	public void Redock(IMyShipConnector Dock){
+		
+	}
+	
+	public void Undock(Vector3D destination){
+		foreach(IMyBatteryBlock battery in Batteries)
+			battery.ChargeMode=ChargeMode.Auto;
+		Connector.Disconnect();
+		Remote.ClearWaypoints();
+		Remote.AddWaypoint(destination,"Welder Destination");
+		Remote.SetCollisionAvoidance(true);
+		Remote.SetDockingMode(false);
+		Remote.SetAutoPilotEnabled(true);
 	}
 	
 	protected float Get_ChargePercent(){
