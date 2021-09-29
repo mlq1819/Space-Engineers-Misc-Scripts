@@ -1,4 +1,4 @@
-const string ProgramName = "Atlas Mech"; //Name me!
+const string ProgramName = "Atlas Walker Mech"; //Name me!
 Color DefaultTextColor=new Color(197,137,255,255);
 Color DefaultBackgroundColor=new Color(44,0,88,255);
 
@@ -31,6 +31,7 @@ public Program(){
 	
 	// Initialize runtime objects
 	Echo("Initializing objects...");
+	Controller=CollectionMethods<IMyShipController>.ByName("Mech Main");
 	
 	
 	// Load runtime variables from CustomData
@@ -60,6 +61,362 @@ public Program(){
 	Echo("Completed initialization!");
 }
 
+IMyShipController Controller{
+	get{
+		return Prog.Controller;
+	}
+	set{
+		Prog.Controller=value;
+	}
+}
+MyLeg LeftLeg;
+MyLeg RightLeg;
+
+
+public enum MyParityStatus{
+	NotReady,
+	Return,
+	Testing,
+	Reset,
+	Ready
+}
+public interface IMyJointController{
+	public IMyCubeGrid BottomGrid;
+	public IMyCubeGrid TopGrid;
+	
+	public MyParityStatus ParityStatus();
+	public bool Parity();
+	
+	public bool GoForward(float multx);
+	public bool GoForward();
+	public bool GoBackward(float multx);
+	public bool GoBackward();
+	public bool Stop();
+	
+	public float Position();
+	
+	public bool SetParity(Vector3D localDirection);
+}
+public virtual class MyJointController<T>:IMyJointController where T:class,IMyMechanicalConnectionBlock{
+	public T Block;
+	protected IMyCubeBlock Connection;
+	protected Vector3I LengthVector;
+	protected double JointLength{
+		get{
+			return VectorLength(LengthVector-Connection.Position);
+		}
+	}
+	
+	protected MyJointController(T block,IMyCubeBlock connection){
+		Block=block;
+		Connection=connection;
+	}
+	
+	protected Vector3D GetEndPosition(){
+		return GenMethods.GlobalToLocalPosition(
+		GenMethods.LocalToGlobalPosition(LengthVector,Connection),
+		Prog.Controller);
+	}
+	
+	public MyParityStatus ParityStatus(){
+		ParityStatus output=MyParityStatus.NotReady;
+		if(GenMethods.HasBlockData(Block,"ParityStatus")){
+			string str=GenMethods.GetBlockData(Block,"ParityStatus");
+			output=Enum.Parse(MyParityStatus,str);
+		}
+		return output;
+	}
+	
+	public bool Parity(){
+		return GenMethods<bool>.GetBlockData(Block,"Parity",bool.Parse);
+	}
+	
+	void LengthVectorHelper(Dictionary<int,List<Vector3I>> positions,Vector3I start,Vector3I pos){
+		int distance=(pos-start).Length();
+		for(int i=0;i<6;i++){
+			int x=0,y=0,z=0;
+			switch(i){
+				case 0:
+					x=1;
+				case 1:
+					x=-1;
+					break;
+				case 2:
+					y=1;
+				case 3:
+					y=-1;
+					break;
+				case 4:
+					z=1;
+				case 5:
+					z=-1;
+					break;
+			}
+			Vector3I next=pos+(new Vector3I(x,y,z));
+			int nextDistance=(next-start).Length();
+			if(nextDistance<=distance)
+				continue;
+			if(!TopGrid.CubeExists(next))
+				continue;
+			if(!positions.ContainsKey(nextDistance))
+				positions.Add(nextDistance,new List<Vector3I>());
+			if(positions[nextDistance].Contains(next))
+				continue;
+			positions[nextDistance].Add(next);
+		}
+	}
+	
+	bool LengthVectorHelper(Dictionary<int,List<Vector3I>> positions,Vector3I start,int distance){
+		foreach(Vector3I pos in positions[distance]){
+			LengthVectorHelper(positions,start,pos);
+		}
+		return positions(distance+1).Count>0;
+	}
+	
+	protected Vector3I GetLengthVector(){
+		if(VectorLength(LengthVector)>0)
+			return LengthVector;
+		if(GenMethods.HasBlockData(Block,"LengthVector")){
+			Vector3I output;
+			if(Vector3I.TryParse(GenMethods.GetBlockData(Block,"LengthVector"),out output)){
+				LengthVector=output;
+				return LengthVector;
+			}
+		}
+		Vector3I start=Connection.Position;
+		Dictionary<int,List<Vector3I>> positions=new Dictionary<int,List<Vector3I>>();
+		positions.Add(0,new List<Vector3I>());
+		positions[0].Add(start);
+		int distance=0;
+		while(LengthVectorHelper(start,distance,positions))
+			distance++;
+		LengthVector=positions[distance][0]-start;
+		return LengthVector;
+	}
+	
+	public static double VectorLength(Vector3I v){
+		return (new Vector3D(v.X,v.Y,v.Z)).Length();
+	}
+	
+	public bool GoForward(){
+		float multx=1;
+		if(GenMethods.HasBlockData(Block,"ForwardMultx"))
+			multx=GenMethods.GetBlockData<float>(Block,"ForwardMultx",float.Parse);
+		else if(GenMethods.HasBlockData(Block,"Multx"))
+			multx=GenMethods.GetBlockData<float>(Block,"Multx",float.Parse);
+		return GoForward(multx);
+	}
+	
+	public bool GoBackward(){
+		float multx=1;
+		if(GenMethods.HasBlockData(Block,"BackwardMultx"))
+			multx=GenMethods.GetBlockData<float>(Block,"BackwardMultx",float.Parse);
+		else if(GenMethods.HasBlockData(Block,"Multx"))
+			multx=GenMethods.GetBlockData<float>(Block,"Multx",float.Parse);
+		return GoForward(multx);
+	}
+	
+}
+class MyJointRotor:MyJointController<IMyMotorStator>{
+	public IMyMotorStator Rotor{
+		get{
+			return Block;
+		}
+		set{
+			Block=value;
+		}
+	};
+	
+	public MyJointRotor(IMyMotorStator rotor):base(rotor,rotor.Top){
+		BottomGrid=rotor.CubeGrid;
+		TopGrid=rotor.TopGrid;
+	}
+	
+	
+	public bool GoForward(float multx){
+		MyAngle Angle=MyAngle.FromRadians(Rotor.Angle);
+		MyAngle Limit=MyAngle.FromRadians(Rotor.UpperLimitRad);
+		bool atLimit=Limit.FromBottom(Angle)<0.1;
+		Rotor.RotorLock=atLimit;
+		Rotor.TargetVelocityRPM=atLimit?0:3*multx*(Parity()?1:-1);
+		return !atLimit;
+	}
+	
+	public bool GoBackward(float multx){
+		MyAngle Angle=MyAngle.FromRadians(Rotor.Angle);
+		MyAngle Limit=MyAngle.FromRadians(Rotor.LowerLimitrad);
+		bool atLimit=Limit.FromTop(Angle)<0.1;
+		Rotor.RotorLock=atLimit;
+		Rotor.TargetVelocityRPM=atLimit?0:3*multx*(Parity()?-1:1);
+		return !atLimit;
+	}
+	
+	public bool Stop(){
+		Rotor.TargetVelocityRPM=0;
+		Rotor.RotorLock=true;
+		return true;
+	}
+	
+	Vector3D DefaultPos;
+	Vector3D ForwardPos;
+	public bool SetParity(Base6Directions.Direction direction){
+		MyParityStatus status=ParityStatus();
+		MyAngle angle=MyAngle.FromRadians(Rotor.Angle);
+		if(status==MyParityStatus.NotReady)
+			status=MyParityStatus.Return;
+		if(status==MyParityStatus.Return){
+			Rotor.TargetVelocityRad=Rotor.Angle/-2;
+			if(angle.Difference(new MyAngle(0))<1){
+				DefaultPos=GetEndPosition();
+				status=MyParityStatus.Testing;
+				Rotor.TargetVelocityRPM=3;
+			}
+		}
+		if(status==MyParityStatus.Testing){
+			Rotor.TargetVelocityRpm=(angle-30).Degrees/-2;
+			if(angle>25){
+				Vector3D ForwardPos=GetEndPosition();
+				double difference=GenMethods.DirectionComp(ForwardPos-DefaultPos,direction);
+				if(Math.Abs(difference)>=0.5){
+					Rotor.TargetVelocityRPM=-3;
+					status=MyParityStatus.Reset;
+				}
+			}
+		}
+		if(status==MyParityStatus.Reset){
+			Rotor.TargetVelocityRad=Rotor.Angle/-2;
+			if(angle.Difference(new MyAngle(0))<1){
+				Rotor.TargetVelocityRPM=0;
+				SetBlockData(Block,"Parity",(ForwardPos-DefaultPos).Z<0);
+				status=MyParityStatus.Ready;
+			}
+		}
+		GenMethods.SetBlockData(Rotor,"ParityStatus",status.ToString());
+		return status==MyParityStatus.Ready;
+	}
+}
+class MyJointPneumatic:MyJointController<IMyPistonBase>{
+	public IMyPistonBase Piston{
+		get{
+			return Block;
+		}
+		set{
+			Block=value;
+		}
+	};
+	public IMyMotorStator BaseRotor;
+	public IMyMotorStator TopRotor;
+	
+	protected MyJointPneumatic(IMyPistonBase piston,IMyMotorStator baseRotor,IMyMotorStator topRotor,IMyCubeBlock jointTop):base(piston,jointTop){
+		BaseRotor=baseRotor;
+		TopRotor=topRotor;
+		BottomGrid=baseRotor.CubeGrid;
+		TopGrid=topRotor.TopGrid;
+	}
+	
+	
+	public bool GoForward(float multx){
+		Piston.Velocity=0.5f*multx*(Parity()?1:-1);
+		return Piston.Status==PistonStatus.Extending||Piston.Status==PistonStatus.Retracting;
+	}
+	
+	public bool GoBackward(float multx){
+		Piston.Velocity=0.5f*multx*(Parity()?-1:1);
+		return Piston.Status==PistonStatus.Extending||Piston.Status==PistonStatus.Retracting;
+	}
+	
+	public bool Stop(){
+		Piston.Velocity=0;
+		return Piston.Status!=PistonStatus.Extending&&Piston.Status!=PistonStatus.Retracting;
+	}
+	
+	Vector3D DefaultPos;
+	Vector3D ForwardPos;
+	public bool SetParity(Base6Directions.Direction direction){
+		MyParityStatus status=ParityStatus();
+		float position=Piston.CurrentPosition;
+		float high=Piston.HighestPosition;
+		float low=Piston.LowestPosition;
+		float middle=(high-low)/2+low;
+		if(GenMethods.HasBlockData(Piston,"DefaultPosition"))
+			middle=GenMethods.GetBlockData<float>(Piston,"DefaultPosition",float.Parse);
+		if(status==MyParityStatus.NotReady)
+			status=MyParityStatus.Return;
+		if(status==MyParityStatus.Return){
+			Piston.Velocity=(middle-position)/2;
+			if(Math.Abs(position-middle)<.1){
+				DefaultPos=GetEndPosition();
+				status=MyParityStatus.Testing;
+				Piston.Velocity=1;
+			}
+		}
+		if(status==MyParityStatus.Testing){
+			Piston.Velocity=(high-position)/2;
+			if(position>=(high-middle)*.8f+middle){
+				Vector3D ForwardPos=GetEndPosition();
+				double difference=GenMethods.DirectionComp(ForwardPos-DefaultPos,direction);
+				if(Math.Abs(difference)>=0.5){
+					Piston.Velocity=-1;
+					status=MyParityStatus.Reset;
+				}
+			}
+		}
+		if(status==MyParityStatus.Reset){
+			Piston.Velocity=(middle-position)/2;
+			if(angle.Difference(new MyAngle(0))<1){
+				Piston.Velocity=0;
+				SetBlockData(Block,"Parity",(ForwardPos-DefaultPos).Z<0);
+				status=MyParityStatus.Ready;
+			}
+		}
+		GenMethods.SetBlockData(Block,"ParityStatus",status.ToString());
+		return status==MyParityStatus.Ready;
+	}
+	
+	public static bool ValidPneumatic(IMyMotorStator baseRotor,IMyMotorStator joint){
+		if(baseRotor.CubeGrid!=joint.CubeGrid)
+			return false;
+		IMyPistonBase piston=CollectionMethods<IMyPistonBase>.ByGrid(baseRotor.TopGrid);
+		if(piston==null)
+			return false;
+		IMyMotorStator topRotor=CollectionMethods<IMyMotorStator>.ByGrid(piston.TopGrid);
+		return topRotor!=null&&topRotor.TopGrid==joint.TopGrid;
+	}
+	
+	public static MyJointPneumatic TryGet(IMyMotorStator joint){
+		IMyMotorStator baseRotor=CollectionMethods<IMyMotorStator>.ByFunc<IMyMotorStator>(ValidPneumatic,joint,CollectionMethods<IMyMotorStator>.AllByGrid(joint.CubeGrid));
+		if(baseRotor==null)
+			return null;
+		IMyPistonBase piston=CollectionMethods<IMyPistonBase>.ByGrid(baseRotor.TopGrid);
+		IMyMotorStator topRotor=CollectionMethods<IMyMotorStator>.ByGrid(piston.TopGrid);
+		return new MyJointPneumatic(piston,baseRotor,topRotor,joint.Top);
+	}
+}
+class MyJoint{
+	public IMyMotorStator Rotor;
+	public IMyJointController Joint;
+	protected Vector3D 
+	
+	public MyJoint(IMyMotorStator rotor){
+		Rotor=rotor;
+		MyJointPneumatic pneumatic=MyPneumatic.TryGet(rotor);
+		if(pneumatic!=null)
+			Joint=new MyJointRotor(Rotor);
+		else
+			Joint=new MyJointPneumatic(pneumatic);
+	}
+	
+	
+}
+
+class MyLeg{
+	public MyJoint Hip;
+	public MyJoint Knee;
+	public MyJoint Ankle;
+	
+	
+}
+
 
 // Saving and Data Storage Classes
 public void Save(){
@@ -81,6 +438,186 @@ public void Save(){
 	
 }
 
+public struct MyAngle{
+	private float _Degrees;
+	public float Degrees{
+		get{
+			return _Degrees;
+		}
+		set{
+			_Degrees=value%360;
+			while(_Degrees<0)
+				_Degrees+=360;
+		}
+	}
+	
+	public MyAngle(float degrees){
+		_Degrees=degrees;
+		Degrees=degrees;
+	}
+	
+	public static MyAngle FromRadians(float Rads){
+		return new MyAngle((float)(Rads/Math.PI*180));
+	}
+	
+	public float FromTop(MyAngle other){
+		if(other.Degrees>=Degrees)
+			return other.Degrees-Degrees;
+		return other.Degrees-Degrees+360;
+	}
+	
+	public float FromBottom(MyAngle other){
+		if(other.Degrees<=Degrees)
+			return Degrees-other.Degrees;
+		return Degrees-other.Degrees+360;
+	}
+	
+	public float Difference(MyAngle other){
+		return Math.Min(FromTop(other),FromBottom(other));
+	}
+	
+	public static bool IsBetween(MyAngle Bottom, MyAngle Middle, MyAngle Top){
+		return Bottom.FromTop(Middle)<=Bottom.FromTop(Top);
+	}
+	
+	public static bool TryParse(string parse,out MyAngle output){
+		output=new MyAngle(0);
+		float d;
+		if(!float.TryParse(parse.Substring(0,Math.Max(0,parse.Length-1)),out d))
+			return false;
+		output=new MyAngle(d);
+		return true;
+	}
+	
+	public static MyAngle operator +(MyAngle a1, MyAngle a2){
+		return new MyAngle(a1.Degrees+a2.Degrees);
+	}
+	
+	public static MyAngle operator +(MyAngle a1, float a2){
+		return new MyAngle(a1.Degrees+a2);
+	}
+	
+	public static MyAngle operator +(float a1, MyAngle a2){
+		return a2 + a1;
+	}
+	
+	public static MyAngle operator -(MyAngle a1, MyAngle a2){
+		return new MyAngle(a1.Degrees-a2.Degrees);
+	}
+	
+	public static MyAngle operator -(MyAngle a1, float a2){
+		return new MyAngle(a1.Degrees-a2);
+	}
+	
+	public static MyAngle operator -(float a1, MyAngle a2){
+		return new MyAngle(a1-a2.Degrees);
+	}
+	
+	public static MyAngle operator *(MyAngle a1, float m){
+		return new MyAngle(a1.Degrees*m);
+	}
+	
+	public static MyAngle operator *(float m, MyAngle a2){
+		return a2*m;
+	}
+	
+	public static MyAngle operator /(MyAngle a1, float m){
+		return new MyAngle(a1.Degrees/m);
+	}
+	
+	public static bool operator ==(MyAngle a1, MyAngle a2){
+		float degrees=(a1-a2).Degrees;
+		if(degrees>180)
+			degrees-=360;
+		return Math.Abs(degrees)<0.000001f;
+	}
+	
+	public static bool operator !=(MyAngle a1, MyAngle a2){
+		return Math.Abs(a1.Degrees-a2.Degrees)>=0.000001f;
+	}
+	
+	public override bool Equals(object o){
+		return (o.GetType()==this.GetType()) && this==((MyAngle)o);
+	}
+	
+	public override int GetHashCode(){
+		return Degrees.GetHashCode();
+	}
+	
+	public static bool operator >(MyAngle a1, MyAngle a2){
+		return a1.FromTop(a2)>a1.FromBottom(a2);
+	}
+	
+	public static bool operator >=(MyAngle a1, MyAngle a2){
+		return (a1==a2)||(a1>a2);
+	}
+	
+	public static bool operator <=(MyAngle a1, MyAngle a2){
+		return (a1==a2)||(a1<a2);
+	}
+	
+	public static bool operator <(MyAngle a1, MyAngle a2){
+		return a1.FromTop(a2)<a1.FromBottom(a2);
+	}
+	
+	public override string ToString(){
+		if(Degrees>=180)
+			return (Degrees-360).ToString()+'°';
+		else
+			return Degrees.ToString()+'°';
+	}
+	
+	public string ToString(int n){
+		n=Math.Min(0,n);
+		if(Degrees>=180)
+			return Math.Round(Degrees-360,n).ToString()+'°';
+		else
+			return Math.Round(Degrees,n).ToString()+'°';
+	}
+	
+	public static string LinedFloat(float deg, int sections=10){
+		string output="[";
+		for(int i=-180/sections;i<0;i++){
+			if(deg<0){
+				if(deg/sections<=i+1)
+					output+='|';
+				else
+					output+=' ';
+			}
+			else
+				output+=' ';
+		}
+		for(int i=0;i<180/sections;i++){
+			if(deg<0)
+				output+=' ';
+			else{
+				if(deg/sections>=(i+1))
+					output+='|';
+				else
+					output+=' ';
+			}
+		}
+		output+=']';
+		return output;
+	}
+	
+	public string LinedString(int sections=10){
+		if(Degrees>=180)
+			return LinedFloat(Degrees-360,sections);
+		return LinedFloat(Degrees,sections);
+	}
+	
+	public string LinedString(MyAngle Comparison){
+		string output="Actual: "+LinedString();
+		output+="\nComparison: ";
+		float deg=Difference(Comparison);
+		if(deg>=180)
+			output+=LinedFloat(deg-360);
+		else
+			output+=LinedFloat(deg);
+		return output;
+	}
+}
 
 // Core Components
 TimeSpan TimeSinceStart=new TimeSpan(0);
@@ -90,6 +627,7 @@ double SecondsSinceLastUpdate=0;
 
 static class Prog{
 	public static MyGridProgram P;
+	public static IMyShipController Controller;
 }
 
 static class GenMethods{
@@ -160,6 +698,23 @@ static class GenMethods{
 		return true;
 	}
 
+	public static bool WipeBlockData(IMyTerminalBlock Bloc,string Name){
+		if(Name.Contains(':'))
+			return false;
+		string[] args=Block.CustomData.Split('•');
+		for(int i=0; i<args.Count(); i++){
+			if(args[i].IndexOf(Name+':')==0){
+				Block.CustomData="";
+				for(int j=0; j<args.Count(); j++){
+					if(j!=i)
+						Block.CustomData+='•'+args[j];
+				}
+				return true;
+			}
+		}
+		return false;
+	}
+
 	public static Vector3D GlobalToLocal(Vector3D Global,IMyCubeBlock Ref){
 		Vector3D Local=Vector3D.Transform(Global+Ref.GetPosition(),MatrixD.Invert(Ref.WorldMatrix));
 		Local.Normalize();
@@ -184,6 +739,24 @@ static class GenMethods{
 
 	public static List<T> Merge<T>(List<T> L1,List<T> L2){
 		return L1.Concat(L2).ToList();
+	}
+	
+	public static double DirectionComp(Vector3D v,Base6Directions.Direction d){
+		switch(d){
+			case Base6Directions.Direction.Forward:
+				return -1*v.Z;
+			case Base6Directions.Direction.Backward:
+				return v.Z;
+			case Base6Directions.Direction.Up:
+				return v.Y;
+			case Base6Directions.Direction.Down:
+				return -1*v.Y;
+			case Base6Directions.Direction.Left:
+				return -1*v.X;
+			case Base6Directions.Direction.Right:
+				return v.X;
+		}
+		return 0;
 	}
 }
 
@@ -303,6 +876,31 @@ static class CollectionMethods<T> where T:class,IMyTerminalBlock{
 	
 	public static List<T> AllByFunc(Func<T,bool> f){
 		return AllByFunc(f,AllConstruct);
+	}
+	
+	public static T ByFunc<U>(Func<T,U,bool> f,U param,List<T> blocks){
+		foreach(T Block in blocks){
+			if(Block!=null&&f(Block,param))
+				return Block;
+		}
+		return null;
+	}
+	
+	public static T ByFunc<U>(Func<T,U,bool> f,U param){
+		return ByFunc<U>(f,param,AllConstruct);
+	}
+	
+	public static List<T> AllByFunc<U>(Func<T,U,bool> f,U param,List<T> blocks){
+		List<T> output=new List<T>();
+		foreach(T Block in blocks){
+			if(Block!=null&&f(Block,param))
+				output.Add(Block);
+		}
+		return output;
+	}
+	
+	public static List<T> AllByFunc<U>(Func<T,U,bool> f,U param){
+		return AllByFunc(f,param,AllConstruct);
 	}
 	
 	public static T ByGrid(IMyCubeGrid Grid,List<T> blocks){
