@@ -81,26 +81,25 @@ public enum MyParityStatus{
 	Ready
 }
 public interface IMyJointController{
-	public IMyCubeGrid BottomGrid;
-	public IMyCubeGrid TopGrid;
+	MyParityStatus ParityStatus();
+	bool Parity();
 	
-	public MyParityStatus ParityStatus();
-	public bool Parity();
+	bool GoForward(float multx);
+	bool GoForward();
+	bool GoBackward(float multx);
+	bool GoBackward();
+	bool Stop();
 	
-	public bool GoForward(float multx);
-	public bool GoForward();
-	public bool GoBackward(float multx);
-	public bool GoBackward();
-	public bool Stop();
+	float Position();
 	
-	public float Position();
-	
-	public bool SetParity(Vector3D localDirection);
+	bool SetParity(Base6Directions.Direction direction);
 }
-public virtual class MyJointController<T>:IMyJointController where T:class,IMyMechanicalConnectionBlock{
+public abstract class MyJointController<T>:IMyJointController where T:class,IMyMechanicalConnectionBlock{
 	public T Block;
 	protected IMyCubeBlock Connection;
 	protected Vector3I LengthVector;
+	protected IMyCubeGrid BottomGrid;
+	protected IMyCubeGrid TopGrid;
 	protected double JointLength{
 		get{
 			return VectorLength(LengthVector-Connection.Position);
@@ -119,16 +118,16 @@ public virtual class MyJointController<T>:IMyJointController where T:class,IMyMe
 	}
 	
 	public MyParityStatus ParityStatus(){
-		ParityStatus output=MyParityStatus.NotReady;
+		MyParityStatus output=MyParityStatus.NotReady;
 		if(GenMethods.HasBlockData(Block,"ParityStatus")){
 			string str=GenMethods.GetBlockData(Block,"ParityStatus");
-			output=Enum.Parse(MyParityStatus,str);
+			output=(MyParityStatus)Enum.Parse(typeof(MyParityStatus),str);
 		}
 		return output;
 	}
 	
 	public bool Parity(){
-		return GenMethods<bool>.GetBlockData(Block,"Parity",bool.Parse);
+		return GenMethods.GetBlockData<bool>(Block,"Parity",bool.Parse);
 	}
 	
 	void LengthVectorHelper(Dictionary<int,List<Vector3I>> positions,Vector3I start,Vector3I pos){
@@ -138,16 +137,19 @@ public virtual class MyJointController<T>:IMyJointController where T:class,IMyMe
 			switch(i){
 				case 0:
 					x=1;
+					break;
 				case 1:
 					x=-1;
 					break;
 				case 2:
 					y=1;
+					break;
 				case 3:
 					y=-1;
 					break;
 				case 4:
 					z=1;
+					break;
 				case 5:
 					z=-1;
 					break;
@@ -170,7 +172,7 @@ public virtual class MyJointController<T>:IMyJointController where T:class,IMyMe
 		foreach(Vector3I pos in positions[distance]){
 			LengthVectorHelper(positions,start,pos);
 		}
-		return positions(distance+1).Count>0;
+		return positions[distance+1].Count>0;
 	}
 	
 	protected Vector3I GetLengthVector(){
@@ -178,7 +180,7 @@ public virtual class MyJointController<T>:IMyJointController where T:class,IMyMe
 			return LengthVector;
 		if(GenMethods.HasBlockData(Block,"LengthVector")){
 			Vector3I output;
-			if(Vector3I.TryParse(GenMethods.GetBlockData(Block,"LengthVector"),out output)){
+			if(Vector3I.TryParseFromString(GenMethods.GetBlockData(Block,"LengthVector"),out output)){
 				LengthVector=output;
 				return LengthVector;
 			}
@@ -188,7 +190,7 @@ public virtual class MyJointController<T>:IMyJointController where T:class,IMyMe
 		positions.Add(0,new List<Vector3I>());
 		positions[0].Add(start);
 		int distance=0;
-		while(LengthVectorHelper(start,distance,positions))
+		while(LengthVectorHelper(positions,start,distance))
 			distance++;
 		LengthVector=positions[distance][0]-start;
 		return LengthVector;
@@ -197,6 +199,7 @@ public virtual class MyJointController<T>:IMyJointController where T:class,IMyMe
 	public static double VectorLength(Vector3I v){
 		return (new Vector3D(v.X,v.Y,v.Z)).Length();
 	}
+	
 	
 	public bool GoForward(){
 		float multx=1;
@@ -216,6 +219,12 @@ public virtual class MyJointController<T>:IMyJointController where T:class,IMyMe
 		return GoForward(multx);
 	}
 	
+	public abstract bool GoForward(float multx);
+	public abstract bool GoBackward(float multx);
+	public abstract bool Stop();
+	public abstract float Position();
+	public abstract bool SetParity(Base6Directions.Direction direction);
+	
 }
 class MyJointRotor:MyJointController<IMyMotorStator>{
 	public IMyMotorStator Rotor{
@@ -225,15 +234,14 @@ class MyJointRotor:MyJointController<IMyMotorStator>{
 		set{
 			Block=value;
 		}
-	};
+	}
 	
 	public MyJointRotor(IMyMotorStator rotor):base(rotor,rotor.Top){
 		BottomGrid=rotor.CubeGrid;
 		TopGrid=rotor.TopGrid;
 	}
 	
-	
-	public bool GoForward(float multx){
+	public override bool GoForward(float multx){
 		MyAngle Angle=MyAngle.FromRadians(Rotor.Angle);
 		MyAngle Limit=MyAngle.FromRadians(Rotor.UpperLimitRad);
 		bool atLimit=Limit.FromBottom(Angle)<0.1;
@@ -242,24 +250,28 @@ class MyJointRotor:MyJointController<IMyMotorStator>{
 		return !atLimit;
 	}
 	
-	public bool GoBackward(float multx){
+	public override bool GoBackward(float multx){
 		MyAngle Angle=MyAngle.FromRadians(Rotor.Angle);
-		MyAngle Limit=MyAngle.FromRadians(Rotor.LowerLimitrad);
+		MyAngle Limit=MyAngle.FromRadians(Rotor.LowerLimitRad);
 		bool atLimit=Limit.FromTop(Angle)<0.1;
 		Rotor.RotorLock=atLimit;
 		Rotor.TargetVelocityRPM=atLimit?0:3*multx*(Parity()?-1:1);
 		return !atLimit;
 	}
 	
-	public bool Stop(){
+	public override bool Stop(){
 		Rotor.TargetVelocityRPM=0;
 		Rotor.RotorLock=true;
 		return true;
 	}
 	
+	public override float Position(){
+		return (float)(180*Rotor.Angle/Math.PI);
+	}
+	
 	Vector3D DefaultPos;
 	Vector3D ForwardPos;
-	public bool SetParity(Base6Directions.Direction direction){
+	public override bool SetParity(Base6Directions.Direction direction){
 		MyParityStatus status=ParityStatus();
 		MyAngle angle=MyAngle.FromRadians(Rotor.Angle);
 		if(status==MyParityStatus.NotReady)
@@ -273,8 +285,8 @@ class MyJointRotor:MyJointController<IMyMotorStator>{
 			}
 		}
 		if(status==MyParityStatus.Testing){
-			Rotor.TargetVelocityRpm=(angle-30).Degrees/-2;
-			if(angle>25){
+			Rotor.TargetVelocityRPM=(angle-30).Degrees/-2;
+			if(angle>new MyAngle(25)){
 				Vector3D ForwardPos=GetEndPosition();
 				double difference=GenMethods.DirectionComp(ForwardPos-DefaultPos,direction);
 				if(Math.Abs(difference)>=0.5){
@@ -287,7 +299,7 @@ class MyJointRotor:MyJointController<IMyMotorStator>{
 			Rotor.TargetVelocityRad=Rotor.Angle/-2;
 			if(angle.Difference(new MyAngle(0))<1){
 				Rotor.TargetVelocityRPM=0;
-				SetBlockData(Block,"Parity",(ForwardPos-DefaultPos).Z<0);
+				GenMethods.SetBlockData(Block,"Parity",((ForwardPos-DefaultPos).Z<0).ToString());
 				status=MyParityStatus.Ready;
 			}
 		}
@@ -303,7 +315,7 @@ class MyJointPneumatic:MyJointController<IMyPistonBase>{
 		set{
 			Block=value;
 		}
-	};
+	}
 	public IMyMotorStator BaseRotor;
 	public IMyMotorStator TopRotor;
 	
@@ -315,24 +327,34 @@ class MyJointPneumatic:MyJointController<IMyPistonBase>{
 	}
 	
 	
-	public bool GoForward(float multx){
+	public override bool GoForward(float multx){
 		Piston.Velocity=0.5f*multx*(Parity()?1:-1);
 		return Piston.Status==PistonStatus.Extending||Piston.Status==PistonStatus.Retracting;
 	}
 	
-	public bool GoBackward(float multx){
+	public override bool GoBackward(float multx){
 		Piston.Velocity=0.5f*multx*(Parity()?-1:1);
 		return Piston.Status==PistonStatus.Extending||Piston.Status==PistonStatus.Retracting;
 	}
 	
-	public bool Stop(){
+	public override bool Stop(){
 		Piston.Velocity=0;
 		return Piston.Status!=PistonStatus.Extending&&Piston.Status!=PistonStatus.Retracting;
 	}
 	
+	public override float Position(){
+		float position=Piston.CurrentPosition;
+		float high=Piston.HighestPosition;
+		float low=Piston.LowestPosition;
+		float middle=(high-low)/2+low;
+		if(GenMethods.HasBlockData(Piston,"DefaultPosition"))
+			middle=GenMethods.GetBlockData<float>(Piston,"DefaultPosition",float.Parse);
+		return position-middle;
+	}
+	
 	Vector3D DefaultPos;
 	Vector3D ForwardPos;
-	public bool SetParity(Base6Directions.Direction direction){
+	public override bool SetParity(Base6Directions.Direction direction){
 		MyParityStatus status=ParityStatus();
 		float position=Piston.CurrentPosition;
 		float high=Piston.HighestPosition;
@@ -363,9 +385,9 @@ class MyJointPneumatic:MyJointController<IMyPistonBase>{
 		}
 		if(status==MyParityStatus.Reset){
 			Piston.Velocity=(middle-position)/2;
-			if(angle.Difference(new MyAngle(0))<1){
+			if((position-middle)<=.05){
 				Piston.Velocity=0;
-				SetBlockData(Block,"Parity",(ForwardPos-DefaultPos).Z<0);
+				GenMethods.SetBlockData(Block,"Parity",((ForwardPos-DefaultPos).Z<0).ToString());
 				status=MyParityStatus.Ready;
 			}
 		}
@@ -395,15 +417,14 @@ class MyJointPneumatic:MyJointController<IMyPistonBase>{
 class MyJoint{
 	public IMyMotorStator Rotor;
 	public IMyJointController Joint;
-	protected Vector3D 
 	
 	public MyJoint(IMyMotorStator rotor){
 		Rotor=rotor;
-		MyJointPneumatic pneumatic=MyPneumatic.TryGet(rotor);
+		MyJointPneumatic pneumatic=MyJointPneumatic.TryGet(rotor);
 		if(pneumatic!=null)
 			Joint=new MyJointRotor(Rotor);
 		else
-			Joint=new MyJointPneumatic(pneumatic);
+			Joint=pneumatic;
 	}
 	
 	
@@ -698,7 +719,7 @@ static class GenMethods{
 		return true;
 	}
 
-	public static bool WipeBlockData(IMyTerminalBlock Bloc,string Name){
+	public static bool WipeBlockData(IMyTerminalBlock Block,string Name){
 		if(Name.Contains(':'))
 			return false;
 		string[] args=Block.CustomData.Split('•');
