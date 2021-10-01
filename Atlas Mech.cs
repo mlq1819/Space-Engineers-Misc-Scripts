@@ -15,6 +15,70 @@ public void Main(string argument,UpdateType updateSource){
 }
 
 
+
+
+void LeanCorrection(){
+	//Just use a gyroscope
+	Vector3D targetVector;
+	if(Gravity.Length()==0){
+		targetVector=Gravity*-1;
+	}
+	else{
+		Vector3D v1=LeftLeg.Hip.Joint.LengthVector*-1;
+		Vector3D v2=RightLeg.Hip.Joint.LengthVector*-1;
+		v1.Normalize();
+		v2.Normalize();
+		targetVector=(v1+v2)/2;
+	}
+	targetVector.Normalize();
+	double forwardLean=GetAngle(BackwardVector,targetVector)-GetAngle(ForwardVector,targetVector);
+	if(forwardLean>0.1){
+		foreach(MyLeg leg in Legs){
+			if(leg.Locked){
+				leg.Hip.Joint.GoBackward(Math.Min(Math.Abs(forwardLean),3));
+			}
+			else{
+				leg.Hip.Joint.GoForward(Math.Min(Math.Abs(forwardLean),3));
+			}
+		}
+	}
+	else if(forwardLean<-0.1){
+		foreach(MyLeg leg in Legs){
+			if(leg.Locked){
+				leg.Hip.Joint.GoForward(Math.Min(Math.Abs(forwardLean),3));
+			}
+			else{
+				leg.Hip.Joint.GoBackward(Math.Min(Math.Abs(forwardLean),3));
+			}
+		}
+	}
+}
+
+Vector3D Get_ForwardVector(){
+	return GenMethods.LocalToGlobal(new Vector3D(0,0,-1),Controller);
+}
+Roo<Vector3D> ForwardVector=new Roo<Vector3D>(Get_ForwardVector);
+Vector3D Get_BackwardVector(){
+	return GenMethods.LocalToGlobal(new Vector3D(0,0,1),Controller);
+}
+Roo<Vector3D> BackwardVector=new Roo<Vector3D>(Get_BackwardVector);
+Vector3D Get_UpVector(){
+	return GenMethods.LocalToGlobal(new Vector3D(0,1,0),Controller);
+}
+Roo<Vector3D> UpVector=new Roo<Vector3D>(Get_UpVector);
+Vector3D Get_DownVector(){
+	return GenMethods.LocalToGlobal(new Vector3D(0,-1,0),Controller);
+}
+Roo<Vector3D> DownVector=new Roo<Vector3D>(Get_DownVector);
+Vector3D Get_LeftVector(){
+	return GenMethods.LocalToGlobal(new Vector3D(-1,0,0),Controller);
+}
+Roo<Vector3D> LeftVector=new Roo<Vector3D>(Get_LeftVector);
+Vector3D Get_RightVector(){
+	return GenMethods.LocalToGlobal(new Vector3D(1,0,0),Controller);
+}
+Roo<Vector3D> RightVector=new Roo<Vector3D>(Get_RightVector);
+
 // Initialization and Object Definitions
 public Program(){
 	Echo("Beginning initialization.");
@@ -32,7 +96,7 @@ public Program(){
 	// Initialize runtime objects
 	Echo("Initializing objects...");
 	Controller=CollectionMethods<IMyShipController>.ByName("Mech Main");
-	
+	MassBlocks=CollectionMethods<IMyArtificalMassBlock>.AllConstruct;
 	
 	// Load runtime variables from CustomData
 	Echo("Setting variables...");
@@ -69,9 +133,58 @@ IMyShipController Controller{
 		Prog.Controller=value;
 	}
 }
+
+Vector3D Get_CoM(){
+	if(Mass.Count>0){
+		if(NaturalGravity.Length()>0){
+			return (VirtualCoM*VirtualMass+Controller.CenterOfMass*ShipMass.TotalMass)/(VirtualMass+ShipMass.TotalMass);
+		}
+		return VirtualCoM;
+	}
+	return Controller.CenterOfMass;
+}
+Roo<Vector3D> CoM=new Roo<Vector3D>(Get_CoM);
+Roo<Vector3D> NaturalGravity=new Roo<Vector3D>(Controller.GetNaturalGravity);
+Vector3D Get_Gravity(){
+	if(Mass.Count>0){
+		if(NaturalGravity.Length()>0){
+			return (Controller.GetArtificialGravity()*VirtualMass+NaturalGravity*ShipMass.TotalMass)/(VirtualMass+ShipMass.TotalMass);
+		}
+		return Controller.GetArtificialGravity();
+	}
+	return NaturalGravity;
+}
+Roo<Vector3D> Gravity=new Roo<Vector3D>(Get_Gravity);
+Roo<MyShipMass> ShipMass=new Roo<MyShipMass>(Controller.CalculateShipMass);
+double Get_VirtualMass(){
+	double output=0;
+	foreach(IMyArtificalMassBlock Block in MassBlocks){
+		output+=Block.VirtualMass;
+	}
+	return output;
+}
+Roo<double> VirtualMass=new Roo<double>(Get_VirtualMass);
+Vector3D Get_VirtualCoM(){
+	Vector3D output=new Vector3D(0,0,0);
+	double mass=0;
+	foreach(IMyArtificalMassBlock Block in MassBlocks){
+		output+=Block.GetPosition()*Block.VirtualMass;
+		mass+=Block.VirtualMass;
+	}
+	return output/mass;
+}
+Roo<Vector3D> VirtualCoM=new Roo<Vector3D>(Get_VirtualCoM);
+List<IMyArtificialMassBlock> MassBlocks;
+List<MyLeg> Legs{
+	get{
+		List<MyLeg> output=new List<MyLeg>();
+		output.Add(LeftLeg);
+		output.Add(RightLeg);
+		return output;
+	}
+}
 MyLeg LeftLeg;
 MyLeg RightLeg;
-
 
 public enum MyParityStatus{
 	NotReady,
@@ -83,6 +196,10 @@ public enum MyParityStatus{
 public interface IMyJointController{
 	MyParityStatus ParityStatus();
 	bool Parity();
+	
+	
+	float JointAngle();
+	double CycleTime();
 	
 	bool GoForward(float multx);
 	bool GoForward();
@@ -97,18 +214,36 @@ public interface IMyJointController{
 public abstract class MyJointController<T>:IMyJointController where T:class,IMyMechanicalConnectionBlock{
 	public T Block;
 	protected IMyCubeBlock Connection;
-	protected Vector3I LengthVector;
 	protected IMyCubeGrid BottomGrid;
 	protected IMyCubeGrid TopGrid;
+	private IMyCubeBlock LengthBlock;
+	private Func<Vector3D> Get_LengthVector;
+	public Roo<Vector3D> LengthVector=new Roo<Vector3I>(Get_LengthVector);
 	protected double JointLength{
 		get{
 			return VectorLength(LengthVector-Connection.Position);
 		}
 	}
 	
+	private Vector3D GetLengthByRotor(){
+		return LengthBlock.GetPosition()-Connection.GetPosition();
+	}
+	private Vector3D GetLengthByLandingGear(){
+		return GenMethods.LocalToGlobal(new Vector3D(0,-1,0),LengthBlock);
+	}
+	
 	protected MyJointController(T block,IMyCubeBlock connection){
 		Block=block;
 		Connection=connection;
+		IMyMotorStator testMotor=CollectionMethods<IMyMotorStator>.ByGrid(connection.CubeGrid);
+		if(testMotor!=null){
+			LengthBlock=testMotor;
+			Get_LengthVector=GetLengthByRotor;
+		}
+		else{
+			LengthBlock=CollectionMethods<IMyLandingGear>.ByGrid(connection.CubeGrid);
+			Get_LengthVector=GetLengthByLandingGear;
+		}
 	}
 	
 	protected Vector3D GetEndPosition(){
@@ -200,7 +335,6 @@ public abstract class MyJointController<T>:IMyJointController where T:class,IMyM
 		return (new Vector3D(v.X,v.Y,v.Z)).Length();
 	}
 	
-	
 	public bool GoForward(){
 		float multx=1;
 		if(GenMethods.HasBlockData(Block,"ForwardMultx"))
@@ -219,6 +353,21 @@ public abstract class MyJointController<T>:IMyJointController where T:class,IMyM
 		return GoForward(multx);
 	}
 	
+	protected double CycleTime(double distance){
+		float multx=1;
+		if(GenMethods.HasBlockData(Block,"Multx"))
+			multx=GenMethods.GetBlockData<float>(Block,"Multx",float.Parse);
+		float forwardMultx=multx;
+		if(GenMethods.HasBlockData(Block,"ForwardMultx"))
+			forwardMultx=GenMethods.GetBlockData<float>(Block,"ForwardMultx",float.Parse);
+		float backwardMultx=multx;
+		if(GenMethods.HasBlockData(Block,"BackwardMultx"))
+			backwardMultx=GenMethods.GetBlockData<float>(Block,"BackwardMultx",float.Parse);
+		return distance/Math.Min(Math.Abs(forwardMultx),Math.Abs(backwardMultx));
+	}
+	
+	public abstract float JointAngle();
+	public abstract double CycleTime();
 	public abstract bool GoForward(float multx);
 	public abstract bool GoBackward(float multx);
 	public abstract bool Stop();
@@ -239,6 +388,10 @@ class MyJointRotor:MyJointController<IMyMotorStator>{
 	public MyJointRotor(IMyMotorStator rotor):base(rotor,rotor.Top){
 		BottomGrid=rotor.CubeGrid;
 		TopGrid=rotor.TopGrid;
+	}
+	
+	public override double CycleTime(){
+		return CycleTime(Rotor.UpperLimitDeg-Rotor.LowerLimitDeg);
 	}
 	
 	public override bool GoForward(float multx){
@@ -326,6 +479,9 @@ class MyJointPneumatic:MyJointController<IMyPistonBase>{
 		TopGrid=topRotor.TopGrid;
 	}
 	
+	public override double CycleTime(){
+		return CycleTime(Piston.HighestPosition-Piston.LowestPosition);
+	}
 	
 	public override bool GoForward(float multx){
 		Piston.Velocity=0.5f*multx*(Parity()?1:-1);
@@ -430,11 +586,54 @@ class MyJoint{
 	
 }
 
+enum MyLegHorizontalState{
+	Front,
+	Forward,
+	Center,
+	Backward,
+	Back
+}
+enum MyLegVerticalState{
+	Up,
+	Down
+}
 class MyLeg{
 	public MyJoint Hip;
 	public MyJoint Knee;
 	public MyJoint Ankle;
+	public bool Locked{
+		get{
+			return false;
+		}
+	};
 	
+	protected MyLeg(MyJoint hip,MyJoint knee,MyJoint ankle){
+		Hip=hip;
+		Knee=knee;
+		Ankle=ankle;
+	}
+	
+	public double CycleTime(){
+		return Math.Max(Math.Max(Hip.Joint.CycleTime(),Knee.Joint.CycleTime()),Ankle.Joint.CycleTime());
+	}
+	
+	public static MyLeg TryGet(IMyMotorStator hipRotor){
+		if(hipRotor==null)
+			return null;
+		IMyMotorStator kneeRotor=CollectionMethods<IMyMotorStator>.ByGrid(hipRotor.TopGrid);
+		if(kneeRotor==null)
+			return null;
+		IMyMotorStator ankleRotor=CollectionMethods<IMyMotorStator>.ByGrid(kneeRotor.TopGrid);
+		if(ankleRotor==null)
+			return null;
+		return new MyLeg(new MyJoint(hipRotor),new MyJoint(kneeRotor),new MyJoint(ankleRotor));
+	}
+	
+	public bool DriveState(MyLegHorizontalState,MyLegVerticalState){
+		
+		
+		return false;
+	}
 	
 }
 
