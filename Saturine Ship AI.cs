@@ -44,6 +44,7 @@ public void Main(string argument,UpdateType updateSource){
 	
 	if(++CurrentShip>=Ships.Count){
 		ShipCycle=(ShipCycle%long.MaxValue)+1;
+		CurrentShip=0;
 		switch(updateFrequency){
 			case 1:
 				Runtime.UpdateFrequency=UpdateFrequency.Update1;
@@ -70,10 +71,14 @@ bool TryAddNewShip(IMyShipController controller){
 		if(ship.Grid.IsSameConstructAs(controller.CubeGrid))
 			return false;
 	}
+	var altControllers=CollectionMethods<IMyShipController>.AllByGrid(controller.CubeGrid);
 	try{
-		MyShip newShip=new MyShip(controller);
+		MyShip newShip=new MyShip(controller,altControllers);
 		if(newShip!=null)
 			Ships.Add(newShip);
+		if(newShip!=null){
+			MyShip.ShipCount++;
+		}
 		return newShip!=null;
 	}
 	catch{
@@ -85,7 +90,7 @@ int CurrentShip=0;
 
 // Initialization and Object Definitions
 public Program(){
-	Echo("Beginning initialization.");
+	Write("Beginning initialization.");
 	Prog.P=this;
 	Me.CustomName=(ProgramName+" Programmable block").Trim();
 	for(int i=0;i<Me.SurfaceCount;i++){
@@ -93,32 +98,37 @@ public Program(){
 		Me.GetSurface(i).BackgroundColor=DefaultBackgroundColor;
 		Me.GetSurface(i).Alignment=TextAlignment.CENTER;
 		Me.GetSurface(i).ContentType=ContentType.TEXT_AND_IMAGE;
+		Me.GetSurface(i).Font="Monospace";
 		Me.GetSurface(i).WriteText("",false);
 	}
-	Me.GetSurface(1).FontSize=2.2f;
-	Me.GetSurface(1).TextPadding=40.0f;
-	MyShip.Write=Write;
+	Me.GetSurface(0).FontSize=0.75f;
+	Me.GetSurface(1).FontSize=1.5f;
+	Me.GetSurface(1).TextPadding=30.0f;
+	MyShip.WriteFull=Write;
 	
 	// Initialize runtime objects
-	Echo("Initializing objects...");
+	Write("Initializing objects...");
 	Ships=new List<MyShip>();
 	
 	IMyShipController mainController=CollectionMethods<IMyShipController>.ByGrid(Me.CubeGrid,CollectionMethods<IMyShipController>.AllByName("Main"));
 	if(mainController==null){
 		Write("Failed to retrieve main controller");
 	}
-	TryAddNewShip(mainController);
+	if(TryAddNewShip(mainController)){
+		Write("Added Main Ship\n"+mainController.CustomName);
+	}
 	List<IMyShipController> mainControllers=CollectionMethods<IMyShipController>.AllByName("Main",CollectionMethods<IMyShipController>.AllBlocks);
 	foreach(IMyShipController newController in mainControllers){
-		TryAddNewShip(newController);
+		if(TryAddNewShip(newController))
+			Write("Added New Ship\n"+newController.CustomName);
 	}
 	
 	// Load runtime variables from CustomData
-	Echo("Setting variables...");
+	Write("Setting variables...");
 	
 	
 	// Load data from Storage
-	Echo("Loading data...");
+	Write("Loading data...");
 	string storageMode="";
 	string[] storageArgs=this.Storage.Trim().Split('\n');
 	foreach(string line in storageArgs){
@@ -136,20 +146,25 @@ public Program(){
 		}
 	}
 	
-	Runtime.UpdateFrequency=UpdateFrequency.None;
-	Echo("Completed initialization!");
+	Runtime.UpdateFrequency=UpdateFrequency.Once;
+	Write("Completed initialization!");
 }
 
 List<MyShip> Ships;
 
 public class MyShip{
 	public static List<List<MyEntity>> AllEntities;
-	public static Action<string,bool,bool> Write;
+	public static Action<string,bool,bool> WriteFull;
+	public static void Write(string text){
+		WriteFull(text,true,true);
+	}
+	public static int ShipCount=0;
 	
 	public string Status;
 	public int UpdateFrequency=1;
 	
 	public IMyShipController Controller;
+	public List<IMyShipController> AltControllers;
 	public IMyGyro Gyroscope;
 	List<IMyGyro> AllGyroscopes;
 	
@@ -420,10 +435,16 @@ public class MyShip{
 		}
 	}
 	
-	public MyShip(IMyShipController controller){
+	public MyShip(IMyShipController controller, List<IMyShipController> altControllers){
 		Status="Initializing";
 		Controller=controller;
 		Position=new Roo<Vector3D>(Controller.GetPosition);
+		AltControllers=new List<IMyShipController>();
+		foreach(var altController in altControllers){
+			if(altController!=controller&&altController!=null){
+				AltControllers.Add(altController);
+			}
+		}
 		AllGyroscopes=CollectionMethods<IMyGyro>.AllByGrid(Grid);
 		if(AllGyroscopes.Count==0)
 			throw new ArgumentException("Error initializing ship: No valid gyroscopes");
@@ -518,7 +539,6 @@ public class MyShip{
 		Status="Initialized";
 	}
 	
-	
 	double LastElevation=0;
 	Vector3D LastVelocity=new Vector3D(0,0,0);
 	Vector3D Acceleration=new Vector3D(0,0,0);
@@ -544,6 +564,7 @@ public class MyShip{
 		UpdateFrequency=100;
 		
 		if(true){
+			Write("Thruster Systems");
 			ManageThrusters();
 			UpdateFrequency=1;
 		}
@@ -551,14 +572,18 @@ public class MyShip{
 			ResetThrusters();
 		
 		if(true){
+			Write("Gyroscope Systems");
 			ManageGyroscopes();
 			UpdateFrequency=1;
 		}
 		else
 			Gyroscope.GyroOverride=false;
 		
-		foreach(MyAirlock airlock in Airlocks)
-			airlock.Update(SecondsSinceLastRun);
+		if(Airlocks.Count>0){
+			Write("Airlock Systems");
+			foreach(MyAirlock airlock in Airlocks)
+				airlock.Update(SecondsSinceLastRun);
+		}
 		
 		
 		SecondsSinceLastRun=0;
@@ -566,7 +591,6 @@ public class MyShip{
 	}
 	
 	public void ManageGyroscopes(){
-		Gyroscope.GyroOverride=true;
 		float gyroCount=0;
 		foreach(IMyGyro Gyro in AllGyroscopes){
 			if(Gyro.IsWorking)
@@ -578,19 +602,19 @@ public class MyShip{
 		if(Gravity.Length()>0)
 			input+=LevelGyro(5);
 		if(Controller.IsUnderControl)
-			input=MoveGyro();
+			input=MoveGyro(Controller);
 		else if(false){
 			//AutoGyro(anoguas);
 		}
 		
-		
+		//SetGyroscopes(input);
 	}
 	
-	Vector3 MoveGyro(){
+	Vector3 MoveGyro(IMyShipController controller){
 		Vector3 output=new Vector3(0,0,0);
-		output.X+=Math.Min(Math.Max(Controller.RotationIndicator.X/100,-1),1);
-		output.Y+=Math.Min(Math.Max(Controller.RotationIndicator.Y/100,-1),1);
-		output.Z+=Controller.RollIndicator;
+		output.X+=Math.Min(Math.Max(controller.RotationIndicator.X/100,-1),1);
+		output.Y+=Math.Min(Math.Max(controller.RotationIndicator.Y/100,-1),1);
+		output.Z+=controller.RollIndicator;
 		return output;
 	}
 	
@@ -627,9 +651,22 @@ public class MyShip{
 		return output;
 	}
 	
+	void SetGyroscopes(Vector3 Input){
+		Gyroscope.GyroOverride=true;
+		Vector3 global=Vector3D.TransformNormal(Input,Controller.WorldMatrix);
+		Vector3 output=Vector3D.TransformNormal(global,MatrixD.Invert(Gyroscope.WorldMatrix));
+		output.Normalize();
+		output*=Input.Length();
+		
+		Gyroscope.Pitch=output.X;
+		Gyroscope.Yaw=output.Y;
+		Gyroscope.Roll=output.Z;
+	}
 	
 	public void ManageThrusters(){
 		Vector3 input=DampenThrust();
+		var dampen=new Vector3(input.X,input.Y,input.Z);
+		
 		if(Gravity.Length()>0){
 			if(!Landed())
 				input+=HoverThrust();
@@ -651,8 +688,29 @@ public class MyShip{
 			}
 		}
 		
+		var hover=input-dampen;
+		Write("1.2Gs: "+Math.Round(1.2*9.81,2).ToString());
+		Write("Gravity: "+Math.Round(Gravity.Length(),2).ToString());
+		Write("Hover.Length: "+Math.Round(hover.Length()/ShipMass,2).ToString());
+		Write("Hover.X: "+Math.Round(hover.X/ShipMass,2).ToString());
+		Write("Hover.Y: "+Math.Round(hover.Y/ShipMass,2).ToString());
+		Write("Hover.Z: "+Math.Round(hover.Z/ShipMass,2).ToString());
+		
+		Vector3 moveInput=new Vector3(0,0,0);
 		if(Controller.IsUnderControl){
-			Vector3 moveInput=MoveThrust();
+			moveInput=MoveThrust(Controller);
+		}
+		else {
+			foreach(var altController in AltControllers){
+				if(altController.IsUnderControl){
+					moveInput=MoveThrust(altController);
+					if(moveInput.Length()>0.2)
+						break;
+				}
+			}
+		}
+		
+		if(moveInput.Length()>0.2){
 			if(Math.Abs(moveInput.X)>0.2f)
 				input.X=moveInput.X;
 			if(Math.Abs(moveInput.Y)>0.2f)
@@ -665,6 +723,142 @@ public class MyShip{
 		}
 		
 		SetThrusters(input);
+	}
+	
+	Vector3 MoveThrust(IMyShipController controller){
+		Vector3 output=new Vector3(0,0,0);
+		Vector3 input=controller.MoveIndicator;
+		Write(controller.MoveIndicator.ToString());
+		float multx=(float)(GetDeviationMultx()*0.95f*ShipMass);
+		float effectiveSpeedLimit=GetEffectiveSpeedLimit();
+		if(Math.Abs(input.X)>0.2f){
+			if(input.X<0){
+				if((Velocity+RightAcc-DampenVelocity).Length()<effectiveSpeedLimit)
+					output.X-=RightThrust*multx;
+			}
+			else{
+				if((Velocity+LeftAcc-DampenVelocity).Length()<effectiveSpeedLimit)
+					output.X+=LeftThrust*multx;
+			}
+		}
+		if(Math.Abs(input.Y)>0.2f){
+			if(input.Y>0){
+				if((Velocity+UpAcc-DampenVelocity).Length()<effectiveSpeedLimit)
+					output.Y+=UpThrust*multx;
+			}
+			else{
+				if((Velocity+DownAcc-DampenVelocity).Length()<effectiveSpeedLimit)
+					output.Y-=DownThrust*multx;
+			}
+		}
+		if(Math.Abs(input.Z)>0.2f){
+			if(input.Z<0){
+				if((Velocity+ForwardAcc-DampenVelocity).Length()<effectiveSpeedLimit)
+					output.Z+=ForwardThrust*multx;
+			}
+			else{
+				if((Velocity+BackwardAcc-DampenVelocity).Length()<effectiveSpeedLimit)
+					output.Z-=BackwardThrust*multx;
+			}
+		}
+		return output;
+	}
+	
+	Vector3 DampenThrust(){
+		Vector3 output=new Vector3(0,0,0);
+		Vector3D relative=Relative(Velocity-DampenVelocity);
+		float dampMultx=(float) Math.Max(0.75f,(100-Math.Pow(ShipCount,2))/100f);
+		// relative is in m/s. ShipMass is kg. Looking for Force (kg-ms/s^2). We will assume that we want to stop within 1 second.
+		output.X-=(float)(relative.X*ShipMass*dampMultx);
+		output.Y-=(float)(relative.Y*ShipMass*dampMultx);
+		output.Z+=(float)(relative.Z*ShipMass*dampMultx);
+		return output;
+	}
+	
+	Vector3 HoverThrust(){
+		Vector3 output=new Vector3(0,0,0);
+		if(Gravity.Length()>0){
+			Write("Gravity.Length(): "+Gravity.Length());
+			Vector3D relativeGravity=GenMethods.GlobalToLocal(Gravity,Controller);
+			relativeGravity.Normalize();
+			// relative is a directional vector. MassAccomodation is Force (kg-ms/s^2)
+			output.X-=(float)relativeGravity.X*MassAccomodation;
+			output.Y-=(float)relativeGravity.Y*MassAccomodation;
+			output.Z+=(float)relativeGravity.Z*MassAccomodation;
+		}
+		return output;
+	}
+	
+	Vector3 AutoThrust(Vector3D TargetPosition){
+		return AutoThrust(TargetPosition,(TargetPosition-Position).Length());
+	}
+	
+	void SetThrusters(Vector3 Input){
+		double effectiveSpeedLimit=GetEffectiveSpeedLimit();
+		Input.X=SmoothSpeed("X",Input.X,effectiveSpeedLimit);
+		Input.Y=SmoothSpeed("Y",Input.Y,effectiveSpeedLimit);
+		Input.Z=SmoothSpeed("Z",Input.Z,effectiveSpeedLimit);
+		
+		float outputForward=0;
+		float outputBackward=0;
+		float outputUp=0;
+		float outputDown=0;
+		float outputRight=0;
+		float outputLeft=0;
+		
+		if(Input.X/RightThrust>0.01f)
+			outputRight=Math.Min(Math.Abs(Input.X/RightThrust),1);
+		else if(Input.X/LeftThrust<-0.01f)
+			outputLeft=Math.Min(Math.Abs(Input.X/LeftThrust),1);
+		
+		if(Input.Y/UpThrust>0.01f)
+			outputUp=Math.Min(Math.Abs(Input.Y/UpThrust),1);
+		else if(Input.Y/DownThrust<-0.01f)
+			outputDown=Math.Min(Math.Abs(Input.Y/DownThrust),1);
+		
+		if(Input.Z/ForwardThrust>0.01f)
+			outputForward=Math.Min(Math.Abs(Input.Z/ForwardThrust),1);
+		else if(Input.Z/BackwardThrust<-0.01f)
+			outputBackward=Math.Min(Math.Abs(Input.Z/BackwardThrust),1);
+		
+		const float MIN_THRUST=0.0001f;
+		
+		foreach(IMyThrust thrust in ForwardThrusters){
+			if(outputForward<=0)
+				thrust.ThrustOverride=MIN_THRUST;
+			else
+				thrust.ThrustOverridePercentage=outputForward;
+		}
+		foreach(IMyThrust thrust in BackwardThrusters){
+			if(outputBackward<=0)
+				thrust.ThrustOverride=MIN_THRUST;
+			else
+				thrust.ThrustOverridePercentage=outputBackward;
+		}
+		foreach(IMyThrust thrust in UpThrusters){
+			if(outputUp<=0)
+				thrust.ThrustOverride=MIN_THRUST;
+			else
+				thrust.ThrustOverridePercentage=outputUp;
+		}
+		foreach(IMyThrust thrust in DownThrusters){
+			if(outputDown<=0)
+				thrust.ThrustOverride=MIN_THRUST;
+			else
+				thrust.ThrustOverridePercentage=outputDown;
+		}
+		foreach(IMyThrust thrust in RightThrusters){
+			if(outputRight<=0)
+				thrust.ThrustOverride=MIN_THRUST;
+			else
+				thrust.ThrustOverridePercentage=outputRight;
+		}
+		foreach(IMyThrust thrust in LeftThrusters){
+			if(outputLeft<=0)
+				thrust.ThrustOverride=MIN_THRUST;
+			else
+				thrust.ThrustOverridePercentage=outputLeft;
+		}
 		
 	}
 	
@@ -683,70 +877,6 @@ public class MyShip{
 		if(Math.Abs(effectiveSpeedLimit-SpeedDeviation)<5)
 			output=(float)Math.Sqrt(1-Math.Max(Math.Abs(effectiveSpeedLimit-SpeedDeviation),0.1)/5);
 		return output;
-	}
-	
-	Vector3 MoveThrust(){
-		Vector3 output=new Vector3(0,0,0);
-		Vector3 input=Controller.MoveIndicator;
-		float multx=GetDeviationMultx()*0.95f;
-		float effectiveSpeedLimit=GetEffectiveSpeedLimit();
-		if(Math.Abs(input.X)>0.2f){
-			if(input.X<0){
-				if((Velocity+RightVector-DampenVelocity).Length()<effectiveSpeedLimit)
-					output.X-=RightThrust*multx;
-			}
-			else{
-				if((Velocity+LeftVector-DampenVelocity).Length()<effectiveSpeedLimit)
-					output.X+=LeftThrust*multx;
-			}
-		}
-		if(Math.Abs(input.Y)>0.2f){
-			if(input.Y>0){
-				if((Velocity+UpVector-DampenVelocity).Length()<effectiveSpeedLimit)
-					output.X+=UpThrust*multx;
-			}
-			else{
-				if((Velocity+DownThrust-DampenVelocity).Length()<effectiveSpeedLimit)
-					output.X-=DownThrust*multx;
-			}
-		}
-		if(Math.Abs(input.Z)>0.2f){
-			if(input.Z<0){
-				if((Velocity+ForwardVector-DampenVelocity).Length()<effectiveSpeedLimit)
-					output.X-=ForwardThrust*multx;
-			}
-			else{
-				if((Velocity+BackwardVector-DampenVelocity).Length()<effectiveSpeedLimit)
-					output.X+=BackwardThrust*multx;
-			}
-		}
-		return output;
-	}
-	
-	Vector3 DampenThrust(){
-		Vector3 output=new Vector3(0,0,0);
-		Vector3D relative=Relative(Velocity-DampenVelocity);
-		output.X+=(float)(relative.X*MassAccomodation*0.99f);
-		output.Y-=(float)(relative.Y*MassAccomodation*0.99f);
-		output.Z+=(float)(relative.Z*MassAccomodation*0.99f);
-		return output;
-	}
-	
-	Vector3 HoverThrust(){
-		Vector3 output=new Vector3(0,0,0);
-		if(Gravity.Length()>0){
-			Vector3D relativeGravity=GenMethods.GlobalToLocal(Gravity,Controller);
-			relativeGravity.Normalize();
-			relativeGravity*=Gravity.Length();
-			output.X+=(float)relativeGravity.X;
-			output.Y-=(float)relativeGravity.Y;
-			output.Z+=(float)relativeGravity.Z;
-		}
-		return output;
-	}
-	
-	Vector3 AutoThrust(Vector3D TargetPosition){
-		return AutoThrust(TargetPosition,(TargetPosition-Position).Length());
 	}
 	
 	double SpeedLimitByDistance(double Distance){
@@ -846,76 +976,7 @@ public class MyShip{
 		return Input;
 	}
 	
-	void SetThrusters(Vector3 Input){
-		double effectiveSpeedLimit=GetEffectiveSpeedLimit();
-		Input.X=SmoothSpeed("X",Input.X,effectiveSpeedLimit);
-		Input.Y=SmoothSpeed("Y",Input.Y,effectiveSpeedLimit);
-		Input.Z=SmoothSpeed("Z",Input.Z,effectiveSpeedLimit);
-		
-		float outputForward=0;
-		float outputBackward=0;
-		float outputUp=0;
-		float outputDown=0;
-		float outputRight=0;
-		float outputLeft=0;
-		
-		if(Input.X/RightThrust>0.01f)
-			outputRight=Math.Min(Math.Abs(Input.X/RightThrust),1);
-		else if(Input.X/LeftThrust<-0.01f)
-			outputLeft=Math.Min(Math.Abs(Input.X/LeftThrust),1);
-		
-		if(Input.Y/UpThrust>0.01f)
-			outputUp=Math.Min(Math.Abs(Input.Y/UpThrust),1);
-		else if(Input.Y/DownThrust<-0.01f)
-			outputDown=Math.Min(Math.Abs(Input.Y/DownThrust),1);
-		
-		if(Input.Z/ForwardThrust>0.01f)
-			outputForward=Math.Min(Math.Abs(Input.Z/ForwardThrust),1);
-		else if(Input.Z/BackwardThrust<-0.01f)
-			outputBackward=Math.Min(Math.Abs(Input.Z/BackwardThrust),1);
-		
-		const float MIN_THRUST=0.0001f;
-		
-		foreach(IMyThrust thrust in ForwardThrusters){
-			if(outputForward<=0)
-				thrust.ThrustOverride=MIN_THRUST;
-			else
-				thrust.ThrustOverridePercentage=outputForward;
-		}
-		foreach(IMyThrust thrust in BackwardThrusters){
-			if(outputBackward<=0)
-				thrust.ThrustOverride=MIN_THRUST;
-			else
-				thrust.ThrustOverridePercentage=outputBackward;
-		}
-		foreach(IMyThrust thrust in UpThrusters){
-			if(outputUp<=0)
-				thrust.ThrustOverride=MIN_THRUST;
-			else
-				thrust.ThrustOverridePercentage=outputUp;
-		}
-		foreach(IMyThrust thrust in DownThrusters){
-			if(outputDown<=0)
-				thrust.ThrustOverride=MIN_THRUST;
-			else
-				thrust.ThrustOverridePercentage=outputDown;
-		}
-		foreach(IMyThrust thrust in RightThrusters){
-			if(outputRight<=0)
-				thrust.ThrustOverride=MIN_THRUST;
-			else
-				thrust.ThrustOverridePercentage=outputRight;
-		}
-		foreach(IMyThrust thrust in LeftThrusters){
-			if(outputLeft<=0)
-				thrust.ThrustOverride=MIN_THRUST;
-			else
-				thrust.ThrustOverridePercentage=outputLeft;
-		}
-		
-	}
-	
-	void ResetThrusters(){
+	public void ResetThrusters(){
 		if(GenMethods.HasBlockData(Controller,"SmoothOverride-X"))
 			GenMethods.WipeBlockData(Controller,"SmoothOverride-X");
 		if(GenMethods.HasBlockData(Controller,"SmoothOverride-Y"))
@@ -1162,7 +1223,10 @@ public class MyAirlock{
 // Saving and Data Storage Classes
 public void Save(){
     // Reset Blocks
-	
+	foreach(MyShip ship in Ships){
+		ship.Gyroscope.GyroOverride=false;
+		ship.ResetThrusters();
+	}
 	
 	// Reset Storage
 	this.Storage="";
@@ -1933,6 +1997,7 @@ void UpdateProgramInfo(){
 	Write("",false,false);
 	Echo(ProgramName+" OS\nCycle-"+Cycle.ToString()+"-"+ShipCycle.ToString()+" ("+LoadingChar+")");
 	Me.GetSurface(1).WriteText(ProgramName+" OS\nCycle-"+Cycle.ToString()+" ("+LoadingChar+")",false);
+	Me.GetSurface(1).WriteText("\nCurrent Ship: "+(CurrentShip+1).ToString()+"/"+Ships.Count.ToString(),true);
 	SecondsSinceLastUpdate=Runtime.TimeSinceLastRun.TotalSeconds+(Runtime.LastRunTimeMs/1000);
 	Echo(ToString(FromSeconds(SecondsSinceLastUpdate))+" since last Cycle");
 	TimeSinceStart=UpdateTimeSpan(TimeSinceStart,SecondsSinceLastUpdate);
