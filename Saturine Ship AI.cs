@@ -179,7 +179,7 @@ public class MyShip{
 	}
 	public double ShipMass{
 		get{
-			return Controller.CalculateShipMass().TotalMass;
+			return Controller.CalculateShipMass().PhysicalMass;
 		}
 	}
 	float MassAccomodation{
@@ -664,15 +664,18 @@ public class MyShip{
 	}
 	
 	public void ManageThrusters(){
-		Vector3 input=DampenThrust();
-		var dampen=new Vector3(input.X,input.Y,input.Z);
+		bool dampeners=Controller.DampenersOverride;
+		var dampenVector=new Vector3(0,0,0);
+		if(dampeners)
+			dampenVector=DampenThrust();
 		
+		var hoverVector=new Vector3(0,0,0);
 		if(Gravity.Length()>0){
 			if(!Landed())
-				input+=HoverThrust();
+				hoverVector=HoverThrust();
 			else if(GenMethods.TryGetBlockData<bool>(Controller,"LandingHoverOverride",bool.Parse,false)){
 				if(Velocity.Length()>0.5)
-					input+=HoverThrust();
+					hoverVector=HoverThrust();
 				else if(Velocity.Length()<0.1)
 					GenMethods.SetBlockData(Controller,"LandingHoverOverride",false.ToString());
 			}
@@ -682,86 +685,148 @@ public class MyShip{
 				Vector3D accelerationDirection=Acceleration;
 				accelerationDirection.Normalize();
 				if(GenMethods.GetAngle(gravityDirection,accelerationDirection)<5&&Acceleration.Length()>Gravity.Length()/2){
-					input+=HoverThrust();
+					hoverVector=HoverThrust();
 					GenMethods.SetBlockData(Controller,"LandingHoverOverride",true.ToString());
 				}
 			}
 		}
 		
-		var hover=input-dampen;
-		Write("1.2Gs: "+Math.Round(1.2*9.81,2).ToString());
-		Write("Gravity: "+Math.Round(Gravity.Length(),2).ToString());
-		Write("Hover.Length: "+Math.Round(hover.Length()/ShipMass,2).ToString());
-		Write("Hover.X: "+Math.Round(hover.X/ShipMass,2).ToString());
-		Write("Hover.Y: "+Math.Round(hover.Y/ShipMass,2).ToString());
-		Write("Hover.Z: "+Math.Round(hover.Z/ShipMass,2).ToString());
-		
-		Vector3 moveInput=new Vector3(0,0,0);
+		bool controlled=false;
+		VectorLock moveInput=new VectorLock{Move=new Vector3(0,0,0),Lock=new Vector3I(0,0,0)};
 		if(Controller.IsUnderControl){
 			moveInput=MoveThrust(Controller);
+			controlled=true;
 		}
 		else {
 			foreach(var altController in AltControllers){
 				if(altController.IsUnderControl){
 					moveInput=MoveThrust(altController);
-					if(moveInput.Length()>0.2)
+					controlled=true;
+					if(moveInput.Move.Length()>0.2)
 						break;
 				}
 			}
 		}
 		
-		if(moveInput.Length()>0.2){
-			if(Math.Abs(moveInput.X)>0.2f)
-				input.X=moveInput.X;
-			if(Math.Abs(moveInput.Y)>0.2f)
-				input.Y=moveInput.Y;
-			if(Math.Abs(moveInput.Z)>0.2f)
-				input.Z=moveInput.Z;
+		var moveVector=new Vector3(0,0,0);
+		var lockVector=new Vector3I(0,0,0);
+		if(controlled){
+			moveVector=moveInput.Move;
+			lockVector=moveInput.Lock;
 		}
 		else if(false){
 			//input=AutoThrust();
 		}
 		
+		// Calculate movement vector
+		var input=dampenVector;
+		Write(lockVector.ToString());
+		if(lockVector.Length()>0){
+			if(lockVector.X!=0)
+				input.X=0;
+			if(lockVector.Y!=0)
+				input.Y=0;
+			if(lockVector.Z!=0)
+				input.Z=0;
+		}
+		input+=hoverVector;
+		input+=moveVector;
+		
 		SetThrusters(input);
 	}
 	
-	Vector3 MoveThrust(IMyShipController controller){
+	struct VectorLock{
+		public Vector3 Move;
+		public Vector3I Lock;
+	}
+	
+	VectorLock MoveThrust(IMyShipController controller){
 		Vector3 output=new Vector3(0,0,0);
+		Vector3I thrustLock=new Vector3I(0,0,0);
 		Vector3 input=controller.MoveIndicator;
-		Write(controller.MoveIndicator.ToString());
-		float multx=(float)(GetDeviationMultx()*0.95f*ShipMass);
-		float effectiveSpeedLimit=GetEffectiveSpeedLimit();
+		float multxElevation=(float)(GetDeviationMultx(true)*0.95f);
+		float multxFree=(float)(GetDeviationMultx(false)*0.95f);
+		float effectiveSpeedLimitElevation=GetEffectiveSpeedLimit(true);
+		float effectiveSpeedLimitFree=GetEffectiveSpeedLimit(false);
 		if(Math.Abs(input.X)>0.2f){
 			if(input.X<0){
-				if((Velocity+RightAcc-DampenVelocity).Length()<effectiveSpeedLimit)
-					output.X-=RightThrust*multx;
+				bool considerElevation=GenMethods.GetAngle(RightVector,Gravity)<85;
+				float effectiveSpeedLimit=considerElevation?effectiveSpeedLimitElevation:effectiveSpeedLimitFree;
+				float multx=considerElevation?multxElevation:multxFree;
+				
+				float difference=(float)(effectiveSpeedLimit-(Velocity+RightAcc-DampenVelocity).Length());
+				float differenceMultx=(difference>5)?1:1/(5-difference);
+				if(difference>0)
+					output.X-=RightThrust*multx*differenceMultx*(float)ShipMass;
+				else
+					thrustLock.X=1;
 			}
 			else{
-				if((Velocity+LeftAcc-DampenVelocity).Length()<effectiveSpeedLimit)
-					output.X+=LeftThrust*multx;
+				bool considerElevation=GenMethods.GetAngle(LeftVector,Gravity)<85;
+				float effectiveSpeedLimit=considerElevation?effectiveSpeedLimitElevation:effectiveSpeedLimitFree;
+				float multx=considerElevation?multxElevation:multxFree;
+				
+				float difference=(float)(effectiveSpeedLimit-(Velocity+LeftAcc-DampenVelocity).Length());
+				float differenceMultx=(difference>5)?1:1/(5-difference);
+				if(difference>0)
+					output.X+=LeftThrust*multx*differenceMultx*(float)ShipMass;
+				else
+					thrustLock.X=1;
 			}
 		}
 		if(Math.Abs(input.Y)>0.2f){
 			if(input.Y>0){
-				if((Velocity+UpAcc-DampenVelocity).Length()<effectiveSpeedLimit)
-					output.Y+=UpThrust*multx;
+				bool considerElevation=GenMethods.GetAngle(UpVector,Gravity)<85;
+				float effectiveSpeedLimit=considerElevation?effectiveSpeedLimitElevation:effectiveSpeedLimitFree;
+				float multx=considerElevation?multxElevation:multxFree;
+				
+				float difference=(float)(effectiveSpeedLimit-(Velocity+UpAcc-DampenVelocity).Length());
+				float differenceMultx=(difference>5)?1:1/(5-difference);
+				if(difference>0)
+					output.Y+=UpThrust*multx*differenceMultx*(float)ShipMass;
+				else
+					thrustLock.Y=1;
 			}
 			else{
-				if((Velocity+DownAcc-DampenVelocity).Length()<effectiveSpeedLimit)
-					output.Y-=DownThrust*multx;
+				bool considerElevation=GenMethods.GetAngle(DownVector,Gravity)<85;
+				float effectiveSpeedLimit=considerElevation?effectiveSpeedLimitElevation:effectiveSpeedLimitFree;
+				float multx=considerElevation?multxElevation:multxFree;
+				
+				float difference=(float)(effectiveSpeedLimit-(Velocity+DownAcc-DampenVelocity).Length());
+				float differenceMultx=(difference>5)?1:1/(5-difference);
+				if(difference>0)
+					output.Y-=DownThrust*multx*differenceMultx*(float)ShipMass;
+				else
+					thrustLock.Y=1;
 			}
 		}
 		if(Math.Abs(input.Z)>0.2f){
 			if(input.Z<0){
-				if((Velocity+ForwardAcc-DampenVelocity).Length()<effectiveSpeedLimit)
-					output.Z+=ForwardThrust*multx;
+				bool considerElevation=GenMethods.GetAngle(ForwardVector,Gravity)<85;
+				float effectiveSpeedLimit=considerElevation?effectiveSpeedLimitElevation:effectiveSpeedLimitFree;
+				float multx=considerElevation?multxElevation:multxFree;
+				
+				float difference=(float)(effectiveSpeedLimit-(Velocity+ForwardAcc-DampenVelocity).Length());
+				float differenceMultx=(difference>5)?1:1/(5-difference);
+				if(difference>0)
+					output.Z+=ForwardThrust*multx*differenceMultx*(float)ShipMass;
+				else
+					thrustLock.Z=1;
 			}
 			else{
-				if((Velocity+BackwardAcc-DampenVelocity).Length()<effectiveSpeedLimit)
-					output.Z-=BackwardThrust*multx;
+				bool considerElevation=GenMethods.GetAngle(BackwardVector,Gravity)<85;
+				float effectiveSpeedLimit=considerElevation?effectiveSpeedLimitElevation:effectiveSpeedLimitFree;
+				float multx=considerElevation?multxElevation:multxFree;
+				
+				float difference=(float)(effectiveSpeedLimit-(Velocity+BackwardAcc-DampenVelocity).Length());
+				float differenceMultx=(difference>5)?1:1/(5-difference);
+				if(difference>0)
+					output.Z-=BackwardThrust*multx*differenceMultx*(float)ShipMass;
+				else
+					thrustLock.Z=1;
 			}
 		}
-		return output;
+		return new VectorLock{Move=output,Lock=thrustLock};
 	}
 	
 	Vector3 DampenThrust(){
@@ -778,7 +843,6 @@ public class MyShip{
 	Vector3 HoverThrust(){
 		Vector3 output=new Vector3(0,0,0);
 		if(Gravity.Length()>0){
-			Write("Gravity.Length(): "+Gravity.Length());
 			Vector3D relativeGravity=GenMethods.GlobalToLocal(Gravity,Controller);
 			relativeGravity.Normalize();
 			// relative is a directional vector. MassAccomodation is Force (kg-ms/s^2)
@@ -862,18 +926,20 @@ public class MyShip{
 		
 	}
 	
-	float GetEffectiveSpeedLimit(){
+	float GetEffectiveSpeedLimit(bool considerElevation=true){
 		float output=100;
-		double elevationDeviation=Math.Max(0,Math.Min(20,Grid.GridSize/4))+10;
-		if(Elevation<200+elevationDeviation)
-			output=(float)Math.Min(output,Math.Sqrt(Math.Max(Elevation-elevationDeviation,0)/200)*100);
+		if(considerElevation){
+			double elevationDeviation=Math.Max(0,Math.Min(20,Grid.GridSize/4))+10;
+			if(Elevation<200+elevationDeviation)
+				output=(float)Math.Min(output,Math.Sqrt(Math.Max(Elevation-elevationDeviation,0)/200)*100);
+		}
 		output=Math.Max(output,5);
 		return output;
 	}
 	
-	float GetDeviationMultx(){
+	float GetDeviationMultx(bool considerElevation=true){
 		float output=1;
-		float effectiveSpeedLimit=GetEffectiveSpeedLimit();
+		float effectiveSpeedLimit=GetEffectiveSpeedLimit(considerElevation);
 		if(Math.Abs(effectiveSpeedLimit-SpeedDeviation)<5)
 			output=(float)Math.Sqrt(1-Math.Max(Math.Abs(effectiveSpeedLimit-SpeedDeviation),0.1)/5);
 		return output;
