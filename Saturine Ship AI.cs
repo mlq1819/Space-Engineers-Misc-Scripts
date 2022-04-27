@@ -198,6 +198,14 @@ public class MyShip{
 	
 	public List<MyAirlock> Airlocks;
 	
+	public IMyShipConnector Connector;
+	public Vector3D? DockingForward=null;
+	public Vector3D? DockingUp=null;
+	
+	public Vector3D? TargetPosition=null;
+	public Vector3D? TargetDirection=null;
+	public Vector3D? TargetUp=null;
+	
 	public IMyCubeGrid Grid{
 		get{
 			return Controller.CubeGrid;
@@ -513,6 +521,8 @@ public class MyShip{
 		
 		Parachutes=CollectionMethods<IMyParachute>.AllByGrid(Grid);
 		
+		Connector=CollectionMethods<IMyShipConnector>.ByGrid(Grid);
+		
 		List<IMyDoor> airlockDoors=CollectionMethods<IMyDoor>.AllByName("Airlock",CollectionMethods<IMyDoor>.AllByConstruct(Grid));
 		Dictionary<string,int> airlockNames=new Dictionary<string,int>();
 		for(int i=0;i<airlockDoors.Count;i++){
@@ -625,6 +635,18 @@ public class MyShip{
 			}
 		}
 		
+		if(Connector!=null){
+			if(Connector.Status==MyShipConnectorStatus.Connected){
+				Connector.Enabled=false;
+			}
+			else if(!Connector.Enabled){
+				Connector.Enabled=true;
+			}
+			else{
+				Connector.Connect();
+			}
+		}
+		
 		
 		SecondsSinceLastRun=0;
 		Status="Completed Operations";
@@ -668,14 +690,13 @@ public class MyShip{
 		
 		Vector3 levelVector=new Vector3(0,0,0);
 		if(Gravity.Length()>0){
-			float angleMultx=Landed()?10:1;
-			if(controlled)
-				levelVector=LevelGyro(10*angleMultx);
-			else
-				levelVector=LevelGyro(1*angleMultx);
+			float angle=1;
+			angle*=Landed()?10:1;
+			angle*=controlled?5:1;
+			levelVector=LevelGyro(angle);
 		}
 		
-		if(levelVector.Length()>0)
+		if(levelVector.Length()>1)
 			attention=Math.Min(attention,1);
 		
 		// Calculate movement vector
@@ -713,19 +734,19 @@ public class MyShip{
 		
 		double verticalDifference=GenMethods.GetAngle(gravityDirection,ForwardVector)-GenMethods.GetAngle(gravityDirection,BackwardVector);
 		if(GenMethods.GetAngle(gravityDirection,ForwardVector)<90&&Math.Abs(verticalDifference)>TolerantAngle)
-			output.X-=10*((float)Math.Min(Math.Abs(verticalDifference/90),1));
+			output.X-=10*((float)Math.Min(Math.Abs(verticalDifference/90)+10,1));
 		if(GenMethods.GetAngle(gravityDirection,ForwardVector)>90&&Math.Abs(verticalDifference)>TolerantAngle&&GenMethods.GetAngle(gravityDirection,ForwardVector)<120)
-			output.X+=10*((float)Math.Min(Math.Abs(verticalDifference/90),1));
+			output.X+=10*((float)Math.Min(Math.Abs(verticalDifference/90)+10,1));
 		
 		double horizontalDifference=GenMethods.GetAngle(gravityDirection,LeftVector)-GenMethods.GetAngle(gravityDirection,RightVector);
 		if(GenMethods.GetAngle(gravityDirection,ForwardVector)<90&&Math.Abs(horizontalDifference)>TolerantAngle)
-			output.Y-=5*((float)Math.Min(Math.Abs((90-horizontalDifference)/90),1));
+			output.Y-=5*((float)Math.Min(Math.Abs((90-horizontalDifference)/90)+10,1));
 		
 		if(Math.Abs(horizontalDifference)>TolerantAngle){
 			if(horizontalDifference<0)
-				output.Z+=10*((float)Math.Min(Math.Abs(horizontalDifference/90),1));
+				output.Z+=10*((float)Math.Min(Math.Abs(horizontalDifference/90)+10,1));
 			else
-				output.Z-=10*((float)Math.Min(Math.Abs(horizontalDifference/90),1));
+				output.Z-=10*((float)Math.Min(Math.Abs(horizontalDifference/90)+10,1));
 		}
 		
 		return output;
