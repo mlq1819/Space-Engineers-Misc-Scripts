@@ -26,7 +26,12 @@ public void Main(string argument,UpdateType updateSource){
 					break;
 			}
 			if(runMe){
-				Write("Performing Operations for "+(i+1).ToString()+"/"+Ships.Count);
+				if(Ships.Count==1)
+					Write("Performing Operations for:\n"+ship.Grid.CustomName);
+				else if(i==0||!ship.Grid.CustomName.Equals(Ships[0].Grid.CustomName))
+					Write("Performing Operations for "+(i+1).ToString()+"/"+Ships.Count+":\n"+ship.Grid.CustomName);
+				else
+					Write("Performing Operations for "+(i+1).ToString()+"/"+Ships.Count);
 				try{
 					ship.RunSystemOperations();
 				}
@@ -63,7 +68,6 @@ public void Main(string argument,UpdateType updateSource){
 }
 UpdateFrequency LastUpdate=UpdateFrequency.Update1;
 
-
 bool TryAddNewShip(IMyShipController controller){
 	if(controller==null)
 		return false;
@@ -71,7 +75,9 @@ bool TryAddNewShip(IMyShipController controller){
 		if(ship.Grid.IsSameConstructAs(controller.CubeGrid))
 			return false;
 	}
-	var altControllers=CollectionMethods<IMyShipController>.AllByGrid(controller.CubeGrid);
+	var altControllers=new List<IMyShipController>();
+	if(!controller.IsMainCockpit)
+		altControllers=CollectionMethods<IMyShipController>.AllByGrid(controller.CubeGrid);
 	try{
 		MyShip newShip=new MyShip(controller,altControllers);
 		if(newShip!=null)
@@ -125,12 +131,29 @@ public Program(){
 	
 	// Load runtime variables from CustomData
 	Write("Setting variables...");
-	
+	string storageMode="";
+	string[] storageArgs=Me.CustomData.Trim().Split('\n');
+	foreach(string line in storageArgs){
+		switch(line){
+			case "GlobalSpeedLimit":
+				storageMode=line;
+				break;
+			default:
+				switch(storageMode){
+					case "GlobalSpeedLimit":
+						var globalSpeedLimit=MyShip.GlobalSpeedLimit;
+						if(float.TryParse(line,out globalSpeedLimit))
+							MyShip.GlobalSpeedLimit=globalSpeedLimit;
+						break;
+				}
+				break;
+		}
+	}
 	
 	// Load data from Storage
 	Write("Loading data...");
-	string storageMode="";
-	string[] storageArgs=this.Storage.Trim().Split('\n');
+	storageMode="";
+	storageArgs=this.Storage.Trim().Split('\n');
 	foreach(string line in storageArgs){
 		switch(line){
 			case "SampleData":
@@ -159,6 +182,7 @@ public class MyShip{
 		WriteFull(text,true,true);
 	}
 	public static int ShipCount=0;
+	public static float GlobalSpeedLimit=100;
 	
 	public string Status;
 	public int UpdateFrequency=1;
@@ -167,6 +191,8 @@ public class MyShip{
 	public List<IMyShipController> AltControllers;
 	public IMyGyro Gyroscope;
 	List<IMyGyro> AllGyroscopes;
+	
+	public List<IMyParachute> Parachutes;
 	
 	public List<IMyLandingGear> LandingGear;
 	
@@ -443,7 +469,7 @@ public class MyShip{
 		Position=new Roo<Vector3D>(Controller.GetPosition);
 		AltControllers=new List<IMyShipController>();
 		foreach(var altController in altControllers){
-			if(altController!=controller&&altController!=null){
+			if(altController!=null&&altController!=controller&&altController.ControlThrusters){
 				AltControllers.Add(altController);
 			}
 		}
@@ -484,6 +510,8 @@ public class MyShip{
 			if(gear.IsParkingEnabled)
 				LandingGear.Add(gear);
 		}
+		
+		Parachutes=CollectionMethods<IMyParachute>.AllByGrid(Grid);
 		
 		List<IMyDoor> airlockDoors=CollectionMethods<IMyDoor>.AllByName("Airlock",CollectionMethods<IMyDoor>.AllByConstruct(Grid));
 		Dictionary<string,int> airlockNames=new Dictionary<string,int>();
@@ -581,9 +609,20 @@ public class MyShip{
 		
 		if(Airlocks.Count>0){
 			Write("Airlock Systems");
-			foreach(MyAirlock airlock in Airlocks)
+			foreach(var airlock in Airlocks)
 				airlock.Update(SecondsSinceLastRun);
 			UpdateFrequency=Math.Min(UpdateFrequency,10);
+		}
+		
+		if(Parachutes.Count>0){
+			Write("Parachute System");
+			if(Gravity.Length()>0&&Elevation<500){
+				foreach(var parachute in Parachutes){
+					if(parachute.AutoDeploy&&parachute.Status==DoorStatus.Open){
+						parachute.AutoDeploy=false;
+					}
+				}
+			}
 		}
 		
 		
@@ -603,13 +642,6 @@ public class MyShip{
 		float multx=(float)Math.Max(0.1f,Math.Min(1,1.5f/(ShipMass/gyroCount/1000000)))/(Math.Max(1,angularMomentum/1.5f));
 		
 		Vector3 dampenVector=DampenGyro();
-		
-		Vector3 levelVector=new Vector3(0,0,0);
-		if(Gravity.Length()>0)
-			levelVector=LevelGyro(1);
-		
-		if(levelVector.Length()>0)
-			attention=Math.Min(attention,1);
 		
 		bool controlled=false;
 		Vector3 moveVector=new Vector3(0,0,0);
@@ -633,6 +665,18 @@ public class MyShip{
 			if(moveVector.Length()>0)
 				attention=Math.Min(attention,10);
 		}
+		
+		Vector3 levelVector=new Vector3(0,0,0);
+		if(Gravity.Length()>0){
+			float angleMultx=Landed()?10:1;
+			if(controlled)
+				levelVector=LevelGyro(10*angleMultx);
+			else
+				levelVector=LevelGyro(1*angleMultx);
+		}
+		
+		if(levelVector.Length()>0)
+			attention=Math.Min(attention,1);
 		
 		// Calculate movement vector
 		var input=dampenVector;
@@ -674,7 +718,7 @@ public class MyShip{
 			output.X+=10*((float)Math.Min(Math.Abs(verticalDifference/90),1));
 		
 		double horizontalDifference=GenMethods.GetAngle(gravityDirection,LeftVector)-GenMethods.GetAngle(gravityDirection,RightVector);
-		if(GenMethods.GetAngle(gravityDirection,ForwardVector)<120&&Math.Abs(horizontalDifference)>TolerantAngle)
+		if(GenMethods.GetAngle(gravityDirection,ForwardVector)<90&&Math.Abs(horizontalDifference)>TolerantAngle)
 			output.Y-=5*((float)Math.Min(Math.Abs((90-horizontalDifference)/90),1));
 		
 		if(Math.Abs(horizontalDifference)>TolerantAngle){
@@ -712,11 +756,21 @@ public class MyShip{
 		
 		bool dampeners=Controller.DampenersOverride;
 		var dampenVector=new Vector3(0,0,0);
-		if(dampeners)
-			dampenVector=DampenThrust();
+		dampenVector=DampenThrust();
+		if(!dampeners){
+			if(GenMethods.GetAngle(Velocity,ForwardVector)>15){
+				dampenVector.X=0;
+				dampenVector.Y=0;
+			}
+			dampenVector.Z=0;
+		}
 		
 		var hoverVector=new Vector3(0,0,0);
-		if(Gravity.Length()>0){
+		bool descentOverride=Velocity.Length()>=20&&GenMethods.GetAngle(Velocity,Gravity)<5&&Elevation>1000;
+		if(!descentOverride)
+			descentOverride=Parachutes.Count>0&&Parachutes[0].Atmosphere>0.1f&&Parachutes[0].Status==DoorStatus.Open;
+		
+		if(Gravity.Length()>0&&!descentOverride){
 			if(!Landed())
 				hoverVector=HoverThrust();
 			else if(GenMethods.TryGetBlockData<bool>(Controller,"LandingHoverOverride",bool.Parse,false)){
@@ -804,15 +858,17 @@ public class MyShip{
 		float multxFree=(float)(GetDeviationMultx(false)*0.95f);
 		float effectiveSpeedLimitElevation=GetEffectiveSpeedLimit(true);
 		float effectiveSpeedLimitFree=GetEffectiveSpeedLimit(false);
+		float timeMultx=0.1f;
+		bool descentOverride=Velocity.Length()>=99&&GenMethods.GetAngle(Velocity,Gravity)<5;
 		if(Math.Abs(input.X)>0.2f){
 			if(input.X<0){
 				bool considerElevation=GenMethods.GetAngle(RightVector,Gravity)<85;
 				float effectiveSpeedLimit=considerElevation?effectiveSpeedLimitElevation:effectiveSpeedLimitFree;
 				float multx=considerElevation?multxElevation:multxFree;
 				
-				float difference=(float)(effectiveSpeedLimit-(Velocity+RightAcc-DampenVelocity).Length());
+				float difference=(float)(effectiveSpeedLimit-(Velocity+RightAcc*timeMultx-DampenVelocity).Length());
 				float differenceMultx=(difference>5)?1:1/(5-difference);
-				if(difference>0)
+				if(difference>0||descentOverride)
 					output.X-=RightThrust*multx*differenceMultx*(float)ShipMass;
 				else
 					thrustLock.X=1;
@@ -822,9 +878,9 @@ public class MyShip{
 				float effectiveSpeedLimit=considerElevation?effectiveSpeedLimitElevation:effectiveSpeedLimitFree;
 				float multx=considerElevation?multxElevation:multxFree;
 				
-				float difference=(float)(effectiveSpeedLimit-(Velocity+LeftAcc-DampenVelocity).Length());
+				float difference=(float)(effectiveSpeedLimit-(Velocity+LeftAcc*timeMultx-DampenVelocity).Length());
 				float differenceMultx=(difference>5)?1:1/(5-difference);
-				if(difference>0)
+				if(difference>0||descentOverride)
 					output.X+=LeftThrust*multx*differenceMultx*(float)ShipMass;
 				else
 					thrustLock.X=1;
@@ -836,9 +892,9 @@ public class MyShip{
 				float effectiveSpeedLimit=considerElevation?effectiveSpeedLimitElevation:effectiveSpeedLimitFree;
 				float multx=considerElevation?multxElevation:multxFree;
 				
-				float difference=(float)(effectiveSpeedLimit-(Velocity+UpAcc-DampenVelocity).Length());
+				float difference=(float)(effectiveSpeedLimit-(Velocity+UpAcc*timeMultx-DampenVelocity).Length());
 				float differenceMultx=(difference>5)?1:1/(5-difference);
-				if(difference>0)
+				if(difference>0||descentOverride)
 					output.Y+=UpThrust*multx*differenceMultx*(float)ShipMass;
 				else
 					thrustLock.Y=1;
@@ -848,9 +904,9 @@ public class MyShip{
 				float effectiveSpeedLimit=considerElevation?effectiveSpeedLimitElevation:effectiveSpeedLimitFree;
 				float multx=considerElevation?multxElevation:multxFree;
 				
-				float difference=(float)(effectiveSpeedLimit-(Velocity+DownAcc-DampenVelocity).Length());
+				float difference=(float)(effectiveSpeedLimit-(Velocity+DownAcc*timeMultx-DampenVelocity).Length());
 				float differenceMultx=(difference>5)?1:1/(5-difference);
-				if(difference>0)
+				if(difference>0||descentOverride)
 					output.Y-=DownThrust*multx*differenceMultx*(float)ShipMass;
 				else
 					thrustLock.Y=1;
@@ -862,9 +918,9 @@ public class MyShip{
 				float effectiveSpeedLimit=considerElevation?effectiveSpeedLimitElevation:effectiveSpeedLimitFree;
 				float multx=considerElevation?multxElevation:multxFree;
 				
-				float difference=(float)(effectiveSpeedLimit-(Velocity+ForwardAcc-DampenVelocity).Length());
+				float difference=(float)(effectiveSpeedLimit-(Velocity+ForwardAcc*timeMultx-DampenVelocity).Length());
 				float differenceMultx=(difference>5)?1:1/(5-difference);
-				if(difference>0)
+				if(difference>0||descentOverride)
 					output.Z+=ForwardThrust*multx*differenceMultx*(float)ShipMass;
 				else
 					thrustLock.Z=1;
@@ -874,9 +930,9 @@ public class MyShip{
 				float effectiveSpeedLimit=considerElevation?effectiveSpeedLimitElevation:effectiveSpeedLimitFree;
 				float multx=considerElevation?multxElevation:multxFree;
 				
-				float difference=(float)(effectiveSpeedLimit-(Velocity+BackwardAcc-DampenVelocity).Length());
+				float difference=(float)(effectiveSpeedLimit-(Velocity+BackwardAcc*timeMultx-DampenVelocity).Length());
 				float differenceMultx=(difference>5)?1:1/(5-difference);
-				if(difference>0)
+				if(difference>0||descentOverride)
 					output.Z-=BackwardThrust*multx*differenceMultx*(float)ShipMass;
 				else
 					thrustLock.Z=1;
@@ -1014,11 +1070,11 @@ public class MyShip{
 	}
 	
 	float GetEffectiveSpeedLimit(bool considerElevation=true){
-		float output=100;
+		float output=GlobalSpeedLimit;
 		if(considerElevation){
 			var effectiveElevation=GetEffectiveElevation();
-			if(effectiveElevation<200)
-				output=(float)Math.Min(output,Math.Sqrt(Math.Max(effectiveElevation,0)/200)*100);
+			if(effectiveElevation<2*GlobalSpeedLimit)
+				output=(float)Math.Min(output,Math.Sqrt(Math.Max(effectiveElevation,0)/(2*GlobalSpeedLimit))*GlobalSpeedLimit);
 		}
 		output=Math.Max(output,5);
 		return output;
@@ -1359,14 +1415,32 @@ public void Save(){
 	this.Storage="";
 	
 	// Save Data to Storage
-	this.Storage+="\n"+"SampleData";
+	this.Storage+="SampleData";
 	this.Storage+="\n"+"lorem ipsum";
 	
 	// Update runtime variables from CustomData
-	
+	string storageMode="";
+	string[] storageArgs=Me.CustomData.Trim().Split('\n');
+	foreach(string line in storageArgs){
+		switch(line){
+			case "GlobalSpeedLimit":
+				storageMode=line;
+				break;
+			default:
+				switch(storageMode){
+					case "GlobalSpeedLimit":
+						var globalSpeedLimit=MyShip.GlobalSpeedLimit;
+						if(float.TryParse(line,out globalSpeedLimit))
+							MyShip.GlobalSpeedLimit=globalSpeedLimit;
+						break;
+				}
+				break;
+		}
+	}
 	
 	// Reset CustomData
-	Me.CustomData="";
+	Me.CustomData="GlobalSpeedLimit";
+	Me.CustomData+="\n"+MyShip.GlobalSpeedLimit.ToString();
 	
 	// Save Runtime Data to CustomData
 	
