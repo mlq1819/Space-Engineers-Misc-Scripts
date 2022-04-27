@@ -422,6 +422,8 @@ public class MyShip{
 	public Roo<Vector3D> PlanetCenter;
 	
 	public bool Landed(){
+		if(Velocity.Length()<2.5f&&GetEffectiveElevation()<10)
+			return true;
 		foreach(IMyLandingGear gear in LandingGear){
 			if(gear.IsLocked)
 				return true;
@@ -565,16 +567,14 @@ public class MyShip{
 		
 		if(true){
 			Write("Thruster Systems");
-			ManageThrusters();
-			UpdateFrequency=1;
+			UpdateFrequency=Math.Min(UpdateFrequency,ManageThrusters());
 		}
 		else
 			ResetThrusters();
 		
 		if(true){
 			Write("Gyroscope Systems");
-			ManageGyroscopes();
-			UpdateFrequency=1;
+			UpdateFrequency=Math.Min(UpdateFrequency,ManageGyroscopes());
 		}
 		else
 			Gyroscope.GyroOverride=false;
@@ -583,6 +583,7 @@ public class MyShip{
 			Write("Airlock Systems");
 			foreach(MyAirlock airlock in Airlocks)
 				airlock.Update(SecondsSinceLastRun);
+			UpdateFrequency=Math.Min(UpdateFrequency,10);
 		}
 		
 		
@@ -590,7 +591,9 @@ public class MyShip{
 		Status="Completed Operations";
 	}
 	
-	public void ManageGyroscopes(){
+	public int ManageGyroscopes(){
+		int attention=10;
+		
 		float gyroCount=0;
 		foreach(IMyGyro Gyro in AllGyroscopes){
 			if(Gyro.IsWorking)
@@ -598,16 +601,51 @@ public class MyShip{
 		}
 		float angularMomentum=(float)(Controller.GetShipVelocities().AngularVelocity.Length());
 		float multx=(float)Math.Max(0.1f,Math.Min(1,1.5f/(ShipMass/gyroCount/1000000)))/(Math.Max(1,angularMomentum/1.5f));
-		Vector3 input=DampenGyro();
+		
+		Vector3 dampenVector=DampenGyro();
+		
+		Vector3 levelVector=new Vector3(0,0,0);
 		if(Gravity.Length()>0)
-			input+=LevelGyro(5);
-		if(Controller.IsUnderControl)
-			input=MoveGyro(Controller);
-		else if(false){
-			//AutoGyro(anoguas);
+			levelVector=LevelGyro(1);
+		
+		if(levelVector.Length()>0)
+			attention=Math.Min(attention,1);
+		
+		bool controlled=false;
+		Vector3 moveVector=new Vector3(0,0,0);
+		if(Controller.IsUnderControl){
+			moveVector=MoveGyro(Controller);
+			controlled=true;
+		}
+		else {
+			foreach(var altController in AltControllers){
+				if(altController.IsUnderControl){
+					moveVector=MoveGyro(altController);
+					controlled=true;
+					if(moveVector.Length()>0.2)
+						break;
+				}
+			}
 		}
 		
-		//SetGyroscopes(input);
+		if(!controlled&&false){
+			//AutoGyro(anoguas);
+			if(moveVector.Length()>0)
+				attention=Math.Min(attention,10);
+		}
+		
+		// Calculate movement vector
+		var input=dampenVector;
+		input+=levelVector;
+		if(moveVector.X!=0)
+			input.X=moveVector.X;
+		if(moveVector.Y!=0)
+			input.Y=moveVector.Y;
+		if(moveVector.Z!=0)
+			input.Z=moveVector.Z;
+		
+		SetGyroscopes(input*multx);
+		return attention;
 	}
 	
 	Vector3 MoveGyro(IMyShipController controller){
@@ -630,15 +668,21 @@ public class MyShip{
 		gravityDirection.Normalize();
 		
 		double verticalDifference=GenMethods.GetAngle(gravityDirection,ForwardVector)-GenMethods.GetAngle(gravityDirection,BackwardVector);
-		if(GenMethods.GetAngle(gravityDirection,ForwardVector)<120&&Math.Abs(verticalDifference)>TolerantAngle)
-			output.X-=10*((float)Math.Min(Math.Abs((90-verticalDifference)/90),1));
+		if(GenMethods.GetAngle(gravityDirection,ForwardVector)<90&&Math.Abs(verticalDifference)>TolerantAngle)
+			output.X-=10*((float)Math.Min(Math.Abs(verticalDifference/90),1));
+		if(GenMethods.GetAngle(gravityDirection,ForwardVector)>90&&Math.Abs(verticalDifference)>TolerantAngle&&GenMethods.GetAngle(gravityDirection,ForwardVector)<120)
+			output.X+=10*((float)Math.Min(Math.Abs(verticalDifference/90),1));
 		
 		double horizontalDifference=GenMethods.GetAngle(gravityDirection,LeftVector)-GenMethods.GetAngle(gravityDirection,RightVector);
 		if(GenMethods.GetAngle(gravityDirection,ForwardVector)<120&&Math.Abs(horizontalDifference)>TolerantAngle)
 			output.Y-=5*((float)Math.Min(Math.Abs((90-horizontalDifference)/90),1));
 		
-		if(Math.Abs(horizontalDifference)>TolerantAngle)
-			output.Z-=10*((float)Math.Min(Math.Abs((90-horizontalDifference)/90),1));
+		if(Math.Abs(horizontalDifference)>TolerantAngle){
+			if(horizontalDifference<0)
+				output.Z+=10*((float)Math.Min(Math.Abs(horizontalDifference/90),1));
+			else
+				output.Z-=10*((float)Math.Min(Math.Abs(horizontalDifference/90),1));
+		}
 		
 		return output;
 	}
@@ -663,7 +707,9 @@ public class MyShip{
 		Gyroscope.Roll=output.Z;
 	}
 	
-	public void ManageThrusters(){
+	public int ManageThrusters(){
+		int attention=10;
+		
 		bool dampeners=Controller.DampenersOverride;
 		var dampenVector=new Vector3(0,0,0);
 		if(dampeners)
@@ -716,11 +762,12 @@ public class MyShip{
 		}
 		else if(false){
 			//input=AutoThrust();
+			if(moveVector.Length()>0)
+				attention=Math.Min(attention,1);
 		}
 		
 		// Calculate movement vector
 		var input=dampenVector;
-		Write(lockVector.ToString());
 		if(lockVector.Length()>0){
 			if(lockVector.X!=0)
 				input.X=0;
@@ -730,9 +777,18 @@ public class MyShip{
 				input.Z=0;
 		}
 		input+=hoverVector;
-		input+=moveVector;
+		if(moveVector.X!=0)
+			input.X=moveVector.X;
+		if(moveVector.Y!=0)
+			input.Y=moveVector.Y;
+		if(moveVector.Z!=0)
+			input.Z=moveVector.Z;
+		
+		if(!input.Equals(moveVector))
+			attention=Math.Min(attention,10);
 		
 		SetThrusters(input);
+		return attention;
 	}
 	
 	struct VectorLock{
@@ -857,6 +913,32 @@ public class MyShip{
 		return AutoThrust(TargetPosition,(TargetPosition-Position).Length());
 	}
 	
+	Vector3 AutoThrust(Vector3D TargetPosition,double TargetDistance){
+		Vector3 output=new Vector3(0,0,0);
+		Vector3D relativeTargetPosition=GenMethods.GlobalToLocalPosition(TargetPosition-Position,Controller);
+		float effectiveSpeedLimit=GetEffectiveSpeedLimit();
+		Vector3D relative=Relative(Velocity-DampenVelocity);
+		Vector3D relativeGravity=GenMethods.GlobalToLocal(Gravity,Controller);
+		relativeGravity.Normalize();
+		relativeGravity*=Gravity.Length();
+		
+		float multx=GetDeviationMultx();
+		
+		float thrustValue=MatchThrust(effectiveSpeedLimit,relative.X,DampenVelocity.X,relativeTargetPosition.X,LeftThrust,RightThrust,LeftVector,RightVector,-1*(float)relativeGravity.X);
+		if(Math.Abs(thrustValue)>=1)
+			output.X-=thrustValue*multx-(float)relativeGravity.X;
+		
+		thrustValue=MatchThrust(effectiveSpeedLimit,relative.Y,DampenVelocity.Y,relativeTargetPosition.Y,DownThrust,UpThrust,DownVector,UpVector,-1*(float)relativeGravity.Y);
+		if(Math.Abs(thrustValue)>=1)
+			output.Y+=thrustValue*multx-(float)relativeGravity.Y;
+		
+		thrustValue=-1*MatchThrust(effectiveSpeedLimit,relative.Z,DampenVelocity.Z,relativeTargetPosition.Z,ForwardThrust,BackwardThrust,ForwardVector,BackwardVector,(float)relativeGravity.Z);
+		if(Math.Abs(thrustValue)>=1)
+			output.Z+=thrustValue*multx+(float)relativeGravity.Z;
+		
+		return output;
+	}
+	
 	void SetThrusters(Vector3 Input){
 		double effectiveSpeedLimit=GetEffectiveSpeedLimit();
 		Input.X=SmoothSpeed("X",Input.X,effectiveSpeedLimit);
@@ -926,12 +1008,17 @@ public class MyShip{
 		
 	}
 	
+	double GetEffectiveElevation(){
+		double elevationDeviation=Math.Max(0,Math.Min(20,Grid.GridSize/4))+10;
+		return Elevation-elevationDeviation;
+	}
+	
 	float GetEffectiveSpeedLimit(bool considerElevation=true){
 		float output=100;
 		if(considerElevation){
-			double elevationDeviation=Math.Max(0,Math.Min(20,Grid.GridSize/4))+10;
-			if(Elevation<200+elevationDeviation)
-				output=(float)Math.Min(output,Math.Sqrt(Math.Max(Elevation-elevationDeviation,0)/200)*100);
+			var effectiveElevation=GetEffectiveElevation();
+			if(effectiveElevation<200)
+				output=(float)Math.Min(output,Math.Sqrt(Math.Max(effectiveElevation,0)/200)*100);
 		}
 		output=Math.Max(output,5);
 		return output;
@@ -996,32 +1083,6 @@ public class MyShip{
 				return 0.95f*T2*distanceMultx;
 		}
 		return 0;
-	}
-	
-	Vector3 AutoThrust(Vector3D TargetPosition,double TargetDistance){
-		Vector3 output=new Vector3(0,0,0);
-		Vector3D relativeTargetPosition=GenMethods.GlobalToLocalPosition(TargetPosition-Position,Controller);
-		float effectiveSpeedLimit=GetEffectiveSpeedLimit();
-		Vector3D relative=Relative(Velocity-DampenVelocity);
-		Vector3D relativeGravity=GenMethods.GlobalToLocal(Gravity,Controller);
-		relativeGravity.Normalize();
-		relativeGravity*=Gravity.Length();
-		
-		float multx=GetDeviationMultx();
-		
-		float thrustValue=MatchThrust(effectiveSpeedLimit,relative.X,DampenVelocity.X,relativeTargetPosition.X,LeftThrust,RightThrust,LeftVector,RightVector,-1*(float)relativeGravity.X);
-		if(Math.Abs(thrustValue)>=1)
-			output.X-=thrustValue*multx-(float)relativeGravity.X;
-		
-		thrustValue=MatchThrust(effectiveSpeedLimit,relative.Y,DampenVelocity.Y,relativeTargetPosition.Y,DownThrust,UpThrust,DownVector,UpVector,-1*(float)relativeGravity.Y);
-		if(Math.Abs(thrustValue)>=1)
-			output.Y+=thrustValue*multx-(float)relativeGravity.Y;
-		
-		thrustValue=-1*MatchThrust(effectiveSpeedLimit,relative.Z,DampenVelocity.Z,relativeTargetPosition.Z,ForwardThrust,BackwardThrust,ForwardVector,BackwardVector,(float)relativeGravity.Z);
-		if(Math.Abs(thrustValue)>=1)
-			output.Z+=thrustValue*multx+(float)relativeGravity.Z;
-		
-		return output;
 	}
 	
 	float SmoothSpeed(string DirectionString,float Input,double EffectiveSpeedLimit){
